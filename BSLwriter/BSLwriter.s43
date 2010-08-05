@@ -1,0 +1,71 @@
+#include "msp430.h"                     ; #define controlled include file
+
+            org 01000h          ; Start of "information" memory
+            
+RXD         EQU       1<<2          ; Receive data on P1.2
+TXD         EQU       1<<5          ; Transmit on P1.5
+LEN         EQU       64            ; Length of block to program            
+
+coldstart:  dint
+            mov.b     #TXD,&P1DIR     ; TXD is output
+            clr.b     &P1SEL          ; FOR NOW: all pins connect to P1
+main:       mov       #220h,R13       ; Middle of RAM
+loop:       call      #ReadByte
+            mov.b     R8,0(R13)       ; Save it
+            call      #WriteByte
+            inc       r13
+            cmp       #220h+LEN,R13   ; Compare with limit
+            jnz       loop
+            
+            eint
+            jmp       $
+            
+;
+; Read byte into R8
+;
+ReadByte:   mov       #8,R14
+            mov       #50,R15       ; 1.5 bit times
+waitStartR  bit.b     #RXD,&P1IN
+            jnz       waitStartR    ; Wait for start bit
+start_dly   dec       R15
+            jnz       start_dly     ; Wait till mid first bit
+read_next   bit.b     #RXD,&P1IN    ; Test
+            rrc.b     R8            ; Capture 1 bit, LSB first
+            mov       #31,R15
+read_dly    dec       R15
+            jnz       read_dly
+            dec       R14           ; Bit counter
+            jnz       read_next
+            mov       #28,R15
+stopDlyR    dec       R15
+            jnz       stopDlyR
+            ret
+            
+;
+; Write byte in R8
+;
+WriteByte:  mov       #8,R14
+            mov       #31,R15
+            bic.b     #TXD,&P1OUT  ; Begin start bit
+waitStartT  dec       R15
+            jnz       waitStartT
+write_next  rrc.b     R8            ; Next bit to C
+            jc        setTx
+            bic.b     #TXD,&P1OUT   ; Send a 0
+            jmp       nextTx
+setTx       bis.b     #TXD,&P1OUT   ; Send a 1
+nextTx      mov       #30,R15
+write_dly   dec       R15
+            jnz       write_dly
+            dec       R14
+            jnz       write_next
+            bis.b     #TXD,&P1OUT   ; Stop bit
+            mov       #33,R15
+stopDlyT    dec       R15
+            jnz       stopDlyT
+            ret
+
+            org       0xFFFE
+            dw        coldstart
+
+            end
