@@ -1,0 +1,1824 @@
+#include "msp430.h"
+#include "ControlFlowMacros.h"
+   		COL 132     
+
+#define		TEST	1			; 1 for testing with BMUs in parallel
+#define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
+								; longer sample time (16 uS vs 13 uS) for more stability
+
+WriteByte	EQU		$10CE		; NOTE: for now, this is just an equate. Keep up to date!
+ReadByte	EQU		$108E		; NOTE: likewise
+ID			EQU		$10F7		; NOTE: reserved, but may change
+LED			EQU		1 << 6		; Bit 6 is LED; 1=on now
+BYP			EQU		1 << 5		; Bit 5 is the bypass resistors; 1 = on
+RXD			EQU		1 << 2		; Bit 2 is RXD; 1=mark
+TXDm        EQU     1<<0		; Bit 0 is inverted TXD
+TXDp        EQU     1<<1      	; Bit 1 is non-inverted TXD
+
+;-------------------------------------------------------------------------------
+; Interpreter Register Usage
+
+;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
+;       Rdsp    SP	// Data stack pointer (and machine stack pointer)
+#define Rrsp	R4	// Return stack pointer
+#define Rip		R5	// Virtual machine instruction pointer
+#define Rlit    R6	// Holds partial literals
+#define Rtos	R7	// Top of data stack item - could do without this reg if necc.
+#define Rw      R8	// Working register - temporary - anyone can use
+
+;
+; Status flag usage
+;
+; Bit 15 = 7-bit literal in progress
+; Bit 14 = initialise performed
+; Bit 13 = hex/decimal literal in progress
+
+
+;-------------------------------------------------------------------------------
+; Interpreter Return-Stack push and pop macros
+
+RPUSH	MACRO	arg
+		DECD    Rrsp
+		MOV	arg,0(Rrsp)
+		ENDM
+
+RPOP	MACRO	arg
+		MOV	@Rrsp+,arg
+		ENDM
+
+
+;-------------------------------------------------------------------------------
+; Opcode-table Macros
+
+; The opcode lookup table is in high memory.
+; It contains one word per bytecode opcode, which is the address of the code 
+; that implements the operation, with a flag in the high bit to say whether 
+; it is machine code or bytecode.  0=machine code, 1=bytecode.
+
+_OPCODETBL	EQU	$FEE0  
+
+; Table starts with carriage-return bytecode, so actual start of table is
+; _OPCODETBL + $0D * 2
+
+
+; The "x" at the start of the following macro names stands for "cross-compiling"
+; to distinguish them from possible native versions on the MSP430 in future.
+; The names CODE and COLON (actually ":") are from Forth.
+
+
+; Assemble an opcode-table entry that has a machine-code definition.
+
+xCODE   MACRO   OPCODE,OPCODENAM,_ADDRLBL
+		EVEN	                             ; Force to word boundary
+_ADDRLBL:                                    ; Define the machine-code address label
+OPCODENAM EQU   OPCODE                       ; Define the opcode name
+        ORG     _OPCODETBL+(OPCODE)*2        ; Point to correct opcode-table entry
+        DW      ~(1<<15) & _ADDRLBL          ; Assemble the address with cleared flag
+        ORG     _ADDRLBL                     ; Point back to where the machine code will be assembled
+        ENDM
+
+; Assemble a return from a machine code definition.
+
+xNEXT	MACRO
+		BR	#_NEXT	                     	; Branch to interpreter's _NEXT routine
+		ENDM
+
+; Assemble an opcode-table entry that has a bytecode definition.
+
+xCOLON  MACRO   OPCODE,OPCODENAM,_ADDRLBL   
+_ADDRLBL:                                    ; Define the bytecode-list address label
+OPCODENAM EQU   OPCODE                       ; Define the opcode name
+        ORG     _OPCODETBL+(OPCODE)*2        ; Point to correct opcode-table entry
+        DW      1<<15 | _ADDRLBL             ; Assemble the address with set flag
+        ORG     _ADDRLBL                     ; Point back to where the bytecode list will be compiled
+        ENDM
+
+; To assemble a return from a bytecode definition, use
+;       DB      EXIT
+
+
+; Assemble a word (16-bit) literal. 
+; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte
+
+xLIT    MACRO   VALUE
+PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+        IF      (_VALUE & $FFFF >= $2000) AND (_VALUE & $FFFF < $E000)
+          DB      PFIX | (_VALUE>>14 & $7F)
+        ENDIF
+        IF      (_VALUE & $FFFF >= $0040) AND (_VALUE & $FFFF < $FFC0)
+          DB      PFIX | (_VALUE>>7 & $7F)
+        ENDIF
+        DB      PFIX | (_VALUE & $7F)
+        ENDM
+
+; Set _LEN to length of string (in bytes). Used by the xSLIT (string-literal) macro.
+xGETLEN	MACRO	string
+_SAVEORG SET	$
+		COMMON	_GETLEN :NOROOT		;switch to a COMMON segment
+_LEN	SET	$			;  to allow overlaying
+		DB	string
+_LEN	SET	$ - _LEN
+		ASEG				;switch back to the absolute seg
+		ORG	_SAVEORG
+		ENDM
+
+; Compile a literal string
+xSLIT   MACRO   string
+        DB doSQuote             ; Compile the runtime string-handler
+        xGETLEN string
+        DB _LEN,string          ; Compile the length and the characters
+        ENDM
+
+; Compile the transmission of a literal string
+xDotQuote MACRO   string
+        xSLIT  string
+        DB      TYPE
+        ENDM                
+        
+;-------------------------------------------------------------------------------
+; Cross-compiler Control-flow Macros
+
+; Make a Control-flow Stack (CS) in the assembler so we can implement 
+; Forth-like structured control-flow words for cross-compilation.
+
+xCS_TOP	SET 0
+xCS2    SET 0
+xCS3    SET 0
+xCS4    SET 0
+xCS5    SET 0
+xCS6    SET 0
+xCS7    SET 0
+xCS8    SET 0
+
+xCS_PUSH MACRO arg
+xCS8	SET xCS7
+xCS7	SET xCS6
+xCS6	SET xCS5
+xCS5    SET xCS4
+xCS4    SET xCS3
+xCS3    SET xCS2
+xCS2    SET xCS_TOP
+xCS_TOP SET arg
+        ENDM
+
+xCS_DROP MACRO
+xCS_TOP	SET xCS2
+xCS2    SET xCS3
+xCS3    SET xCS4
+xCS4    SET xCS5
+xCS5    SET xCS6
+xCS6    SET xCS7
+xCS7    SET xCS8
+xCS8    SET 0
+        ENDM
+
+xCS_SWAP MACRO
+xCS_TOP SET xCS_TOP^xCS2
+xCS2    SET xCS_TOP^xCS2
+xCS_TOP SET xCS_TOP^xCS2
+        ENDM
+        
+; Define macros for
+; xIF ... xENDIF
+; xIF ... xELSE ... xENDIF
+
+xAHEAD  MACRO     		; Mark the origin of a forward unconditional branch.
+                  		; Called by xELSE.
+                        LSTOUT+
+        DB Jump         ; Compile an unconditional jump
+                        LSTOUT-
+		xCS_PUSH $      ; Push the location of, and ...
+        ORG $+1	        ; skip over, where its offset will be filled-in later
+                        LSTOUT+
+        				ENDM
+
+xIF 	MACRO     		; Mark the origin of a forward conditional branch.
+                  		; Called by xWHILE.
+                        LSTOUT+
+        DB ZJump        ; Compile a conditional jump
+                        LSTOUT-
+		xCS_PUSH $      ; Push the location of, and ...
+        ORG $+1	        ; skip over, where its offset will be filled-in later
+                        LSTOUT+
+        				ENDM
+
+xENDIF	MACRO     		; Resolve a forward branch due to most recent xAHEAD, xIF, xELSE or xWHILE.
+                        LSTOUT-
+                  		; Called by xELSE and xREPEAT.
+_SAVEORG SET $          ; Remember where we were up to in compiling
+		ORG xCS_TOP     ; Go back to the address on the top of the control-flow stack
+                        LSTOUT+
+        DB _SAVEORG-xCS_TOP-1 ; Backfill the jump offset
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+        ORG _SAVEORG    ; Go forward again to continue compiling
+                        LSTOUT+
+        				ENDM
+
+xELSE	MACRO     		; Mark the origin of a forward unconditional branch and
+                        LSTOUT-
+                  		; resolve a forward branch due to an xIF.
+        xAHEAD          ; Compile an unconditional jump and push its address
+                        LSTOUT-
+        xCS_SWAP        ; Get the original xIF address back on top
+		xENDIF          ; Back-patch ZJump offset for previous xIF
+						ENDM
+
+; Define macros for 
+; xBEGIN ... xAGAIN              (infinite)
+; xBEGIN ... xUNTIL              (post-tested
+; xBEGIN ... xWHILE ... xREPEAT  (pre or mid tested)
+
+xBEGIN  MACRO     		; Mark a backward destination (i.e. the start of a loop)
+                        LSTOUT-
+        xCS_PUSH $      ; Push the address to jump back to
+                        LSTOUT+
+						ENDM
+
+xAGAIN  MACRO     		; Resolve most recent xBEGIN with a backward unconditional branch
+                  		; The end of an infinite loop
+                        LSTOUT+
+		DB Jump         ; Compile an unconditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the stack
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+                        LSTOUT+
+						ENDM
+        
+xUNTIL	MACRO     		; Resolve most recent xBEGIN with a backward conditional branch
+                  		; The end of a post-tested loop
+                        LSTOUT+
+		DB ZJump        ; Compile a conditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the stack
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+                        LSTOUT+
+						ENDM
+        
+xWHILE	MACRO     		; Mark the origin of a forward conditional branch out of a loop
+                        LSTOUT-
+                 		; The test of a pre-tested or mid-tested loop
+		xIF             ; Compile conditional jump and push the address of its offset
+                        LSTOUT-
+		xCS_SWAP        ; Get the xBEGIN address back on top
+                        LSTOUT+
+						ENDM
+
+xREPEAT MACRO     		; Resolve most recent xBEGIN with a backward unconditional branch and
+                        LSTOUT-
+                  		; resolve a forward branch due to most recent xWHILE.
+                  		; The end of a pre-tested or mid-tested loop
+		xAGAIN          ; Jump back to the corresponding xBEGIN
+                        LSTOUT-
+		xENDIF          ; Fill in the offset for the last xWHILE
+                        LSTOUT+
+						ENDM        
+
+; A loop may have additional xWHILEs, but each additional one must be balanced by
+; an xENDIF (or xELSE ... xENDIF) after the xREPEAT or xUNTIL. Examples:
+; xBEGIN ... xWHILE ... xWHILE ... xREPEAT ... xENDIF
+; xBEGIN ... xWHILE ... xUNTIL ... xELSE ...  xENDIF
+; xBEGIN ... xWHILE ... xWHILE ... xAGAIN ... xENDIF ... xENDIF
+;
+; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
+
+; Flash programming macros
+
+; The LOCKA bit in FCTL3 is a *toggle*, for reasons unknown to me. Use this macro to set; could write a 1 to reset later.
+CLRLOCKA	macro
+			BIT 	#LOCKA,&FCTL3		; Test LOCKA
+			JZ		$+2+6				; Already unlocked?
+			MOV		#FWKEY+LOCKA,&FCTL3 ; No, unlock
+			endm
+
+SETLOCKA	macro
+			BIT 	#LOCKA,&FCTL3		; Test LOCKA
+			JNZ		$+2+6				; Already locked?
+			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
+			endm
+
+;------------------------------------------------------------------------------
+; CONSTANTs
+
+xBL        MACRO    ; Blank
+           xLIT     $20
+           ENDM
+               
+xFALSE     MACRO
+           xLIT     0
+           ENDM
+               
+xTRUE      MACRO
+           xLIT     -1
+           ENDM
+               
+;------------------------------------------------------------------------------               
+; VARIABLEs
+
+        ORG $200    ; Start of RAM
+		
+ToIN	DS		2	; Pointer to current character being stored or parsed in text input buffer
+		
+CHKSUM  DS		1	; Packet xor checksum
+
+tentID	DS		1	; Used for tentative ID; see 'i' command. Could be shared with other uses
+		
+VP      DS		2   ; Free Variable space Pointer
+
+CP		DS		2   ; Free Code space Pointer
+
+sampleBuf DS	2*4		; ADC sample buffer
+
+hexFlag	DS		1		; 1 = hex mode (default)
+bCheckForBad DS	1		; 1 = check \ command for \B (badness). Only set if aUtonomous command
+						; received and we are the last cell
+bypassVolts	DS	1		; Non-zero = use this value as the bypass voltage
+
+TIB		EQU     $220  ; Start of Text Input Buffer (Forth terminology)
+
+RSP0	EQU		$260  ; Bottom of Interpreter return stack, grows down
+
+
+
+
+;-------------------------------------------------------------------------------        
+; The outer (serial packet) interpreter   
+
+; Called by the serial-receiver/bootstrap-loader in info-flash.
+; Accumulates bytes into an input buffer until
+; a carriage return (end of packet) is received, whereupon it checks
+; the preceding checksum and, if correct, calls the inner interpreter to interpret the buffer.
+; Otherwise it will reset the buffer, ready for the next packet.
+
+;        ASEG
+        ORG     $F800
+
+main:
+interpretByte:
+		bic.b	#LED,&P1OUT		; EXPERIMENTAL. For now, we set the LED in WriteByte, and clear it here.
+
+        ; Received byte is passed in R8, which must be preserved
+		PUSH R8
+        ; Determine if initialisation is required
+		BIT #1<<14,SR
+		_IF _Z              	; If not initialised
+			MOV #RSP0,Rrsp  	;   Initialise interpreter return stack pointer
+			MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
+			CLR &CHKSUM     	;   Clear the packet checksum
+			mov.b	#-1,&hexFlag;   Set the hexadecimal input (verses decimal) flag
+			clr.b	&bCheckForBad ;	Clear the "checking for badness" flag
+								;   Other initialisation goes here
+			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
+			BIS	#1<<14,SR   	;   Set "initialised" flag (bit 14 of status reg)
+		_ENDIF					; Endif (not initialised)
+		
+		
+		MOV &ToIN,R9
+        CMP #$0D,R8
+		_IF _HS						; Ignore if less
+			_IF _NE					; If not carriage return
+				MOV.B R8,0(R9)		; Write the byte to the buffer
+				INC &ToIN       	; 	Increment the pointer
+				; Will need to check for buffer overflow eventually (32 bytes max)
+				XOR.B R8,&CHKSUM	;   Accumulate the checksum		
+			_ELSE					; Else (carriage return)
+		    	TST.B &CHKSUM
+				;_IF _Z				;   If good checksum
+			    	DEC R9			;     Overwrite the checksum with a RETT bytecode
+					CMP #TIB,R9 	;     Handle case of empty packet with no checksum
+					_IF _LO
+						MOV #TIB,R9
+					_ENDIF
+					MOV.B #RETT,0(R9)
+					MOV #TIB,Rw 	;     Interpret the packet as bytecode
+					CALL #_ENTER
+				;_ENDIF				;   Endif (good checksum)
+				MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
+				CLR &CHKSUM     	;   Clear the packet checksum
+			_ENDIF					; Endif (equals carriage return )
+		_ENDIF						; Endif (higher or same as carriage return)
+        
+        POP R8
+        RET
+
+
+;
+; Hex/decimal input ( -- x)
+; NOTE WELL: the NEXT logic assumes that these opcode handlers are the FIRST,
+; i.e. they have the LOWEST ADDRESS!
+; So DO NOT put any opcode handlers before this point in the file!!
+;
+       xCODE '0',zero,_zero
+       nop            ; Must be a single-word no-op
+       xCODE '1',one,_one
+       nop
+       xCODE '2',two,_two
+       nop
+       xCODE '3',three,_three
+       nop
+       xCODE '4',four,_four
+       nop
+       xCODE '5',five,_five
+       nop
+       xCODE '6',six,_six
+       nop
+       xCODE '7',seven,_seven
+       nop
+       xCODE '8',eight,_eight
+       nop
+       xCODE '9',nine,_nine
+       nop
+       xCODE 'a',ten,_ten
+       nop
+       xCODE 'b',eleven,_eleven
+       nop
+       xCODE 'c',twelve,_twelve
+       nop
+       xCODE 'd',thirteen,_thirteen
+       nop
+       xCODE 'e',fourteen,_fourteen
+       nop
+       xCODE 'f',fifteen,_fifteen
+; No no-op required here; PC in the below instruction will be 2 more than the start of the instruction
+                               ; Rw contains the code address above,
+                               ;  that was called by the interpreter.
+       sub   PC,Rw             ; Get its offset from here
+       rra   Rw                ; Divide by 2
+       and   #$0F,Rw           ; Get low 4 bits as 4 bit literal prefix
+
+FncPFX4 bit		#1<<13,SR       ; Test the hex/decimal operand-in-progress flag
+		BIS		#1<<13,SR       ; Set the hex/decimal operand-in-progress flag
+		JNZ		DatMor4         ; If there was no operand-in-progress
+
+DatFst4 MOV     Rw,Rlit         ;   Move data to partial-operand register
+		JMP		DatEnd4			; Else (operand-in-progress)
+
+DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
+		tst.b	&hexFlag
+		jnz		hexShift
+		mov		Rlit,R15		; 2*Rlit
+		rla		R15
+		rla		R15				; 8*Rlit
+		add		R15,Rlit		; 10*Rlit
+		jmp		addNewBits
+hexShift RLA     Rlit			; 4*Rlit
+		RLA     Rlit
+		RLA     Rlit			; 16*Rlit
+addNewBits add  Rw,Rlit			;   Add data into operand reg
+DatEnd4 jmp		_NEXT          ; Endif
+
+;
+; hexadecimal (vs decimal) input mode flag (bool -- )
+;
+		xCODE	'h',hexMode,_hexMode
+		mov.b	Rtos,&hexFlag
+		pop		Rtos
+		jmp		_NEXT
+
+
+
+;-------------------------------------------------------------------------------        
+; The inner (bytecode) interpreter
+
+
+; EVALUATE ( addr -- ) ; Interpret the bytecode routine whose address is 
+                       ; on the top of the stack. It must end with an EXIT.
+
+        xCODE   'V',EVALUATE,_EVALUATE
+        MOV     Rtos,Rw
+        POP     Rtos
+        ; fall thru to _ENTER
+
+; Bytecode interpreter for 1+7 bit bytecodes
+; 1 bit function code (high bit), 7 bit data (low bits)
+
+_ENTER  RPUSH   Rip             ; Nest interpretation
+        MOV     Rw,Rip
+
+_NEXT   mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear Watchdog Timer
+		MOV.B   @Rip+,Rw        ; Fetch the next bytecode
+        CMP.B   #$0D,Rw         ; Skip any control characters less than Carriage return
+        JLO     _NEXT
+_RUN    RLA.B   Rw              ; Simultaneously multiply data part by 2
+                                ;  and test high bit while getting rid of it
+        JNC     FncLIT          ; If high bit was clear interpret as opcode
+                                ;  but check for an implied push-literal first
+
+FncPFIX TST     SR              ; Test the 7-bit operand-in-progress flag
+        BIS     #1<<15,SR       ; Set the operand-in-progress flag
+        JN      DatMore         ; If there was no operand-in-progress
+
+DatFrst MOV     Rw,Rlit         ;   Move data*2 to partial-operand register
+        SXT     Rlit            ;   Sign extend it to the full word
+        RRA     Rlit            ;   Divide it by 2 to to get back to original 
+        JMP     _NEXT
+                                ; Else (operand-in-progress)
+                                ;   Shift opnd 7 left and insert 7 new bits
+DatMore RRC     Rlit            ;   Shift the low bit of the partial operand
+        RRC.B   Rw              ;    into the hi bit of the data
+        MOV.B   Rlit,Rlit       ;   Clear the high byte of the partial operand
+        SWPB    Rlit            ;   Shift the partial operand 8 bits left
+        BIS     Rw,Rlit         ;   Move data into low byte of operand reg
+        JMP     _NEXT           ; Endif
+        
+FncLIT  TST     SR
+        JGE     FncOPER			; If there's a 7-bit operand-in-progress
+                                ;   there's an implied LIT
+        BIC     #1<<15,SR       ;   Clear the operand-in-progress flag        
+		PUSH    Rtos            ;   Push it now
+        MOV     Rlit,Rtos
+
+FncOPER MOV     _OPCODETBL(Rw),Rw ; Use the opcode to index the opcode-table to get
+                                ;    the code address and flag
+		cmp		#(_fifteen&$7FFF)+1,Rw
+		jnc		noHexTest		; If >= (no jump), means not a 0-9 or a-f opcode, so ...
+		bit		#1<<13,SR		; ... check for a pending hex/decimal operand in progress
+		bic		#1<<13,SR		; Clear SR flag for next time
+		jz		noHexPending
+		push	Rtos			; Push the pending operand now
+		mov		Rlit,Rtos
+noHexTest
+noHexPending
+		TST     Rw              ; Is it defined in machine code or bytecode?
+        BIS     #1<<15,Rw       ; Restore the address high bit
+        JN      _ENTER          ; If it's bytecode, nest interpretation
+        BR      Rw              ; Else it is machine-code so branch to it
+                                ; It must end with JMP _NEXT or BR #_NEXT
+
+
+; EXIT ( -- ) ; Return from a bytecode routine
+
+        xCODE   '^'-64,EXIT,_EXIT ; Control-^ $1E
+        RPOP    Rip             ; Un-nest interpretation
+        jmp		_NEXT
+
+; RET ( -- ) ; Return from a bytecode routine that is called from machine code.
+             ; This will probably only be used at the end of the outer interpreter.
+
+        xCODE   '\\',RETT,_RETT
+		tst.b	bCheckForBad	; Are we checking for badness ("\B") commands?
+		jz		noCheckBad
+		; This only happens when the 'u' command is received, and we are the last cell
+		push	Rtos
+		mov.b	@Rip,Rtos
+		xor.b	#'B',Rtos			; Carry cleared if result is zero
+		subc	Rtos,Rtos			; -1 if carry was clear, i.e. 'B' was found
+		call	#m_alarm			; Set or clear the alarm based on Rtos
+		pop		Rtos
+noCheckBad
+        RPOP    Rip             ; Un-nest interpretation
+        RET                     ; Return to address on machine stack
+
+; EXECUTE ( xt -- ) ; Interpret the single bytecode on the top of the stack
+
+        xCODE   'X',EXECUTE,_EXECUTE
+        MOV.B   Rtos,Rw
+        POP     Rtos
+        JMP     _RUN
+        
+
+; Jump	( -- ) ; Unconditional jump using a signed offset in the following byte.
+               ; A Jump 0 is a no-op, a Jump -2 is an infinite loop.
+
+		xCODE	']'-64,Jump,_Jump ; Ctrl-] $1D
+		MOV.B	@Rip+,Rw         ; Fetch the offset byte and increment the Rip
+        SXT     Rw               ; Sign extend the offset to a word
+        ADD     Rw,Rip           ; Add the signed offset to the instruction pointer
+		jmp		_NEXT
+
+; 0Jump ( flag -- ) ; Jump if flag on top of stack is zero. Consumes flag.
+
+		xCODE	'\\'-64,ZJump,_ZJump ; Ctrl-\ $1C
+		TST		Rtos
+        POP     Rtos
+		JZ		_Jump
+        INC     Rip              ; Skip the offset byte
+		jmp		_NEXT
+
+
+;-------------------------------------------------------------------------------
+; Basic stack-machine bytecode definitions
+; e.g. DUP SWAP DROP OVER + - AND OR XOR etc.
+
+
+; ENTER	( -- x )	; Push any literal-in-progress. Like ENTER key on RPN calculator.
+        xCOLON  ' ',ENTER,_ENTERR     ; Space. For separating literals
+        DB EXIT
+
+; DROP	( x -- )	; Discard top stack item.
+		xCODE	'Y'-64,DROP,_DROP ; Ctrl-Y $19
+		POP	Rtos
+		xNEXT
+
+; DUP 	( x -- x x )	; Duplicate the top stack item.
+		xCODE	'Z'-64,DUP,_DUP ; Ctrl-Z $1A, right-arrow in the Terminal font
+		PUSH	Rtos
+		xNEXT
+
+; ?DUP	( x -- x x | 0 ) ; Duplicate top of the stack if it is not zero.
+;
+;   : ?DUP	DUP IF DUP ENDIF ;
+;
+;		XCOLON	'?',QDUP,_QDUP
+;		DB	DUP
+;       xIF
+;		  DB	DUP
+;       xENDIF
+;		DB	EXIT
+
+		xCODE	'?',QDUP,_QDUP,0
+		TST	Rtos
+		JZ	QDUP1
+		PUSH	Rtos
+QDUP1:	xNEXT
+
+; SWAP	( x1 x2 -- x2 x1 ) ; Exchange top two stack items.
+		xCODE	'R'-64,SWAP,_SWAP ; Ctrl-R $12
+        POP	Rw
+		PUSH	Rtos
+		MOV	Rw,Rtos
+		xNEXT
+
+; OVER	( x1 x2 -- x1 x2 x1 ) ; Copy second stack item to top of the stack.
+		xCODE	'O'-64,OVER,_OVER ; Ctrl-O $0F
+		MOV	SP,Rw
+		PUSH	Rtos
+		MOV	@Rw,Rtos
+		xNEXT
+
+;   ROT 	( x1 x2 x3 -- x2 x3 x1 )
+;		Rotate the top three data stack items.
+;
+;   : ROT	>R SWAP R> SWAP ;
+;
+		xCOLON	'P'-64,ROT,_ROT ; Ctrl-P $10
+		DB	ToR,SWAP,RFrom,SWAP,EXIT
+
+;		xCODE	'P'-64,ROT,_ROT ; Ctrl-P $10
+;		POP	Rw
+;		POP	R10
+;		PUSH	Rw
+;		PUSH	Rtos
+;		MOV	R10,Rtos
+;		xNEXT
+
+;   -ROT 	( x1 x2 x3 -- x3 x1 x2 )
+;		Rotate the top three data stack items.
+;
+;   : -ROT	ROT ROT ;
+;
+		xCOLON	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
+		DB	ROT,ROT,EXIT
+
+;		xCODE	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
+;		POP	Rw
+;		POP	R10
+;		PUSH	Rtos
+;		PUSH	R10
+;		MOV	Rw,Rtos
+;		xNEXT
+
+;   NIP 	( n1 n2 -- n2 )
+;		Discard the second stack item.
+;
+;   : NIP	SWAP DROP ;
+;
+		xCOLON	'P',NIP,_NIP,
+		DB	SWAP,DROP,EXIT
+
+;		xCODE	'P',NIP,_NIP
+;		INCD	SP
+;		xNEXT
+
+;   TUCK 	( n1 n2 -- n2 n1 n2)
+;		Copy the top stack item to under the second-top item.
+;
+;   : TUCK	SWAP OVER ;
+;
+		xCOLON	'U',TUCK,_TUCK,
+		DB	SWAP,OVER,EXIT
+
+;		xCODE	'U',TUCK,_TUCK
+;		POP     Rw
+;               PUSH    Rtos
+;               PUSH    Rw
+;		xNEXT
+
+;   2DUP	( x1 x2 -- x1 x2 x1 x2 )
+;		Duplicate cell pair x1 x2.
+;
+		xCOLON	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
+		DB	OVER,OVER,EXIT
+		
+;		xCODE	'',TwoDUP,_TwoDUP
+;		MOV	SP,Rw
+;		PUSH	Rtos
+;		PUSH	@Rw
+;		XNEXT
+
+;   2SWAP	( x1 x2 x3 x4 -- x3 x4 x1 x2 )
+;		Exchange the top two cell pairs.
+;
+;   : 2SWAP	ROT >R ROT R> ;
+;
+		xCOLON	'S',TwoSWAP,_TwoSWAP
+		DB	ROT,ToR,ROT,RFrom,EXIT
+
+#if 0		; D wanted for Discharge command
+;   DEPTH	( -- +n ) NOTE: Not used, may want for hex literals
+;		Return the depth of the data stack.
+;
+;   : DEPTH	sp0 dsp@ - cell-size / ;
+
+		xCODE	'D',DEPTH,_DEPTH
+        PUSH    Rtos
+		MOV     #$280,Rtos
+        SUB     SP,Rtos
+        RRA     Rtos
+        xNEXT
+#endif
+
+;   !		( x a-addr -- )
+;		Store x at a aligned address.
+
+		xCODE	'!',Store,_Store
+		POP		0(Rtos)
+		POP		Rtos
+		xNEXT
+
+;   0<		( n -- flag )
+;		Return true if n is negative.
+
+		xCODE	'[',ZeroLess,_ZeroLess
+		RLA		Rtos		;get sign into carry
+		SUBC	Rtos,Rtos		;0 if carry set, -1 if carry clear
+		INV		Rtos
+		xNEXT
+
+;   0=		( x -- flag )
+;		Return true if x is zero.
+
+		xCODE	'Z',ZeroEquals,_ZeroEquals
+		AND	Rtos,Rtos		;sets carry if result nonzero
+		SUBC	Rtos,Rtos		;0 if carry set, -1 if carry clear
+		xNEXT
+		
+;   ABS		(x -- x)
+;		Convert TOS to absolute value
+
+		xCOLON	'B',ABS,_ABS
+		db		DUP
+		db		ZeroLess
+		xIF						; If operand is <0
+			db		NEGATE		;   then negate
+		xENDIF
+		db		EXIT
+		
+
+;   U<		( u1 u2 -- flag )
+;		Unsigned compare of top two items. True if u1 < u2.
+;
+;   : U<	2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
+;
+;		xCOLON	'{',ULess,_ULess
+;		DB	TwoDUP,XORR,ZeroLess
+;		DB	ZJump,ULES1
+;		DB	NIP,ZeroLess,EXIT
+;ULES1		DB	Minus,ZeroLess,EXIT
+
+		xCODE	'{',ULess,_ULess
+		POP	Rw
+		CMP	Rtos,Rw
+		SUBC	Rtos,Rtos
+		jmp		_NEXT
+		
+;	U>		(u1 u2 -- flag )
+;		Unsigned compare of top two items. True if u1 > u2.
+
+		xCODE	'}',UGreater,_UGreater
+		POP	Rw
+		CMP	Rw,Rtos		; Compare "the wrong way"
+		SUBC	Rtos,Rtos
+		jmp		_NEXT
+		
+
+;   <		( n1 n2 -- flag )
+;		Returns true if n1 is less than n2.
+;
+;   : < 	2DUP XOR 0<		\ same sign?
+;		IF DROP 0< EXIT THEN	\ different signs, true if n1 <0
+;		- 0< ;			\ same signs, true if n1-n2 <0
+;
+;		XCOLON	'<',LessThan,_LessThan,0
+;		DB	TwoDUP,XORR,ZeroLess,ZJump,LESS1
+;		DB	DROP,ZeroLess,EXIT
+;LESS1		DB	Minus,ZeroLess,EXIT
+
+		xCODE	'<',LessThan,_LessThan,0
+		POP	Rw
+		CMP	Rtos,Rw
+		JL	LESS1
+		MOV	#0,Rtos
+		xNEXT
+LESS1:		MOV	#-1,Rtos
+		xNEXT
+
+;   =		( x1 x2 -- flag )
+;		Return true if top two are equal.
+;
+;   : = 	XOR 0= ;
+;
+;		xCOLON	'=',Equals,_Equals,0
+;		DB	XORR,ZeroEquals,EXIT
+
+		xCODE	'=',Equals,_Equals,0
+		POP	Rw
+		XOR	Rw,Rtos		;sets carry if result nonzero (not equal)
+		SUBC	Rtos,Rtos	;-1 if not carry (borrow), 0 otherwise
+		xNEXT
+		
+		xCOLON	'N',NotEquals,_NotEquals
+		db		Equals,ZeroEquals,EXIT
+		
+;   WITHIN	( n1|u1 n2|n2 n3|u3 -- flag )
+;		Return true if (n2|u2<=n1|u1 and n1|u1<n3|u3) or
+;		(n2|u2>n3|u3 and (n2|u2<=n1|u1 or n1|u1<n3|u3)).
+;
+;   : WITHIN	OVER - >R - R> U< ;
+
+		xCOLON	'W',WITHIN,_WITHIN
+		DB	OVER,Minus,ToR			;ul <= u < uh
+		DB	Minus,RFrom,ULess,EXIT
+
+;		xCODE	'W',WITHIN,_WITHIN
+;		POP	W
+;		SUB	W,TOS
+;		POP	R10
+;		SUB	W,R10
+;		CMP	TOS,R10
+;		SUBC	TOS,TOS		;-1 if no carry (borrow), 0 otherwise
+;		xNEXT
+
+;   2*		( x1 -- x2 )
+;		Bit-shift left, filling the least significant bit with 0.
+
+		xCODE	'L',TwoStar,_TwoStar
+		RLA	Rtos
+		xNEXT
+
+;   2/		( x1 -- x2 )
+;		Bit-shift right, leaving the most significant bit unchanged.
+
+		xCODE	'%',TwoSlash,_TwoSlash
+		RRA	Rtos
+		xNEXT
+
+;   >R		( x -- ) ( R: -- x )
+;		Move top of the data stack item to the return stack.
+
+		xCODE	'O',ToR,_ToR
+		RPUSH	Rtos
+		POP	Rtos
+		xNEXT
+
+;   R>		( -- x ) ( R: x -- )
+;		Move x from the return stack to the data stack.
+
+		xCODE	'R',RFrom,_RFrom
+		PUSH	Rtos
+		RPOP    Rtos
+		xNEXT
+
+;   R@		( -- x ) ( R: x -- x )
+;		Copy top of return stack to the data stack.
+
+		xCODE	'V'-64,RFetch,_RFetch ; Ctrl-V $16
+		PUSH	Rtos
+		MOV	@Rrsp,Rtos
+		xNEXT
+
+;   @		( a-addr -- x )
+;		Push the contents at a-addr to the data stack.
+
+		xCODE	'@',Fetch,_Fetch
+		MOV	@Rtos,Rtos
+		xNEXT
+
+; + 	( x1 x2 -- x3 ) ; Addition.
+		xCODE	'+',Plus,_Plus
+		POP	Rw
+		ADD	Rw,Rtos
+		xNEXT
+
+; - 	( x1 x2 -- x3 ) ; Subtraction.
+		xCODE	'-',Minus,_Minus
+		POP	Rw
+		SUB	Rtos,Rw
+		MOV	Rw,Rtos
+		xNEXT
+
+;   +!		( n|u a-addr -- )
+;		Add n|u to the contents at a-addr.
+;
+;   : +!	SWAP OVER @ + SWAP ! ;
+;
+;		xCOLON	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
+;		DB	SWAP,OVER,Fetch,Plus
+;		DB	SWAP,Store,EXIT
+		
+		xCODE	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
+		POP	Rw
+		ADD	Rw,0(Rtos)
+		POP	Rtos
+		xNEXT
+
+;   C+!		( n|u a-addr -- )
+;		Add n|u to the contents at a-addr.
+;
+;   : C+!	SWAP OVER C@ + SWAP C! ;
+;
+;		xCOLON	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
+;		DB	SWAP,OVER,CFetch,Plus
+;		DB	SWAP,CStore,EXIT
+		
+		xCODE	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
+		POP	Rw
+		ADD.B	Rw,0(Rtos)
+		POP	Rtos
+		xNEXT
+
+; AND 	( x1 x2 -- x3 ) ; Bitwise AND.
+		xCODE	'&',ANDD,_ANDD
+		POP	Rw
+		AND	Rw,Rtos
+		xNEXT
+
+; OR 	( x1 x2 -- x3 ) ; Bitwise OR.
+		xCODE	'|',ORR,_ORR
+		POP	Rw
+		BIS	Rw,Rtos
+		xNEXT
+
+; XOR 	( x1 x2 -- x3 ) ; Bitwise XOR.
+		xCODE	'^',XORR,_XORR
+		POP	Rw
+		XOR	Rw,Rtos
+		xNEXT
+        
+; INVERT ( x1 -- x2 ) ; Return one's complement of x1.
+;
+;   : INVERT	-1 XOR ;
+;
+;		xCOLON	'~',INVERT,_INVERT
+;       xLIT    -1
+;		DB	XORR,EXIT
+
+		xCODE	'~',INVERT,_INVERT
+		INV	Rtos
+		xNEXT
+
+; 1+	( n1|u1 -- n2|u2 ) ; Increment top of the stack item.
+;
+;   : 1+	1 + ;
+;
+;		xCOLON	'\'',OnePlus,_OnePlus
+;       xLIT    1
+;		DB	Plus,EXIT
+
+		xCODE	'\'',OnePlus,_OnePlus
+		INC	Rtos
+		xNEXT
+
+;   1-		( n1|u1 -- n2|u2 )
+;		Decrease top of the stack item by 1.
+;
+;   : 1-	-1 + ;
+;
+;		XCOLON	'`',OneMinus,_OneMinus
+;		DB	MinusOne,Plus,EXIT
+
+		xCODE	'`',OneMinus,_OneMinus
+		DEC	Rtos
+		xNEXT
+
+;   ALIGNED	( addr -- a-addr )
+;		Align address to the cell boundary.
+
+		xCODE	'A',ALIGNED,_ALIGNED
+		INC	Rtos
+		BIC	#1,Rtos
+		xNEXT
+
+; NEGATE ( n1 -- n2 ) ; Return two's complement of n1.
+;
+;   : NEGATE	INVERT 1+ ;
+;
+;		xCOLON	'_',NEGATE,_NEGATE
+;		DB	INVERT,OnePlus,EXIT
+		
+		xCODE	'_',NEGATE,_NEGATE
+		INV	Rtos
+		INC	Rtos
+		xNEXT
+
+; C!	( char c-addr -- ) ; Store char at c-addr.
+
+		xCODE	'$',CStore,_CStore
+		POP	Rw
+		MOV.B	Rw,0(Rtos)
+		POP	Rtos
+		xNEXT
+
+; C@	( c-addr -- char ) ; Fetch the character stored at c-addr.
+
+		xCODE	'#',CFetch,_CFetch
+		MOV.B	@Rtos,Rtos
+		xNEXT
+        
+; EMIT	( x -- ) ; Send a character to the output device.
+
+		xCODE	'E',EMIT,_EMIT
+		mov.b	Rtos,R13			; WriteByte currently uses R13
+        POP     Rtos				; Pop first to save stack space
+		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk)
+		xNEXT
+        
+;   MOVE	( addr1 addr2 u -- )
+;		Copy u address units from addr1 to addr2 if u is greater
+;		than zero. This word is CODE defined since no other Standard
+;		words can handle address unit directly.
+
+		xCODE	'M',MOVE,_MOVE
+		POP	Rw
+		POP	R10
+		TST	Rtos
+		JZ	MOVE2
+		CMP	Rw,R10
+		JC	MOVE1
+		PUSH	SR
+		DINT
+MOVE3:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
+		JNZ	MOVE3
+		MOV.B	@R10+,0(Rw)
+		INC	Rw
+		DEC	Rtos
+		JNZ	MOVE3
+		POP	SR
+MOVE2:		POP	Rtos
+		xNEXT
+		
+MOVE1:		ADD	Rtos,Rw		;start at end and work backwards
+		DEC	Rw
+		ADD	Rtos,R10
+		DEC	R10
+		PUSH	SR
+		DINT
+MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
+		JNZ	MOVE4
+		DEC	Rw
+		DEC	R10
+		MOV.B	@R10,0(Rw)
+		DEC	Rtos
+		JNZ	MOVE4
+		POP	SR
+		POP	Rtos
+		xNEXT
+
+;   doS"        ( u -- c-addr u )
+;		Run-time code for string literals
+;
+;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
+
+		xCOLON	'\"',DoSQuote,_DoSQuote
+		DB	RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
+
+                
+;   doDO	( n1|u1 n2|u2 -- ) ( R: -- n1 n2-n1-max_negative )
+;		Run-time code for DO (counted loop).
+;
+;   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
+
+		xCOLON	'U'-64,DoDO,_DoDO ; Ctrl-U $15
+		DB	ToR
+        xLIT    $8000 ; MaxNegative
+        DB      Plus,RFrom
+		DB	OVER,Minus,SWAP,RFrom,SWAP,ToR,SWAP,ToR,ToR,EXIT
+
+
+;   HERE	( -- addr )
+;		Return data space pointer.
+;
+;   : HERE	VP @ ;
+
+		xCOLON	'H',HERE,_HERE
+        xLIT $204	; VP
+		DB Fetch,EXIT
+
+
+;   I		( -- n|u ) ( R: loop-sys -- loop-sys )
+;		Push the innermost loop index.
+;
+;   : I 	rsp@ [ 1 CELLS ] LITERAL + @
+;		rsp@ [ 2 CELLS ] LITERAL + @  +	; COMPILE-ONLY
+;
+;		XCOLON	'I',I,_I,COMPO
+;		DB	RPFetch,DoLIT,CELLL,Plus,Fetch
+;		DB	RPFetch,DoLIT,2*CELLL,Plus,Fetch,Plus,EXIT
+
+		xCODE	'I',I,_I
+		PUSH	Rtos
+		MOV	@Rrsp,Rtos
+		ADD	2(Rrsp),Rtos
+		jmp	_NEXT
+
+
+;   COMPILE,	( xt -- )
+;		Compile the execution token on data stack into current
+;		colon definition.
+;
+;   : COMPILE,	xhere DUP CELL+ TOxhere ! ;
+		xCOLON	',',COMPILEComma,_COMPILEComma
+		xLIT $206	; For some bizarre reason, if I write xLIT CP I get 6000 errors
+        DB   DUP
+        xLIT 2
+        DB PlusStore
+	;	DB FlashStore
+		DB EXIT
+
+;-------------------------------------------------------------------------------
+; BMU-specific bytecode definitions
+; e.g. VOLTS TEMP SER-NO BYPASS etc.
+;-------------------------------------------------------------------------------
+
+
+; Set IDs ( --  ) 			; Initiate the set ID mode.
+;
+; When this packet is seen, each cell waits up to 1.5 byte times for a byte from its
+; downstream neighbour. If not found, the tentative ID is sent to the upstream neighbours,
+; and the tentative ID is flash-written as the semi-permanent ID. To update IDs, the
+; bootstrap loader has to be re-sent to erase the ID.
+; Note that the upstream neighbour is 1 byte time delayed, so it sees the tentative ID
+; about one half a byte time later.
+; If a start bit is found within the half delay time, ReadByte is immediately called, which
+; echoes that ID up the chain, and the tentative ID is set to one more than the received
+; byte.
+; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 350 ms
+; for 228 cells.
+		xCODE		'i',IDSTART,_IDSTART
+		bis.b		#LED,&P1OUT			; Set the error LED
+		clr.b		R8					; Tentative ID starts at 0
+nextID
+		mov.b		R8,&tentID
+		mov			#170,R9				; For 1.5 byte times
+		; checkSt loop is 4+2+1+2 = 9 cycles
+checkSt	bit.b		#RXD,&P1IN			; Check for start bit
+		jz			gotStart			; Found start bit
+		dec			R9
+		jnz			checkSt
+;
+; Timeout with no received byte. First send a "don't use" byte
+;
+		mov.b		&tentID,R13			; Get tentative (now permanent) ID
+		call		#doWriteByte		; Send it
+		
+;
+; Check if it is possible to flash-program this ID
+;
+		mov.b		&ID,R13				; Need to check for 0 bits
+		xor.b		#-1,R13				; Now 1 bits
+		and.b		&tentID,R13			; that are also 1s in tentID
+		jz			flashId				; No impossible flash-writes; do it
+;
+; Send an error packet
+;
+		; TO BE COMPLETED! For now, just leave error LED on
+doneId	xNEXT
+;
+; Now flash-program this ID
+; Assumes ACCVIE = NMIIE = OFIE = 0.
+; FSSEL: 1=MCLK FN: 2=divide by 3
+flashId	MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+		MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
+		MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
+		CLRLOCKA
+		mov.b	&tentID,&ID				; Flash-write it
+		MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
+		SETLOCKA
+		MOV		#FWKEY,&FCTL1			; Disable flash write
+		bic.b	#LED,&P1OUT				; Clear the error LED: done!
+		jmp		doneId					; Finished
+
+gotStart
+		call		#ReadByte			; Read and echo it
+		inc.b		R8					; Add one to it
+		jmp			nextID				; This is now the tentative ID
+        
+;
+; Cell voltage measurement ( -- )
+; Measurement is in millivolts (0 to 4095 mV)
+;
+		xCOLON		'v',cellVolt,_cellVolt
+		xLIT		'V'				; Units are volts
+		db			ENTER
+		xLIT		$70				; Channel 7 = cell voltage divider
+		db			llVolt
+		xLIT		4				; Print 4 digits
+		db			prettyPrint
+		db			EXIT
+		
+;
+; Cell temperature measurement (cellID --)
+; Measurement is in degrees C
+;
+		xCOLON		't',cellTemp,_cellTemp
+		xLIT		0xF8			; Degree symbol (Terminal font only)
+		db			ENTER
+		xLIT		10<<4			; Channel 10 = temperature probe
+		db			llVolt
+
+;
+; Scale it back to degrees centigrade. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+; But the measurement M is 4096* V/1.5 = 2731*V.
+; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
+; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
+
+		xLIT		6760
+		db			UMStar
+		; Most significant half is on top of stack; nip the lower half off
+		db			NIP
+		xLIT		0x10F8			; Temp calibration
+		db			CFetch
+		db			TwoStar			; Double
+		db			Minus
+		xLIT		3				; 3 digits
+		db			prettyPrint
+		db			EXIT
+
+
+;
+; Link voltage measurement (cellID --)
+; Measurement is in mV
+; Circuit has 2:1 voltage divider with Vref at the bottom.
+; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
+; Reading = 2048 + (Vin/2)(4096/1.5)
+; R = 2048 + Vin * 1365.3 (Vin in volts)
+; R = 2048 + Vin * 1.3653 (Vin in mV)
+; Vin = (R - 2048)/1.3653 mV
+; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
+
+		xCOLON		'n',linkVolt,_linkVolt
+		xLIT		'm'				; Units are millivolts
+		db			ENTER
+		xLIT		$30				; Channel 4 = link voltage divider
+		db			llVolt
+		xLIT		2048
+		db			Minus
+#if 0
+		db			ABS				; Result could be pos or neg; don't care about sign
+									; and negative numbers won't display correctly
+		xLIT		48001
+		db			UMStar
+#else
+		db			DUP
+		db			ZeroLess
+		xIF
+			db			NEGATE
+			xLIT		48001
+			db			UMStar
+			db			NEGATE
+		xELSE
+			xLIT		48001
+			db			UMStar
+		xENDIF
+#endif
+		; Most significant half is on top of stack; nip the lower half off
+		db			NIP
+		xLIT		4				; Print 4 digits... would 3 be enough?
+		db			prettyPrint
+		db			EXIT
+
+
+;
+; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
+;
+		xCOLON	'p',prettyPrint,_prettyPrint
+		xLIT		1
+		db			MS
+		xLIT		'\\'
+		db			EMIT
+		xLIT		1
+		db			MS				; Delay
+		xLIT		ID
+		db			CFetch
+		xLIT		3				; 3 digits
+		db			emitDec			; Emit cell number
+		xLIT		':'
+		db			EMIT			; Emit ':'
+		xLIT		1
+		db			MS
+		db			emitDec			; Emit result
+		db			EMIT			; Emit "units" (V or degree symbol, etc)
+		xLIT		1
+		db			MS
+		xLIT		$D				; Carriage return
+		db			EMIT
+		db			EXIT
+		
+		
+
+
+;
+; Low level voltage measurement (channel -- measurement)
+; Channel has channel number (0-15) in bottom byte top nibble (bits 7-4). May have flag for expanded scale measurement in lower bits in future
+; Channel 7 is currently cell voltage; 10 is temperature sensor
+; Measurement is in millivolts (0 to 4095 mV)
+;
+		xCODE		'o',llVolt,_llVolt
+;
+; Initialise the ADC10 system
+;
+; SREF_1 = 4 volt mode; ; REFBURST = save power by turning off buffer when not sampling
+; ADC10SHT_3 = 64 ADC10CLKs (~ 13 uS sample time with ADCCLK) or ADC10SHT_2 = 16 clocks (16 uS with MCLK)
+; MSC = continuous sampling; REFON = turn on internal reference; ADC10ON = power up the ADC system
+#if TEST
+		; When testing with BMUs in parallel, we want P1.4 to be digital output 0V so that even with the
+		; link input = 3.6 V, P1.3 won't exceed Vcc and therefore won't upset the ADC10 readings
+#if SLOWSAMP
+		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON,&ADC10CTL0
+#else
+		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON,&ADC10CTL0
+#endif
+		cmp			#$30,Rtos				; If channel 3 (i.e. link voltage)
+		jnz			noRefOut
+		bis.b		#1<<4,&ADC10AE0				;  then make P1.4 analogue, and
+		bis			#REFOUT,&ADC10CTL0			;  set REFOUT
+		jmp			p1_4_input
+noRefOut
+		mov.b		#(1<<7)+(1<<3),&ADC10AE0; Enable P1.7 and P1.3 as analogue inputs, i.e.
+											; make P1.4 digital
+		bis.b		#1<<4,&P1DIR			; Make P1.4 an output, so when testing with paralleled BMUs,
+p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
+#else
+		; On cells, we want P1.4 to be set as an analog I/O pin (ADC10AE.4=1) and we set REFOUT in ADC10CTL0
+		; so that it always outputs Vref on P1.4. That way, even with regen putting negative voltages on the
+		; link input, P1.3 doesn't go below analogue ground (would invalidate readings)
+#if SLOWSAMP
+		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
+#else
+		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
+#endif
+		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE	; Enable P1.7, P1.3  and P1.4 as analogue
+#endif
+
+; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
+; CONSEQ_2 = repeat-single-channel
+		; Note that Rtos has the channel number already in the right position
+		mov			Rtos,R15
+		swpb		R15						; Move channel number to top halfword
+#if SLOWSAMP
+		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R15
+#else
+		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R15
+#endif
+		mov			R15,&ADC10CTL1
+		mov.b		#4,&ADC10DTC1			; 4 conversions
+		mov			#sampleBuf,&ADC10SA		; Set start address
+		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
+convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
+		jz			convert					; No, busy wait
+		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
+;
+; Add the 4 samples
+;
+		mov			#sampleBuf,R15
+		mov			#0,R9			; Sum
+addSamp	add			@R15+,R9		; Add a sample
+		cmp			#sampleBuf+2*4,R15
+		jnz			addSamp
+;
+; Calibrate the value by multiplying by the constant at $10F9. It needs expanding to its original value.
+		clr			R11
+		mov.b		&$10F9,R10			; Get voltage calibration figure
+		rla			R10
+		bit			#$100,R10			; Test MSB
+		jnz			noSet12				; If it was 0
+		bis			#$1000,R10			;   then bit 12 needs to be on
+		jmp			set12
+noSet12									; else
+		bis			#$e00,R10			;   set these exttra 3 bits on, leave bit 12 off
+set12
+		
+		call		#aUMStar			; Adjust with calibration factor
+										; Note: calls assembler code that ends in ret
+; Now need to shift result right 12 bits. Easiest to shift left 4 bits, and keep top half
+		mov			#4,R15
+shl4	rla			R10
+		rlc			R11
+		dec			R15
+		jnz			shl4
+		mov			R11,Rtos			; Result
+
+toNEXT	jmp			_NEXT				; Finished
+
+;
+; Select cell: ignore to end of line if not the ID on TOS
+; (id --)
+; This is actually longer in bytecode
+		xCODE		's',Select,_Select
+		cmp.b		&ID,Rtos			; Correct ID?
+		pop			Rtos				; Pop the argument
+		jz			toNEXT				; If so, just continue interpreting rest of packet
+		RPOP		Rip					; Pop to the bytecode that called this
+		RET								; Return to the outer interpreter (i.e. ignore rest of packet)
+
+#if 0			; Because the below would decrease the number of JMP _NEXTs that will reach
+;
+; For debugging only: output R12 in hex
+; NOT USED AT PRESENT
+hxOut	mov			R12,R13
+		rrc			R13
+		rrc			R13
+		rrc			R13
+		rrc			R13
+		call		#nibOut
+		mov			R12,R13
+nibOut	and			#$F,R13
+		add			#'0',R13
+		cmp			#'9'+1,R13
+		jl			noAdd
+		add			#'A'-'9'-1,R13
+noAdd:	; Fall through to doWriteByte and return
+#endif
+
+doWriteByte: clr	R15					; The WriteByte function in the bootloader
+		br			#WriteByte			; requires that R15 is cleared.
+
+
+; UM* ( u1 u2 -- ud )
+; Multiply u1 by u2, giving the unsigned double product ud.
+; All values and arithmetic are unsigned.
+		xCODE		'X'-64,UMStar,_UMStar
+		mov		Rtos,R9
+		Pop		R10
+		call	#aUMStar		; Do the work in assembler-callable assembler
+		push	R10
+		mov		R11,Rtos
+		jmp		_NEXT
+
+; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
+
+;_UMStar						; Assembler callable assembler
+		; Starts with 16 bit multiplicand in R9, multiplier in R10 and
+		; ends with 32 bit product in R11 (hi) and R10 (lo).
+aUMStar:
+		clr		R11			; Clear hi word of product so far
+		mov		#16,R12		; Do 16 times
+
+mullp	bit		#1,R10			; Test low bit of multiplier
+		jz		mulz			; If it's a 1
+		add		R9, R11		;   add multiplicand to product hi word; Endif
+mulz	rrc		R11			; Shift product hi word (incl. carry) right
+		rrc		R10			; into product lo and simul. shift multiplier right
+		dec		R12			; Decrement loop counter
+		jnz		mullp			; Loop until zero
+		ret
+
+; UM/MOD ( ud u1 -- u2 u3 )
+; Divide ud by u1, giving the remainder u2 and the quotient u3.
+; All values and arithmetic are unsigned. An ambiguous condition exists
+; if u1 is zero or if the quotient lies outside the range of a single
+; unsigned integer.
+; In this case we return $FFFF for both quotient and remainder.
+; Algorithm is from eForth by Bill Muench.
+; It is essentially the reverse of the multiplication algorithm above.
+
+;_UMSlashMOD             ; (was) Headerless code (no bytecode assigned)
+		xCODE	'_'-64,UMSlashMOD,_UMSlashMOD	; Ctrl-_ (downward pointing triangle)
+		mov     Rtos,R9  ; u1     unsigned divisor
+		pop     R11      ; ud hi  unsigned dividend hi word
+		pop     R10      ; ud lo  unsigned dividend lo word
+		cmp     R9,R11   ; Overflow?
+		jc      oflo     ; Jump to error exit if divide by zero or overflow.
+		mov     #16,R12  ; Do 16 times
+
+ummlp	rla     R10      ; Shift quotient left and simul. shift dividend lo
+		rlc     R11      ;   into dividend hi
+		jc      umm2     ; If carry OR
+		cmp     R9,R11
+		jlo     umm1     ;   no carry AND remainder-so-far >= divisor
+umm2	sub     R9,R11   ;     Subtract divisor from remainder-so-far
+		bis     #1,R10   ;     Set low bit of quotient-so-far
+                       ; Endif
+umm1	dec     R12      ; Decrement loop counter
+		jnz     ummlp    ; Loop until zero
+
+		push    R11      ; u2  unsigned remainder
+		mov     R10,Rtos ; u3  unsigned quotient
+		xNEXT
+
+oflo	PUSH    #-1
+		PUSH    #-1
+		xNEXT
+
+
+; * ( n1|u1 n2|u2 -- n3|u3 )
+; Multiply n1|u1 by n2|u2 giving the single product n3|u3.
+; i.e. same routine works for signed or unsigned.
+
+		xCOLON '*',Star,_Star
+;		xLIT _UMStar    ; Do the multiplication
+;		DB   CALLM
+		db	 UMStar
+		DB   DROP       ; Throw away the high word of the result
+		DB   EXIT
+
+; U/ ( u1 u2 -- u3 )
+; Divide u1 by u2, giving the single unsigned quotient u3.
+; Returns $FFFF if u2 is zero.
+
+		xCOLON  '/',Slash,_Slash
+		DB   ToR           ; Move divisor to return stack temporarily
+		xLIT 0             ; Pad the dividend to a double word
+		DB   RFrom         ; Bring divisor back from return stack
+;		xLIT _UMSlashMOD   ; Do the division
+;		DB   CALLM
+		db	UMSlashMOD
+		DB   NIP           ; Throw away the remainder
+		DB   EXIT
+
+;
+; Emit an integer n as m decimal digits (n m --)
+
+		xCOLON	'm',emitDec,_emitDec
+		db		SWAP					; n on top
+		db		DUP
+		db		ZeroLess
+		xIF								; If n is negative
+			xLIT	'-'
+			db		EMIT					; Emit leading minus sign
+			xLIT	1
+			db		MS
+			db		NEGATE
+		xENDIF
+		db		SWAP					; Back to m on top
+		
+		db		DUP
+		db		ToR						; Copy count to return stack
+		db		OneMinus				; Count-1
+calcDecLoop
+		db		SWAP					; Put count under current-number
+		xLIT	0
+		db		ENTER
+		xLIT	10
+		db		UMSlashMOD
+		; Now we have rem ... rem count rem quotient=current-number
+		db		ROT						; Count to top
+		db		OneMinus
+		db		DUP						; rem ... rem current-number count count
+		db		ZeroEquals
+		db		ZJump,calcDecLoop-emitDec1
+emitDec1
+		; Now we have the quotient on TOS and remainder under; no need for a fourth divide by 10 and drop
+		db		DROP		; Drop the count decremented to 0
+		db		RFrom		; Get count from return stack
+emitDecLoop
+		db		SWAP		; Put count under current digit
+		xLIT	'0'
+		db		Plus
+		db		EMIT		
+		xLIT	1
+		db		MS			; Delay 1 transmit byte time
+		db		OneMinus
+		db		DUP
+		db		ZeroEquals
+		db		ZJump,emitDecLoop-emitDec2
+emitDec2
+		db		DROP		; Drop the now-zero count
+		db		EXIT		
+
+; Regular tick.
+; Turn on the bypass resistors if the cell is over 3.55 V
+; Send badness message if over or under volts
+		xCOLON		'k',Tick,_Tick
+		xLIT		$70				; Channel 7 = cell voltage divider
+		db			llVolt
+		db			DUP
+		xLIT		$212			; bypassVolts
+		db			Fetch
+		db			DUP
+		db			ZeroEquals
+		xIF							; If bypassVoltage is zero
+			db			DROP			; then drop the duplicated zero
+			xLIT		3600			; Put fixed bypass voltage to TOS
+		xENDIF
+		db			UGreater		; 1 if greater, 0 otherwise
+		db			bypass			; Bypass if cell voltage > 3.55 V (or > bypassVoltage if D command is active)
+		db			DUP
+		xLIT		3650			; !! FOR NOW !! Upper voltage limit
+		db			UGreater
+		db			SWAP
+		xLIT		3000			; !! FOR NOW !! Lower voltage limit
+		db			ULess
+		db			ORR
+		xIF
+			xLIT	$211			; bCheckForBad
+			db		CFetch
+			db		ZJump,tickNotLastAuton-($+2)
+			; bCheckForBad is on and we are bad ourselves; set the alarm
+			xLIT	1
+			db		alarm
+tickNotLastAuton
+#if 0
+			xLIT	1
+			db		errorLed	; Turn on error LED. Maybe it should go off with no badness (any more) ?
+#endif
+			xLIT	1
+			db		MS			; Allow time for downstream echo, less voltage measurement
+			xLIT	'\\'
+			db		EMIT
+			xLIT	1
+			db		MS
+			xLIT	'B'			; B=BAD!
+			db		EMIT
+			xLIT	1
+			db		MS
+			xLIT	'B'^'\\'	; CRC
+			db		EMIT
+			xLIT	1
+			db		MS
+			xLIT	$0D			; CR
+			db		EMIT
+		xENDIF
+		db			EXIT
+
+;
+; Delay for n milliseconds (n --)
+;
+		xCODE	'z',MS,_MS
+		mov		Rtos,R14
+		pop		Rtos
+MSloop1	mov		#331,R15		; 1 ms delay, less a few overheads
+MSloop2	dec		R15
+		jnz		MSloop2
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
+		dec		R14
+		jnz		MSloop1
+		xNEXT
+
+;
+; Clear watchdog timer
+;
+		xCODE	'w',clearWatchDog,_clearWatchDog
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
+		xNEXT
+		
+
+;
+; Turn on or off the error LED (bool -- )
+;
+		xCODE	'l',errorLed,_errorLed
+		and		Rtos,Rtos		; Clears carry if was zero
+		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
+		inv		Rtos			; 0 if was 0, -1 otherwise
+		xor.b	&P1OUT,Rtos		; Rtos has all the bits that are different
+		and.b	#LED,Rtos		; Leave only LED bit standing
+		xor.b	Rtos,&P1OUT		; Toggle if necessary
+		pop		Rtos			; Remove operand
+		br		#_NEXT			; JMP won't reach from here down
+
+;
+; Turn on or off bypass resistors (bool -- )
+;
+		xCODE	'y',bypass,_bypass
+		and		Rtos,Rtos		; Clears carry if was 0
+		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
+		inv		Rtos			; 0 if was 0, -1 otherwise
+		xor.b	&P1OUT,Rtos		; Rtos has all the bits that are different
+		and.b	#BYP,Rtos		; Leave only BYP bit standing
+		xor.b	Rtos,&P1OUT		; Toggle if necessary
+		pop		Rtos			; Remove operand
+		br		#_NEXT			; JMP won't reach from here down
+
+;
+; Emit the calibration value: TEMPORARY
+;
+#if 0
+		xCOLON	'C',calval,_calval
+		xLIT	'C'
+		db		ENTER
+		xLIT	$10f9
+		db		CFetch
+		xLIT	3
+		db		prettyPrint
+		db		EXIT
+#endif
+
+;
+; aUtonomous operation; cell 0 sends tick commands to others; last cell operates warning LED/buzzer
+; For 'u' command, top of stack has number of cells (num_cells --)
+; D (Discharge) command is the same, but sets bypass voltage to a value from the second operand
+; (num_cells thresh --) thresh is in millivolts
+; D can be used for top, mid, or bottom balancing at various voltages
+; Since 'D' relies on a value in RAM, most charging should use 'u' instead
+;
+
+		xCOLON	'u',auton,_auton
+		xLIT	0
+		db		ENTER
+		; Fall through to D command; 'u' is like "num_cells 0 D"
+
+		xCOLON	'D',Discharge,_Discharge
+		xLIT	$212		; bypassVolts
+		db		Store		; Set or clear bypassVolts based on u or D commmand
+		xLIT	ID
+		db		CFetch
+		db		ZeroEquals
+		db		ZJump,autonNotZero-($+2)
+;
+; Cell 0 is special: send ticK command every 2 seconds
+;
+		db		DROP		; Ignore the number of cells
+		xLIT	2			; Allow time for
+		db		MS			;   downstream neighbour to echo CR
+cellZeroLoop
+		xLIT	'k'
+		db		EMIT
+		xLIT	1
+		db		MS
+		xLIT	'k'
+		db		EMIT
+		xLIT	1
+		db		MS
+		xLIT	$D			; emit 'k k carriage return'
+		db		EMIT
+#if 1
+		xLIT	0
+		db		errorLed	; Turn off the LED due to the emits
+#endif						;   (may come back on due to \B from Tick below)
+		db		Tick		; Do tick processing ourselves!
+		xLIT	3800		; ~ 1 second total loop time
+autCheckRS
+		db		quiet		; Is the RS232 quiet?
+		db		ZJump,autExit-($+2)	; Exit if RS232 is active
+		db		OneMinus	; Decrement loop counter
+		db		DUP
+		db		ZeroEquals	; Is it zero?
+		db		ZJump,autCheckRS-($+2) ; While not, loop to autCheckRS
+		db		DROP		; Drop loop count
+		db		Jump,cellZeroLoop-($+2)	; Keep looping
+		
+autonNotZero
+		db		OneMinus		; Number of cells -1
+		xLIT	ID
+		db		CFetch
+		db		Equals
+		; If last cell, need special processing of \ command to check for 'B' (Badness)
+		xLIT	$211 			; bCheckForBad
+		db		CStore
+autExit	db		EXIT		; Then do nothing (apart from waiting for more commands)
+		
+;
+; Quiet - is the RS232 input quiet?  (-- flag)
+; Returns -1 for quiet, 0 for byte being sent
+;
+		xCODE	'q',quiet,_quiet
+		push	Rtos
+		mov.b	&P1IN,Rtos
+		and.b	#RXD,Rtos		; Clears carry if was zero
+		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
+		inv		Rtos			; -1 if was 1 (= quiet)
+		xNEXT
+
+;
+; Set or reset alarm (flag --)
+;
+		xCODE	'g',alarm,_alarm
+		call	#m_alarm			; Machine code does the work
+		pop		Rtos				; Remove argument
+		xNEXT
+
+; NOTE: pure machine code (ends in RET instruction)
+; Do the work of setting or clearing the alarm (based on Rtos)
+m_alarm:		
+		tst.b	Rtos
+		jnz		setAlarm
+		bis.b	#TXDp,&P1OUT		; Unset alarm
+		bic.b	#TXDm,&P1OUT
+		ret
+setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
+		bic.b	#TXDp,&P1OUT
+		ret
+
+
+; Also need RSHIFT LSHIFT BITSET BITCLR BITTEST
+
+; xDO x?DO xLOOP x+LOOP xLEAVE xUNLOOP
+; xCASE xOF xENDOF xENDCASE
+
+
+
+		ORG		0xFFFE			; Reset power-on vector
+		DW		0x1000			; Start of BSL
+
+		END
