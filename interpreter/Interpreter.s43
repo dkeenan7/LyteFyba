@@ -121,7 +121,8 @@ OPCODENAM EQU   OPCODE                       ; Define the opcode name
 
 
 ; Assemble a word (16-bit) literal. 
-; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte
+; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte.
+; Because of implementation problems, use only for constants.
 
 xLIT    MACRO   VALUE
 PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
@@ -134,6 +135,37 @@ _VALUE  SET     VALUE
         ENDIF
         DB      PFIX | (_VALUE & $7F)
         ENDM
+		
+;
+; Three versions of the xLIT macro for labels.
+; Use xLIT3 for values of $2000 to $7FFF, or $8000 to $DFFF
+; Will work for all values, but will waste up to 2 bytes depending on the value
+;
+xLIT3    MACRO   VALUE
+PFIX    SET     $80                       ; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+        DB      PFIX | (_VALUE>>14 & $7F)
+        DB      PFIX | (_VALUE>>7 & $7F)
+        DB      PFIX | (_VALUE & $7F)
+        ENDM
+
+; For values between $40 and $1FFF or $E000 and $FFC0 inclusive.
+; Would also work for values between $FFC0 and $003F, but wastes a byte.
+xLIT2    MACRO   VALUE
+PFIX    SET     $80                       ; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+        DB      PFIX | (_VALUE>>7 & $7F)
+        DB      PFIX | (_VALUE & $7F)
+        ENDM
+
+; For values between $FFC0 and $003F inclusive
+xLIT1    MACRO   VALUE
+PFIX    SET     $80                       ; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+        DB      PFIX | (_VALUE & $7F)
+        ENDM
+
+		
 
 ; Set _LEN to length of string (in bytes). Used by the xSLIT (string-literal) macro.
 xGETLEN	MACRO	string
@@ -157,7 +189,8 @@ xSLIT   MACRO   string
 xDotQuote MACRO   string
         xSLIT  string
         DB      TYPE
-        ENDM                
+        ENDM
+		
         
 ;-------------------------------------------------------------------------------
 ; Cross-compiler Control-flow Macros
@@ -1109,8 +1142,8 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;   : HERE	VP @ ;
 
 		xColon	'H',HERE,_HERE
-        xLIT $204	; VP
-		DB Fetch,EXIT
+        xLIT2	VP
+		DB		Fetch,EXIT
 
 
 ;   I		( -- n|u ) ( R: loop-sys -- loop-sys )
@@ -1125,9 +1158,9 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 
 		xCODE	'I',I,_I
 		PUSH	Rtos
-		MOV	@Rrsp,Rtos
-		ADD	2(Rrsp),Rtos
-		jmp	_NEXT
+		MOV		@Rrsp,Rtos
+		ADD		2(Rrsp),Rtos
+		jmp		_NEXT
 
 
 ;   COMPILE,	( xt -- )
@@ -1136,12 +1169,13 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;
 ;   : COMPILE,	xhere DUP CELL+ TOxhere ! ;
 		xColon	',',COMPILEComma,_COMPILEComma
-		xLIT $206	; For some bizarre reason, if I write xLIT CP I get 6000 errors
-        DB   DUP
-        xLIT 2
-        DB PlusStore
-	;	DB FlashStore
-		DB EXIT
+;		xLIT $206			; If I write xLIT CP I get "extern not allowed" errors
+		xLIT2	CP
+        DB		DUP
+        xLIT	2
+        DB		PlusStore
+	;	DB		FlashStore
+		DB		EXIT
 
 ;-------------------------------------------------------------------------------
 ; BMU-specific bytecode definitions
@@ -1207,16 +1241,8 @@ timout
 		jnz			cantFlsh			; Impossible flash-write; can't do it
 		;
 		; Now flash-program this ID
-		; Assumes ACCVIE = NMIIE = OFIE = 0.
-		; FSSEL: 1=MCLK FN: 2=divide by 3
-		MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
-		MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
-		MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
-		CLRLOCKA
-		mov.b	R8,&ID					; Flash-write it
-		MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
-		SETLOCKA
-		MOV		#FWKEY,&FCTL1			; Disable flash write
+		mov			#ID,R9
+		call		#aFlashWrite
 		bic.b	#LED,&P1OUT				; Clear the error LED: done!
 		jmp		doneId					; Finished
 
@@ -1283,30 +1309,38 @@ doneId	xNEXT
 
 		xColon		'n',linkVolt,_linkVolt
 		xLIT		'm'				; Units are millivolts
-		db			Space
-		xLIT		LinkVChan		; ADC channel for link voltage divider
-		db			llVolt
-		xLIT		2048
-		db			Minus
+		DB			Space
 		xLIT		LinkCal			; Link offset calibration
 		db			CFetch
-		db			Minus
-#if 0
-		db			ABS				; Result could be pos or neg; don't care about sign
-									; and negative numbers won't display correctly
-		xLIT		48001
-		db			UMStar
-#else
-		db			DUP
-		db			ZeroLess
-		xIF
-			db			NEGATE
-			xLIT		48001
-			db			UMStar
-			db			NEGATE
+		xLIT		$80				; $80 is a special value representing "calibration failure"
+		DB			Equals
+		xIF							; If link calibration value is $80
+			xLIT		0			; then use value 0
 		xELSE
+			xLIT		LinkVChan		; ADC channel for link voltage divider
+			db			llVolt
+			xLIT		2048
+			db			Minus
+			xLIT		LinkCal			; Link offset calibration
+			db			CFetch
+			db			Minus
+#if 0
+			db			ABS				; Result could be pos or neg; don't care about sign
+									; and negative numbers won't display correctly
 			xLIT		48001
 			db			UMStar
+#else
+			db			DUP
+			db			ZeroLess
+			xIF
+				db			NEGATE
+				xLIT		48001
+				db			UMStar
+				db			NEGATE
+			xELSE
+				xLIT		48001
+				db			UMStar
+			xENDIF
 		xENDIF
 #endif
 		; Most significant half is on top of stack; nip the lower half off
@@ -1320,24 +1354,20 @@ doneId	xNEXT
 ; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
 ;
 		xColon	'p',prettyPrint,_prettyPrint
-		xLIT		1
-		db			MS
+		db			MS1
 		xLIT		'\\'
 		db			EMIT
-		xLIT		1
-		db			MS				; Delay
+		db			MS1				; Delay
 		xLIT		ID
 		db			CFetch
 		xLIT		3				; 3 digits
 		db			emitDec			; Emit cell number
 		xLIT		':'
 		db			EMIT			; Emit ':'
-		xLIT		1
-		db			MS
+		db			MS1
 		db			emitDec			; Emit result
 		db			EMIT			; Emit "units" (V or degree symbol, etc)
-		xLIT		1
-		db			MS
+		db			MS1
 		xLIT		$D				; Carriage return
 		db			EMIT
 		db			EXIT
@@ -1578,8 +1608,7 @@ oflo	PUSH    #-1
 		xIF								; If n is negative
 			xLIT	'-'
 			db		EMIT					; Emit leading minus sign
-			xLIT	1
-			db		MS
+			db		MS1
 			db		NEGATE
 		xENDIF
 		db		SWAP					; Back to m on top
@@ -1608,8 +1637,7 @@ emitDecLoop
 		xLIT	'0'
 		db		Plus
 		db		EMIT		
-		xLIT	1
-		db		MS			; Delay 1 transmit byte time
+		db		MS1			; Delay 1 transmit byte time
 		db		OneMinus
 		db		DUP
 		db		ZeroEquals
@@ -1625,7 +1653,7 @@ emitDec2
 		xLIT		CellVChan		; ADC channel for cell voltage divider
 		db			llVolt
 		db			DUP
-		xLIT		$212			; bypassVolts
+		xLIT2		bypassVolts
 		db			Fetch
 		db			DUP
 		db			ZeroEquals
@@ -1643,31 +1671,27 @@ emitDec2
 		db			ULess
 		db			ORR
 		xIF
-			xLIT	$211			; bCheckForBad
-			db		CFetch
-			db		ZJump,tickNotLastAuton-($+2)
+			xLIT2		bCheckForBad
+			db			CFetch
+			db			ZJump,tickNotLastAuton-($+2)
 			; bCheckForBad is on and we are bad ourselves; set the alarm
-			xLIT	1
-			db		alarm
+			xLIT		1
+			db			alarm
 tickNotLastAuton
 #if 0
 			xLIT	1
 			db		errorLed	; Turn on error LED. Maybe it should go off with no badness (any more) ?
 #endif
-			xLIT	1
-			db		MS			; Allow time for downstream echo, less voltage measurement
+			db		MS1			; Allow time for downstream echo, less voltage measurement
 			xLIT	'\\'
 			db		EMIT
-			xLIT	1
-			db		MS
+			db		MS1
 			xLIT	'B'			; B=BAD!
 			db		EMIT
-			xLIT	1
-			db		MS
+			db		MS1
 			xLIT	'B'^'\\'	; CRC
 			db		EMIT
-			xLIT	1
-			db		MS
+			db		MS1
 			xLIT	$0D			; CR
 			db		EMIT
 		xENDIF
@@ -1685,9 +1709,15 @@ MSloop2	dec		R8
 		jnz		MSloop1
 		pop		Rtos
 		xNEXT
+		
+		xCODE	'J'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
+		mov	#345,R8
+MS1loop2 dec	R8
+		jnz		MS1loop2
+		xNEXT
 
 ;
-; Clear watchdog timer
+; Clear watchdog timer. DO WE NEED THIS?
 ;
 		xCODE	'w',clearWatchDog,_clearWatchDog
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
@@ -1749,7 +1779,7 @@ MSloop2	dec		R8
 		; Fall through to 'd' command; 'u' is like "num_cells 0 d"
 
 		xColon	'd',Discharge,_Discharge
-		xLIT	$212		; bypassVolts
+		xLIT2	bypassVolts
 		db		Store		; Set or clear bypassVolts based on u or d commmand
 		xLIT	ID
 		db		CFetch
@@ -1764,12 +1794,10 @@ MSloop2	dec		R8
 cellZeroLoop
 		xLIT	'k'
 		db		EMIT
-		xLIT	1
-		db		MS
+		db		MS1
 		xLIT	'k'
 		db		EMIT
-		xLIT	1
-		db		MS
+		db		MS1
 		xLIT	$D			; emit 'k k carriage return'
 		db		EMIT
 #if 1
@@ -1794,7 +1822,7 @@ autonNotZero
 		db		CFetch
 		db		Equals
 		; If last cell, need special processing of \ command to check for 'B' (Badness)
-		xLIT	$211 			; bCheckForBad
+		xLIT2	bCheckForBad
 		db		CStore
 autExit	db		EXIT		; Then do nothing (apart from waiting for more commands)
 		
@@ -1831,7 +1859,81 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 		ret
 
 
-; Also need RSHIFT LSHIFT BITSET BITCLR BITTEST
+;
+; Link voltage offset caliBration (--)
+; Assumes zero link voltage due to zero link current
+;
+		xColon	'b',calLink,_calLink
+		xLIT2	LinkVChan
+		DB		llVolt
+		xLIT	2048				; Zero volts for link voltage is a 2048 reading
+		DB		Minus				; So subtract from result
+		DB		DUP
+		xLIT	$80
+		DB		LessThan
+		DB		ZeroLess			
+		xIF							; If result (under TOS) is < -$80
+			DB		DROP				; then discard the result
+			xLIT	$80					; and replace with $80
+		xENDIF
+		xLIT2	LinkCal
+		DB		flashWrite			; Write the calibration value
+		DB		EXIT
+
+#if 0
+		mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
+		mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
+		swpb		R10						; Assemble the two bytes into a word
+		bis			R10,R9					; as multiplicand in R9
+											; Multiplier is sum-of-samples, already in R8
+		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
+											; Note: calls assembler code that ends in ret
+		inc			R10						; For correct rounding
+		rra			R10						; Shift product hi word right one bit
+
+		sub		#2048,R10				; Zero volts for link voltage is a 2048 reading
+		mov.b	R10,&mainLinkCal		; Flash write link offset calibration value
+#endif
+
+
+;
+; DANGER: flash write command (char c-addr --)
+;
+			xCODE	'M'-64,flashWrite,_flashWrite
+			mov		Rtos,R9
+			POP		Rtos
+			call	#aFlashWrite
+			pop		Rtos
+			br		_NEXT
+			
+aFlashWrite:
+			; Assembly language flash writer
+			; Byte  in R8, address in R9
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3
+			MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+			MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
+			CLRLOCKA
+			mov.b	R8,0(R9)				; Flash-write it
+			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
+			SETLOCKA
+			MOV		#FWKEY,&FCTL1			; Disable flash write
+			ret
+
+
+; Also need RSHIFT BITSET BITCLR BITTEST
+
+; Left shift (value count -- result)
+; NOTE: does not pretest count for zero!
+			xCODE	'(',LSHIFT,_LSHIFT
+			MOV		Rtos, Rw				; Count to Rw
+			POP		Rtos
+LSHIFTLP	RLA		Rtos
+			DEC		Rw
+			JNZ		LSHIFTLP
+			BR		_NEXT
+
 
 ; xDO x?DO xLOOP x+LOOP xLEAVE xUNLOOP
 ; xCASE xOF xENDOF xENDCASE
