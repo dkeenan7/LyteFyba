@@ -6,15 +6,14 @@
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
 
-; Addresses manually imported from the BSL-writer. Keep up to date!
+; Addresses manually imported from the BSL-writer. Version 3. Keep up to date!
 ReadByte	EQU		$1092		; Calling-address to receive byte in R8
 WriteByte	EQU		$10D0		; Calling-address to transmit byte in R8
-VoltCalL	EQU		$1003		; Address of Voltage scale calibration lo byte
-VoltCalH	EQU		$1009		; Address of Voltage scale calibration hi byte
-TempCal		EQU		$100F		; Address of Temperature offset calibration byte
-LinkCal		EQU		$10A9		; Address of Link Voltage offset calibration byte
-ID			EQU		$10C7		; Address of this BMU's identification byte
-DataVers	EQU		$10FC		; Address of info-flash calibration-data version number
+ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
+VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
+VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
+TempCal		EQU		$10A9		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10C7		; Address of Link Voltage offset calibration byte
 
 ; Bits in i/o port 1
 LED			EQU		1 << 6		; Bit 6 out is red error LED; 1 = on
@@ -489,10 +488,10 @@ DatFst4 MOV     Rw,Rlit         ;   Move 4-bit data to partial-operand register
 DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
 		tst.b	&hexFlag
 		_IF		_Z
-			mov		Rlit,R15	;   2*Rlit
-			rla		R15
-			rla		R15			;   8*Rlit
-			add		R15,Rlit	;   10*Rlit
+			mov		Rlit,R9		;   2*Rlit
+			rla		R9
+			rla		R9			;   8*Rlit
+			add		R9,Rlit		;   10*Rlit
 		_ELSE
 			RLA     Rlit		;   4*Rlit
 			RLA     Rlit
@@ -1017,7 +1016,7 @@ LESS1:		MOV	#-1,Rtos
 		xCODE	'M',EMIT,_EMIT
 		mov.b	Rtos,R8				; WriteByte uses R8 as parameter
         POP     Rtos				; Pop first to save stack space
-		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R15 first)
+		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
 		xNEXT
 		
 #if 0		; 'M' wanted for EMIT because 'E' wanted as hex digit        
@@ -1170,7 +1169,7 @@ gotStart
 		; Because we have already detected the start bit ourselves, the start-bit glitch-check and
 		; the sampling of the first data bit, in ReadByte, will be delayed by 
 		; an extra 16 cycles (15% of a bit time) from the detection of the start bit.
-		call		#ReadByte			; Read the byte into R8 and echo it
+		call		#ReadByte			; Read the byte into R8 and echo it, trashes R9 R10 R11 R13
 		inc.b		R8					; Add one to it, to obtain a new tentative ID
 		jmp			nextID				; Go back and wait again
 
@@ -1178,13 +1177,13 @@ timout
 		;
 		; Timeout with no received byte. ID is now definite. Send it immediately so others dont use it
 		;
-		call		#doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R15 first)
-										; WriteByte sends byte in R8, preserves R8, trashes R13 R14 R15
+		call		#doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
+										; WriteByte sends byte in R8, preserves R8, trashes R9 R10 R11
 		;
 		; Check if it is possible to flash-program this ID
 		;
-		mov.b		R8,R13				; Need to check for 1 bits in new ID
-		bic.b		&ID,R13			    ; that are already 0s in any existing ID
+		mov.b		R8,R9				; Need to check for 1 bits in new ID
+		bic.b		&ID,R9			    ; that are already 0s in any existing ID
 		jnz			cantFlsh			; Impossible flash-write; can't do it
 		;
 		; Now flash-program this ID
@@ -1372,14 +1371,14 @@ p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 ; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
 ; CONSEQ_2 = repeat-single-channel
 		; Note that Rtos has the channel number already in the right position
-		mov			Rtos,R15
-		swpb		R15						; Move channel number to top halfword
+		mov			Rtos,R8
+		swpb		R8						; Move channel number to top halfword
 #if SLOWSAMP
-		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R15
+		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R8
 #else
-		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R15
+		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R8
 #endif
-		mov			R15,&ADC10CTL1
+		mov			R8,&ADC10CTL1
 		mov.b		#16,&ADC10DTC1			; 16 conversions
 		mov			#sampleBuf,&ADC10SA		; Set start address
 		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
@@ -1389,10 +1388,10 @@ convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 ;
 ; Add the 16 samples
 ;
-		mov			#sampleBuf,R15
+		mov			#sampleBuf,R9
 		mov			#0,R8					; Sum
-addSamp	add			@R15+,R8				; Add a sample
-		cmp			#sampleBuf+2*16,R15
+addSamp	add			@R9+,R8					; Add a sample
+		cmp			#sampleBuf+2*16,R9
 		jnz			addSamp
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
@@ -1409,8 +1408,8 @@ addSamp	add			@R15+,R8				; Add a sample
 											; Multiplier is sum-of-samples, already in R8
 		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
 											; Note: calls assembler code that ends in ret
-		clrc								; Unsigned
-		rrc			R10						; Shift product hi word right one bit
+		inc			R10						; For correct rounding
+		rra			R10						; Shift product hi word right one bit
 		mov			R10,Rtos				; Result
 
 toNEXT	jmp			_NEXT				; Finished
@@ -1450,12 +1449,11 @@ nibOut	and			#$F,R8
 		; Fall through to doWriteByte and return
 #endif
 
-; doWriteByte ( regs: R8 -- R13 R14 R15 ) ; Transmits byte in R8, preserves R8, trashes R13 R14 R15
+; doWriteByte ( regs: R8 -- R9 R10 R11 ) ; Transmits byte in R8, preserves R8, trashes R9 R10 R11
 ; Call this instead of calling WriteByte directly
 doWriteByte: 
-		clr			R15					; R15 is required to be cleared for the
-	mov		R8,R13						; For old version BSL. Delete eventually !!!
-		br			#WriteByte			; WriteByte function in the bootstrap loader (BSL)
+		clr			R11					; R11 is required to be cleared for the ...
+		br			#WriteByte			; ... WriteByte function in the bootstrap loader (BSL)
 
 
 ; UM* ( u1 u2 -- ud )
@@ -1476,14 +1474,14 @@ doWriteByte:
 		; ends with 32 bit product in R10 (hi) and R9 (lo).
 aUMStar:
 		clr		R10			; Clear hi word of product so far
-		mov		#16,R15		; Do 16 times
+		mov		#16,R11		; Do 16 times
 
 mullp	bit		#1,R9		; Test low bit of multiplier
 		jz		mulz		; If it's a 1
 		add		R8, R10		;   add multiplicand to product hi word; Endif
 mulz	rrc		R10			; Shift product hi word (incl. carry) right
 		rrc		R9			; into product lo and simul. shift multiplier right
-		dec		R15			; Decrement loop counter
+		dec		R11			; Decrement loop counter
 		jnz		mullp		; Loop until zero
 		ret
 
@@ -1503,7 +1501,7 @@ mulz	rrc		R10			; Shift product hi word (incl. carry) right
 		pop     R9       ; ud lo  unsigned dividend lo word
 		cmp     R8,R10   ; Overflow?
 		jc      oflo     ; Jump to error exit if divide by zero or overflow.
-		mov     #16,R15  ; Do 16 times
+		mov     #16,R11  ; Do 16 times
 
 ummlp	rla     R9       ; Shift quotient left and simul. shift dividend lo
 		rlc     R10      ;   into dividend hi
@@ -1513,7 +1511,7 @@ ummlp	rla     R9       ; Shift quotient left and simul. shift dividend lo
 umm2	sub     R8,R10   ;     Subtract divisor from remainder-so-far
 		bis     #1,R9    ;     Set low bit of quotient-so-far
                          ; Endif
-umm1	dec     R15      ; Decrement loop counter
+umm1	dec     R11      ; Decrement loop counter
 		jnz     ummlp    ; Loop until zero
 
 		push    R10      ; u2  unsigned remainder
@@ -1659,14 +1657,13 @@ tickNotLastAuton
 ; Delay for n milliseconds (n --)
 ;
 		xCODE	'z',MS,_MS
-		mov		Rtos,R14
-		pop		Rtos
-MSloop1	mov		#331,R15		; 1 ms delay, less a few overheads
-MSloop2	dec		R15
+MSloop1	mov		#331,R8		; 1 ms delay, less a few overheads
+MSloop2	dec		R8
 		jnz		MSloop2
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
-		dec		R14
+		dec		Rtos
 		jnz		MSloop1
+		pop		Rtos
 		xNEXT
 
 ;
