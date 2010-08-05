@@ -100,6 +100,7 @@ Wunth Forth      Description                Appearance in Terminal font
 $     C!         Store byte 
 ^S    +!         Fetch word, add and store  Double exclamation mark
 ^T    C+!        Fetch byte, add and store  Pilcrow sign 
+^M    flashWrite Flash write the byte to the given address
                                             (reverse P with vertical bar)
 .     CBITTST    Fetch byte and AND for comparison       (period)
 :     CBITCLR    Fetch byte, AND with inverted and store (colon)
@@ -146,9 +147,11 @@ return EOP       End of bytecode packet
 ^\    0Jump      Runtime word for conditional jump   (inverted not sign "L")
 ^]    Jump       Runtime word for unconditional jump (left-right arrow)
 ^^    EXIT       Return from a bytecode routine      (up-pointing filled triangle)
+^J    MS1        Delay for 1 byte transmit time (about 1.04 ms)
 
 BMU operations
 ------------------------------------------------------------------------------
+b     caliBrate link voltage; has to be done on cell top
 d     autonomous Discharge or custom bypass voltage
 g     Turn alarm on/off (think ^g)
 h     Turn on/off hex mode (0 = decimal)
