@@ -6,10 +6,15 @@
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
 
-; Addresses imported from the BSL-writer. Keep up to date!
-WriteByte	EQU		$10CE		; Calling-address to transmit byte in R8
-ReadByte	EQU		$108E		; Calling-address to receive byte in R8
-ID			EQU		$10F7		; Address of this BMU's identification byte
+; Addresses manually imported from the BSL-writer. Keep up to date!
+ReadByte	EQU		$1092		; Calling-address to receive byte in R8
+WriteByte	EQU		$10D0		; Calling-address to transmit byte in R8
+VoltCalL	EQU		$1003		; Address of Voltage scale calibration lo byte
+VoltCalH	EQU		$1009		; Address of Voltage scale calibration hi byte
+TempCal		EQU		$100F		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10A9		; Address of Link Voltage offset calibration byte
+ID			EQU		$10C7		; Address of this BMU's identification byte
+DataVers	EQU		$10FC		; Address of info-flash calibration-data version number
 
 ; Bits in i/o port 1
 LED			EQU		1 << 6		; Bit 6 out is red error LED; 1 = on
@@ -315,30 +320,29 @@ xTRUE      MACRO
 ;------------------------------------------------------------------------------               
 ; VARIABLEs
 
-        ORG $200    ; Start of RAM
+        ORG $200    	; Start of RAM
 		
-ToIN	DS		2	; Pointer to current character being stored or parsed in text input buffer
+VP      DS		2   	; Free Variable space Pointer
+
+CP		DS		2   	; Free Code space Pointer
+
+ToIN	DS		2		; Pointer to current character being stored or parsed in text input buffer
 		
-CHKSUM  DS		1	; Packet xor checksum
-
-tentID	DS		1	; Used for tentative ID; see SetID ('i') command. Could be shared with other uses
-		
-VP      DS		2   ; Free Variable space Pointer
-
-CP		DS		2   ; Free Code space Pointer
-
-sampleBuf DS	2*4		; ADC sample buffer
+CHKSUM  DS		1		; Packet xor checksum
 
 hexFlag	DS		1		; 1 = hex mode (default)
 bCheckForBad DS	1		; 1 = check \ command for \B (badness). Only set if aUtonomous command
 						; received and we are the last cell
 bypassVolts	DS	1		; Non-zero = use this value as the bypass voltage
 
-TIB		EQU     $220  ; Start of Text Input Buffer (Forth terminology)
+sampleBuf DS	2*16	; ADC sample buffer; 16 samples
 
-RSP0	EQU		$260  ; Bottom of Interpreter return stack, grows down
+TIB		EQU     $22A	; Start of Text Input Buffer (Forth terminology), grows up
 
+RSP0	EQU		$260	; Bottom of Interpreter return stack, grows down
 
+DSP0	EQU		$280	; Bottom of combined Interpreter return stack and machine stack, grows down
+						; End of RAM
 
 
 ;-------------------------------------------------------------------------------        
@@ -375,7 +379,7 @@ interpretByte:
 		
 		MOV &ToIN,R9
         CMP #$0D,R8
-		_IF _HS						; Ignore if less
+;		_IF _HS						; Ignore if less
 			_IF _NE					; If not carriage return
 				MOV.B R8,0(R9)		; Write the byte to the buffer
 				INC &ToIN       	; 	Increment the pointer
@@ -396,7 +400,7 @@ interpretByte:
 				MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
 				CLR &CHKSUM     	;   Clear the packet checksum
 			_ENDIF					; Endif (equals carriage return )
-		_ENDIF						; Endif (higher or same as carriage return)
+;		_ENDIF						; Endif (higher or same as carriage return)
         
         POP R8
         RET
@@ -472,7 +476,7 @@ DoUNDEF ; Attempt to interpret as hex/decimal digits, otherwise ignore
 			JGE		_NEXT       ; Ignore undefined bytecodes above 'F'
 			CMP.B	#$11,Rw
 			JL		_NEXT       ; Ignore undefined between '9' and 'A'
-			SUB.B   #'A'-'9',Rw	; $11-$16 -> $0A-$0F
+			SUB.B   #'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
 		_ENDIF
 		
 FncPFX4 TST		SR       		; Test the operand-in-progress flag
@@ -1229,7 +1233,7 @@ doneId	xNEXT
 		db			llVolt
 
 ;
-; Scale it back to degrees centigrade. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
 ; But the measurement M is 4096* V/1.5 = 2731*V.
 ; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
 ; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
@@ -1238,7 +1242,7 @@ doneId	xNEXT
 		db			UMStar
 		; Most significant half is on top of stack; nip the lower half off
 		db			NIP
-		xLIT		0x10F8			; Temp calibration
+		xLIT		TempCal			; Temp offset calibration
 		db			CFetch
 		db			TwoStar			; Double
 		db			Minus
@@ -1264,6 +1268,9 @@ doneId	xNEXT
 		xLIT		$30				; Channel 4 = link voltage divider
 		db			llVolt
 		xLIT		2048
+		db			Minus
+		xLIT		LinkCal			; Link offset calibration
+		db			CFetch
 		db			Minus
 #if 0
 		db			ABS				; Result could be pos or neg; don't care about sign
@@ -1373,41 +1380,38 @@ p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R15
 #endif
 		mov			R15,&ADC10CTL1
-		mov.b		#4,&ADC10DTC1			; 4 conversions
+		mov.b		#16,&ADC10DTC1			; 16 conversions
 		mov			#sampleBuf,&ADC10SA		; Set start address
 		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		jz			convert					; No, busy wait
 		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
 ;
-; Add the 4 samples
+; Add the 16 samples
 ;
 		mov			#sampleBuf,R15
-		mov			#0,R9			; Sum
-addSamp	add			@R15+,R9		; Add a sample
-		cmp			#sampleBuf+2*4,R15
+		mov			#0,R8					; Sum
+addSamp	add			@R15+,R8				; Add a sample
+		cmp			#sampleBuf+2*16,R15
 		jnz			addSamp
 ;
-; Calibrate the value by multiplying by the constant at $10F9. It needs expanding to its original value.
-		mov.b		&$10F9,R9			; Get voltage calibration figure
-		rla			R9
-		bit			#$100,R9			; Test MSB
-		jnz			noSet12				; If it was 0
-		bis			#$1000,R9			;   then bit 12 needs to be on
-		jmp			set12
-noSet12									; else
-		bis			#$e00,R9			;   set these exttra 3 bits on, leave bit 12 off
-set12
-		
-		call		#aUMStar			; Adjust with calibration factor
-										; Note: calls assembler code that ends in ret
-; Now need to shift result right 12 bits. Easiest to shift left 4 bits, and keep top half
-		mov			#4,R15
-shl4	rla			R9
-		rlc			R10
-		dec			R15
-		jnz			shl4
-		mov			R10,Rtos			; Result
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts. 
+; That means we have to shift the product 17 bits to the right, which is equivalent to 
+; throwing away the lo word and shifting the high word one bit to the right.
+		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
+		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
+		swpb		R10						; Assemble the two bytes into a word
+		bis			R10,R9					; as multiplicand in R9
+											; Multiplier is sum-of-samples, already in R8
+		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
+											; Note: calls assembler code that ends in ret
+		clrc								; Unsigned
+		rrc			R10						; Shift product hi word right one bit
+		mov			R10,Rtos				; Result
 
 toNEXT	jmp			_NEXT				; Finished
 
@@ -1450,7 +1454,7 @@ nibOut	and			#$F,R8
 ; Call this instead of calling WriteByte directly
 doWriteByte: 
 		clr			R15					; R15 is required to be cleared for the
-	mov R8,R13		; Old versions of the BSL need this... DELETE ME eventually
+	mov		R8,R13						; For old version BSL. Delete eventually !!!
 		br			#WriteByte			; WriteByte function in the bootstrap loader (BSL)
 
 
@@ -1474,13 +1478,13 @@ aUMStar:
 		clr		R10			; Clear hi word of product so far
 		mov		#16,R15		; Do 16 times
 
-mullp	bit		#1,R9			; Test low bit of multiplier
-		jz		mulz			; If it's a 1
+mullp	bit		#1,R9		; Test low bit of multiplier
+		jz		mulz		; If it's a 1
 		add		R8, R10		;   add multiplicand to product hi word; Endif
 mulz	rrc		R10			; Shift product hi word (incl. carry) right
 		rrc		R9			; into product lo and simul. shift multiplier right
 		dec		R15			; Decrement loop counter
-		jnz		mullp			; Loop until zero
+		jnz		mullp		; Loop until zero
 		ret
 
 ; UM/MOD ( ud u1 -- u2 u3 )
@@ -1496,24 +1500,24 @@ mulz	rrc		R10			; Shift product hi word (incl. carry) right
 		xCODE	'_'-64,UMSlashMOD,_UMSlashMOD	; Ctrl-_ (downward pointing triangle)
 		mov     Rtos,R8  ; u1     unsigned divisor
 		pop     R10      ; ud hi  unsigned dividend hi word
-		pop     R9		 ; ud lo  unsigned dividend lo word
-		cmp     R9,R10   ; Overflow?
+		pop     R9       ; ud lo  unsigned dividend lo word
+		cmp     R8,R10   ; Overflow?
 		jc      oflo     ; Jump to error exit if divide by zero or overflow.
 		mov     #16,R15  ; Do 16 times
 
-ummlp	rla     R9 	     ; Shift quotient left and simul. shift dividend lo
+ummlp	rla     R9       ; Shift quotient left and simul. shift dividend lo
 		rlc     R10      ;   into dividend hi
 		jc      umm2     ; If carry OR
 		cmp     R8,R10
 		jlo     umm1     ;   no carry AND remainder-so-far >= divisor
 umm2	sub     R8,R10   ;     Subtract divisor from remainder-so-far
-		bis     #1,R9	 ;     Set low bit of quotient-so-far
-                       ; Endif
+		bis     #1,R9    ;     Set low bit of quotient-so-far
+                         ; Endif
 umm1	dec     R15      ; Decrement loop counter
 		jnz     ummlp    ; Loop until zero
 
 		push    R10      ; u2  unsigned remainder
-		mov     R9,Rtos	 ; u3  unsigned quotient
+		mov     R9,Rtos  ; u3  unsigned quotient
 		xNEXT
 
 oflo	PUSH    #-1
@@ -1706,7 +1710,7 @@ MSloop2	dec		R15
 		xColon	'c',calval,_calval
 		xLIT	'C'
 		db		Space
-		xLIT	$10f9
+		xLIT	VoltCal
 		db		CFetch
 		xLIT	3
 		db		prettyPrint
