@@ -1,0 +1,176 @@
+      Coulomb & Weber's Digital BMU Command Interpreter
+      -------------------------------------------------
+
+The interpreter is a token (or bytecode) Forth that runs on an MSP430F2012 that has only 128 bytes of RAM and 2k bytes of flash.
+
+We divide the RAM into 4 equal parts. 32 bytes of variables, 32 byte input buffer, 32 byte Forth return stack, 32 byte Forth data and machine stack.
+
+There is a tiny extra 256 bytes of "information flash" that can remain unerased when the main 2k is erased, and so, with incredible feats of optimisation, Mike has written a 3-times-oversampling software UART and Bootstrap-loader (BSL) that live in this 256 bytes. This model of MSP430 doesn't come with a built-in BSL and in any case that requires hardware handshaking. Our BSL monitors incoming serial data looking for a password consisting of 3 control characters ^B^A^D which should never occur in normal traffic. When it receives them it erases the main flash and writes the next 2k-minus-2 bytes of data there. The minus 2 is for the reset vector which must remain pointing to the BSL. The BSL then receives a checksum and if it's good, goes back to passing serial data to the Forth interpreter (or whatever now lives in main flash).
+
+There is no way we can fit a proper Forth outer interpreter, with compiler, into this 2k of main flash, so definitions are currently cross-compiled using an assembler on the host PC.
+
+All Forth compiling words (immediate words) are implemented as assembler macros in the MSP430 Assembler. This includes all Forth control-flow words and literal-compiling words.
+
+For the control-flow words, we implement a crude stack in the assembler, using assignments between numbered assembler variables, one per stack element. This stack is used to keep track of the source and destination addresses of nested control structures so that jump offsets can be back-filled when they are known, in the usual Forth manner.
+
+Another version of these macros is used to do structured control-flow for ordinary assembly of machine code too. They can be used by people writing in any assembler, with no particular interest in Forth. The modifications required, are just for the specific format of the jump instructions for a given processor. So in the assembly-language source I have two sets of Forth-style structured control flow macros. One set "xIF, xWHILE" etc. for cross-compiling Forth (Colon definitions) and the other set "_IF, _WHILE" etc. for assembly language (CODE definitions). So despite being in assembly language, our source-code is somewhat Forth-like to read.
+
+All non-immediate Forth words are encoded as a single ASCII character or "bytecode", usually with some mnemonic value. So I thought of calling this language "Wunth", short for "one-character Forth". :-) It can have a max of 128 Forth words, not counting the immediate (compiling) words which are implemented as assembler macros).
+
+But rather than have to remember these "Wunth" characters, each is assigned to an assembler label which is as close to the Forth word as possible, e.g. TwoStar for 2*. However the mnemonic value of the bytecodes, as text, will be useful in debugging.
+
+Wunth is based on Dr Wonyong Koh's hForth, an ANS Forth that I began porting to the MSP430 (from the Intel x86) many years ago. But now with a completely new inner-interpreter, which is token-threaded for code-compactness, in place of the original address-threaded inner-interpreter.
+
+Since each word name is a single character, which is also its execution token, dictionary lookup and compilation is a no-op. There is no dictionary, only a token lookup table with 128 word-sized entries (one for each ASCII character). Each entry is the address of the word's definition, with the high bit set if it is a Colon definition or cleared if it is CODE.
+
+Literals are encoded 7 bits at a time, in bytes with the high bit set. This is similar to the Transputer PFIX instructions, but is signed rather than having a separate NFIX instruction for negative values. Values in the range -64 to 63 are encoded in a single byte. -8192 to 8191 in max two bytes and all 16 bit values in max 3 bytes. The bytes are sent most-significant first, with the first byte determining the sign. If two literals need to be sent with no operation between them, there must be a "Space" bytecode (or other no-op) between them to terminate the first literal and cause it to be pushed to the stack. This literal-separating no-op serves the same function as an ENTER key on an RPN calculator. In Forth source any whitespace can separate literals and so I made the bytecode for "Space" be the space character.
+
+Bytecode/Wunth will be sent from the host in packets with checksums (max 32 bytes) and will not be executed unless the checksum is good. The end-of-packet character is the carriage return. So this is like a really cut-down outer interpreter interpreting lines of Forth/Wunth.
+
+To define new Forth words on the MSP430, we can already use the Bootstrap loader to rewrite the entire 2k of flash with a newly assembled kernel via the serial port. But in future we could send a bytecode-to-be-defined, as a literal number, followed by a postfix command analogous to the prefix command ":" (or "CODE") that stores "HERE" (the next flash address) into the appropriate slot in the bytecode lookup table. Then the code for the new definition can follow as a sequence of literals followed by "," (COMPILE-comma) commands that write them to successive flash locations. They could be machine-code or bytecode/Wunth.
+
+Built-in Forth words, other than compiling words and literals, are assigned bytecodes/Wunth-names as follows:
+
+Unary arithmetic and logic operators
+Wunth Forth      Description           (Notes)
+--------------------------------------------------------------------------
+L     2*         Arithmetic (or logical) shift left one place (was \)
+%     2/         Arithmetic shift right one place
+'     1+         Increment             (single quote)
+`     1-         Decrement             (grave or backquote)
+^C    ALIGNED    Next even number      (heart symbol)
+^F    ABS        Absolute value        (spade symbol)
+~     INVERT     Bitwise negation      (tilde)
+_     NEGATE     Unary minus           (underscore)
+Z     0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
+                 Equal-zero comparison ("Z" for "is Zero")
+[     0<         Signed Less-than-zero comparison    (left square bracket)
+]     0>         Signed Greater-than-zero comparison (right square bracket)
+?     ?DUP       Duplicate if not zero
+
+Binary arithmetic and logic operators
+Wunth Forth      Description           (Notes)
+---------------------------------------------------------------------------
+*     *          Multiply (signed)
+/     /          Divide (signed)
+^X    UMStar     Unsigned 16x16=32 bit multiply (up arrow)
+^_    UMSlashMod Unsigned 32/16=16 bit divide   (down-pointing filled triangle)
++     +          Add
+-     -          Subtract
+Y     MAX        Signed maximum
+G     MIN        Signed minimum
+(     LSHIFT     Logical shift left n places    (left paren)
+)     RSHIFT     Logical shift right n places   (right paren)
+&     AND        Bitwise AND           (also works as logical AND)
+|     OR         Bitwise OR            (also works as logical OR)
+^     XOR        Bitwise XOR
+=                Equals comparison
+N     <>         Not-equals comparison
+<     <          Signed less-than comparison
+>     >          Signed greater-than comparison
+{     U<         Unsigned less-than comparison    (left curly brace)
+}     U>         Unsigned greater-than comparison (right curly brace)
+W     WITHIN     Range comparison
+
+Stack manipulation operators
+Wunth Forth      Description               Appearance in Terminal font
+                 ( Data stack before -- after | Return stack before -- after )
+                 (top-of-stack to the right)
+---------------------------------------------------------------------------
+^Y    DROP       ( n1 -- )                Down arrow
+^Z    DUP        ( n1 -- n1 n1 )          Right arrow
+^R    SWAP       ( n2 n1 -- n1 n2 )       Up-down arrow
+^O    OVER       ( n2 n1 -- n2 n1 n2 )    Sun (small circle with "rays")
+^P    ROT        ( n3 n2 n1 -- n2 n1 n3 ) Right-pointing filled triangle
+^Q    -ROT       ( n3 n2 n1 -- n1 n3 n2 ) Left-pointing filled triangle
+P     NIP        ( n2 n1 -- n1 )
+U     TUCK       ( n2 n1 -- n1 n2 n1 )
+^N    2DUP       ( n2 n1 -- n2 n1 n2 n1 ) Two musical notes
+S     2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
+O     >R         ( n1 -- | R: -- n1 )     
+R     R>         ( -- n1 | R: n1 -- )     
+^V    R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
+
+Memory operators (The address argument is always top-of-stack)
+Wunth Forth      Description                Appearance in Terminal font
+---------------------------------------------------------------------------
+@     @          Fetch word
+!     !          Store word
+#     C@         Fetch byte
+$     C!         Store byte 
+^S    +!         Fetch word, add and store  Double exclamation mark
+^T    C+!        Fetch byte, add and store  Pilcrow sign 
+                                            (reverse P with vertical bar)
+.     CBITTST    Fetch byte and AND for comparison       (period)
+:     CBITCLR    Fetch byte, AND with inverted and store (colon)
+;     CBITSET    Fetch byte, OR and store                (semi-colon)
+
+Uppercase alphabetic operators
+Wunth Forth      Description
+---------------------------------------------------------------------------
+A-F   Hex literals
+;C     CMOVE      Byte block move (NOT implemented yet)
+;D     DEPTH      Depth of data stack in words
+F     RET        Return from a bytecode routine called from machine code
+G     MIN        Minimum, arithmetic operator, see above
+H     HERE       Address of next available flash location
+I     I          Innermost DO .. LOOP counter
+J     J          Second DO .. LOOP counter
+K     KEY        Get a byte from serial input
+L     2*         Arithmetic (or logical) shift left one place (was \)
+M     EMIT       Send a byte to serial output
+;M     MOVE       Word block move
+N     <>         Not-equals comparison, arithmetic operator, see above
+O     >R         Stack manipulation, see above
+P     NIP        Stack manipulation, see above
+Q     ABORT      Clear both stacks and restart the outer interpreter (QUIT)
+R     R>         Stack manipulation, see above
+S     2SWAP      Stack manipulation, see above
+T     TYPE       Send a string to serial output
+U     TUCK       Stack manipulation, see above
+V     EVALUATE   Interpret a string (of bytecodes)
+W     WITHIN     Range comparison, arithmetic operator, see above 
+X     EXECUTE    Interpret the single bytecode on the top-of-stack
+Y     MAX        Maximum, arithmetic operator, see above
+Z     0=  NOT    Equals-zero comparison or Logical negation, see above
+
+Miscellaneous others
+Wunth Forth      Description                Appearance in Terminal font
+---------------------------------------------------------------------------
+space Space      Literal separator no-op (like ENTER key on RPN calculator)
+return EOP       End of bytecode packet
+\                Comment to end of line (carriage return)
+,     COMPILE,   Write the bytecode on top-of-stack to next flash location
+^U    doDO [DO]  Runtime word for start of DO...LOOP (section sign "S")
+"     doS" [S"]  Runtime word for start of string literal
+^\    0Jump      Runtime word for conditional jump   (inverted not sign "L")
+^]    Jump       Runtime word for unconditional jump (left-right arrow)
+^^    EXIT       Return from a bytecode routine      (up-pointing filled triangle)
+
+BMU operations
+------------------------------------------------------------------------------
+d     autonomous Discharge or custom bypass voltage
+g     Turn alarm on/off (think ^g)
+h     Turn on/off hex mode (0 = decimal)
+i     Ident setup
+k     Regular check (tick) for badness
+l     Turn on/off error LED
+m     Emit n2 with n1 decimal places (n2 n1 --)
+n     liNk voltage
+o     Low level voltage measurement (channel -- result)
+p     Pretty print tos as a comment packet
+t     Temperature measurement
+u     aUtonomous (masterless) operation; cell 0 sends ticK commands
+v     Cell voltage measurement
+w     Clear watchdog timer
+y     Turn bypass resistors on/off
+z     Sleep n millisconds
+
+More info on specific Forth words can be found at:
+http://www.taygeta.com/forth/dpansf.htm
+
+All lowercase letters are available for use as application-specific bytecodes.
+
+We should try to avoid using control characters that are used in the bootstrap-loader password or are invisible when echoed to Hyperterminal.
+
+-- Dave (Weber) Keenan
