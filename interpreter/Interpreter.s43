@@ -1,19 +1,22 @@
 #include "msp430.h"
 #include "ControlFlowMacros.h"
-   		COL 132     
+			COL		132     
 
-#define		TEST	1			; 1 for testing with BMUs in parallel
+#define		TEST	1			; 1 for testing with BMU cell-inputs in parallel
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
 
-WriteByte	EQU		$10CE		; NOTE: for now, this is just an equate. Keep up to date!
-ReadByte	EQU		$108E		; NOTE: likewise
-ID			EQU		$10F7		; NOTE: reserved, but may change
-LED			EQU		1 << 6		; Bit 6 is LED; 1=on now
-BYP			EQU		1 << 5		; Bit 5 is the bypass resistors; 1 = on
-RXD			EQU		1 << 2		; Bit 2 is RXD; 1=mark
-TXDm        EQU     1<<0		; Bit 0 is inverted TXD
-TXDp        EQU     1<<1      	; Bit 1 is non-inverted TXD
+; Addresses imported from the BSL-writer. Keep up to date!
+WriteByte	EQU		$10CE		; Calling-address to transmit byte in R8
+ReadByte	EQU		$108E		; Calling-address to receive byte in R8
+ID			EQU		$10F7		; Address of this BMU's identification byte
+
+; Bits in i/o port 1
+LED			EQU		1 << 6		; Bit 6 out is red error LED; 1 = on
+BYP			EQU		1 << 5		; Bit 5 out is bypass MOSFET and resistors; 1 = on
+RXD			EQU		1 << 2		; Bit 2 in is RXD; 1 = mark
+TXDp        EQU     1 << 1      ; Bit 1 out is non-inverted TXD
+TXDm        EQU     1 << 0		; Bit 0 out is inverted TXD
 
 ;-------------------------------------------------------------------------------
 ; Interpreter Register Usage
@@ -29,9 +32,8 @@ TXDp        EQU     1<<1      	; Bit 1 is non-inverted TXD
 ;
 ; Status flag usage
 ;
-; Bit 15 = 7-bit literal in progress
-; Bit 14 = initialise performed
-; Bit 13 = hex/decimal literal in progress
+; Bit 15 = literal in progress
+; Bit 14 = initialisation performed
 
 
 ;-------------------------------------------------------------------------------
@@ -57,13 +59,10 @@ RPOP	MACRO	arg
 
 _OPCODETBL	EQU	$FEE0  
 
-; Table starts with carriage-return bytecode, so actual start of table is
-; _OPCODETBL + $0D * 2
-
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in future.
-; The names CODE and COLON (actually ":") are from Forth.
+; The names CODE and Colon (actually ":") are from Forth.
 
 
 ; Assemble an opcode-table entry that has a machine-code definition.
@@ -85,7 +84,7 @@ xNEXT	MACRO
 
 ; Assemble an opcode-table entry that has a bytecode definition.
 
-xCOLON  MACRO   OPCODE,OPCODENAM,_ADDRLBL   
+xColon  MACRO   OPCODE,OPCODENAM,_ADDRLBL   
 _ADDRLBL:                                    ; Define the bytecode-list address label
 OPCODENAM EQU   OPCODE                       ; Define the opcode name
         ORG     _OPCODETBL+(OPCODE)*2        ; Point to correct opcode-table entry
@@ -322,7 +321,7 @@ ToIN	DS		2	; Pointer to current character being stored or parsed in text input b
 		
 CHKSUM  DS		1	; Packet xor checksum
 
-tentID	DS		1	; Used for tentative ID; see 'i' command. Could be shared with other uses
+tentID	DS		1	; Used for tentative ID; see SetID ('i') command. Could be shared with other uses
 		
 VP      DS		2   ; Free Variable space Pointer
 
@@ -402,82 +401,6 @@ interpretByte:
         POP R8
         RET
 
-
-;
-; Hex/decimal input ( -- x)
-; NOTE WELL: the NEXT logic assumes that these opcode handlers are the FIRST,
-; i.e. they have the LOWEST ADDRESS!
-; So DO NOT put any opcode handlers before this point in the file!!
-;
-       xCODE '0',zero,_zero
-       nop            ; Must be a single-word no-op
-       xCODE '1',one,_one
-       nop
-       xCODE '2',two,_two
-       nop
-       xCODE '3',three,_three
-       nop
-       xCODE '4',four,_four
-       nop
-       xCODE '5',five,_five
-       nop
-       xCODE '6',six,_six
-       nop
-       xCODE '7',seven,_seven
-       nop
-       xCODE '8',eight,_eight
-       nop
-       xCODE '9',nine,_nine
-       nop
-       xCODE 'a',ten,_ten
-       nop
-       xCODE 'b',eleven,_eleven
-       nop
-       xCODE 'c',twelve,_twelve
-       nop
-       xCODE 'd',thirteen,_thirteen
-       nop
-       xCODE 'e',fourteen,_fourteen
-       nop
-       xCODE 'f',fifteen,_fifteen
-; No no-op required here; PC in the below instruction will be 2 more than the start of the instruction
-                               ; Rw contains the code address above,
-                               ;  that was called by the interpreter.
-       sub   PC,Rw             ; Get its offset from here
-       rra   Rw                ; Divide by 2
-       and   #$0F,Rw           ; Get low 4 bits as 4 bit literal prefix
-
-FncPFX4 bit		#1<<13,SR       ; Test the hex/decimal operand-in-progress flag
-		BIS		#1<<13,SR       ; Set the hex/decimal operand-in-progress flag
-		JNZ		DatMor4         ; If there was no operand-in-progress
-
-DatFst4 MOV     Rw,Rlit         ;   Move data to partial-operand register
-		JMP		DatEnd4			; Else (operand-in-progress)
-
-DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
-		tst.b	&hexFlag
-		jnz		hexShift
-		mov		Rlit,R15		; 2*Rlit
-		rla		R15
-		rla		R15				; 8*Rlit
-		add		R15,Rlit		; 10*Rlit
-		jmp		addNewBits
-hexShift RLA     Rlit			; 4*Rlit
-		RLA     Rlit
-		RLA     Rlit			; 16*Rlit
-addNewBits add  Rw,Rlit			;   Add data into operand reg
-DatEnd4 jmp		_NEXT          ; Endif
-
-;
-; hexadecimal (vs decimal) input mode flag (bool -- )
-;
-		xCODE	'h',hexMode,_hexMode
-		mov.b	Rtos,&hexFlag
-		pop		Rtos
-		jmp		_NEXT
-
-
-
 ;-------------------------------------------------------------------------------        
 ; The inner (bytecode) interpreter
 
@@ -498,18 +421,17 @@ _ENTER  RPUSH   Rip             ; Nest interpretation
 
 _NEXT   mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear Watchdog Timer
 		MOV.B   @Rip+,Rw        ; Fetch the next bytecode
-        CMP.B   #$0D,Rw         ; Skip any control characters less than Carriage return
-        JLO     _NEXT
+;        CMP.B   #$0D,Rw         ; Skip any control characters less than Carriage return
+;        JLO     _NEXT           ;  (only do this if we get desperate for code space)
 _RUN    RLA.B   Rw              ; Simultaneously multiply data part by 2
                                 ;  and test high bit while getting rid of it
-        JNC     FncLIT          ; If high bit was clear interpret as opcode
-                                ;  but check for an implied push-literal first
+        JNC     FncOPCD         ; If high bit was clear interpret as opcode
 
-FncPFIX TST     SR              ; Test the 7-bit operand-in-progress flag
+FncPFIX TST     SR              ; Test the operand-in-progress flag
         BIS     #1<<15,SR       ; Set the operand-in-progress flag
         JN      DatMore         ; If there was no operand-in-progress
 
-DatFrst MOV     Rw,Rlit         ;   Move data*2 to partial-operand register
+DatFrst MOV     Rw,Rlit         ;   Move 7-bit-data*2 to partial-operand register
         SXT     Rlit            ;   Sign extend it to the full word
         RRA     Rlit            ;   Divide it by 2 to to get back to original 
         JMP     _NEXT
@@ -522,30 +444,65 @@ DatMore RRC     Rlit            ;   Shift the low bit of the partial operand
         BIS     Rw,Rlit         ;   Move data into low byte of operand reg
         JMP     _NEXT           ; Endif
         
-FncLIT  TST     SR
-        JGE     FncOPER			; If there's a 7-bit operand-in-progress
-                                ;   there's an implied LIT
-        BIC     #1<<15,SR       ;   Clear the operand-in-progress flag        
-		PUSH    Rtos            ;   Push it now
-        MOV     Rlit,Rtos
-
-FncOPER MOV     _OPCODETBL(Rw),Rw ; Use the opcode to index the opcode-table to get
+FncOPCD MOV     _OPCODETBL(Rw),Rw ; Use the opcode to index the opcode-table to get
                                 ;    the code address and flag
-		cmp		#(_fifteen&$7FFF)+1,Rw
-		jnc		noHexTest		; If >= (no jump), means not a 0-9 or a-f opcode, so ...
-		bit		#1<<13,SR		; ... check for a pending hex/decimal operand in progress
-		bic		#1<<13,SR		; Clear SR flag for next time
-		jz		noHexPending
-		push	Rtos			; Push the pending operand now
-		mov		Rlit,Rtos
-noHexTest
-noHexPending
-		TST     Rw              ; Is it defined in machine code or bytecode?
+		CMP		#$FFFF,Rw		; Check for undefined bytecodes
+		JEQ		DoUNDEF
+		
+FncLIT  TST     SR              ; Check for an implied push-literal
+        JGE     DoOPCD			; If there's an operand-in-progress
+                                ;   there's an implied LIT now
+        BIC     #1<<15,SR       ;   Clear the operand-in-progress flag        
+		PUSH    Rtos            ;   Push the operand now, before doing the 
+        MOV     Rlit,Rtos       ;    operation
+
+DoOPCD	TST     Rw              ; Is it defined in machine code or bytecode?
         BIS     #1<<15,Rw       ; Restore the address high bit
         JN      _ENTER          ; If it's bytecode, nest interpretation
         BR      Rw              ; Else it is machine-code so branch to it
-                                ; It must end with JMP _NEXT or BR #_NEXT
+                                ; It must end with xNEXT macro (or JMP _NEXT or BR #_NEXT)
+DoUNDEF ; Attempt to interpret as hex/decimal digits, otherwise ignore
+        DEC     Rip             ; Decrement the instruction pointer to
+        MOV.B   @Rip+,Rw        ;  re-fetch the bytecode
+		SUB.B	#'0',Rw			; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		JN		_NEXT           ; Ignore undefined bytecodes below '0'
+		CMP.B	#$0A,Rw
+		_IF		_GE
+			CMP.B	#$17,Rw
+			JGE		_NEXT       ; Ignore undefined bytecodes above 'F'
+			CMP.B	#$11,Rw
+			JL		_NEXT       ; Ignore undefined between '9' and 'A'
+			SUB.B   #'A'-'9',Rw	; $11-$16 -> $0A-$0F
+		_ENDIF
+		
+FncPFX4 TST		SR       		; Test the operand-in-progress flag
+		BIS		#1<<15,SR       ; Set the operand-in-progress flag
+		JN		DatMor4         ; If there was no operand-in-progress
 
+DatFst4 MOV     Rw,Rlit         ;   Move 4-bit data to partial-operand register
+		JMP		DatEnd4			; Else (operand-in-progress)
+
+DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
+		tst.b	&hexFlag
+		_IF		_Z
+			mov		Rlit,R15	;   2*Rlit
+			rla		R15
+			rla		R15			;   8*Rlit
+			add		R15,Rlit	;   10*Rlit
+		_ELSE
+			RLA     Rlit		;   4*Rlit
+			RLA     Rlit
+			RLA     Rlit		;   16*Rlit
+		_ENDIF
+		add  	Rw,Rlit			;   Add data into operand reg
+DatEnd4 jmp		_NEXT			; Endif
+
+; hexMode ( bool -- ) ; Set the hexadecimal (vs decimal) input mode flag
+
+		xCODE	'h',hexMode,_hexMode
+		mov.b	Rtos,&hexFlag
+		pop		Rtos
+		jmp		_NEXT
 
 ; EXIT ( -- ) ; Return from a bytecode routine
 
@@ -596,14 +553,20 @@ noCheckBad
         INC     Rip              ; Skip the offset byte
 		jmp		_NEXT
 
+; CLIT ( -- c ) ; Treat the next bytecode as a literal character.
+
+		xCODE	'\'',CLIT,_CLIT ; single-quote
+		PUSH	Rtos
+		MOV.B	@Rip+,Rtos
+		xNEXT
 
 ;-------------------------------------------------------------------------------
 ; Basic stack-machine bytecode definitions
 ; e.g. DUP SWAP DROP OVER + - AND OR XOR etc.
 
 
-; ENTER	( -- x )	; Push any literal-in-progress. Like ENTER key on RPN calculator.
-        xCOLON  ' ',ENTER,_ENTERR     ; Space. For separating literals
+; Space	( -- x )	; Push any literal-in-progress. Like ENTER key on RPN calculator.
+        xColon  ' ',Space,_Space     ; Space. For separating literals
         DB EXIT
 
 ; DROP	( x -- )	; Discard top stack item.
@@ -620,7 +583,7 @@ noCheckBad
 ;
 ;   : ?DUP	DUP IF DUP ENDIF ;
 ;
-;		XCOLON	'?',QDUP,_QDUP
+;		XColon	'?',QDUP,_QDUP
 ;		DB	DUP
 ;       xIF
 ;		  DB	DUP
@@ -652,7 +615,7 @@ QDUP1:	xNEXT
 ;
 ;   : ROT	>R SWAP R> SWAP ;
 ;
-		xCOLON	'P'-64,ROT,_ROT ; Ctrl-P $10
+		xColon	'P'-64,ROT,_ROT ; Ctrl-P $10
 		DB	ToR,SWAP,RFrom,SWAP,EXIT
 
 ;		xCODE	'P'-64,ROT,_ROT ; Ctrl-P $10
@@ -668,7 +631,7 @@ QDUP1:	xNEXT
 ;
 ;   : -ROT	ROT ROT ;
 ;
-		xCOLON	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
+		xColon	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
 		DB	ROT,ROT,EXIT
 
 ;		xCODE	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
@@ -684,7 +647,7 @@ QDUP1:	xNEXT
 ;
 ;   : NIP	SWAP DROP ;
 ;
-		xCOLON	'P',NIP,_NIP,
+		xColon	'P',NIP,_NIP,
 		DB	SWAP,DROP,EXIT
 
 ;		xCODE	'P',NIP,_NIP
@@ -696,7 +659,7 @@ QDUP1:	xNEXT
 ;
 ;   : TUCK	SWAP OVER ;
 ;
-		xCOLON	'U',TUCK,_TUCK,
+		xColon	'U',TUCK,_TUCK,
 		DB	SWAP,OVER,EXIT
 
 ;		xCODE	'U',TUCK,_TUCK
@@ -708,10 +671,10 @@ QDUP1:	xNEXT
 ;   2DUP	( x1 x2 -- x1 x2 x1 x2 )
 ;		Duplicate cell pair x1 x2.
 ;
-		xCOLON	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
+		xColon	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
 		DB	OVER,OVER,EXIT
 		
-;		xCODE	'',TwoDUP,_TwoDUP
+;		xCODE	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
 ;		MOV	SP,Rw
 ;		PUSH	Rtos
 ;		PUSH	@Rw
@@ -722,11 +685,11 @@ QDUP1:	xNEXT
 ;
 ;   : 2SWAP	ROT >R ROT R> ;
 ;
-		xCOLON	'S',TwoSWAP,_TwoSWAP
+		xColon	'S',TwoSWAP,_TwoSWAP
 		DB	ROT,ToR,ROT,RFrom,EXIT
 
-#if 0		; D wanted for Discharge command
-;   DEPTH	( -- +n ) NOTE: Not used, may want for hex literals
+#if 0		; 'D' wanted as hex digit and 'd' for Discharge command
+;   DEPTH	( -- +n )
 ;		Return the depth of the data stack.
 ;
 ;   : DEPTH	sp0 dsp@ - cell-size / ;
@@ -760,28 +723,34 @@ QDUP1:	xNEXT
 ;		Return true if x is zero.
 
 		xCODE	'Z',ZeroEquals,_ZeroEquals
-		AND	Rtos,Rtos		;sets carry if result nonzero
+		AND		Rtos,Rtos		;sets carry if result nonzero
 		SUBC	Rtos,Rtos		;0 if carry set, -1 if carry clear
 		xNEXT
 		
-;   ABS		(x -- x)
-;		Convert TOS to absolute value
+;   ABS 	( n -- u )
+;		Return the absolute value of n.
 
-		xCOLON	'B',ABS,_ABS
+		xColon	'F'-64,ABS,_ABS ; Ctrl-F $06, Spade card symbol in Terminal font
 		db		DUP
 		db		ZeroLess
 		xIF						; If operand is <0
 			db		NEGATE		;   then negate
 		xENDIF
 		db		EXIT
-		
+
+;		xCODE	'F'-64,ABS,_ABS ; Ctrl-F $06, Spade card symbol in Terminal font
+;		tst		Rtos
+;		jge		ABS1
+;		inv		Rtos
+;		inc		Rtos
+;ABS1	xNEXT
 
 ;   U<		( u1 u2 -- flag )
 ;		Unsigned compare of top two items. True if u1 < u2.
 ;
 ;   : U<	2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
 ;
-;		xCOLON	'{',ULess,_ULess
+;		xColon	'{',ULess,_ULess
 ;		DB	TwoDUP,XORR,ZeroLess
 ;		DB	ZJump,ULES1
 ;		DB	NIP,ZeroLess,EXIT
@@ -810,7 +779,7 @@ QDUP1:	xNEXT
 ;		IF DROP 0< EXIT THEN	\ different signs, true if n1 <0
 ;		- 0< ;			\ same signs, true if n1-n2 <0
 ;
-;		XCOLON	'<',LessThan,_LessThan,0
+;		XColon	'<',LessThan,_LessThan,0
 ;		DB	TwoDUP,XORR,ZeroLess,ZJump,LESS1
 ;		DB	DROP,ZeroLess,EXIT
 ;LESS1		DB	Minus,ZeroLess,EXIT
@@ -829,7 +798,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : = 	XOR 0= ;
 ;
-;		xCOLON	'=',Equals,_Equals,0
+;		xColon	'=',Equals,_Equals,0
 ;		DB	XORR,ZeroEquals,EXIT
 
 		xCODE	'=',Equals,_Equals,0
@@ -838,7 +807,7 @@ LESS1:		MOV	#-1,Rtos
 		SUBC	Rtos,Rtos	;-1 if not carry (borrow), 0 otherwise
 		xNEXT
 		
-		xCOLON	'N',NotEquals,_NotEquals
+		xColon	'N',NotEquals,_NotEquals
 		db		Equals,ZeroEquals,EXIT
 		
 ;   WITHIN	( n1|u1 n2|n2 n3|u3 -- flag )
@@ -847,7 +816,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : WITHIN	OVER - >R - R> U< ;
 
-		xCOLON	'W',WITHIN,_WITHIN
+		xColon	'W',WITHIN,_WITHIN
 		DB	OVER,Minus,ToR			;ul <= u < uh
 		DB	Minus,RFrom,ULess,EXIT
 
@@ -923,7 +892,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : +!	SWAP OVER @ + SWAP ! ;
 ;
-;		xCOLON	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
+;		xColon	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
 ;		DB	SWAP,OVER,Fetch,Plus
 ;		DB	SWAP,Store,EXIT
 		
@@ -938,7 +907,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : C+!	SWAP OVER C@ + SWAP C! ;
 ;
-;		xCOLON	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
+;		xColon	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
 ;		DB	SWAP,OVER,CFetch,Plus
 ;		DB	SWAP,CStore,EXIT
 		
@@ -970,7 +939,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : INVERT	-1 XOR ;
 ;
-;		xCOLON	'~',INVERT,_INVERT
+;		xColon	'~',INVERT,_INVERT
 ;       xLIT    -1
 ;		DB	XORR,EXIT
 
@@ -978,34 +947,37 @@ LESS1:		MOV	#-1,Rtos
 		INV	Rtos
 		xNEXT
 
+
+#if 0		; '\'' (tick) wanted for CLIT (character literal)        
 ; 1+	( n1|u1 -- n2|u2 ) ; Increment top of the stack item.
 ;
 ;   : 1+	1 + ;
 ;
-;		xCOLON	'\'',OnePlus,_OnePlus
+;		xColon	'\'',OnePlus,_OnePlus ; tick (single-quote) character
 ;       xLIT    1
 ;		DB	Plus,EXIT
 
-		xCODE	'\'',OnePlus,_OnePlus
+		xCODE	'\'',OnePlus,_OnePlus ; tick (single-quote) character
 		INC	Rtos
 		xNEXT
+#endif
 
 ;   1-		( n1|u1 -- n2|u2 )
 ;		Decrease top of the stack item by 1.
 ;
 ;   : 1-	-1 + ;
 ;
-;		XCOLON	'`',OneMinus,_OneMinus
+;		XColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
 ;		DB	MinusOne,Plus,EXIT
 
-		xCODE	'`',OneMinus,_OneMinus
+		xCODE	'`',OneMinus,_OneMinus ; tock (back-quote) character
 		DEC	Rtos
 		xNEXT
 
 ;   ALIGNED	( addr -- a-addr )
 ;		Align address to the cell boundary.
 
-		xCODE	'A',ALIGNED,_ALIGNED
+		xCODE	'C'-64,ALIGNED,_ALIGNED		; Ctrl-C $03
 		INC	Rtos
 		BIC	#1,Rtos
 		xNEXT
@@ -1014,7 +986,7 @@ LESS1:		MOV	#-1,Rtos
 ;
 ;   : NEGATE	INVERT 1+ ;
 ;
-;		xCOLON	'_',NEGATE,_NEGATE
+;		xColon	'_',NEGATE,_NEGATE
 ;		DB	INVERT,OnePlus,EXIT
 		
 		xCODE	'_',NEGATE,_NEGATE
@@ -1038,12 +1010,13 @@ LESS1:		MOV	#-1,Rtos
         
 ; EMIT	( x -- ) ; Send a character to the output device.
 
-		xCODE	'E',EMIT,_EMIT
-		mov.b	Rtos,R13			; WriteByte currently uses R13
+		xCODE	'M',EMIT,_EMIT
+		mov.b	Rtos,R8				; WriteByte uses R8 as parameter
         POP     Rtos				; Pop first to save stack space
-		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk)
+		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R15 first)
 		xNEXT
-        
+		
+#if 0		; 'M' wanted for EMIT because 'E' wanted as hex digit        
 ;   MOVE	( addr1 addr2 u -- )
 ;		Copy u address units from addr1 to addr2 if u is greater
 ;		than zero. This word is CODE defined since no other Standard
@@ -1084,13 +1057,14 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		POP	SR
 		POP	Rtos
 		xNEXT
+#endif
 
 ;   doS"        ( u -- c-addr u )
 ;		Run-time code for string literals
 ;
 ;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
 
-		xCOLON	'\"',DoSQuote,_DoSQuote
+		xColon	'\"',DoSQuote,_DoSQuote
 		DB	RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
 
                 
@@ -1099,7 +1073,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;
 ;   : doDO	>R max-negative + R> OVER - SWAP R> SWAP >R SWAP >R >R ;
 
-		xCOLON	'U'-64,DoDO,_DoDO ; Ctrl-U $15
+		xColon	'U'-64,DoDO,_DoDO ; Ctrl-U $15
 		DB	ToR
         xLIT    $8000 ; MaxNegative
         DB      Plus,RFrom
@@ -1111,7 +1085,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;
 ;   : HERE	VP @ ;
 
-		xCOLON	'H',HERE,_HERE
+		xColon	'H',HERE,_HERE
         xLIT $204	; VP
 		DB Fetch,EXIT
 
@@ -1122,7 +1096,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;   : I 	rsp@ [ 1 CELLS ] LITERAL + @
 ;		rsp@ [ 2 CELLS ] LITERAL + @  +	; COMPILE-ONLY
 ;
-;		XCOLON	'I',I,_I,COMPO
+;		XColon	'I',I,_I,COMPO
 ;		DB	RPFetch,DoLIT,CELLL,Plus,Fetch
 ;		DB	RPFetch,DoLIT,2*CELLL,Plus,Fetch,Plus,EXIT
 
@@ -1138,7 +1112,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;		colon definition.
 ;
 ;   : COMPILE,	xhere DUP CELL+ TOxhere ! ;
-		xCOLON	',',COMPILEComma,_COMPILEComma
+		xColon	',',COMPILEComma,_COMPILEComma
 		xLIT $206	; For some bizarre reason, if I write xLIT CP I get 6000 errors
         DB   DUP
         xLIT 2
@@ -1152,75 +1126,92 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;-------------------------------------------------------------------------------
 
 
-; Set IDs ( --  ) 			; Initiate the set ID mode.
+; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain 
 ;
-; When this packet is seen, each cell waits up to 1.5 byte times for a byte from its
-; downstream neighbour. If not found, the tentative ID is sent to the upstream neighbours,
-; and the tentative ID is flash-written as the semi-permanent ID. To update IDs, the
-; bootstrap loader has to be re-sent to erase the ID.
-; Note that the upstream neighbour is 1 byte time delayed, so it sees the tentative ID
-; about one half a byte time later.
-; If a start bit is found within the half delay time, ReadByte is immediately called, which
-; echoes that ID up the chain, and the tentative ID is set to one more than the received
-; byte.
+; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour. 
+; If no byte is received, we adopt an ID of zero and immediately send it downstream
+; so others know not to use it, and we write it to info-flash. 
+;
+; If a byte _is_ received, it is taken to be an ID that is already in use and 
+; we tentatively set our ID to one more than it.
+;
+; The structure of the serial code in info-flash is such that any byte read is also 
+; immediately sent downstream. This ensures that the others downstream keep reading and waiting.
+;
+; We continue waiting for bytes and echoing them downstream and incrementing our tentative ID 
+; until no byte is received within 1.5 byte times.
+; We then adopt the tentative ID as our own, immediately send it downstream 
+; so others know not to use it, and we write it to info-flash.
+;
+; To change existing IDs, you need to bootstrap-load the BSL-writer to erase the IDs, 
+; then bootstrap-load this interpreter again before issuing this SetID command.
+;
 ; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 350 ms
-; for 228 cells.
-		xCODE		'i',IDSTART,_IDSTART
+; for 228 cells at 9600 baud.
+
+		xCODE		'i',SetID,_SetID
 		bis.b		#LED,&P1OUT			; Set the error LED
 		clr.b		R8					; Tentative ID starts at 0
 nextID
-		mov.b		R8,&tentID
 		mov			#170,R9				; For 1.5 byte times
-		; checkSt loop is 4+2+1+2 = 9 cycles
-checkSt	bit.b		#RXD,&P1IN			; Check for start bit
+		; chkStrt loop is 4+2+1+2 = 9 cycles
+chkStrt	bit.b		#RXD,&P1IN			; Check for start bit
 		jz			gotStart			; Found start bit
 		dec			R9
-		jnz			checkSt
-;
-; Timeout with no received byte. First send a "don't use" byte
-;
-		mov.b		&tentID,R13			; Get tentative (now permanent) ID
-		call		#doWriteByte		; Send it
+		jnz			chkStrt
+										; Timeout with no received byte
+		jmp			timout				; Exit the nextID loop
 		
-;
-; Check if it is possible to flash-program this ID
-;
-		mov.b		&ID,R13				; Need to check for 0 bits
-		xor.b		#-1,R13				; Now 1 bits
-		and.b		&tentID,R13			; that are also 1s in tentID
-		jz			flashId				; No impossible flash-writes; do it
-;
-; Send an error packet
-;
-		; TO BE COMPLETED! For now, just leave error LED on
-doneId	xNEXT
-;
-; Now flash-program this ID
-; Assumes ACCVIE = NMIIE = OFIE = 0.
-; FSSEL: 1=MCLK FN: 2=divide by 3
-flashId	MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+gotStart
+		; Because we have already detected the start bit ourselves, the start-bit glitch-check and
+		; the sampling of the first data bit, in ReadByte, will be delayed by 
+		; an extra 16 cycles (15% of a bit time) from the detection of the start bit.
+		call		#ReadByte			; Read the byte into R8 and echo it
+		inc.b		R8					; Add one to it, to obtain a new tentative ID
+		jmp			nextID				; Go back and wait again
+
+timout		
+		;
+		; Timeout with no received byte. ID is now definite. Send it immediately so others dont use it
+		;
+		call		#doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R15 first)
+										; WriteByte sends byte in R8, preserves R8, trashes R13 R14 R15
+		;
+		; Check if it is possible to flash-program this ID
+		;
+		mov.b		R8,R13				; Need to check for 1 bits in new ID
+		bic.b		&ID,R13			    ; that are already 0s in any existing ID
+		jnz			cantFlsh			; Impossible flash-write; can't do it
+		;
+		; Now flash-program this ID
+		; Assumes ACCVIE = NMIIE = OFIE = 0.
+		; FSSEL: 1=MCLK FN: 2=divide by 3
+		MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
 		MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
 		MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
 		CLRLOCKA
-		mov.b	&tentID,&ID				; Flash-write it
+		mov.b	R8,&ID					; Flash-write it
 		MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 		SETLOCKA
 		MOV		#FWKEY,&FCTL1			; Disable flash write
 		bic.b	#LED,&P1OUT				; Clear the error LED: done!
 		jmp		doneId					; Finished
 
-gotStart
-		call		#ReadByte			; Read and echo it
-		inc.b		R8					; Add one to it
-		jmp			nextID				; This is now the tentative ID
+cantFlsh
+		;
+		; Send an error packet
+		;
+		; TO BE COMPLETED! For now, just leave error LED on
+doneId	xNEXT
+
         
 ;
-; Cell voltage measurement ( -- )
-; Measurement is in millivolts (0 to 4095 mV)
+; cellVolt ( -- )
+; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
 ;
-		xCOLON		'v',cellVolt,_cellVolt
+		xColon		'v',cellVolt,_cellVolt
 		xLIT		'V'				; Units are volts
-		db			ENTER
+		db			Space
 		xLIT		$70				; Channel 7 = cell voltage divider
 		db			llVolt
 		xLIT		4				; Print 4 digits
@@ -1231,9 +1222,9 @@ gotStart
 ; Cell temperature measurement (cellID --)
 ; Measurement is in degrees C
 ;
-		xCOLON		't',cellTemp,_cellTemp
+		xColon		't',cellTemp,_cellTemp
 		xLIT		0xF8			; Degree symbol (Terminal font only)
-		db			ENTER
+		db			Space
 		xLIT		10<<4			; Channel 10 = temperature probe
 		db			llVolt
 
@@ -1267,9 +1258,9 @@ gotStart
 ; Vin = (R - 2048)/1.3653 mV
 ; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
 
-		xCOLON		'n',linkVolt,_linkVolt
+		xColon		'n',linkVolt,_linkVolt
 		xLIT		'm'				; Units are millivolts
-		db			ENTER
+		db			Space
 		xLIT		$30				; Channel 4 = link voltage divider
 		db			llVolt
 		xLIT		2048
@@ -1302,7 +1293,7 @@ gotStart
 ;
 ; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
 ;
-		xCOLON	'p',prettyPrint,_prettyPrint
+		xColon	'p',prettyPrint,_prettyPrint
 		xLIT		1
 		db			MS
 		xLIT		'\\'
@@ -1398,33 +1389,32 @@ addSamp	add			@R15+,R9		; Add a sample
 		jnz			addSamp
 ;
 ; Calibrate the value by multiplying by the constant at $10F9. It needs expanding to its original value.
-		clr			R11
-		mov.b		&$10F9,R10			; Get voltage calibration figure
-		rla			R10
-		bit			#$100,R10			; Test MSB
+		mov.b		&$10F9,R9			; Get voltage calibration figure
+		rla			R9
+		bit			#$100,R9			; Test MSB
 		jnz			noSet12				; If it was 0
-		bis			#$1000,R10			;   then bit 12 needs to be on
+		bis			#$1000,R9			;   then bit 12 needs to be on
 		jmp			set12
 noSet12									; else
-		bis			#$e00,R10			;   set these exttra 3 bits on, leave bit 12 off
+		bis			#$e00,R9			;   set these exttra 3 bits on, leave bit 12 off
 set12
 		
 		call		#aUMStar			; Adjust with calibration factor
 										; Note: calls assembler code that ends in ret
 ; Now need to shift result right 12 bits. Easiest to shift left 4 bits, and keep top half
 		mov			#4,R15
-shl4	rla			R10
-		rlc			R11
+shl4	rla			R9
+		rlc			R10
 		dec			R15
 		jnz			shl4
-		mov			R11,Rtos			; Result
+		mov			R10,Rtos			; Result
 
 toNEXT	jmp			_NEXT				; Finished
 
 ;
-; Select cell: ignore to end of line if not the ID on TOS
-; (id --)
-; This is actually longer in bytecode
+; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
+;
+		; This is actually longer in bytecode
 		xCODE		's',Select,_Select
 		cmp.b		&ID,Rtos			; Correct ID?
 		pop			Rtos				; Pop the argument
@@ -1436,51 +1426,60 @@ toNEXT	jmp			_NEXT				; Finished
 ;
 ; For debugging only: output R12 in hex
 ; NOT USED AT PRESENT
-hxOut	mov			R12,R13
-		rrc			R13
-		rrc			R13
-		rrc			R13
-		rrc			R13
+hxOut	mov			R12,R8
+		rrc			R8
+		rrc			R8
+		rrc			R8
+		rrc			R8
 		call		#nibOut
-		mov			R12,R13
-nibOut	and			#$F,R13
-		add			#'0',R13
-		cmp			#'9'+1,R13
-		jl			noAdd
-		add			#'A'-'9'-1,R13
-noAdd:	; Fall through to doWriteByte and return
+		mov			R12,R8
+nibOut	and			#$F,R8
+		; Tricky 5 word replacement for the 7 words of instructions commented-out below
+		clrc				; Because dadd is always done with carry on MSP430
+		dadd.b #$90,R8		; Causes no carry for 0-9, carry for A to F
+		dadd.b #$40,R8		; Now any carry gets added, giving $30-$39, $41-$46 (i.e. '0'-'9','A'-'F')
+;		add			#'0',R8
+;		cmp			#'9'+1,R8
+;		jl			noAdd
+;		add			#'A'-'9'-1,R8
+;noAdd:
+		; Fall through to doWriteByte and return
 #endif
 
-doWriteByte: clr	R15					; The WriteByte function in the bootloader
-		br			#WriteByte			; requires that R15 is cleared.
+; doWriteByte ( regs: R8 -- R13 R14 R15 ) ; Transmits byte in R8, preserves R8, trashes R13 R14 R15
+; Call this instead of calling WriteByte directly
+doWriteByte: 
+		clr			R15					; R15 is required to be cleared for the
+	mov R8,R13		; Old versions of the BSL need this... DELETE ME eventually
+		br			#WriteByte			; WriteByte function in the bootstrap loader (BSL)
 
 
 ; UM* ( u1 u2 -- ud )
 ; Multiply u1 by u2, giving the unsigned double product ud.
 ; All values and arithmetic are unsigned.
-		xCODE		'X'-64,UMStar,_UMStar
-		mov		Rtos,R9
-		Pop		R10
+		xCODE		'X'-64,UMStar,_UMStar	; Ctrl-X
+		mov		Rtos,R8
+		Pop		R9
 		call	#aUMStar		; Do the work in assembler-callable assembler
-		push	R10
-		mov		R11,Rtos
+		push	R9
+		mov		R10,Rtos
 		jmp		_NEXT
 
 ; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
 
-;_UMStar						; Assembler callable assembler
-		; Starts with 16 bit multiplicand in R9, multiplier in R10 and
-		; ends with 32 bit product in R11 (hi) and R10 (lo).
+;_UMStar						; Assembler-callable assembler
+		; Starts with 16 bit multiplicand in R8, multiplier in R9 and
+		; ends with 32 bit product in R10 (hi) and R9 (lo).
 aUMStar:
-		clr		R11			; Clear hi word of product so far
-		mov		#16,R12		; Do 16 times
+		clr		R10			; Clear hi word of product so far
+		mov		#16,R15		; Do 16 times
 
-mullp	bit		#1,R10			; Test low bit of multiplier
+mullp	bit		#1,R9			; Test low bit of multiplier
 		jz		mulz			; If it's a 1
-		add		R9, R11		;   add multiplicand to product hi word; Endif
-mulz	rrc		R11			; Shift product hi word (incl. carry) right
-		rrc		R10			; into product lo and simul. shift multiplier right
-		dec		R12			; Decrement loop counter
+		add		R8, R10		;   add multiplicand to product hi word; Endif
+mulz	rrc		R10			; Shift product hi word (incl. carry) right
+		rrc		R9			; into product lo and simul. shift multiplier right
+		dec		R15			; Decrement loop counter
 		jnz		mullp			; Loop until zero
 		ret
 
@@ -1495,26 +1494,26 @@ mulz	rrc		R11			; Shift product hi word (incl. carry) right
 
 ;_UMSlashMOD             ; (was) Headerless code (no bytecode assigned)
 		xCODE	'_'-64,UMSlashMOD,_UMSlashMOD	; Ctrl-_ (downward pointing triangle)
-		mov     Rtos,R9  ; u1     unsigned divisor
-		pop     R11      ; ud hi  unsigned dividend hi word
-		pop     R10      ; ud lo  unsigned dividend lo word
-		cmp     R9,R11   ; Overflow?
+		mov     Rtos,R8  ; u1     unsigned divisor
+		pop     R10      ; ud hi  unsigned dividend hi word
+		pop     R9		 ; ud lo  unsigned dividend lo word
+		cmp     R9,R10   ; Overflow?
 		jc      oflo     ; Jump to error exit if divide by zero or overflow.
-		mov     #16,R12  ; Do 16 times
+		mov     #16,R15  ; Do 16 times
 
-ummlp	rla     R10      ; Shift quotient left and simul. shift dividend lo
-		rlc     R11      ;   into dividend hi
+ummlp	rla     R9 	     ; Shift quotient left and simul. shift dividend lo
+		rlc     R10      ;   into dividend hi
 		jc      umm2     ; If carry OR
-		cmp     R9,R11
+		cmp     R8,R10
 		jlo     umm1     ;   no carry AND remainder-so-far >= divisor
-umm2	sub     R9,R11   ;     Subtract divisor from remainder-so-far
-		bis     #1,R10   ;     Set low bit of quotient-so-far
+umm2	sub     R8,R10   ;     Subtract divisor from remainder-so-far
+		bis     #1,R9	 ;     Set low bit of quotient-so-far
                        ; Endif
-umm1	dec     R12      ; Decrement loop counter
+umm1	dec     R15      ; Decrement loop counter
 		jnz     ummlp    ; Loop until zero
 
-		push    R11      ; u2  unsigned remainder
-		mov     R10,Rtos ; u3  unsigned quotient
+		push    R10      ; u2  unsigned remainder
+		mov     R9,Rtos	 ; u3  unsigned quotient
 		xNEXT
 
 oflo	PUSH    #-1
@@ -1526,7 +1525,7 @@ oflo	PUSH    #-1
 ; Multiply n1|u1 by n2|u2 giving the single product n3|u3.
 ; i.e. same routine works for signed or unsigned.
 
-		xCOLON '*',Star,_Star
+		xColon '*',Star,_Star
 ;		xLIT _UMStar    ; Do the multiplication
 ;		DB   CALLM
 		db	 UMStar
@@ -1537,7 +1536,7 @@ oflo	PUSH    #-1
 ; Divide u1 by u2, giving the single unsigned quotient u3.
 ; Returns $FFFF if u2 is zero.
 
-		xCOLON  '/',Slash,_Slash
+		xColon  '/',Slash,_Slash
 		DB   ToR           ; Move divisor to return stack temporarily
 		xLIT 0             ; Pad the dividend to a double word
 		DB   RFrom         ; Bring divisor back from return stack
@@ -1550,7 +1549,7 @@ oflo	PUSH    #-1
 ;
 ; Emit an integer n as m decimal digits (n m --)
 
-		xCOLON	'm',emitDec,_emitDec
+		xColon	'm',emitDec,_emitDec
 		db		SWAP					; n on top
 		db		DUP
 		db		ZeroLess
@@ -1569,7 +1568,7 @@ oflo	PUSH    #-1
 calcDecLoop
 		db		SWAP					; Put count under current-number
 		xLIT	0
-		db		ENTER
+		db		Space
 		xLIT	10
 		db		UMSlashMOD
 		; Now we have rem ... rem count rem quotient=current-number
@@ -1600,7 +1599,7 @@ emitDec2
 ; Regular tick.
 ; Turn on the bypass resistors if the cell is over 3.55 V
 ; Send badness message if over or under volts
-		xCOLON		'k',Tick,_Tick
+		xColon		'k',Tick,_Tick
 		xLIT		$70				; Channel 7 = cell voltage divider
 		db			llVolt
 		db			DUP
@@ -1613,7 +1612,7 @@ emitDec2
 			xLIT		3600			; Put fixed bypass voltage to TOS
 		xENDIF
 		db			UGreater		; 1 if greater, 0 otherwise
-		db			bypass			; Bypass if cell voltage > 3.55 V (or > bypassVoltage if D command is active)
+		db			bypass			; Bypass if cell voltage > 3.55 V (or > bypassVoltage if 'd' command is active)
 		db			DUP
 		xLIT		3650			; !! FOR NOW !! Upper voltage limit
 		db			UGreater
@@ -1704,9 +1703,9 @@ MSloop2	dec		R15
 ; Emit the calibration value: TEMPORARY
 ;
 #if 0
-		xCOLON	'C',calval,_calval
+		xColon	'c',calval,_calval
 		xLIT	'C'
-		db		ENTER
+		db		Space
 		xLIT	$10f9
 		db		CFetch
 		xLIT	3
@@ -1717,20 +1716,20 @@ MSloop2	dec		R15
 ;
 ; aUtonomous operation; cell 0 sends tick commands to others; last cell operates warning LED/buzzer
 ; For 'u' command, top of stack has number of cells (num_cells --)
-; D (Discharge) command is the same, but sets bypass voltage to a value from the second operand
+; 'd' (Discharge) command is the same, but sets bypass voltage to a value from the second operand
 ; (num_cells thresh --) thresh is in millivolts
-; D can be used for top, mid, or bottom balancing at various voltages
-; Since 'D' relies on a value in RAM, most charging should use 'u' instead
+; 'd' can be used for top, mid, or bottom balancing at various voltages
+; Since 'd' relies on a value in RAM, most charging should use 'u' instead
 ;
 
-		xCOLON	'u',auton,_auton
+		xColon	'u',auton,_auton
 		xLIT	0
-		db		ENTER
-		; Fall through to D command; 'u' is like "num_cells 0 D"
+		db		Space
+		; Fall through to 'd' command; 'u' is like "num_cells 0 d"
 
-		xCOLON	'D',Discharge,_Discharge
+		xColon	'd',Discharge,_Discharge
 		xLIT	$212		; bypassVolts
-		db		Store		; Set or clear bypassVolts based on u or D commmand
+		db		Store		; Set or clear bypassVolts based on u or d commmand
 		xLIT	ID
 		db		CFetch
 		db		ZeroEquals
