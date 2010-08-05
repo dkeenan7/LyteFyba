@@ -1,6 +1,16 @@
 #include "msp430.h"
 #include "ControlFlowMacros.h"
-			COL		132     
+			COL		132
+; This is a reverse-polish command interpreter for an MSP430F2012 microcontroller.
+;
+; It was developed by Mike Van Emmerik and Dave Keenan for their 
+; lithium battery monitoring system for high voltage electric vehicles.
+;
+; This interpreter is normally loaded into the 2kB of main-flash on the MSP430F2012. 
+; using our serial bootstrap-loader (BSL). Its "interpretByte" routine is called from 
+; the BSL.
+; 
+; See Interpreter.txt for more explanation.
 
 #define		TEST	1			; 1 for testing with BMU cell-inputs in parallel
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
@@ -14,6 +24,16 @@ VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A9		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10C7		; Address of Link Voltage offset calibration byte
+
+; ADC channel numbers
+CellVChan	EQU		$70			; ADC channel number for cell voltage
+TempChan	EQU		$A0			; ADC channel number for temperature
+LinkVChan	EQU		$30			; ADC channel number for link voltage
+NumSamples	EQU		16			; Number of ADC over-samples (typ. 4 or 16)
+; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits. 
+; i.e. By adding up 4^n samples you get 2n more bits in the result, 
+; but half of them are noise and should be thrown away, 
+; leaving us with n bits of additional information.
 
 ; Bits in i/o port 1
 LED			EQU		1 << 6		; Bit 6 out is red error LED; 1 = on
@@ -334,7 +354,7 @@ bCheckForBad DS	1		; 1 = check \ command for \B (badness). Only set if aUtonomou
 						; received and we are the last cell
 bypassVolts	DS	1		; Non-zero = use this value as the bypass voltage
 
-sampleBuf DS	2*16	; ADC sample buffer; 16 samples
+sampleBuf DS	2*NumSamples	; ADC sample buffer; 4 or 16 samples
 
 TIB		EQU     $22A	; Start of Text Input Buffer (Forth terminology), grows up
 
@@ -1215,7 +1235,7 @@ doneId	xNEXT
 		xColon		'v',cellVolt,_cellVolt
 		xLIT		'V'				; Units are volts
 		db			Space
-		xLIT		$70				; Channel 7 = cell voltage divider
+		xLIT		CellVChan		; ADC channel for cell voltage divider
 		db			llVolt
 		xLIT		4				; Print 4 digits
 		db			prettyPrint
@@ -1228,7 +1248,7 @@ doneId	xNEXT
 		xColon		't',cellTemp,_cellTemp
 		xLIT		0xF8			; Degree symbol (Terminal font only)
 		db			Space
-		xLIT		10<<4			; Channel 10 = temperature probe
+		xLIT		TempChan		; ADC channel for temperature sensor
 		db			llVolt
 
 ;
@@ -1264,7 +1284,7 @@ doneId	xNEXT
 		xColon		'n',linkVolt,_linkVolt
 		xLIT		'm'				; Units are millivolts
 		db			Space
-		xLIT		$30				; Channel 4 = link voltage divider
+		xLIT		LinkVChan		; ADC channel for link voltage divider
 		db			llVolt
 		xLIT		2048
 		db			Minus
@@ -1346,7 +1366,7 @@ doneId	xNEXT
 #else
 		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON,&ADC10CTL0
 #endif
-		cmp			#$30,Rtos				; If channel 3 (i.e. link voltage)
+		cmp			#LinkVChan,Rtos				; ADC channel for link voltage
 		jnz			noRefOut
 		bis.b		#1<<4,&ADC10AE0				;  then make P1.4 analogue, and
 		bis			#REFOUT,&ADC10CTL0			;  set REFOUT
@@ -1379,19 +1399,19 @@ p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R8
 #endif
 		mov			R8,&ADC10CTL1
-		mov.b		#16,&ADC10DTC1			; 16 conversions
+		mov.b		#NumSamples,&ADC10DTC1	; 16 conversions
 		mov			#sampleBuf,&ADC10SA		; Set start address
 		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		jz			convert					; No, busy wait
 		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
 ;
-; Add the 16 samples
+; Sum the samples
 ;
 		mov			#sampleBuf,R9
-		mov			#0,R8					; Sum
+		mov			#0,R8					; Initialise the sum
 addSamp	add			@R9+,R8					; Add a sample
-		cmp			#sampleBuf+2*16,R9
+		cmp			#sampleBuf+2*NumSamples,R9
 		jnz			addSamp
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
@@ -1602,7 +1622,7 @@ emitDec2
 ; Turn on the bypass resistors if the cell is over 3.55 V
 ; Send badness message if over or under volts
 		xColon		'k',Tick,_Tick
-		xLIT		$70				; Channel 7 = cell voltage divider
+		xLIT		CellVChan		; ADC channel for cell voltage divider
 		db			llVolt
 		db			DUP
 		xLIT		$212			; bypassVolts
