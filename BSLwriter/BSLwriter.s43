@@ -53,16 +53,18 @@
 ; Conditional assembly parameters which may be changed for special purposes
 
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
-CALIBRATE	EQU		0				; Set to 1 to perform calibration (all BMUs) as well as BSL-programming
-CALONLYONE	EQU		0				; Set to 1 to calibrate only 1 BMU (NOTE: IDs must be set)
+CALIBRATE	EQU		0				; Set to 1 to perform volts and tempterature calibration
+									;	(all BMUs) in addition to BSL-programming
+CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
+									;	(NOTE: IDs must be set)
 									; CALIBRATE and CALONLYONE are mutually exclusive
-CALTHIS		EQU		2				; Calibrate only the cell with this ID
-CALVOLTS	EQU		3600			; Assuming a test voltage of 3.600
+CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
+CALVOLTS	EQU		3599			; Assuming a test voltage of 3.600
 CALVOLTOFF	EQU		-2				; Fudge factor to make the measurements better
 CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
-FREQCAL		EQU		$86B0			; Value to force frequency calibration to
+FREQCAL		EQU		$86BC			; Value to force frequency calibration to
 
 CellVChan	EQU		$7000			; ADC channel number for cell voltage
 TempChan	EQU		$A000			; ADC channel number for temperature
@@ -235,7 +237,7 @@ currVersBSL
 			mov.b	&infoVoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
 			mov.b	&infoVoltCalH,&mainVoltCalH
 			mov.b	&infoTempCal,&mainTempCal
-			mov.b	&infoLinkCal,&mainLinkCal
+;			mov.b	&infoLinkCal,&mainLinkCal
 			mov.b	&infoDataVers,&mainDataVers
 #endif
 			mov.b	&info4MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
@@ -261,7 +263,7 @@ vers2BSL
 			jeq		noCopyCalOld2
 #endif
 			mov.b	&inf2TempCal,&mainTempCal
-			mov.b	#0,&mainLinkCal				; No link offset calibration in this old version
+;			mov.b	#0,&mainLinkCal				; No link offset calibration in this old version
 			
 			; Uncompress the old compressed voltage scale factor
 			mov.b	&inf2VoltCal,R8		; Get old voltage calibration figure
@@ -283,8 +285,8 @@ set12v2
 			mov.b	&inf24MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
 noCopyCalOld2
 #if FORCEFCAL
-			mov.b	#FREQCAL >> 8,&main1MHzB
-			mov.b	#FREQCAL & $FF,&main1MHzD
+			mov.b	#FREQCAL >> 8,&main1MHzCalB
+			mov.b	#FREQCAL & $FF,&main1MHzCalD
 #else
 			mov.b	&inf21MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
 			mov.b	&inf21MHzCalD,&main1MHzCalD
@@ -303,7 +305,7 @@ vers1BSL
 			jeq		noCopyCalOld1
 #endif
 			mov.b	&inf1TempCal,&mainTempCal
-			mov.b	#0,&mainLinkCal				; No link offset calibration in this old version
+;			mov.b	#0,&mainLinkCal				; No link offset calibration in this old version
 			; Uncompress the old compressed voltage scale factor
 			mov.b	&inf1VoltCal,R8		; Get old voltage calibration figure
 			rla		R8
@@ -324,8 +326,8 @@ set12v1
 			mov.b	&inf14MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
 noCopyCalOld1
 #if FORCEFCAL
-			mov.b	#FREQCAL >> 8,&main1MHzB
-			mov.b	#FREQCAL & $FF,&main1MHzD
+			mov.b	#FREQCAL >> 8,&main1MHzCalB
+			mov.b	#FREQCAL & $FF,&main1MHzCalD
 #else
 			mov.b	&inf11MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
 			mov.b	&inf11MHzCalD,&main1MHzCalD
@@ -405,15 +407,15 @@ calVoltOk									; endif endif
 ; We want a 12 bit integer result in millivolts. 
 ; That means we have to shift the product 17 bits to the right, which is equivalent to 
 ; throwing away the lo word and shifting the high word one bit to the right.
-		mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
-		mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
+			mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
+			mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
+			swpb		R10						; Assemble the two bytes into a word
+			bis			R10,R9					; as multiplicand in R9
 											; Multiplier is sum-of-samples, already in R8
-		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
+			call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
 											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
 
 ; To divide by 9.694, multiply by 65536/9.694 = 6760
 			mov		R10,R8
@@ -422,38 +424,14 @@ calVoltOk									; endif endif
 			sub		#CALTEMP,R10
 tempOk		rra		R10						; Temp offset now fits in a byte
 			mov.b	R10,&mainTempCal		; Flash write temperature offset calibration value
-
-;
-; Link voltage offset calibration (assuming zero link voltage due to zero link current)
-;
-			mov		#LinkVChan,R8			; ADC channel for link voltage
-			call	#voltMeasure
 			
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts. 
-; That means we have to shift the product 17 bits to the right, which is equivalent to 
-; throwing away the lo word and shifting the high word one bit to the right.
-		mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
-		mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
+#endif		/* #if CALIBRATE */
 
-			sub		#2048,R10				; Zero volts for link voltage is a 2048 reading
-			mov.b	R10,&mainLinkCal		; Flash write link offset calibration value
 
-#endif
 doneCalibrate
 
 
-; Erase info flash including segment A. MCLK=1.00 MHz
+; Erase info flash including segment A. Assumes MCLK=1.00 MHz
 startErase
 			mov		#$1000,R12			; Start of info-flash
 eraseInfo   MOV     #FWKEY,&FCTL3       ; Clear LOCK, don't toggle LOCKA
@@ -660,9 +638,10 @@ mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL
 main:		; This label is for the debugger
 
 			; Initialise the interpreter, if possible
-			;
+	; NOTE: this doesn't do what we want!!  FIXME!!!
 			clr		R8				; A null to pass to interpretByte
-			jmp		testNoInterp	; Call interpretByte to initialise the main-flash code, if we're allowed to
+	; COMMENTED OUT FOR NOW... REMOVE BOTH!!
+;			jmp		testNoInterp	; Call interpretByte to initialise the main-flash code, if we're allowed to
 			
 			; Password-checking finite-state-machine (FSM)
 			; After DEC below, 3 = waiting for ^B, 2 = waiting for ^A, 1 = waiting for ^D, 
@@ -722,10 +701,12 @@ progByte    mov.b	R8,-2(R12)		; Program it
             tst.b	Rcksum			; Check the checksum
             jnz		resetFSM		; If bad checksum, leave the no interpret flag set
             bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
-			; EXPERIMENTAL! For now, clear the whole P1 port. This will turn off the transmit LED, but not reverse bias it. It will get fixed next WriteByte
+			; EXPERIMENTAL! For now, clear the whole P1 port. This will turn off the transmit LED,
+			; but not reverse bias it. It will get fixed next WriteByte
 			; And if no next WriteByte, the interpreter initialisation will fix it.
-			clr.b	&P1OUT
-            jmp		resetFSM		; Back to state 2, looking for ^B
+			clr		R8				; To send to interpretByte, see below
+			mov.b	R8,&P1OUT
+            jmp		testNoInterp	; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
 
@@ -847,7 +828,8 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 ; -----------------------------------------------------------------------------
 
 
-			ORG		$FE00			; Short test program for processor FrequenCy. Handy when lose frequency calibration value
+			ORG		$FD00			; Short test program for processor Frequency Derivation. Handy when lose the frequency calibration values.
+											; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
 			mov		#$280,SP
 			mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop watchdog timer
 
