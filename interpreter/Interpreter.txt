@@ -47,6 +47,7 @@ Z     0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
 [     0<         Signed Less-than-zero comparison    (left square bracket)
 ]     0>         Signed Greater-than-zero comparison (right square bracket)
 ?     ?DUP       Duplicate if not zero
+^E    CtoS       sign Extend byte to word (doesn't display on Hyperterminal)
 
 Binary arithmetic and logic operators
 Wunth Forth      Description           (Notes)

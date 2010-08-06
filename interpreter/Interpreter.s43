@@ -841,13 +841,22 @@ QDUP1:	xNEXT
 ;LESS1		DB	Minus,ZeroLess,EXIT
 
 		xCODE	'<',LessThan,_LessThan,0
-		POP	Rw
-		CMP	Rtos,Rw
-		JL	LESS1
-		MOV	#0,Rtos
-		xNEXT
-LESS1:		MOV	#-1,Rtos
-		xNEXT
+		POP		Rw
+		CMP		Rtos,Rw
+		JL		LESS1
+		MOV		#0,Rtos
+		jmp		_NEXT
+LESS1:	MOV		#-1,Rtos
+		jmp		_NEXT
+		
+		xCODE	'>',GreaterThan,_GreaterThan
+		POP		Rw
+		CMP		Rtos,Rw
+		JL		LESS0
+		MOV		#-1,Rtos
+		jmp		_NEXT
+LESS0:	MOV		#0,Rtos
+		jmp		_NEXT
 
 ;   =		( x1 x2 -- flag )
 ;		Return true if top two are equal.
@@ -858,10 +867,10 @@ LESS1:		MOV	#-1,Rtos
 ;		DB	XORR,ZeroEquals,EXIT
 
 		xCODE	'=',Equals,_Equals,0
-		POP	Rw
-		XOR	Rw,Rtos		;sets carry if result nonzero (not equal)
+		POP		Rw
+		XOR		Rw,Rtos		;sets carry if result nonzero (not equal)
 		SUBC	Rtos,Rtos	;-1 if not carry (borrow), 0 otherwise
-		xNEXT
+		jmp		_NEXT
 		
 		xColon	'N',NotEquals,_NotEquals
 		db		Equals,ZeroEquals,EXIT
@@ -889,23 +898,23 @@ LESS1:		MOV	#-1,Rtos
 ;		Bit-shift left, filling the least significant bit with 0.
 
 		xCODE	'L',TwoStar,_TwoStar
-		RLA	Rtos
-		xNEXT
+		RLA		Rtos
+		jmp		_NEXT
 
 ;   2/		( x1 -- x2 )
 ;		Bit-shift right, leaving the most significant bit unchanged.
 
 		xCODE	'%',TwoSlash,_TwoSlash
-		RRA	Rtos
-		xNEXT
+		RRA		Rtos
+		jmp		_NEXT
 
 ;   >R		( x -- ) ( R: -- x )
 ;		Move top of the data stack item to the return stack.
 
 		xCODE	'O',ToR,_ToR
 		RPUSH	Rtos
-		POP	Rtos
-		xNEXT
+		POP		Rtos
+		jmp		_NEXT
 
 ;   R>		( -- x ) ( R: x -- )
 ;		Move x from the return stack to the data stack.
@@ -913,35 +922,35 @@ LESS1:		MOV	#-1,Rtos
 		xCODE	'R',RFrom,_RFrom
 		PUSH	Rtos
 		RPOP    Rtos
-		xNEXT
+		jmp		_NEXT
 
 ;   R@		( -- x ) ( R: x -- x )
 ;		Copy top of return stack to the data stack.
 
 		xCODE	'V'-64,RFetch,_RFetch ; Ctrl-V $16
 		PUSH	Rtos
-		MOV	@Rrsp,Rtos
-		xNEXT
+		MOV		@Rrsp,Rtos
+		jmp		_NEXT
 
 ;   @		( a-addr -- x )
 ;		Push the contents at a-addr to the data stack.
 
 		xCODE	'@',Fetch,_Fetch
-		MOV	@Rtos,Rtos
-		xNEXT
+		MOV		@Rtos,Rtos
+		jmp		_NEXT
 
 ; + 	( x1 x2 -- x3 ) ; Addition.
 		xCODE	'+',Plus,_Plus
-		POP	Rw
-		ADD	Rw,Rtos
-		xNEXT
+		POP		Rw
+		ADD		Rw,Rtos
+		jmp		_NEXT
 
 ; - 	( x1 x2 -- x3 ) ; Subtraction.
 		xCODE	'-',Minus,_Minus
-		POP	Rw
-		SUB	Rtos,Rw
-		MOV	Rw,Rtos
-		xNEXT
+		POP		Rw
+		SUB		Rtos,Rw
+		MOV		Rw,Rtos
+		JMP		_NEXT
 
 ;   +!		( n|u a-addr -- )
 ;		Add n|u to the contents at a-addr.
@@ -953,10 +962,10 @@ LESS1:		MOV	#-1,Rtos
 ;		DB	SWAP,Store,EXIT
 		
 		xCODE	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
-		POP	Rw
-		ADD	Rw,0(Rtos)
-		POP	Rtos
-		xNEXT
+		POP		Rw
+		ADD		Rw,0(Rtos)
+		POP		Rtos
+		JMP		_NEXT
 
 ;   C+!		( n|u a-addr -- )
 ;		Add n|u to the contents at a-addr.
@@ -968,27 +977,27 @@ LESS1:		MOV	#-1,Rtos
 ;		DB	SWAP,CStore,EXIT
 		
 		xCODE	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
-		POP	Rw
+		POP		Rw
 		ADD.B	Rw,0(Rtos)
-		POP	Rtos
-		xNEXT
+		POP		Rtos
+		JMP		_NEXT
 
 ; AND 	( x1 x2 -- x3 ) ; Bitwise AND.
 		xCODE	'&',ANDD,_ANDD
-		POP	Rw
-		AND	Rw,Rtos
-		xNEXT
+		POP		Rw
+		AND		Rw,Rtos
+		JMP		_NEXT
 
 ; OR 	( x1 x2 -- x3 ) ; Bitwise OR.
 		xCODE	'|',ORR,_ORR
-		POP	Rw
-		BIS	Rw,Rtos
-		xNEXT
+		POP		Rw
+		BIS		Rw,Rtos
+		JMP		_NEXT
 
 ; XOR 	( x1 x2 -- x3 ) ; Bitwise XOR.
 		xCODE	'^',XORR,_XORR
-		POP	Rw
-		XOR	Rw,Rtos
+		POP		Rw
+		XOR		Rw,Rtos
 		xNEXT
         
 ; INVERT ( x1 -- x2 ) ; Return one's complement of x1.
@@ -1234,23 +1243,11 @@ timout
 		call		#doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
 										; WriteByte sends byte in R8, preserves R8, trashes R9 R10 R11
 		;
-		; Check if it is possible to flash-program this ID
-		;
-		mov.b		R8,R9				; Need to check for 1 bits in new ID
-		bic.b		&ID,R9			    ; that are already 0s in any existing ID
-		jnz			cantFlsh			; Impossible flash-write; can't do it
-		;
 		; Now flash-program this ID
 		mov			#ID,R9
 		call		#aFlashWrite
-		bic.b	#LED,&P1OUT				; Clear the error LED: done!
 		jmp		doneId					; Finished
 
-cantFlsh
-		;
-		; Send an error packet
-		;
-		; TO BE COMPLETED! For now, just leave error LED on
 doneId	xNEXT
 
         
@@ -1323,13 +1320,8 @@ doneId	xNEXT
 			db			Minus
 			xLIT		LinkCal			; Link offset calibration
 			db			CFetch
+			db			CtoS			; Sign extend
 			db			Minus
-#if 0
-			db			ABS				; Result could be pos or neg; don't care about sign
-									; and negative numbers won't display correctly
-			xLIT		48001
-			db			UMStar
-#else
 			db			DUP
 			db			ZeroLess
 			xIF
@@ -1341,10 +1333,9 @@ doneId	xNEXT
 				xLIT		48001
 				db			UMStar
 			xENDIF
+			; Most significant half is on top of stack; nip the lower half off
+			db			NIP
 		xENDIF
-#endif
-		; Most significant half is on top of stack; nip the lower half off
-		db			NIP
 		xLIT		4				; Print 4 digits... would 3 be enough?
 		db			prettyPrint
 		db			EXIT
@@ -1711,7 +1702,7 @@ MSloop2	dec		R8
 		xNEXT
 		
 		xCODE	'J'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
-		mov	#345,R8
+		mov		#345,R8
 MS1loop2 dec	R8
 		jnz		MS1loop2
 		xNEXT
@@ -1869,31 +1860,21 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 		xLIT	2048				; Zero volts for link voltage is a 2048 reading
 		DB		Minus				; So subtract from result
 		DB		DUP
-		xLIT	$80
+		DB		DUP
+		xLIT	$FF80				; -$80
 		DB		LessThan
-		DB		ZeroLess			
+		DB		SWAP
+		xLIT	$7F
+		DB		GreaterThan
+		DB		ORR
 		xIF							; If result (under TOS) is < -$80
 			DB		DROP				; then discard the result
 			xLIT	$80					; and replace with $80
+			DB		Space				; Next bytecode is an xLIT
 		xENDIF
 		xLIT2	LinkCal
 		DB		flashWrite			; Write the calibration value
 		DB		EXIT
-
-#if 0
-		mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
-		mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
-
-		sub		#2048,R10				; Zero volts for link voltage is a 2048 reading
-		mov.b	R10,&mainLinkCal		; Flash write link offset calibration value
-#endif
 
 
 ;
@@ -1901,14 +1882,21 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 ;
 			xCODE	'M'-64,flashWrite,_flashWrite
 			mov		Rtos,R9
-			POP		Rtos
+			POP		R8
 			call	#aFlashWrite
 			pop		Rtos
-			br		_NEXT
+			br		#_NEXT
 			
 aFlashWrite:
 			; Assembly language flash writer
-			; Byte  in R8, address in R9
+			; Byte  in R8, address in R9. Trashes R10
+			;
+			; Check if it is possible to flash-program this ID
+			;
+			mov.b		R8,R10				; Need to check for 1 bits in new ID
+			bic.b		@R9,R10			    ;	that are already 0s in the existing byte
+			tst.b		R10					; Set Z flag if result is 0; bic doesn't
+			jnz			cantFlsh			; Impossible flash-write; can't do it
 			; Assumes ACCVIE = NMIIE = OFIE = 0.
 			; FSSEL: 1=MCLK FN: 2=divide by 3
 			MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
@@ -1919,7 +1907,17 @@ aFlashWrite:
 			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 			SETLOCKA
 			MOV		#FWKEY,&FCTL1			; Disable flash write
+			bic.b	#LED,&P1OUT				; Clear the error LED: done!
 			ret
+cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
+			ret
+		
+;
+; CtoS: sign extend a character to a signed word. C>S in Forth. (c -- n)
+;
+			xCODE	'E'-64,CtoS,_CtoS
+			sxt		Rtos
+			br		#_NEXT
 
 
 ; Also need RSHIFT BITSET BITCLR BITTEST
@@ -1932,7 +1930,7 @@ aFlashWrite:
 LSHIFTLP	RLA		Rtos
 			DEC		Rw
 			JNZ		LSHIFTLP
-			BR		_NEXT
+			BR		#_NEXT
 
 
 ; xDO x?DO xLOOP x+LOOP xLEAVE xUNLOOP
