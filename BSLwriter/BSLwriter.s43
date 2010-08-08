@@ -45,7 +45,7 @@
 ; For this reason, the BSL code is highly hand-optimised for space and
 ; uses many tricks that can make it hard to follow and hard to modify.
 ; 
-; The following is true of this BSL-writer, and the BSL itself:
+; The following is true of this BSL-writer, and the BSL itself:fco
 ;   They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;   They use no timer; too many 6-byte instructions!
 ; The BSL serial input code has some noise immunity.
@@ -53,23 +53,24 @@
 ; Conditional assembly parameters which may be changed for special purposes
 
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
-CALIBRATE	EQU		0				; Set to 1 to perform volts and tempterature calibration
+CALIBRATE	EQU		1				; Set to 1 to perform volts and tempterature calibration
 									;	(all BMUs) in addition to BSL-programming
 CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
 									;	(NOTE: IDs must be set)
 									; CALIBRATE and CALONLYONE are mutually exclusive
 CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
-CALVOLTS	EQU		3599			; Assuming a test voltage of 3.600
+CALVOLTS	EQU		3597			; Assuming a test voltage of 3.600
 CALVOLTOFF	EQU		-2				; Fudge factor to make the measurements better
-CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
+CALTEMP		EQU		17				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
 FREQCAL		EQU		$86BC			; Value to force frequency calibration to
 
-CellVChan	EQU		$7000			; ADC channel number for cell voltage
-TempChan	EQU		$A000			; ADC channel number for temperature
-LinkVChan	EQU		$3000			; ADC channel number for link voltage
+CellVChan	EQU		$7				; ADC channel number for cell voltage
+TempChan	EQU		$A				; ADC channel number for temperature
+LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+SLOWSAMP	EQU		1				; Use 16 uS 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits. 
 ; i.e. By adding up 4^n samples you get 2n more bits in the result, 
 ; but half of them are noise and should be thrown away, 
@@ -341,7 +342,7 @@ donePrep
 #endif
 
 #if CALIBRATE | CALONLYONE
-			mov		#CellVChan,R8			; ADC channel for scaled cell voltage input
+			mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
 			call	#voltMeasure
 #if DEBUG
 			mov		R8,&$FFF0				; Copy voltage reading to flash
@@ -395,9 +396,13 @@ calVoltOk									; endif endif
 ; M = 4096/1.5 * (.00355 T + typ0.986)
 ;   = 9.694*T + typ2692
 ; M/9.694  = T + typ277.7
-; We use offsetByte = (M/9.694 - T) >> 1
+; Per the MSP430F2012 datasheet, typ277.7 aims at 273, so the reading is proportional
+; to the absolute temperature, with an offset of +- 100 mV.
+			; We use offsetByte = (M/9.694 - T) >> 1
+; So we use offsetByte = (M/9.694 - T) - 273
+; and T = M/9.694 - 273 - offsetByte
 ;
-			mov		#TempChan,R8				; ADC channel for temperature sensor
+			mov		#TempChan<<12,R8			; ADC channel for temperature sensor
 			call	#voltMeasure
 			
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
@@ -421,8 +426,8 @@ calVoltOk									; endif endif
 			mov		R10,R8
 			mov		#6760,R9
 			call	#aUMStar
-			sub		#CALTEMP,R10
-tempOk		rra		R10						; Temp offset now fits in a byte
+			sub		#CALTEMP+273,R10
+;			rra		R10						; Temp offset now fits in a byte
 			mov.b	R10,&mainTempCal		; Flash write temperature offset calibration value
 			
 #endif		/* #if CALIBRATE */
@@ -511,10 +516,18 @@ voltMeasure:
 ; SREF_1 = 4 volt mode (internal 1.5 V reference); ADC10SHT_3 = 64 ADC10CLKs (~ 13 uS sample time)
 ; MSC = continuous sampling; REFON = turn on internal reference; ADC10ON = power up the ADC system
 ; REFOUT = turn on reference buffer; REFBURST = turn on buffer only when needed
+#if SLOWSAMP
+		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON,&ADC10CTL0
+#else
 		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON,&ADC10CTL0
+#endif
 ; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC; CONSEQ_2 = repeat-single-channel
 		; Note that R8 has the channel number already in the right position
+#if SLOWSAMP
+		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R8
+#else
 		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R8
+#endif
 		mov			R8,&ADC10CTL1
 		mov.b		#(1<<7)+(1<<3),&ADC10AE0; Enable P1.7and P1.3 as analogue inputs
 		mov.b		#NumSamples,&ADC10DTC1	; Typ. 4 or 16 conversions
