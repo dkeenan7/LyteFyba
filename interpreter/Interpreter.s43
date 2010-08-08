@@ -26,9 +26,9 @@ TempCal		EQU		$10A9		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10C7		; Address of Link Voltage offset calibration byte
 
 ; ADC channel numbers
-CellVChan	EQU		$70			; ADC channel number for cell voltage
-TempChan	EQU		$A0			; ADC channel number for temperature
-LinkVChan	EQU		$30			; ADC channel number for link voltage
+CellVChan	EQU		$7			; ADC channel number for cell voltage
+TempChan	EQU		$A			; ADC channel number for temperature
+LinkVChan	EQU		$3			; ADC channel number for link voltage
 NumSamples	EQU		16			; Number of ADC over-samples (typ. 4 or 16)
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits. 
 ; i.e. By adding up 4^n samples you get 2n more bits in the result, 
@@ -1258,7 +1258,7 @@ doneId	xNEXT
 		xColon		'v',cellVolt,_cellVolt
 		xLIT		'V'				; Units are volts
 		db			Space
-		xLIT		CellVChan		; ADC channel for cell voltage divider
+		xLIT		CellVChan<<12	; ADC channel for cell voltage divider
 		db			llVolt
 		xLIT		4				; Print 4 digits
 		db			prettyPrint
@@ -1271,7 +1271,7 @@ doneId	xNEXT
 		xColon		't',cellTemp,_cellTemp
 		xLIT		0xF8			; Degree symbol (Terminal font only)
 		db			Space
-		xLIT		TempChan		; ADC channel for temperature sensor
+		xLIT		TempChan<<12	; ADC channel for temperature sensor
 		db			llVolt
 
 ;
@@ -1284,9 +1284,13 @@ doneId	xNEXT
 		db			UMStar
 		; Most significant half is on top of stack; nip the lower half off
 		db			NIP
+		; Temperature offset is now offset by 273
+		xLIT		273
+		db			Minus
 		xLIT		TempCal			; Temp offset calibration
 		db			CFetch
-		db			TwoStar			; Double
+;		db			TwoStar			; Double
+		db			CtoS			; Sign extend
 		db			Minus
 		xLIT		3				; 3 digits
 		db			prettyPrint
@@ -1314,7 +1318,7 @@ doneId	xNEXT
 		xIF							; If link calibration value is $80
 			xLIT		0			; then use value 0
 		xELSE
-			xLIT		LinkVChan		; ADC channel for link voltage divider
+			xLIT		LinkVChan<<12	; Shifted ADC channel for link voltage divider
 			db			llVolt
 			xLIT		2048
 			db			Minus
@@ -1368,11 +1372,12 @@ doneId	xNEXT
 
 ;
 ; Low level voltage measurement (channel -- measurement)
-; Channel has channel number (0-15) in bottom byte top nibble (bits 7-4). May have flag for expanded scale measurement in lower bits in future
+; Channel has channel number shifted left 12 bits (e.g. $7000 for cell voltage)
 ; Channel 7 is currently cell voltage; 10 is temperature sensor
 ; Measurement is in millivolts (0 to 4095 mV)
 ;
 		xCODE		'o',llVolt,_llVolt
+#if 0
 ;
 ; Initialise the ADC10 system
 ;
@@ -1452,6 +1457,10 @@ addSamp	add			@R9+,R8					; Add a sample
 		inc			R10						; For correct rounding
 		rra			R10						; Shift product hi word right one bit
 		mov			R10,Rtos				; Result
+#else
+		call		#measure				; Defined in ../common/measure.s43
+		mov			R8,Rtos
+#endif
 
 toNEXT	jmp			_NEXT				; Finished
 
