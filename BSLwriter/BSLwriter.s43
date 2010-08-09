@@ -53,15 +53,15 @@
 ; Conditional assembly parameters which may be changed for special purposes
 
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
-CALIBRATE	EQU		1				; Set to 1 to perform volts and tempterature calibration
+CALIBRATE	EQU		0				; Set to 1 to perform volts and tempterature calibration
 									;	(all BMUs) in addition to BSL-programming
 CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
 									;	(NOTE: IDs must be set)
 									; CALIBRATE and CALONLYONE are mutually exclusive
 CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
-CALVOLTS	EQU		3597			; Assuming a test voltage of 3.600
-CALVOLTOFF	EQU		-2				; Fudge factor to make the measurements better
-CALTEMP		EQU		17				; Ambient temperature in degrees Centigrade
+CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
+CALVOLTOFF	EQU		0				; Fudge factor to make the measurements better
+CALTEMP		EQU		20				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
 FREQCAL		EQU		$86BC			; Value to force frequency calibration to
@@ -343,7 +343,7 @@ donePrep
 
 #if CALIBRATE | CALONLYONE
 			mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
-			call	#voltMeasure
+			call	#measure
 #if DEBUG
 			mov		R8,&$FFF0				; Copy voltage reading to flash
 #endif
@@ -403,7 +403,7 @@ calVoltOk									; endif endif
 ; and T = M/9.694 - 273 - offsetByte
 ;
 			mov		#TempChan<<12,R8			; ADC channel for temperature sensor
-			call	#voltMeasure
+			call	#measure
 			
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
@@ -505,6 +505,8 @@ pauseL		dec		R12
 			dec		R11
 			jnz		pauseL
 			jmp		errorFlash
+			
+#if 0
 ;
 ; Voltage and temperature measurement. Enter with R8 = channel number in most significant nibble (bits 15-12).
 ; Result is in R8 as a 12.2 bit fixed-point number of millivolts
@@ -545,6 +547,9 @@ addSamp	add			@R11+,R8		; Add a sample
 		cmp			#sampleBuf+2*NumSamples,R11
 		jnz			addSamp
 		ret
+#else
+#include "../common/measure.s43"
+#endif
 
 ;
 ; Unsigned divide: R10:R9 / R8 -> R9, remainder to R10
