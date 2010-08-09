@@ -15,6 +15,8 @@
 #define		TEST	1			; 1 for testing with BMU cell-inputs in parallel
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
+#define		DOINITIALCMD 0		; 1 to execute an initial command on power up
+#define		INITIALCMD "5u\\"	; Initial command to execute
 
 ; Addresses manually imported from the BSL-writer. Version 3. Keep up to date!
 ReadByte	EQU		$1092		; Calling-address to receive byte in R8
@@ -385,11 +387,12 @@ CHKSUM  DS		1		; Packet xor checksum
 hexFlag	DS		1		; 1 = hex mode (default)
 bCheckForBad DS	1		; 1 = check \ command for \B (badness). Only set if aUtonomous command
 						; received and we are the last cell
-bypassVolts	DS	1		; Non-zero = use this value as the bypass voltage
+		EVEN	$FF		; Make it an even address (0x20A)
+bypassVolts	DS	2		; Non-zero = use this value as the bypass voltage
 
 sampleBuf DS	2*NumSamples	; ADC sample buffer; 4 or 16 samples
 
-TIB		EQU     $22A	; Start of Text Input Buffer (Forth terminology), grows up
+TIB		EQU     $22C	; Start of Text Input Buffer (Forth terminology), grows up
 
 RSP0	EQU		$260	; Bottom of Interpreter return stack, grows down
 
@@ -426,6 +429,10 @@ interpretByte:
 								;   Other initialisation goes here
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
 			BIS	#1<<14,SR   	;   Set "initialised" flag (bit 14 of status reg)
+#if DOINITIALCMD
+			mov	#initCmd,Rw
+			call #_ENTER
+#endif
 		_ENDIF					; Endif (not initialised)
 		
 		
@@ -456,6 +463,11 @@ interpretByte:
         
         POP R8
         RET
+		
+#if DOINITIALCMD
+; The intitial command (bytecode) to execute at power up
+initCmd	db		INITIALCMD
+#endif
 
 ;-------------------------------------------------------------------------------        
 ; The inner (bytecode) interpreter
@@ -1411,7 +1423,7 @@ p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 #else
 		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
 #endif
-		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE	; Enable P1.7, P1.3  and P1.4 as analogue
+		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE0	; Enable P1.7, P1.3  and P1.4 as analogue
 #endif
 
 ; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
@@ -1458,11 +1470,31 @@ addSamp	add			@R9+,R8					; Add a sample
 		rra			R10						; Shift product hi word right one bit
 		mov			R10,Rtos				; Result
 #else
+		mov			Rtos,R8
 		call		#measure				; Defined in ../common/measure.s43
-		mov			R8,Rtos
+;
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts. 
+; That means we have to shift the product 17 bits to the right, which is equivalent to 
+; throwing away the lo word and shifting the high word one bit to the right.
+		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
+		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
+		swpb		R10						; Assemble the two bytes into a word
+		bis			R10,R9					; as multiplicand in R9
+											; Multiplier is sum-of-samples, already in R8
+		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
+											; Note: calls assembler code that ends in ret
+		inc			R10						; For correct rounding
+		rra			R10						; Shift product hi word right one bit
+		mov			R10,Rtos
 #endif
 
-toNEXT	jmp			_NEXT				; Finished
+toNEXT	jmp			_NEXT					; Finished
+
+#include "../common/measure.s43"			; Declare the measure routine
 
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
@@ -1650,7 +1682,7 @@ emitDec2
 ; Turn on the bypass resistors if the cell is over 3.55 V
 ; Send badness message if over or under volts
 		xColon		'k',Tick,_Tick
-		xLIT		CellVChan		; ADC channel for cell voltage divider
+		xLIT		CellVChan<<12	; ADC channel for cell voltage divider
 		db			llVolt
 		db			DUP
 		xLIT2		bypassVolts
@@ -1864,7 +1896,7 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 ; Assumes zero link voltage due to zero link current
 ;
 		xColon	'b',calLink,_calLink
-		xLIT2	LinkVChan
+		xLIT2	LinkVChan<<12
 		DB		llVolt
 		xLIT	2048				; Zero volts for link voltage is a 2048 reading
 		DB		Minus				; So subtract from result

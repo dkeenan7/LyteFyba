@@ -1,5 +1,6 @@
 ;
-; Routine to perform an analogue measurement and put the "12 bit" result into R8.
+; Routine to perform an analogue measurement and put the 12.2 bit result into R8.
+; No calibration is performed.
 ; On input, R8 must contain the measurement channel number shifted left by 12 bits,
 ; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
 ; Trashes R9-R10
@@ -8,6 +9,7 @@
 ; Sensitive to these defines:
 ;	TEST: set to 1 for setting P1.4 to digital zero, for testing BMUs in parallel
 ;	SLOWSAMP: set to 1 for 16 uS sample time, 0 gives ~13 uS that varies with individual devices
+;	VoltCalL, VoltCalH: addresses of low and high bytes of the voltage calibration values
 
 measure:
 ;
@@ -54,14 +56,12 @@ p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 #else
 		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
 #endif
-		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE	; Enable P1.7, P1.3  and P1.4 as analogue
+		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE0	; Enable P1.7, P1.3  and P1.4 as analogue
 #endif
 
 ; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
 ; CONSEQ_2 = repeat-single-channel
 		; Note that Rtos has the channel number already in the right position
-		mov			Rtos,R8
-		swpb		R8						; Move channel number to top halfword
 #if SLOWSAMP
 		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R8
 #else
@@ -82,22 +82,4 @@ convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 addSamp	add			@R9+,R8					; Add a sample
 		cmp			#sampleBuf+2*NumSamples,R9
 		jnz			addSamp
-;
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts. 
-; That means we have to shift the product 17 bits to the right, which is equivalent to 
-; throwing away the lo word and shifting the high word one bit to the right.
-		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
-		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
-		mov			R10,R8
 		ret
