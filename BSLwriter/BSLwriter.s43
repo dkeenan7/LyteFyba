@@ -653,13 +653,11 @@ mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL
 			
 			mov.b	#TXDp,&P1OUT	; Set TXD state to idle, bypass and LED off
 			mov		#$280,SP
-main:		; This label is for the debugger
+main:		; This label is partly for the debugger, but is also the start of the main loop
 
 			; Initialise the interpreter, if possible
-	; NOTE: this doesn't do what we want!!  FIXME!!!
 			clr		R8				; A null to pass to interpretByte
-	; COMMENTED OUT FOR NOW... REMOVE BOTH!!
-;			jmp		testNoInterp	; Call interpretByte to initialise the main-flash code, if we're allowed to
+			jmp		testNoInterp	; Call interpretByte to initialise the main-flash code, if we're allowed to
 			
 			; Password-checking finite-state-machine (FSM)
 			; After DEC below, 3 = waiting for ^B, 2 = waiting for ^A, 1 = waiting for ^D, 
@@ -722,9 +720,8 @@ progByte    mov.b	R8,-2(R12)		; Program it
 			; EXPERIMENTAL! For now, clear the whole P1 port. This will turn off the transmit LED,
 			; but not reverse bias it. It will get fixed next WriteByte
 			; And if no next WriteByte, the interpreter initialisation will fix it.
-			clr		R8				; To send to interpretByte, see below
 			mov.b	R8,&P1OUT
-            jmp		testNoInterp	; Back to looking for ^B, but first send a null to interpretByte
+            jmp		main			; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
 
