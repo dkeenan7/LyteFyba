@@ -65,7 +65,7 @@ CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 PRESERVEIDS	EQU		1				; 1 to preserve IDs
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
-FREQCAL		EQU		$86BC			; Value to force frequency calibration to
+FREQCAL		EQU		$86d2			; Value to force frequency calibration to
 
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
@@ -191,9 +191,9 @@ StopWDT		mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			MOV     #FWKEY,&FCTL3       ; Clear LOCK, don't toggle LOCKA
             MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write block that can't be)
 ;
-; If we find $FFFF (erased flash) at $1000 (start of info-flash),
+; If we find $FFFF (erased flash) at $10C0 (start of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$1000
+			cmp		#$FFFF,&$10C0	; Don't look at $1000 in case JTAG debugger is set to erase it before downloading
 			jeq		newChip
 			
 ; It's not a new chip so check the data version number at the end of info-flash.
@@ -215,7 +215,7 @@ newChip
 			; If you ever need to restore the full word of 4 MHz calibration data, shift left one bit and OR with $8A00
 			;  then find the least significant bit by trial and error.
 			mov.b	&infN1MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration data
-			mov.b	&infN1MHzCalB,&main1MHzCalD
+			mov.b	&infN1MHzCalD,&main1MHzCalD
 			jmp		donePrep
 			
 			
@@ -857,8 +857,8 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 
             mov.b	#0,&P1OUT   	; Set TXD outputs the same, bypass and LED off
             bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
-            mov.b	&CALBC1_1MHZ,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-            mov.b	&CALDCO_1MHZ,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+            mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+            mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
 
 			call	#flash20
 
