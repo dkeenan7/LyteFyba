@@ -720,7 +720,7 @@ progByte    mov.b	R8,-2(R12)		; Program it
 			; EXPERIMENTAL! For now, clear the whole P1 port. This will turn off the transmit LED,
 			; but not reverse bias it. It will get fixed next WriteByte
 			; And if no next WriteByte, the interpreter initialisation will fix it.
-			mov.b	R8,&P1OUT
+			mov.b	Rcksum,&P1OUT
             jmp		main			; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
