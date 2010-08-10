@@ -505,6 +505,7 @@ void CPortDlg::OnBnClickedRefresh()
 {
 	EnumSerialPorts(theApp.m_asiPorts, true);
 	int n = (int)(theApp.m_asiPorts.GetCount());
+	m_listPorts.ResetContent();
 	for (int i=0; i < n; ++i)
 		m_listPorts.AddString(theApp.m_asiPorts[i].strFriendlyName);
 }
