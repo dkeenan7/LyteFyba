@@ -59,10 +59,11 @@ CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
 									;	(NOTE: IDs must be set)
 									; CALIBRATE and CALONLYONE are mutually exclusive
 CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
-CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
+CALVOLTS	EQU		3312			; Put the exact test voltage (in millivolts) here
 CALVOLTOFF	EQU		0				; Fudge factor to make the measurements better
-CALTEMP		EQU		20				; Ambient temperature in degrees Centigrade
+CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
+PRESERVEIDS	EQU		1				; 1 to preserve IDs
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
 FREQCAL		EQU		$86BC			; Value to force frequency calibration to
 
@@ -230,9 +231,11 @@ currVersBSL
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
 #if !CALIBRATE
+#if CALONLYONE | PRESERVEIDS
+			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case, or if PRESERVEIDs is set
+#endif
 #if CALONLYONE
-			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case
-			cmp.b	#CALTHIS,&mainID
+			cmp.b	#CALTHIS,&mainID			; Calibrate only one... is this the one?
 			jeq		noCopyCalNew
 #endif
 			mov.b	&infoVoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
@@ -258,8 +261,10 @@ vers2BSL
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
 #if !CALIBRATE
-#if CALONLYONE
+#if CALONLYONE | PRESERVEIDS
 			mov.b	&inf2ID,&mainID				; Exception: Copy ID since this is a special
+#endif
+#if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
 			jeq		noCopyCalOld2
 #endif
@@ -300,8 +305,10 @@ vers1BSL
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
 #if !CALIBRATE
-#if CALONLYONE
+#if CALONLYONE | PRESERVEIDS
 			mov.b	&inf1ID,&mainID				; Exception: Copy ID since this is a special
+#endif
+#if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
 			jeq		noCopyCalOld1
 #endif
