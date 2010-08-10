@@ -419,7 +419,11 @@ interpretByte:
         ; Received byte is passed in R8, which must be preserved
 		PUSH R8
         ; Determine if initialisation is required
+#if 0
 		BIT #1<<14,SR
+#else
+		tst.b	R8				; Use incoming char being null to trigger initialisation
+#endif
 		_IF _Z              	; If not initialised
 			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
 			MOV		#TIB,&ToIN  	; Initialise packet buffer pointer
@@ -428,11 +432,11 @@ interpretByte:
 			clr.b	&bCheckForBad	; Clear the "checking for badness" flag
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
 									; Other initialisation goes here
-			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
+;			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
 #if DOINITIALCMD
 			mov		#initCmd,Rw
 			call	#_ENTER
-			mov		@SP,R8			; Restore received char
+			mov		#1,R8			; Prevent infinite loop; ^A is a fairly safe do-nothing char
 #endif
 		_ENDIF					; Endif (not initialised)
 		
