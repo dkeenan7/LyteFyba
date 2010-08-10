@@ -421,17 +421,18 @@ interpretByte:
         ; Determine if initialisation is required
 		BIT #1<<14,SR
 		_IF _Z              	; If not initialised
-			MOV #RSP0,Rrsp  	;   Initialise interpreter return stack pointer
-			MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
-			CLR &CHKSUM     	;   Clear the packet checksum
-			mov.b	#-1,&hexFlag;   Set the hexadecimal input (verses decimal) flag
-			clr.b	&bCheckForBad ;	Clear the "checking for badness" flag
-								;   Other initialisation goes here
+			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
+			MOV		#TIB,&ToIN  	; Initialise packet buffer pointer
+			CLR		&CHKSUM     	; Clear the packet checksum
+			mov.b	#-1,&hexFlag	; Set the hexadecimal input (verses decimal) flag
+			clr.b	&bCheckForBad	; Clear the "checking for badness" flag
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
-			BIS	#1<<14,SR   	;   Set "initialised" flag (bit 14 of status reg)
+									; Other initialisation goes here
+			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
 #if DOINITIALCMD
-			mov	#initCmd,Rw
-			call #_ENTER
+			mov		#initCmd,Rw
+			call	#_ENTER
+			mov		@SP,R8			; Restore received char
 #endif
 		_ENDIF					; Endif (not initialised)
 		
@@ -582,7 +583,7 @@ DatEnd4 jmp		_NEXT			; Endif
              ; This will probably only be used at the end of the outer interpreter.
 
         xCODE   '\\',RETT,_RETT
-		tst.b	bCheckForBad	; Are we checking for badness ("\B") commands?
+		tst.b	&bCheckForBad	; Are we checking for badness ("\B") commands?
 		jz		noCheckBad
 		; This only happens when the 'u' command is received, and we are the last cell
 		push	Rtos
@@ -1675,6 +1676,7 @@ emitDecLoop
 		db		ZeroEquals
 		db		ZJump,emitDecLoop-emitDec2
 emitDec2
+dropAndExit:
 		db		DROP		; Drop the now-zero count
 		db		EXIT		
 
@@ -1840,7 +1842,7 @@ cellZeroLoop
 		xLIT	3800		; ~ 1 second total loop time
 autCheckRS
 		db		quiet		; Is the RS232 quiet?
-		db		ZJump,autExit-($+2)	; Exit if RS232 is active
+		db		ZJump,dropAndExit-($+2)	; Drop loop count and exit if RS232 is active
 		db		OneMinus	; Decrement loop counter
 		db		DUP
 		db		ZeroEquals	; Is it zero?
@@ -1849,14 +1851,14 @@ autCheckRS
 		db		Jump,cellZeroLoop-($+2)	; Keep looping
 		
 autonNotZero
-		db		OneMinus		; Number of cells -1
+		db		OneMinus	; Number of cells -1
 		xLIT	ID
 		db		CFetch
 		db		Equals
 		; If last cell, need special processing of \ command to check for 'B' (Badness)
 		xLIT2	bCheckForBad
 		db		CStore
-autExit	db		EXIT		; Then do nothing (apart from waiting for more commands)
+		db		EXIT		; Then do nothing (apart from waiting for more commands)
 		
 ;
 ; Quiet - is the RS232 input quiet?  (-- flag)
