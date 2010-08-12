@@ -47,10 +47,7 @@ BOOL CPortDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
-	int n = (int)(theApp.m_asiPorts.GetCount());
-	for (int i=0; i < n; ++i)
-		m_listPorts.AddString(theApp.m_asiPorts[i].strFriendlyName);
-	m_listPorts.SetCurSel(theApp.m_nPortIndex);
+	OnBnClickedRefresh();
 	return TRUE;
 }
 
@@ -62,17 +59,30 @@ void CPortDlg::DoDataExchange(CDataExchange* pDX)
 
 void CPortDlg::OnOK()
 {
+	UpdateData();
 	theApp.m_nPortIndex = m_listPorts.GetCurSel();
 	theApp.UpdateTitle();
 	CDialog::OnOK();
 }
 
+void CPortDlg::OnBnClickedRefresh()
+{
+	EnumSerialPorts(theApp.m_asiPorts, true);
+	int n = (int)(theApp.m_asiPorts.GetCount());
+	m_listPorts.ResetContent();
+	for (int i=0; i < n; ++i)
+		m_listPorts.AddString(theApp.m_asiPorts[i].strFriendlyName);
+	m_listPorts.SetCurSel(theApp.m_nPortIndex);
+}
+
+
 BEGIN_MESSAGE_MAP(CPortDlg, CDialog)
 	ON_BN_CLICKED(ID_REFRESH, &CPortDlg::OnBnClickedRefresh)
 END_MESSAGE_MAP()
 
-
-// CProgDlg dialog used Send Progress
+//	//	//	//	//	//	//	//	//	//	//
+// CProgDlg dialog used Send Progress	//
+//	//	//	//	//	//	//	//	//	//	//
 
 class CProgDlg : public CDialog
 {
@@ -499,13 +509,4 @@ void CBMUsendDoc::OnFileSaveas()
 		f.Close();
 	}
 	
-}
-
-void CPortDlg::OnBnClickedRefresh()
-{
-	EnumSerialPorts(theApp.m_asiPorts, true);
-	int n = (int)(theApp.m_asiPorts.GetCount());
-	m_listPorts.ResetContent();
-	for (int i=0; i < n; ++i)
-		m_listPorts.AddString(theApp.m_asiPorts[i].strFriendlyName);
 }
