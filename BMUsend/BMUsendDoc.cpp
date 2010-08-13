@@ -295,6 +295,7 @@ static unsigned int readHexWord(CFile& f) {
 
 void CBMUsendDoc::ReadFile()
 {
+	ReadFile();					// In case sending the same file with changes
 	theApp.UpdateTitle();
 	CFile f(theApp.m_szFileName, CFile::modeRead);
 	unsigned int len, typ, checksum;
