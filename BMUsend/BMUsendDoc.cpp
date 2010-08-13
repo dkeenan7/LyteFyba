@@ -295,7 +295,6 @@ static unsigned int readHexWord(CFile& f) {
 
 void CBMUsendDoc::ReadFile()
 {
-	ReadFile();					// In case sending the same file with changes
 	theApp.UpdateTitle();
 	CFile f(theApp.m_szFileName, CFile::modeRead);
 	unsigned int len, typ, checksum;
@@ -379,6 +378,7 @@ static void writeByte(unsigned char* p) {
 
 void CBMUsendDoc::OnSend()
 {
+	ReadFile();					// In case sending the same file with changes
 	// Open comm port
 	if (theApp.m_asiPorts.GetCount() == 0)
 	{
