@@ -445,6 +445,10 @@ void CBMUsendDoc::OnSend()
 		Sleep(2+1);
     }
 
+    /* Allow time for bulk erase; approximately 310 characters */
+	/* NOTE: There are two delays now, since we have two versions of the BSL at present.
+		Soon the second delay can go away */
+	Sleep(310+50);
     /* Send the 2048-2 bytes of the binary image */
     writeByte(m_HexBuf);                     /* Write first byte */
     /* Allow time for bulk erase; approximately 310 characters */
