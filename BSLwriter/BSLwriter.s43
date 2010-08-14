@@ -59,13 +59,13 @@ CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
 									;	(NOTE: IDs must be set)
 									; CALIBRATE and CALONLYONE are mutually exclusive
 CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
-CALVOLTS	EQU		3312			; Put the exact test voltage (in millivolts) here
+CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALVOLTOFF	EQU		0				; Fudge factor to make the measurements better
 CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 PRESERVEIDS	EQU		1				; 1 to preserve IDs
-FORCEFCAL	EQU		1				; 1 to force calibration frequency
-FREQCAL		EQU		$86a8			; Value to force frequency calibration to
+FORCEFCAL	EQU		0				; 1 to force calibration frequency
+FREQCAL		EQU		$86C0			; Value to force frequency calibration to
 
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
@@ -98,10 +98,21 @@ infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset c
 info4MHzCal		EQU		main4MHzCal	-for1000+$1000		; Address of compressed 4 MHz DCO calibration when relocated to info-flash
 infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order when relocated to info-flash
 infoDataVers	EQU		mainDataVers-for1000+$1000		; Address of Data Version byte when relocated to info-flash
-DATAVERS		EQU		3								; This is version 3 of the BMU info-flash data structure
+DATAVERS		EQU		4								; This is version 4 of the BMU info-flash data structure
 
 ; Locations in info-flash, of calibration data in previous versions of the BSL
 ; to allow us to update them to the current version without losing their calibration data.
+
+; Version 3 (has $03 at infoDataVers ($10FF))
+inf31MHzCalB	EQU		$1002		; Address of 1 MHz DCO range calibration when relocated to info-flash
+inf3ID			EQU		$1003		; Address of BMU ID byte when relocated to info-flash
+inf31MHzCalD	EQU		$1008		; Address of 1 MHz DCO frequency calibration when relocated to info-flash
+inf3VoltCalL	EQU		$1009		; Address of voltage scale calibration lo byte when relocated to info-flash
+inf3VoltCalH	EQU		$100F		; Address of voltage scale calibration hi byte when relocated to info-flash
+inf3TempCal		EQU		$10A9		; Address of temperature offset calibration byte when relocated to info-flash
+inf3LinkCal		EQU		$10C7		; Address of link voltage offset calibration byte when relocated to info-flash
+inf34MHzCal		EQU		$10D5		; Address of compressed 4 MHz DCO calibration when relocated to info-flash
+inf3PWtable		EQU		$10FC		; Address of BSL password in reverse-order when relocated to info-flash
 
 ; Version 2 (has $02 at infoDataVers ($10FF))
 inf21MHzCalB	EQU		$1002		; Address of 1 MHz DCO range calibration when relocated to info-flash
@@ -166,8 +177,6 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 ; any bytes are received by the serial port, including "password" bytes.
 ; We might also get here via a reset.
 dummyInterpretByte:
-            bis.b	#WDTIFG,&IFG1			; However we got here, we don't want to get here again;
-											; tell the BSL not to call interpretByte until a good main-flash image arrives
 			call	#compareImage
 			jnz		BSLwriter
 ;
@@ -175,11 +184,16 @@ dummyInterpretByte:
 ; be at $280-2, and will point to just after the call.
 			cmp		#$280-2,SP
 			jne		restart
-			cmp		#postInterpCall-for1000+$1000,0(SP)	; Address adjusted for BSL's relocation to info-flash
-			jne		restart
+			mov		@SP,R9					; Check return address
+			bic		#$00FF,R9				;	that it's generally
+			cmp		#$1000,R9				;	in the 1000-10FF range
+			jne		restart					; If not, just restart the BSL with error on
+
+			call	#WriteByte				; Echo password etc to next BMU
 			bic.b	#LED,&P1OUT				; Turn off the error LED to show successful download
-			ret
-restart		br		$1000					; Restart the BSL
+			ret								; Return, hopefully safely, to the BSL
+restart		bis.b	#WDTIFG,&IFG1			; Set this bit so we don't get an infinite loop via the initial NULL
+			br		$1000					; Restart the BSL
 
 ;
 ; Start of the actual BSL-writer
@@ -211,7 +225,9 @@ StopWDT		mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 ; It's not a new chip so check the data version number at the end of info-flash.
 			cmp.b	#DATAVERS,&infoDataVers
 			jeq		currVersBSL
-			jge		higherVersBSL
+			jge		unknownVersBSL
+			cmp.b	#3,&infoDataVers
+			jeq		vers3BSL
 			cmp.b	#2,&infoDataVers
 			jeq		vers2BSL
 			jl		vers1BSL
@@ -231,7 +247,7 @@ newChip
 			jmp		donePrep
 			
 			
-higherVersBSL
+unknownVersBSL
 ; Version number is higher than this BSL-writer knows about, so we should leave it alone
 ;  and raise an error.
 			mov		#4,rERR
@@ -265,6 +281,35 @@ noCopyCalNew
 			mov.b	&info1MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
 			mov.b	&info1MHzCalD,&main1MHzCalD
 #endif
+			jmp		donePrep
+
+
+vers3BSL
+; We don't preserve the ID here because the user may be updating the BSL specifically because
+; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
+;			mov.b	&infoID,&mainID				; Copy ID (commented out)
+#if !CALIBRATE
+#if CALONLYONE | PRESERVEIDS
+			mov.b	&inf3ID,&mainID				; Exception: Copy ID since this is a special
+#endif
+#if CALONLYONE
+			cmp.b	#CALTHIS,&mainID
+			jeq		noCopyCalOld3
+#endif
+			mov.b	&inf3VoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
+			mov.b	&inf3VoltCalH,&mainVoltCalH
+			mov.b	&inf3TempCal,&mainTempCal
+			mov.b	&inf3LinkCal,&mainLinkCal
+#endif
+			mov.b	&inf34MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
+noCopyCalOld3
+#if FORCEFCAL
+			mov.b	#FREQCAL >> 8,&main1MHzCalB
+			mov.b	#FREQCAL & $FF,&main1MHzCalD
+#else
+			mov.b	&inf31MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
+			mov.b	&inf31MHzCalD,&main1MHzCalD
+#endif	
 			jmp		donePrep
 
 
@@ -499,13 +544,18 @@ pifLoop		mov.w   @R9+,$1000(R12)		; Program word
             MOV		#FWKEY+WRT,&FCTL1	; Enable write
 			mov		#$1000,&$FFFE		; Re-point reset vector
             MOV     #FWKEY+LOCK,&FCTL3  ; Set LOCK; no accidental flash programming
-			;
+
+#if 0		; If we do a PUC using the watchdog timer, we'll never call dummyInterpretByte to clear the error LED
 			; Now we want to start the new BSL code, but we want to force a PUC (Power Up Clear).
 			; We do this by allowing the watchdog timer to force a reset
 			;
             mov.w   #WDTPW+WDTCNTCL,&WDTCTL    ; Reenable (and clear) the Watchdog Timer
 pucWait		bis		#CPUOFF,SR			; Just sleep
 			jmp		pucWait				; till the watchdog timer fires
+#else
+			bic.b	#WDTIFG,&IFG1		
+			br		#$1000				; Start the new BSL
+#endif
 
 failCompare mov		#3,rERR
 errorFlash	mov		rERR,R11
@@ -673,38 +723,29 @@ mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL
 			mov		#$280,SP
 main:		; This label is partly for the debugger, but is also the start of the main loop.
 
-			; Password-checking finite-state-machine (FSM)
-			; After DEC below, 3 = waiting for ^B, 2 = waiting for ^A, 1 = waiting for ^D, 
-			; 0 = erase and program 1st byte, neg = program, no interpret
-			;
-			; Initialise the password FSM. Rstate should be set to 3 but that takes an extra word of code.
-			; Any of 1, 2 or 3 will be fine because the first match (with a null) will always fail.
-			mov		#2,Rstate		
-									
 			; Initialise the interpreter, if possible
 			clr.b	R8				; A null to pass to interpretByte (if allowed) to initialise the main-flash code
+			call	#testNoInterp-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
 			
-testNoInterp            
-			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
-			jnz		postInterpCall	; Jump around call, if set
-			call	#interpretByte	; Call interpretByte in main flash
-									; Must preserve at least R8, Rstate(=R15)
-postInterpCall						; The BSL-writer uses this label to determine 
-									;  if it's being called from this BSL or not
-			; Check for a continuing password match
-            cmp.b	infoPWtable-1(Rstate),R8 ; Address adjusted for BSL's relocation to info-flash
-            jeq		mainLoop
-
-resetFSM:	mov		#4,Rstate		; Initialise FSM: waiting for ^B
-mainLoop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
-
+			; Password-checking finite-state-machine (FSM)
+			; Before decrementing Rstate, 3 = waiting for ^B, 2 = waiting for ^A, 1 = waiting for ^D, 
+			; After the decrement 0 = check ^D and if correct erase; any negative value = program, no interpret
+			;
+resetFSM:	mov		#3,Rstate		; Initialise FSM: waiting for ^B
+FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
+postInterpCall:
 			dec		Rstate
 			jn		progByte		; If state is negative, program, don't interpret
-			jnz		testNoInterp	; If state is 0, Erase main flash before programming first byte
+
+			; Check for a continuing password match
+            cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+			jne		resetFSM
+			tst		Rstate
+			jnz		FSMloop
 
 			; Erase main flash memory before programming first byte
 			;
-eraseNprog	dint					; Main-flash has probably turned on interrupts; can't have them now
+			dint					; Main-flash has probably turned on interrupts; can't have them now
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
             mov		#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
             mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
@@ -723,27 +764,24 @@ eraseNprog	dint					; Main-flash has probably turned on interrupts; can't have t
             clr.b	Rcksum			; Initialise the checksum to 0
 			; Assume a bad checksum, clear on good checksum. Also prevents interpreting till the end of flash programming			
             bis.b	#WDTIFG,&IFG1
-			; Fall through to program the first byte. Master will need to delay about 32 ms before sending next byte.
+			jmp		FSMloop			; Read first byte to program
 
 			; Program (flash write) byte in R8
 			;
 progByte    mov.b	R8,-2(R12)		; Program it
             xor.b	R8,Rcksum		; Include in check-XOR
             inc		R12
-            jnz		mainLoop		; Repeat until R12 wraps to zero
+            jnz		FSMloop			; Repeat until R12 wraps to zero
 
             mov		#FWKEY,&FCTL1	; Done. Clear WRT
             mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
             tst.b	Rcksum			; Check the checksum
             jnz		resetFSM		; If bad checksum, leave the no interpret flag set
+			
             bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
             jmp		main			; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
-
-			nop						; Temporary for testing Mike's brilliant saving of 3 words
-			nop						; without having to relocate any calibration info
-			nop
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 R13 )
 ; Reads a byte from serial input to R8. Trashes R9 R10 R11 R13.
@@ -803,14 +841,20 @@ waitNextR   dec     R11				; (1) Delay loop
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
 			; But it's not needed, since we always echo before waiting for the next byte
 			
-			; Fall through to WriteByte to echo it to our downstream neighbour
+testNoInterp            
+			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
+			jnz		WriteByte		; Jump around call, if set
+			br		#interpretByte	; tail-call interpretByte in main flash
+									; It must preserve at least R8, Rstate(=R15)
+;postInterpCall						; The BSL-writer uses this label to determine 
+									;  if it's being called from this BSL or not
 			
 ; WriteByte ( R8 R11 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output. R11 must be clear on entry.
 ; Trashes R9 R10 R11. Preserves R8.
 ;
 WriteByte:
-            mov		R8,R9			; Allow R8 to be preserved for return from ReadByte
+            mov		R8,R9			; Allow R8 to be preserved for password compare
 			
 ;			mov.b	#10,R10			; 8 data + 1 start and 1 stop
 			dw		$407A			; Opcode for mov.b #src,R10 (LS-nibble is reg num)

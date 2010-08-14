@@ -261,6 +261,10 @@ int main(int argc, char* argv[]) {
     	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
 	}
 	
+	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSLwriter. Soon
+		the second delay can go away */
+	/* Allow time for bulk erase; approximately 310 characters */
+	for (k=0; k < 310*DELAY; ++k);
 	/* Send the 2048-2 bytes of the binary image */
 	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 310 characters */

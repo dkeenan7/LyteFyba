@@ -16,16 +16,16 @@
 #define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
-#define		INITIALCMD "5u\\"	; Initial command to execute
+#define		INITIALCMD "9u\\"	; Initial command to execute
 
 ; Addresses manually imported from the BSL-writer. Version 3. Keep up to date!
-ReadByte	EQU		$1092		; Calling-address to receive byte in R8
-WriteByte	EQU		$10D0		; Calling-address to transmit byte in R8
+ReadByte	EQU		$108A		; Calling-address to receive byte in R8
+WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
 ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
 VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
-TempCal		EQU		$10A9		; Address of Temperature offset calibration byte
-LinkCal		EQU		$10C7		; Address of Link Voltage offset calibration byte
+TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
 
 ; ADC channel numbers
 CellVChan	EQU		$7			; ADC channel number for cell voltage
@@ -414,7 +414,8 @@ DSP0	EQU		$280	; Bottom of combined Interpreter return stack and machine stack, 
 
 main:
 interpretByte:
-		bic.b	#LED,&P1OUT		; EXPERIMENTAL. For now, we set the LED in WriteByte, and clear it here.
+		call	#doWriteByte	; FOR NOW: echo the byte here, instead of in the BSL
+		bic.b	#LED,&P1OUT		; FOR NOW, we set the LED in WriteByte, and clear it here.
 
         ; Received byte is passed in R8, which must be preserved
 		PUSH R8
@@ -1249,8 +1250,11 @@ gotStart
 		; Because we have already detected the start bit ourselves, the start-bit glitch-check and
 		; the sampling of the first data bit, in ReadByte, will be delayed by 
 		; an extra 16 cycles (15% of a bit time) from the detection of the start bit.
+		bis.b		#WDTIFG,&IFG1		; Temporarily set the watchdog flag so
+					  					;	ReadByte doesn't recursivy call back to interpretByte
 		call		#ReadByte			; Read the byte into R8 and echo it, trashes R9 R10 R11 R13
-		inc.b		R8					; Add one to it, to obtain a new tentative ID
+		bic.b		#WDTIFG,&IFG1		; Restore the flag
+		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
 		jmp			nextID				; Go back and wait again
 
 timout		
