@@ -510,7 +510,7 @@ void CBMUsendDoc::OnFileSaveas()
 	{
 		CFile f(ofn.lpstrFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
 		f.Write("\x01""\x01""\x02""\x01""\x04", 5);		// ^a^a ^B^A^D
-		f.Write(m_HexBuf, 2048);
+		f.Write(m_HexBuf, 2048-2);
 		f.Close();
 	}
 	
