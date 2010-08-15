@@ -177,8 +177,14 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 ; any bytes are received by the serial port, including "password" bytes.
 ; We might also get here via a reset.
 dummyInterpretByte:
-			call	#compareImage
-			jnz		BSLwriter
+			tst.b	R8						; Is this an initialisation call?
+			jz		anInit
+			call	#WriteByte				; No; echo password etc to next BMU
+			bic.b	#LED,&P1OUT				; Turn off the error LED to show successful download
+			ret
+anInit		call	#compareImage			; Is it before the BSLwriter is run?
+			jnz		BSLwriter				; Yes, start it now
+#if 0		; I believe we don't need this now
 ;
 ; Are we here as a result of the call to interpretByte in the new BSL? If so, the stack pointer will
 ; be at $280-2, and will point to just after the call.
@@ -188,12 +194,13 @@ dummyInterpretByte:
 			bic		#$00FF,R9				;	that it's generally
 			cmp		#$1000,R9				;	in the 1000-10FF range
 			jne		restart					; If not, just restart the BSL with error on
-
-			call	#WriteByte				; Echo password etc to next BMU
-			bic.b	#LED,&P1OUT				; Turn off the error LED to show successful download
+#endif
 			ret								; Return, hopefully safely, to the BSL
+
+#if 0
 restart		bis.b	#WDTIFG,&IFG1			; Set this bit so we don't get an infinite loop via the initial NULL
 			br		$1000					; Restart the BSL
+#endif
 
 ;
 ; Start of the actual BSL-writer

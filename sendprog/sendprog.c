@@ -263,12 +263,12 @@ int main(int argc, char* argv[]) {
 	
 	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSLwriter. Soon
 		the second delay can go away */
-	/* Allow time for bulk erase; approximately 310 characters */
-	for (k=0; k < 310*DELAY; ++k);
+	/* Allow extra time for bulk erase; approximately 3 characters */
+	for (k=0; k < (32+1)*DELAY; ++k);
 	/* Send the 2048-2 bytes of the binary image */
 	writeByte(progBuf);						/* Write first byte */
-	/* Allow time for bulk erase; approximately 310 characters */
-	for (k=0; k < 310*DELAY; ++k);
+	/* Allow time for bulk erase; approximately 3 characters */
+	for (k=0; k < (32+1)*DELAY; ++k);
 	for (u=1; u < 2048-2; ++u) {
 		if ((u & 0xFF) == 0xFF)
 		{
