@@ -1,0 +1,96 @@
+;-------------------------------------------------------------------------------        
+; The inner (bytecode) interpreter
+
+
+; EVALUATE ( addr -- ) ; Interpret the bytecode routine whose address is 
+                       ; on the top of the stack. It must end with an EXIT.
+
+        xCODE   'V',EVALUATE,_EVALUATE
+        MOV     Rtos,Rw
+        POP     Rtos
+        ; fall thru to _ENTER
+
+; Bytecode interpreter for 1+7 bit bytecodes
+; 1 bit function code (high bit), 7 bit data (low bits)
+
+_ENTER  RPUSH   Rip             ; Nest interpretation
+        MOV     Rw,Rip
+
+_NEXT   mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear Watchdog Timer
+		MOV.B   @Rip+,Rw        ; Fetch the next bytecode
+;        CMP.B   #$0D,Rw         ; Skip any control characters less than Carriage return
+;        JLO     _NEXT           ;  (only do this if we get desperate for code space)
+_RUN    RLA.B   Rw              ; Simultaneously multiply data part by 2
+                                ;  and test high bit while getting rid of it
+        JNC     FncOPCD         ; If high bit was clear interpret as opcode
+
+FncPFIX TST     SR              ; Test the operand-in-progress flag
+        BIS     #1<<15,SR       ; Set the operand-in-progress flag
+        JN      DatMore         ; If there was no operand-in-progress
+
+DatFrst MOV     Rw,Rlit         ;   Move 7-bit-data*2 to partial-operand register
+        SXT     Rlit            ;   Sign extend it to the full word
+        RRA     Rlit            ;   Divide it by 2 to to get back to original 
+        JMP     _NEXT
+                                ; Else (operand-in-progress)
+                                ;   Shift opnd 7 left and insert 7 new bits
+DatMore RRC     Rlit            ;   Shift the low bit of the partial operand
+        RRC.B   Rw              ;    into the hi bit of the data
+        MOV.B   Rlit,Rlit       ;   Clear the high byte of the partial operand
+        SWPB    Rlit            ;   Shift the partial operand 8 bits left
+        BIS     Rw,Rlit         ;   Move data into low byte of operand reg
+        JMP     _NEXT           ; Endif
+        
+FncOPCD MOV     _OPCODETBL(Rw),Rw ; Use the opcode to index the opcode-table to get
+                                ;    the code address and flag
+		CMP		#$FFFF,Rw		; Check for undefined bytecodes
+		JEQ		DoUNDEF
+		
+FncLIT  TST     SR              ; Check for an implied push-literal
+        JGE     DoOPCD			; If there's an operand-in-progress
+                                ;   there's an implied LIT now
+        BIC     #1<<15,SR       ;   Clear the operand-in-progress flag        
+		PUSH    Rtos            ;   Push the operand now, before doing the 
+        MOV     Rlit,Rtos       ;    operation
+
+DoOPCD	TST     Rw              ; Is it defined in machine code or bytecode?
+        BIS     #1<<15,Rw       ; Restore the address high bit
+        JN      _ENTER          ; If it's bytecode, nest interpretation
+        BR      Rw              ; Else it is machine-code so branch to it
+                                ; It must end with next macro (or JMP _NEXT or BR #_NEXT)
+DoUNDEF ; Attempt to interpret as hex/decimal digits, otherwise ignore
+        DEC     Rip             ; Decrement the instruction pointer to
+        MOV.B   @Rip+,Rw        ;  re-fetch the bytecode
+		SUB.B	#'0',Rw			; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		JN		_NEXT           ; Ignore undefined bytecodes below '0'
+		CMP.B	#$0A,Rw
+		_IF		_GE
+			CMP.B	#$17,Rw
+			JGE		_NEXT       ; Ignore undefined bytecodes above 'F'
+			CMP.B	#$11,Rw
+			JL		_NEXT       ; Ignore undefined between '9' and 'A'
+			SUB.B   #'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
+		_ENDIF
+		
+FncPFX4 TST		SR       		; Test the operand-in-progress flag
+		BIS		#1<<15,SR       ; Set the operand-in-progress flag
+		JN		DatMor4         ; If there was no operand-in-progress
+
+DatFst4 MOV     Rw,Rlit         ;   Move 4-bit data to partial-operand register
+		JMP		DatEnd4			; Else (operand-in-progress)
+
+DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
+		tst.b	&hexFlag
+		_IF		_Z
+			mov		Rlit,R9		;   2*Rlit
+			rla		R9
+			rla		R9			;   8*Rlit
+			add		R9,Rlit		;   10*Rlit
+		_ELSE
+			RLA     Rlit		;   4*Rlit
+			RLA     Rlit
+			RLA     Rlit		;   16*Rlit
+		_ENDIF
+		add  	Rw,Rlit			;   Add data into operand reg
+DatEnd4 jmp		_NEXT			; Endif
+
