@@ -18,7 +18,8 @@
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
 
-; Addresses manually imported from the BSL-writer. Version 3. Keep up to date!
+; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
+InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$108A		; Calling-address to receive byte in R8
 WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
 ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
@@ -26,6 +27,7 @@ VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
+; 4MHzCal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
 
 ; ADC channel numbers
 CellVChan	EQU		$7			; ADC channel number for cell voltage
@@ -414,18 +416,17 @@ DSP0	EQU		$280	; Bottom of combined Interpreter return stack and machine stack, 
 
 main:
 interpretByte:
-		call	#doWriteByte	; FOR NOW: echo the byte here, instead of in the BSL
-		bic.b	#LED,&P1OUT		; FOR NOW, we set the LED in WriteByte, and clear it here.
+		cmp		#InitRetAddr,0(SP)	; If the call is not merely for initialisation
+		_IF		_NE
+			call	#doWriteByte		; FOR NOW: echo the byte here, as the BSL has not
+		_ENDIF						; Endif
+		bic.b	#LED,&P1OUT			; FOR NOW, we set the LED in WriteByte, and clear it here.
 
         ; Received byte is passed in R8, which must be preserved
 		PUSH R8
         ; Determine if initialisation is required
-#if 0
-		BIT #1<<14,SR
-#else
 		tst.b	R8				; Use incoming char being null to trigger initialisation
-#endif
-		_IF _Z              	; If not initialised
+		_IF _Z              	; If null
 			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
 			MOV		#TIB,&ToIN  	; Initialise packet buffer pointer
 			CLR		&CHKSUM     	; Clear the packet checksum
@@ -1251,7 +1252,7 @@ gotStart
 		; the sampling of the first data bit, in ReadByte, will be delayed by 
 		; an extra 16 cycles (15% of a bit time) from the detection of the start bit.
 		bis.b		#WDTIFG,&IFG1		; Temporarily set the watchdog flag so
-					  					;	ReadByte doesn't recursivy call back to interpretByte
+					  					;	ReadByte doesn't recursively call back to interpretByte
 		call		#ReadByte			; Read the byte into R8 and echo it, trashes R9 R10 R11 R13
 		bic.b		#WDTIFG,&IFG1		; Restore the flag
 		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
