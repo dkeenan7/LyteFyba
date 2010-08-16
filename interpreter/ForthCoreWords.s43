@@ -417,31 +417,31 @@ LESS1:	MOV	#-1,Rtos
 		sxt		Rtos
 		next
 
-
-#if 0		; '\'' (tick) wanted for CLIT (character literal)        
+        
 ; 1+	( n1|u1 -- n2|u2 ) ; Increment top of the stack item.
 ;
 ;   : 1+	1 + ;
 ;
-;		xColon	'\'',OnePlus,_OnePlus ; tick (single-quote) character
+;		xColon	';',OnePlus,_OnePlus ; semicolon character
 ;       xLIT    1
-;		DB	Plus,EXIT
+;		DB		Plus, EXIT
 
-		xCODE	'\'',OnePlus,_OnePlus ; tick (single-quote) character
-		INC	Rtos
+		xCODE	';',OnePlus,_OnePlus ; semicolon character
+		inc	Rtos
 		next
-#endif
+		
 
-;   1-		( n1|u1 -- n2|u2 )
+; 1-	( n1|u1 -- n2|u2 )
 ;		Decrease top of the stack item by 1.
 ;
 ;   : 1-	-1 + ;
 ;
-;		XColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
-;		DB	MinusOne,Plus,EXIT
+;		xColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
+;		xLIT	-1
+;		DB		Plus, EXIT
 
 		xCODE	'`',OneMinus,_OneMinus ; tock (back-quote) character
-		DEC	Rtos
+		dec	Rtos
 		next
 
 ;   ALIGNED	( addr -- a-addr )
@@ -562,13 +562,22 @@ rsloop
 	jmp	rsloop
 
         
-; EMIT	( x -- ) ; Send a character to the output device.
+; EMIT	( c -- ) ; Send a character to the output device.
 
 		xCODE	'M',EMIT,_EMIT
 		mov.b	Rtos,R8				; WriteByte uses R8 as parameter
         POP     Rtos				; Pop first to save stack space
 		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
 		next
+		
+; TYPE	( c-addr u -- ) ; Send u characters to the output device from c-addr
+
+		xColon	'T',TYPE,_TYPE
+		xLIT	0
+		xQDO
+			DB		DUP, CFetch, EMIT, OnePlus
+		xLOOP
+		DB		EXIT
 		
 #if 0		; 'M' wanted for EMIT because 'E' wanted as hex digit        
 ;   MOVE	( addr1 addr2 u -- )
@@ -613,13 +622,13 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		next
 #endif
 
-;   doS"        ( u -- c-addr u )
+;   S"Run        ( u -- c-addr u )
 ;		Run-time code for string literals
 ;
-;   : doS"      R> SWAP 2DUP + ALIGNED >R ; COMPILE-ONLY
+;   : S"Run      R> SWAP 2DUP + >R ; COMPILE-ONLY
 
-		xColon	'\"',DoSQuote,_DoSQuote
-		DB	RFrom,SWAP,TwoDUP,Plus,ALIGNED,ToR,EXIT
+		xColon	'\"',SQuoteRun,_SQuoteRun
+		DB		RFrom, SWAP, TwoDUP, Plus, ToR, EXIT
 
                 
 ;   HERE	( -- addr )
@@ -629,19 +638,20 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 
 		xColon	'H',HERE,_HERE
         xLIT2	VP
-		DB		Fetch,EXIT
+		DB		Fetch, EXIT
 
 
 ;   COMPILE,	( xt -- )
 ;		Compile the execution token on data stack into current
 ;		colon definition.
 ;
-;   : COMPILE,	xhere DUP CELL+ TOxhere ! ;
+;   : COMPILE,	CP DUP 1 +! @ FlashC! ;
 		xColon	',',COMPILEComma,_COMPILEComma
-		xLIT2 CP	; For some bizarre reason, if I write xLIT CP I get 6000 errors
-        DB   DUP
-        xLIT 2
-        DB PlusStore
-	;	DB FlashStore
-		DB EXIT
+		xLIT2 	CP			; Get address of code pointer
+        DB   	DUP
+        xLIT	1
+        DB		PlusStore	; Increment it
+		DB		Fetch		; Fetch the pointer
+		DB		FlashCStore	; Store the byte where it points
+		DB		EXIT
 
