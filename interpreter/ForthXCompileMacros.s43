@@ -75,15 +75,20 @@ OPCODENAM EQU   OPCODE                       ; Define the opcode name
         ORG     _ADDRLBL                     ; Point back to where the bytecode list will be compiled
         ENDM
 
-#define	__		DB	// To make bytecode definitions more readable and Forth-like
+#define	__		DB		// To make bytecode definitions more readable, as Forth,
+						// by making the DBs almost invisible (2 underscores).
 
-; To assemble a return from a bytecode definition, use
-;       __      EXIT
+; To compile a return from a bytecode definition, use
+;		DB		EXIT
+; or
+;	__	EXIT
 
 
 ; Assemble a word (16-bit) literal. 
-; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte
-
+; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte.
+; Because of assembler limitations, do not use for labels that depend on the 
+; program location counter (PLC), or expressions involving such labels.
+; See other macros below for use with PLC-dependent expressions.
 xLIT    MACRO   VALUE
                         LSTOUT-
 PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
@@ -102,6 +107,19 @@ _VALUE  SET     VALUE
         DB      PFIX | (_VALUE & $7F)
         				ENDM
 
+#define	___		xLIT	// To make bytecode definitions more readable, as Forth,
+						// by making the xLITs almost invisible (3 underscores).
+
+; To compile a literal 16-bit number, use e.g.
+;		xLIT		$202
+; or
+;	___	$202
+
+
+; Three versions of the xLIT macro for expressions that depend on the program location counter
+
+; Use xLIT3 for values of $2000 to $7FFF, or $8000 to $DFFF
+; Will work for all values, but will waste up to 2 bytes depending on the value
 xLIT3    MACRO   VALUE
                         LSTOUT-
 PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes

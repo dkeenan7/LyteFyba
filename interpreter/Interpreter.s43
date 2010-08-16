@@ -238,7 +238,7 @@ timout
 		;
 		; Now flash-program this ID
 		mov			#ID,R9
-		call		#aflashCStore
+		call		#aFlashCStore
 		jmp		doneId					; Finished
 
 doneId	next
@@ -612,10 +612,11 @@ oflo	PUSH    #-1
 		DB   EXIT
 
 ;
-; Emit an integer n as m decimal digits (n m --)
+; Emit an integer n as m decimal digits (n count --)
 
 		xColon	'm',emitDec,_emitDec
-		db		SWAP					; n on top
+		db		OneMinus			; FOR NEXT loops go n+1 times
+		db		ToR					; n on data stack, count-1 on return stack
 		db		DUP
 		db		ZeroLess
 		xIF								; If n is negative
@@ -624,41 +625,33 @@ oflo	PUSH    #-1
 			db		MS1
 			db		NEGATE
 		xENDIF
-		db		SWAP					; Back to m on top
 		
-		db		DUP
-		db		ToR						; Copy count to return stack
-		db		OneMinus				; Count-1
-calcDecLoop
-		db		SWAP					; Put count under current-number
-		xLIT	0
-		db		Space
-		xLIT	10
-		db		UMSlashMOD
-		; Now we have rem ... rem count rem quotient=current-number
-		db		ROT						; Count to top
-		db		OneMinus
-		db		DUP						; rem ... rem current-number count count
-		db		ZeroEquals
-		db		ZJump,calcDecLoop-emitDec1
-emitDec1
-		; Now we have the quotient on TOS and remainder under; no need for a fourth divide by 10 and drop
-		db		DROP		; Drop the count decremented to 0
-		db		RFrom		; Get count from return stack
-emitDecLoop
-		db		SWAP		; Put count under current digit
-		xLIT	'0'
-		db		Plus
-		db		EMIT		
-		db		MS1			; Delay 1 transmit byte time
-		db		OneMinus
-		db		DUP
-		db		ZeroEquals
-		db		ZJump,emitDecLoop-emitDec2
-emitDec2
-dropAndExit:
-		db		DROP		; Drop the now-zero count
-		db		EXIT		
+		db		RFetch					; Copy count from return stack
+		db		OneMinus				; count-2
+		xFOR
+			xLIT	0
+			db		Space
+			xLIT	10
+			db		UMSlashMOD
+			; Now we have rem1 ... remn quotient=current-number
+		xNEXT
+		; Now we have the quotient on TOS and remainder under; no need for another divide by 10
+		db		RFrom		; Get count-1 from return stack
+		xFOR
+			xLIT	'0'
+			db		Plus
+			db		EMIT		
+			db		MS1			; Delay 1 transmit byte time
+		xNEXT
+		db		EXIT
+		
+		
+; . ( n -- ) ; Print the signed number on top of stack (currently only in decimal)
+		xColon		'.',Dot,_Dot
+		xLIT		5			; Always show 5 digits, for now
+		DB			emitDec
+		DB			EXIT
+		
 
 ; Regular tick.
 ; Turn on the bypass resistors if the cell is over 3.55 V
@@ -687,11 +680,11 @@ dropAndExit:
 		xIF
 			xLIT2		bCheckForBad
 			db			CFetch
-			db			ZJump,tickNotLastAuton-($+2)
-			; bCheckForBad is on and we are bad ourselves; set the alarm
-			xLIT		1
-			db			alarm
-tickNotLastAuton
+			xIF
+				; bCheckForBad is on and we are bad ourselves; set the alarm
+				xLIT		1
+				db			alarm
+			xENDIF
 #if 0
 			xLIT	1
 			db		errorLed	; Turn on error LED. Maybe it should go off with no badness (any more) ?
@@ -732,6 +725,8 @@ MS1loop2 dec	R8
 
 ;
 ; Clear watchdog timer. DO WE NEED THIS?
+; We do if we remove the watchdog clear on every bytecode 
+; that's slowing down the inner interpreter
 ;
 		xCODE	'w',clearWatchDog,_clearWatchDog
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
@@ -741,6 +736,21 @@ MS1loop2 dec	R8
 ;
 ; Turn on or off the error LED (bool -- )
 ;
+#if	1
+		xColon	'l',errorLed,_errorLed
+		DB		ToR
+		xLIT	LED
+		DB		Space
+		xLIT	P1OUT
+		DB		RFrom
+		xIF
+			DB		CBITSET
+		xELSE
+			DB		CBITCLR
+		xENDIF
+		DB		EXIT
+		
+#else
 		xCODE	'l',errorLed,_errorLed
 		and		Rtos,Rtos		; Clears carry if was zero
 		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
@@ -750,10 +760,26 @@ MS1loop2 dec	R8
 		xor.b	Rtos,&P1OUT		; Toggle if necessary
 		pop		Rtos			; Remove operand
 		next
+#endif
 
 ;
 ; Turn on or off bypass resistors (bool -- )
 ;
+#if 1
+		xColon	'y',bypass,_bypass
+		DB		ToR
+		xLIT	BYP
+		DB		Space
+		xLIT	P1OUT
+		DB		RFrom
+		xIF
+			DB		CBITSET
+		xELSE
+			DB		CBITCLR
+		xENDIF
+		DB		EXIT
+		
+#else
 		xCODE	'y',bypass,_bypass
 		and		Rtos,Rtos		; Clears carry if was 0
 		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
@@ -763,6 +789,7 @@ MS1loop2 dec	R8
 		xor.b	Rtos,&P1OUT		; Toggle if necessary
 		pop		Rtos			; Remove operand
 		next
+#endif
 
 ;
 ; Emit the calibration value: TEMPORARY
@@ -798,39 +825,37 @@ MS1loop2 dec	R8
 		xLIT	ID
 		db		CFetch
 		db		ZeroEquals
-		db		ZJump,autonNotZero-($+2)
-;
-; Cell 0 is special: send ticK command every 2 seconds
-;
-		db		DROP		; Ignore the number of cells
-		xLIT	2			; Allow time for
-		db		MS			;   downstream neighbour to echo CR
-cellZeroLoop
-		xLIT	'k'
-		db		EMIT
-		db		MS1
-		xLIT	'k'
-		db		EMIT
-		db		MS1
-		xLIT	$D			; emit 'k k carriage return'
-		db		EMIT
-#if 1
-		xLIT	0
-		db		errorLed	; Turn off the LED due to the emits
-#endif						;   (may come back on due to \B from Tick below)
-		db		Tick		; Do tick processing ourselves!
-		xLIT	3800		; ~ 1 second total loop time
-autCheckRS
-		db		quiet		; Is the RS232 quiet?
-		db		ZJump,dropAndExit-($+2)	; Drop loop count and exit if RS232 is active
-		db		OneMinus	; Decrement loop counter
-		db		DUP
-		db		ZeroEquals	; Is it zero?
-		db		ZJump,autCheckRS-($+2) ; While not, loop to autCheckRS
-		db		DROP		; Drop loop count
-		db		Jump,cellZeroLoop-($+2)	; Keep looping
-		
-autonNotZero
+		xIF
+			;
+			; Cell 0 is special: send ticK command every 2 seconds
+			;
+			db		DROP		; Ignore the number of cells
+			xLIT	2			; Allow time for
+			db		MS			;   downstream neighbour to echo CR
+			xBEGIN				; Start of indefinite loop
+				xLIT	'k'
+				db		EMIT
+				db		MS1
+				xLIT	'k'
+				db		EMIT
+				db		MS1
+				xLIT	$D			; emit 'k k carriage return'
+				db		EMIT
+		#if 1
+				xLIT	0
+				db		errorLed	; Turn off the LED due to the emits
+		#endif						;   (may come back on due to \B from Tick below)
+				db		Tick		; Do tick processing ourselves!
+				xLIT	3800		; ~ 1 second total loop time
+				xFOR				; Start of counted loop
+					db		quiet		; Is the RS232 quiet?
+					db		ZeroEquals	; Not
+					xIF
+						DB		UNLOOP, EXIT	; Exit routine if RS232 is not quiet
+					xENDIF ; End: if not quiet
+				xNEXT	; Decrement and jump if not negative, back to xFOR
+			xAGAIN	; Keep looping to xBEGIN			
+		xENDIF	; End: if ID is zero
 		db		OneMinus	; Number of cells -1
 		xLIT	ID
 		db		CFetch
@@ -892,21 +917,21 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 			DB		Space				; Next bytecode is an xLIT
 		xENDIF
 		xLIT2	LinkCal
-		DB		flashCStore			; Write the calibration value
+		DB		FlashCStore			; Write the calibration value
 		DB		EXIT
 
 
 ;
-; DANGER: flash write command (char c-addr --)
+; FlashC! ( char c-addr -- ) ; DANGER: flash byte-write command
 ;
-			xCODE	'M'-64,flashCStore,_flashCStore
+			xCODE	'M'-64,FlashCStore,_FlashCStore
 			mov		Rtos,R9
-			POP		R8
-			call	#aflashCStore
+			pop		R8
+			call	#aFlashCStore
 			pop		Rtos
 			next
 			
-aflashCStore:
+aFlashCStore:
 			; Assembly language flash writer
 			; Byte  in R8, address in R9. Trashes R10
 			;
@@ -930,7 +955,8 @@ aflashCStore:
 			ret
 cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			ret
-		
+
+; To Do:
 ; Still need to get rid of RETT. Add headless code calling.
 ; Implement backspace editing and checksum on and off.
 ; All undefined bytecodes should act as literal separators if not digits.
