@@ -1,0 +1,76 @@
+<title>Cell Top Battery Managenebt Units</title>
+<body>
+<h1>Cell Top Battery Management Units</h1>
+
+<img src=BMUs_installed.jpg></img>    <img src=BMU_tester_04_sm.jpg></img>
+
+<p>This project describes a celltop Battery Management Unit (BMU) designed for an
+<a href=http://www.evalbum.com/2507>electric vehicle</a>. One BMU is placed on top
+of each Lithium Iron Phoshpate (LiFePO<sub>4</sub>) cell. The BMUs monitor the cell
+for excessively high voltage, excessively low voltage, and high temperature. They
+have a communications system that allows them to let these conditions be known
+to a battery management system (BMS) master unit, which can alert the driver, or instruct the
+motor controller to reduce the load or regenerative braking as appropriate. 
+There are also bypass resistors to bypass up to one ampere of charge current for
+balancing of the battery pack.  Lithium Ion batteries require these monitoring
+functions to prolong life. Lithium batteries are expensive enough to justify the cost
+of a battery management system.</p>
+
+<p>The BMUs can also report an individual cell voltage or temperature to the BMS master.
+They also monitor the voltage drop across the link which connects one cell to the next.
+If these links become high resistance, local heating can occur, as well as reduced vehicle
+performance, and there is a risk of fire and cell damage. Individual link voltages can
+also be reported to the master unit.</p>
+
+<p>As designed, this BMU is suitable only for 40 Ah CALB (Sky Energy) or Thunder Sky
+cells, but could be adapted to fit cells of other capacities. With more effort, it
+could be adapted to other chemistries, such as lead acid.</p>
+
+<p>Each BMU contains an
+<a href=http://focus.ti.com/docs/prod/folders/print/msp430f2012.html>MSP430F2012 microcontroller</a>,
+with 2.25 kB of flash memory (in two parts, 2 kB plus 256 bytes), and 128 bytes of RAM.
+The firmware of the controller
+contains a Bootstrap Loader, which allows updating of the other firmware, and a small
+Forth interpreter. This interpreter allows the master or an interactive user to
+perform a variety of cell management functions, and is quite compact (more compact
+than native assembly language, in fact). </p>
+
+<h3>Communications system</h3>
+
+<p>Each BMU has an optical isolator ("opto") which take care of the voltage difference between
+one BMU and the next. The communications system is unidirectional, but arranged in a loop.
+The BMS master communicates directly only with the first cell's BMU; that BMU passes on
+messages to the next BMU, and so on in a daisy chain, and the last BMU connects to the
+BMS master. Any BMU can initiate communications as well, but to prevent chaos, it should
+only "speak when spoken to", or use a thing we call the "badness channel".</p>
+
+<p>The communications are differential drive, which helps increase noise immunity. The
+communications channels are standard 9600 bps serial ports, so it is possible to communicate
+with a string of BMUs using a standard RS232 interface and a simple circuit.
+Even better is an <a href=http://www.aeva.asn.au/forums/forum_posts.asp?TID=980&PID=27317#27317>
+RS485 interface</a>, which has a differential transmitter and receiver. Note that a pair of
+1K resistors is needed in series with the TX+ and TX- RS485 connections. As of August 2010,
+TX+ connects to RX- on the BMU boards, and hence TX- to RX+. Similarly uTX+ on the BMUs
+connects to RX- on the RS485 interface, and uTX- connects to RX+.</p>
+
+<p>There is space on each BMU for an "end of row circuit". This is an additional isolation
+circuit that isolates the BMU output (all BMU inputs are isolated). We use this so that the
+communications signals on a high voltage battery pack will not be lethal if touched.
+For most BMUs, this area of the board is not populated. There is no danger since
+these connections will not come out of the battery box.</p>
+
+<h3>BMU connections</h3>
+
+<p> The communications channel requires two connections from one cell to the next. 
+In addition, most cells have a third connection to their upstream neighbours that is
+needed for the link voltage measurement.
+To reduce the labour of all these connections, the BMU printed circuit boards are
+made in strings of up to nine BMUs, with "squiggle joins" between adjacent boards.
+These are visible in the right photo. The shape of these joins allows a small amount
+of movement without stressing the BMU printed circuit boards or the cell terminals.
+In practice, we limit the strings to a maximum of
+five BMUs, since that is the longest string that we can bit into a frying pan to reflow
+solder the components to the boards. Where the squiggle joins are not available, three
+wires are needed between one BMU and the next.</p>
+
+</body>
