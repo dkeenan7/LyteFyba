@@ -1,8 +1,12 @@
-DOLOOPs EQU 0		; Conditional assembly flag for including DO, ?DO, LOOP and +LOOP.
-; If DOLOOPs = 0 then the only counted loops available will be FOR NEXT loops 
-; and these can then be optimised to use only one loop control parameter
+; Conditional assembly of counted loops
+DOLOOPs EQU 	1	; Conditional assembly flag to include DO, ?DO, LOOP and +LOOP.
+FORNEXTs EQU	0   ; Conditional assembly flag to include FOR NEXT
+
+; If DOLOOPs = 0 and FORNEXTs = 1 then the only counted loops available will be FOR NEXT loops 
+; and these will be optimised to use only one loop control parameter
 ; on the stacks, since their use of I, J and UNLOOP will not have 
 ; to be compatible with that of DO LOOPs and ?DO +LOOPs etc which require two parameters.
+
 
 ;-------------------------------------------------------------------------------
 ; Interpreter Register Usage
@@ -157,22 +161,23 @@ _SAVEORG SET	$
 _LEN	SET	$			;  to allow overlaying
 		DB	string
 _LEN	SET	$ - _LEN
-		ASEG				;switch back to the absolute seg
+		ASEG				; Switch back to the absolute seg
 		ORG	_SAVEORG
 		ENDM
 
-; Compile a literal string
-xSLIT   MACRO   string
-        __ doSQuote             ; Compile the runtime string-handler
-        xGETLEN string
-        DB _LEN,string          ; Compile the length and the characters
-        ENDM
+; S"	; Compile a string literal
+xSLIT	MACRO   string
+		xGETLEN	string		; Get the length of the string in _LEN
+		xLIT1 	_LEN		; Compile the length as a literal
+		DB 		SQuoteRun	; Compile the runtime string-handler
+		DB 		string		; Compile the characters of the string
+		ENDM
 
-; Compile the transmission of a literal string
-xDotQuote MACRO   string
-        xSLIT  string
-        __      TYPE
-        ENDM                
+; ."	; Compile the transmission of a string literal
+xDotQuote	MACRO	string
+		xSLIT	string
+		DB		TYPE
+		ENDM                
         
 ;-------------------------------------------------------------------------------
 ; Cross-compiler Control-flow Macros
@@ -649,6 +654,7 @@ _DORun2
 		next
 #endif // DOLOOPs
 
+#if FORNEXTs
 ; FORRun		( initial -- ) ( R: -- 0 counter )
 ; Runtime routine compiled by FOR (xFOR macro)
 ; Set up the loop-counting parameters on the Return stack.
@@ -664,11 +670,12 @@ _DORun2
 		clr		2(Rrsp)			; Push zero to return stack
 #else
 		sub		#2,Rrsp			; Pre-push a value to return stack
-#endif
+#endif // DOLOOPs
 		mov		Rtos,0(Rrsp)	; Push initial index to return stack as counter
 		pop		Rtos			; Update the TOS cache reg
 		next
-		
+#endif // FORNEXTs
+
 #if DOLOOPs
 ; LOOPJump	( -- ) ( R: limit counter --   | limit counter-1 )
 ; Increment the loop counter and if it goes above -1, drop the loop control parameters and continue.
@@ -691,6 +698,7 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		jmp		_LOOPJump2		; Continue as for plain LOOP
 #endif // DOLOOPs
 
+#if FORNEXTs
 ; NEXTJump	( -- ) ( R: limit counter --   | limit counter-1 )
 ; Decrement the loop counter and if it goes below 0, drop the loop control parameters and continue.
 ; otherwise jump back to just after the corresponding FORRun.
@@ -700,7 +708,9 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		jc		_Jump			; Jump if no borrow, to the Jump bytecode definition
 		inc		Rip				; Skip over the jump offset byte
 		; Fall through to UNLOOP
+#endif // FORNEXTs
 
+#if DOLOOPs OR FORNEXTs
 ; UNLOOP	( -- ) ( R: limit-1 counter -- )
 ; Drop the current loop control parameters.
 ; This is the runtime routine compiled by LEAVE (xLEAVE macro).
@@ -709,9 +719,9 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		xCODE	'W'-64,UNLOOP,_UNLOOP	; Ctrl-W
 #if DOLOOPs		
 		add		#4,Rrsp			; Drop limit and counter off return stack
-#else // FOR NEXT only
+#else
 		add		#2,Rrsp			; Drop counter off return stack
-#endif
+#endif // DOLOOPs
 		next
 
 ; I		( -- index ) ( R: limit counter -- limit counter )
@@ -733,5 +743,6 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		add		6(Rrsp),Rtos	; Add limit to get index
 #else
 		mov		2(Rrsp),Rtos	; Get counter into Rtos
-#endif
+#endif // DOLOOPs
 		next
+#endif // DOLOOPs OR FORNEXTs

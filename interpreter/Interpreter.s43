@@ -12,11 +12,14 @@
 ; 
 ; See Interpreter.txt for more explanation.
 
-#define		TEST	1			; 1 for testing with BMU cell-inputs in parallel
-#define		SLOWSAMP 1			; 1 for slower samples (29 uS vs 15.4 uS), with the
+; Conditional assembly flags
+#define		TEST		1		; 1 for testing with BMU cell-inputs in parallel
+#define		SLOWSAMP	1		; 1 for slower samples (29 uS vs 15.4 uS), with the
 								; longer sample time (16 uS vs 13 uS) for more stability
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
+#define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
+#define		OKPROMPT	1		; 1 to respond ' ok<cr>' after every line/packet is processed
 
 ; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
@@ -140,29 +143,45 @@ interpretByte:
 			call	#_ENTER
 			mov		#1,R8			; Prevent infinite loop; ^A is a fairly safe do-nothing char
 #endif
-		_ENDIF					; Endif (not initialised)
+		_ENDIF					; Endif (init required)
 		
 		
 		MOV &ToIN,R9
         CMP #$0D,R8
 ;		_IF _HS						; Ignore if less
 			_IF _NE					; If not carriage return
-				MOV.B R8,0(R9)		; Write the byte to the buffer
+				MOV.B R8,0(R9)		;   Write the byte to the buffer
 				INC &ToIN       	; 	Increment the pointer
-				; Will need to check for buffer overflow eventually (32 bytes max)
+				; May need to check for buffer overflow one day.
+				; It may run into the interpreter return stack.
+				; They grow towards each other.
 				XOR.B R8,&CHKSUM	;   Accumulate the checksum		
 			_ELSE					; Else (carriage return)
+#if CHECKSUM
 		    	TST.B &CHKSUM
-				;_IF _Z				;   If good checksum
+				_IF _Z				;   If good checksum
 			    	DEC R9			;     Overwrite the checksum with a RETT bytecode
 					CMP #TIB,R9 	;     Handle case of empty packet with no checksum
 					_IF _LO
 						MOV #TIB,R9
 					_ENDIF
-					MOV.B #RETT,0(R9)
-					MOV #TIB,Rw 	;     Interpret the packet as bytecode
+#endif
+					MOV.B #RETT,0(R9) ;		Overwrite the checksum or carriage return with a RETT bytecode
+					MOV #TIB,Rw 	;       Interpret the packet as bytecode
 					CALL #_ENTER
-				;_ENDIF				;   Endif (good checksum)
+#if OKPROMPT
+					mov.b		#' ',R8
+					call	#doWriteByte
+					mov.b		#'o',R8
+					call	#doWriteByte
+					mov.b		#'k',R8
+					call	#doWriteByte
+					mov.b		#$0D,R8
+					call	#doWriteByte
+#endif
+#if CHECKSUM
+				_ENDIF				;   Endif (good checksum)
+#endif
 				MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
 				CLR &CHKSUM     	;   Clear the packet checksum
 			_ENDIF					; Endif (equals carriage return )
@@ -612,11 +631,10 @@ oflo	PUSH    #-1
 		DB   EXIT
 
 ;
-; Emit an integer n as m decimal digits (n count --)
+; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
 
 		xColon	'm',emitDec,_emitDec
-		db		OneMinus			; FOR NEXT loops go n+1 times
-		db		ToR					; n on data stack, count-1 on return stack
+		db		ToR					; n on data stack, count on return stack
 		db		DUP
 		db		ZeroLess
 		xIF								; If n is negative
@@ -627,22 +645,24 @@ oflo	PUSH    #-1
 		xENDIF
 		
 		db		RFetch					; Copy count from return stack
-		db		OneMinus				; count-2
-		xFOR
+		db		OneMinus				; count-1
+		xLIT	0
+		xQDO
 			xLIT	0
 			db		Space
 			xLIT	10
 			db		UMSlashMOD
-			; Now we have rem1 ... remn quotient=current-number
-		xNEXT
+			; Now we have rem1 ... remn-1 quotient=current-number
+		xLOOP
 		; Now we have the quotient on TOS and remainder under; no need for another divide by 10
-		db		RFrom		; Get count-1 from return stack
-		xFOR
+		db		RFrom		; Get count from return stack
+		xLIT	0
+		xQDO
 			xLIT	'0'
 			db		Plus
 			db		EMIT		
 			db		MS1			; Delay 1 transmit byte time
-		xNEXT
+		xLOOP
 		db		EXIT
 		
 		
@@ -715,9 +735,9 @@ MSloop2	dec		R8
 		dec		Rtos
 		jnz		MSloop1
 		pop		Rtos
-		xNEXT
+		next
 		
-		xCODE	'J'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
+		xCODE	'H'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
 		mov		#345,R8
 MS1loop2 dec	R8
 		jnz		MS1loop2
@@ -847,13 +867,15 @@ MS1loop2 dec	R8
 		#endif						;   (may come back on due to \B from Tick below)
 				db		Tick		; Do tick processing ourselves!
 				xLIT	3800		; ~ 1 second total loop time
-				xFOR				; Start of counted loop
+				DB		Space
+				xLIT	0
+				xQDO				; Start of counted loop
 					db		quiet		; Is the RS232 quiet?
 					db		ZeroEquals	; Not
 					xIF
 						DB		UNLOOP, EXIT	; Exit routine if RS232 is not quiet
 					xENDIF ; End: if not quiet
-				xNEXT	; Decrement and jump if not negative, back to xFOR
+				xLOOP	; Decrement and jump if not negative, back to xQDO
 			xAGAIN	; Keep looping to xBEGIN			
 		xENDIF	; End: if ID is zero
 		db		OneMinus	; Number of cells -1
@@ -866,7 +888,7 @@ MS1loop2 dec	R8
 		db		EXIT		; Then do nothing (apart from waiting for more commands)
 		
 ;
-; Quiet - is the RS232 input quiet?  (-- flag)
+; Quiet - is the RS232 input quiet?  ( -- flag )
 ; Returns -1 for quiet, 0 for byte being sent
 ;
 		xCODE	'q',quiet,_quiet
@@ -875,15 +897,15 @@ MS1loop2 dec	R8
 		and.b	#RXD,Rtos		; Clears carry if was zero
 		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
 		inv		Rtos			; -1 if was 1 (= quiet)
-		xNEXT
+		next
 
 ;
-; Set or reset alarm (flag --)
+; Set or reset alarm ( flag -- )
 ;
 		xCODE	'g',alarm,_alarm
 		call	#m_alarm			; Machine code does the work
 		pop		Rtos				; Remove argument
-		xNEXT
+		next
 
 ; NOTE: pure machine code (ends in RET instruction)
 ; Do the work of setting or clearing the alarm (based on Rtos)
@@ -955,6 +977,13 @@ aFlashCStore:
 			ret
 cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			ret
+			
+
+; Test of string-output-compiling macro xDotQuote (Forth ." )
+			xColon	'a',helloWorld,_helloWorld
+			xDotQuote	'Hello World'
+			DB 		EXIT
+			
 
 ; To Do:
 ; Still need to get rid of RETT. Add headless code calling.

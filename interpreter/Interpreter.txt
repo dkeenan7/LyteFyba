@@ -36,7 +36,7 @@ Wunth Forth      Description           (Notes)
 --------------------------------------------------------------------------
 L     2*         Arithmetic (or logical) shift left one place (was \)
 %     2/         Arithmetic shift right one place
-'     1+         Increment             (single quote)
+;     1+         Increment             (semicolon)
 `     1-         Decrement             (grave or backquote)
 ^C    ALIGNED    Next even number      (heart symbol)
 ^F    ABS        Absolute value        (spade symbol)
@@ -47,7 +47,7 @@ Z     0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
 [     0<         Signed Less-than-zero comparison    (left square bracket)
 ]     0>         Signed Greater-than-zero comparison (right square bracket)
 ?     ?DUP       Duplicate if not zero
-^E    CtoS       sign Extend byte to word (doesn't display on Hyperterminal)
+^E    C>S        sign Extend byte to word (doesn't display on Hyperterminal)
 
 Binary arithmetic and logic operators
 Wunth Forth      Description           (Notes)
@@ -55,7 +55,7 @@ Wunth Forth      Description           (Notes)
 *     *          Multiply (signed)
 /     /          Divide (signed)
 ^X    UMStar     Unsigned 16x16=32 bit multiply (up arrow)
-^_    UMSlashMod Unsigned 32/16=16 bit divide   (down-pointing filled triangle)
+^_    UMSlashMOD Unsigned 32/16=16 bit divide   (down-pointing filled triangle)
 +     +          Add
 -     -          Subtract
 Y     MAX        Signed maximum
@@ -65,7 +65,7 @@ G     MIN        Signed minimum
 &     AND        Bitwise AND           (also works as logical AND)
 |     OR         Bitwise OR            (also works as logical OR)
 ^     XOR        Bitwise XOR
-=                Equals comparison
+=     =          Equals comparison
 N     <>         Not-equals comparison
 <     <          Signed less-than comparison
 >     >          Signed greater-than comparison
@@ -101,7 +101,7 @@ Wunth Forth      Description                Appearance in Terminal font
 $     C!         Store byte 
 ^S    +!         Fetch word, add and store  Double exclamation mark
 ^T    C+!        Fetch byte, add and store  Pilcrow sign 
-^M    flashWrite Flash write the byte to the given address
+^M    FlashC!    Flash-write the byte to the given address
                                             (reverse P with vertical bar)
 .     CBITTST    Fetch byte and AND for comparison       (period)
 :     CBITCLR    Fetch byte, AND with inverted and store (colon)
@@ -140,15 +140,21 @@ Miscellaneous others
 Wunth Forth      Description                Appearance in Terminal font
 ---------------------------------------------------------------------------
 space Space      Literal separator no-op (like ENTER key on RPN calculator)
-return EOP       End of bytecode packet
-\                Comment to end of line (carriage return)
+return Return    End of bytecode packet  (carriage return)
+\                Comment to end of line
 ,     COMPILE,   Write the bytecode on top-of-stack to next flash location
-^U    doDO [DO]  Runtime word for start of DO...LOOP (section sign "S")
+^U    DORun      Runtime word for start of DO...LOOP or DO...+LOOP
+DEL   QDOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
+^[    LOOPJump   Runtime word for end of DO .. LOOP or ?DO .. LOOP
+^J    PlusLOOPJump Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
+^I    FORRun     Runtime word for start of FOR...NEXT loop
+^G    NEXTJump   Runtime word for end of FOR...NEXT loop
+^W    UNLOOP     Prepare for unstructured exit from counted loop (DO, ?DO, FOR)
 "     doS" [S"]  Runtime word for start of string literal
 ^\    0Jump      Runtime word for conditional jump   (inverted not sign "L")
 ^]    Jump       Runtime word for unconditional jump (left-right arrow)
 ^^    EXIT       Return from a bytecode routine      (up-pointing filled triangle)
-^J    MS1        Delay for 1 byte transmit time (about 1.04 ms)
+^H    MS1        Delay for 1 byte transmit time (about 1.04 ms)
 
 BMU operations
 ------------------------------------------------------------------------------
@@ -170,11 +176,142 @@ w     Clear watchdog timer
 y     Turn bypass resistors on/off
 z     Sleep n millisconds
 
+
+In ASCII order
+Wunth  Forth      Description           (Notes)
+                  ( Data stack before -- after )( R: Return stack before -- after ) 
+                  top-of-stack to the right
+---------------------------------------------------------------------------
+^@ NUL
+		  Outer interpreter: Initialise interpreter
+^A SOH
+		  Outer interpreter: Ignore as BSL password byte
+^B STX
+		  Outer interpreter: Ignore as BSL password byte
+^C ETX ALIGNED    Next even number      (heart symbol)
+^D EOT
+		  Outer interpreter: Ignore as BSL password byte
+^E ENQ C>S        sign Extend byte to word (doesn't display on Hyperterminal)
+
+^F ACK ABS        Absolute value        (spade symbol)
+^G BEL NEXTJump   Runtime word for end of FOR...NEXT loop
+^H BS  MS1        Delay for 1 byte transmit time (about 1.04 ms)
+		  Outer interpreter: Backspace edit
+^I TAB FORRun     Runtime word for start of FOR...NEXT loop
+^J LF  PlusLOOPJump Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
+^K VT  CBITCLR    Fetch byte, AND with inverted and store
+^L FF  CBITSET    Fetch byte, OR and store
+^M CR  FlashC!    Flash-write the byte to the given address
+		  Outer interpreter: End of bytecode packet
+^N SO  2DUP       ( n2 n1 -- n2 n1 n2 n1 ) Two musical notes
+^O SI  OVER       ( n2 n1 -- n2 n1 n2 )    Sun (small circle with "rays")
+^P DLE ROT        ( n3 n2 n1 -- n2 n1 n3 ) Right-pointing filled triangle
+^Q DC1 -ROT       ( n3 n2 n1 -- n1 n3 n2 ) Left-pointing filled triangle
+^R DC2 SWAP       ( n2 n1 -- n1 n2 )       Up-down arrow
+^S DC3 +!         Fetch word, add and store  Double exclamation mark
+^T DC4 C+!        Fetch byte, add and store  Pilcrow sign 
+^U NAK DORun      Runtime word for start of DO...LOOP (section sign "S")
+^V SYN R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
+^W ETB UNLOOP     Prepare for EXIT from counted loop (DO, ?DO, FOR)
+^X CAN UMStar     Unsigned 16x16=32 bit multiply (up arrow)
+^Y EM  DROP       ( n1 -- )                Down arrow
+^Z SUB DUP        ( n1 -- n1 n1 )          Right arrow
+^[ ESC LOOPJump   Runtime word for end of DO .. LOOP or ?DO .. LOOP
+^\ FS  0Jump      Runtime word for conditional jump   (inverted not sign "L")
+^] GS  Jump       Runtime word for unconditional jump (left-right arrow)
+^^ RS  EXIT       Return from a bytecode routine      (up-pointing filled triangle)
+^_ US  UMSlashMOD Unsigned 32/16=16 bit divide   (down-pointing filled triangle)
+space  space      Literal separator no-op (like ENTER key on RPN calculator)
+!      !          Store word
+"      doS" [S"]  Runtime word for start of string literal
+#      C@         Fetch byte
+$      C!         Store byte 
+%      2/         Arithmetic shift right one place
+&      AND        Bitwise AND           (also works as logical AND)
+'      CLIT       Character literal in following byte
+(      LSHIFT     Logical shift left n places    (left paren)
+)      RSHIFT     Logical shift right n places   (right paren)
+*      *          Multiply (signed)
++      +          Add
+,      COMPILE,   Write the bytecode on top-of-stack to next flash location
+-      -          Subtract
+.      .          Print signed number
+/      /          Divide (signed)
+0..9   Decimal and hex literals
+:      :          Compile a bytecode definition
+;      1+         Increment
+<      <          Signed less-than comparison
+=      =          Equals comparison
+>      >          Signed greater-than comparison
+?      ?DUP       Duplicate if not zero
+@      @          Fetch word
+A..F   Hex literals
+;C      CMOVE      Byte block move (NOT implemented yet)
+;D      DEPTH      Depth of data stack in words
+;F      RET        Return from a bytecode routine called from machine code
+G      MIN        Signed minimum
+H      HERE       Address of next available flash location
+I      I          Innermost DO .. LOOP counter
+J      J          Second DO .. LOOP counter
+K      KEY        Get a byte from serial input
+L      2*         Arithmetic (or logical) shift left one place (was \)
+M      EMIT       Send a byte to serial output
+;M      MOVE       Word block move
+N      <>         Not-equals comparison
+O      >R         ( n1 -- | R: -- n1 )     
+P      NIP        ( n2 n1 -- n1 )
+Q      ABORT      Clear both stacks and restart the outer interpreter (QUIT)
+R      R>         ( -- n1 | R: n1 -- )     
+S      2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
+T      TYPE       Send a string to serial output
+U      TUCK       ( n2 n1 -- n1 n2 n1 )
+V      EVALUATE   Interpret a string (of bytecodes)
+W      WITHIN     Range comparison
+X      EXECUTE    Interpret the single bytecode on the top-of-stack
+Y      MAX        Signed maximum
+Z      0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
+                  Equal-zero comparison ("Z" for "is Zero")
+[      0<         Signed Less-than-zero comparison
+\      \          Comment to end of line
+]      0>         Signed Greater-than-zero comparison (right square bracket)
+^      XOR        Bitwise XOR
+_      NEGATE     Unary minus           (underscore)
+`      1-         Decrement             (grave or backquote)
+a
+b
+c
+d      autonomous Discharge or custom bypass voltage
+e
+f
+g      Turn alarm on/off (think ^g)
+h      Turn on/off hex mode (0 = decimal)
+i      Ident setup
+j
+k      Regular check (tick) for badness
+l      Turn on/off error LED
+m      EMit n2 with n1 decimal places (n2 n1 --)
+n      liNk voltage
+o      Low level voltage measurement (channel -- result)
+p      Pretty print tos as a comment packet
+q      is serial input Quiet?
+r
+s
+t      Temperature measurement
+u      aUtonomous (masterless) operation; cell 0 sends ticK commands
+v      Cell Voltage measurement
+w      Clear Watchdog timer
+y      Turn bypass resistors on/off
+z      Sleep n millisconds
+{      U<         Unsigned less-than comparison    (left curly brace)
+|      OR         Bitwise OR            (also works as logical OR)
+}      U>         Unsigned greater-than comparison (right curly brace)
+~      INVERT     Bitwise negation      (tilde)
+^? DEL ?DOJump    Runtime word for start of ?DO .. LOOP
+
+
 More info on specific Forth words can be found at:
 http://www.taygeta.com/forth/dpansf.htm
 
 All lowercase letters are available for use as application-specific bytecodes.
-
-We should try to avoid using control characters that are used in the bootstrap-loader password or are invisible when echoed to Hyperterminal.
 
 -- Dave (Weber) Keenan
