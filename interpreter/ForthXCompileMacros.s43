@@ -1,0 +1,719 @@
+DOLOOPs EQU 0		; Conditional assembly flag for including DO, ?DO, LOOP and +LOOP.
+; If DOLOOPs = 0 then the only counted loops available will be FOR NEXT loops 
+; and these can then be optimised to use only one loop control parameter
+; on the stacks, since their use of I, J and UNLOOP will not have 
+; to be compatible with that of DO LOOPs and ?DO +LOOPs etc which require two parameters.
+
+;-------------------------------------------------------------------------------
+; Interpreter Register Usage
+
+;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
+;       Rdsp    SP	// Data stack pointer (and machine stack pointer)
+#define Rrsp	R4	// Return stack pointer
+#define Rip		R5	// Virtual machine instruction pointer
+#define Rlit    R6	// Holds partial literals
+#define Rtos	R7	// Top of data stack item - could do without this reg if necc.
+#define Rw      R8	// Working register - temporary - anyone can use
+
+;
+; Status flag usage
+;
+; Bit 15 = literal in progress
+
+;-------------------------------------------------------------------------------
+; Interpreter Return-Stack push and pop macros
+
+RPUSH	MACRO	arg
+		DECD    Rrsp
+		MOV	arg,0(Rrsp)
+		ENDM
+
+RPOP	MACRO	arg
+		MOV	@Rrsp+,arg
+		ENDM
+
+;-------------------------------------------------------------------------------
+; Opcode-table Macros
+
+; The opcode lookup table is in high memory.
+; It contains one word per bytecode opcode, which is the address of the code 
+; that implements the operation, with a flag in the high bit to say whether 
+; it is machine code or bytecode.  0=machine code, 1=bytecode.
+
+_OPCODETBL	EQU	$FEE0  
+
+
+; The "x" at the start of the following macro names stands for "cross-compiling"
+; to distinguish them from possible native versions on the MSP430 in future.
+; The names CODE and Colon (actually ":") are from Forth.
+
+
+; Assemble an opcode-table entry that has a machine-code definition.
+
+xCODE   MACRO   OPCODE,OPCODENAM,_ADDRLBL
+		EVEN	                             ; Force to word boundary
+_ADDRLBL:                                    ; Define the machine-code address label
+OPCODENAM EQU   OPCODE                       ; Define the opcode name
+        ORG     _OPCODETBL+(OPCODE)*2        ; Point to correct opcode-table entry
+        DW      ~(1<<15) & _ADDRLBL          ; Assemble the address with cleared flag
+        ORG     _ADDRLBL                     ; Point back to where the machine code will be assembled
+        ENDM
+
+; Assemble a return from a machine code definition.
+
+next	MACRO
+		jmp _NEXT	                     	; Jump to interpreter's _NEXT routine
+		ENDM
+
+; Assemble an opcode-table entry that has a bytecode definition.
+
+xColon  MACRO   OPCODE,OPCODENAM,_ADDRLBL   
+_ADDRLBL:                                    ; Define the bytecode-list address label
+OPCODENAM EQU   OPCODE                       ; Define the opcode name
+        ORG     _OPCODETBL+(OPCODE)*2        ; Point to correct opcode-table entry
+        DW      1<<15 | _ADDRLBL             ; Assemble the address with set flag
+        ORG     _ADDRLBL                     ; Point back to where the bytecode list will be compiled
+        ENDM
+
+#define	__		DB	// To make bytecode definitions more readable and Forth-like
+
+; To assemble a return from a bytecode definition, use
+;       __      EXIT
+
+
+; Assemble a word (16-bit) literal. 
+; Uses the minimum number of bytes to encode it as a signed integer, at 7 bits per byte
+
+xLIT    MACRO   VALUE
+                        LSTOUT-
+PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+        IF   	(_VALUE & $FFFF >= $2000) AND (_VALUE & $FFFF < $E000)
+                        LSTOUT+
+          DB      PFIX | (_VALUE>>14 & $7F)
+                        LSTOUT-
+        ENDIF
+        IF		(_VALUE & $FFFF >= $0040) AND (_VALUE & $FFFF < $FFC0)
+                        LSTOUT+
+          DB      PFIX | (_VALUE>>7 & $7F)
+                        LSTOUT-
+        ENDIF
+                        LSTOUT+
+        DB      PFIX | (_VALUE & $7F)
+        				ENDM
+
+xLIT3    MACRO   VALUE
+                        LSTOUT-
+PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+                        LSTOUT+
+        DB      PFIX | (_VALUE>>14 & $7F)
+        DB      PFIX | (_VALUE>>7 & $7F)
+        DB      PFIX | (_VALUE & $7F)
+        				ENDM
+
+; For values between $40 and $1FFF or $E000 and $FFC0 inclusive.
+; Would also work for values between $FFC0 and $003F, but wastes a byte.
+xLIT2    MACRO   VALUE
+                        LSTOUT-
+PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+                        LSTOUT+
+        DB      PFIX | (_VALUE>>7 & $7F)
+        DB      PFIX | (_VALUE & $7F)
+        				ENDM
+
+; For values between $FFC0 and $003F inclusive
+xLIT1    MACRO   VALUE
+                        LSTOUT-
+PFIX    SET     $80			; Set the high bit to distinguish literal prefix bytes from opcodes
+_VALUE  SET     VALUE
+                        LSTOUT+
+        DB      PFIX | (_VALUE & $7F)
+        				ENDM
+
+; Set _LEN to length of string (in bytes). Used by the xSLIT (string-literal) macro.
+xGETLEN	MACRO	string
+_SAVEORG SET	$
+		COMMON	_GETLEN :NOROOT		;switch to a COMMON segment
+_LEN	SET	$			;  to allow overlaying
+		DB	string
+_LEN	SET	$ - _LEN
+		ASEG				;switch back to the absolute seg
+		ORG	_SAVEORG
+		ENDM
+
+; Compile a literal string
+xSLIT   MACRO   string
+        __ doSQuote             ; Compile the runtime string-handler
+        xGETLEN string
+        DB _LEN,string          ; Compile the length and the characters
+        ENDM
+
+; Compile the transmission of a literal string
+xDotQuote MACRO   string
+        xSLIT  string
+        __      TYPE
+        ENDM                
+        
+;-------------------------------------------------------------------------------
+; Cross-compiler Control-flow Macros
+
+; Make a Control-flow Stack (CS) in the assembler so we can implement 
+; Forth-like structured control-flow words for cross-compilation.
+
+xCS_TOP	SET 0
+xCS2    SET 0
+xCS3    SET 0
+xCS4    SET 0
+xCS5    SET 0
+xCS6    SET 0
+xCS7    SET 0
+xCS8    SET 0
+
+xCS_PUSH MACRO arg
+xCS8	SET xCS7
+xCS7	SET xCS6
+xCS6	SET xCS5
+xCS5    SET xCS4
+xCS4    SET xCS3
+xCS3    SET xCS2
+xCS2    SET xCS_TOP
+xCS_TOP SET arg
+        ENDM
+
+xCS_DROP MACRO
+xCS_TOP	SET xCS2
+xCS2    SET xCS3
+xCS3    SET xCS4
+xCS4    SET xCS5
+xCS5    SET xCS6
+xCS6    SET xCS7
+xCS7    SET xCS8
+xCS8    SET 0
+        ENDM
+
+xCS_SWAP MACRO
+xCS_TOP SET xCS_TOP^xCS2
+xCS2    SET xCS_TOP^xCS2
+xCS_TOP SET xCS_TOP^xCS2
+        ENDM
+        
+; Define macros for
+; xIF ... xENDIF
+; xIF ... xELSE ... xENDIF
+
+xAHEAD  MACRO     		; Mark the origin of a forward unconditional jump.
+                  		; Called by xELSE.
+                        LSTOUT+
+		DB Jump         ; Compile an unconditional jump
+                        LSTOUT-
+		xCS_PUSH $      ; Push the location of, and ...
+        ORG $+1	        ; skip over, where its offset will be filled-in later
+                        LSTOUT+
+        				ENDM
+
+xIF 	MACRO     		; Mark the origin of a forward conditional jump.
+                  		; Called by xWHILE.
+                        LSTOUT+
+		DB ZJump        ; Compile a conditional jump
+                        LSTOUT-
+		xCS_PUSH $      ; Push the location of, and ...
+        ORG $+1	        ; skip over, where its offset will be filled-in later
+                        LSTOUT+
+        				ENDM
+
+xENDIF	MACRO     		; Resolve a forward jump due to most recent xAHEAD, xIF, xELSE or xWHILE.
+                        LSTOUT-
+                  		; Called by xELSE and xREPEAT.
+_SAVEORG SET $          ; Remember where we were up to in compiling
+		ORG xCS_TOP     ; Go back to the address on the top of the control-flow stack
+                        LSTOUT+
+		DB _SAVEORG-xCS_TOP-1 ; Backfill the jump offset
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+        ORG _SAVEORG    ; Go forward again to continue compiling
+                        LSTOUT+
+        				ENDM
+
+xELSE	MACRO     		; Mark the origin of a forward unconditional jump and
+                        LSTOUT-
+                  		; resolve a forward jump due to an xIF.
+        xAHEAD          ; Compile an unconditional jump and push its address
+                        LSTOUT-
+        xCS_SWAP        ; Get the original xIF address back on top
+		xENDIF          ; Back-patch ZJump offset for previous xIF
+                        LSTOUT+
+						ENDM
+
+; Define macros for 
+; xBEGIN ... xAGAIN              (infinite)
+; xBEGIN ... xUNTIL              (post-tested
+; xBEGIN ... xWHILE ... xREPEAT  (pre or mid tested)
+
+xBEGIN  MACRO     		; Mark a backward destination (i.e. the start of a loop)
+                        LSTOUT-
+        xCS_PUSH $      ; Push the address to jump back to
+                        LSTOUT+
+						ENDM
+
+xAGAIN  MACRO     		; Resolve most recent xBEGIN with a backward unconditional jump
+                  		; The end of an infinite loop
+                        LSTOUT+
+		DB Jump         ; Compile an unconditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the stack
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+                        LSTOUT+
+						ENDM
+        
+xUNTIL	MACRO     		; Resolve most recent xBEGIN with a backward conditional jump
+                  		; The end of a post-tested loop
+                        LSTOUT+
+		DB ZJump        ; Compile a conditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the stack
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+                        LSTOUT+
+						ENDM
+        
+xWHILE	MACRO     		; Mark the origin of a forward conditional jump out of a loop
+                        LSTOUT-
+                 		; The test of a pre-tested or mid-tested loop
+		xIF             ; Compile conditional jump and push the address of its offset
+                        LSTOUT-
+		xCS_SWAP        ; Get the xBEGIN address back on top
+                        LSTOUT+
+						ENDM
+
+xREPEAT MACRO     		; Resolve most recent xBEGIN with a backward unconditional jump and
+                        LSTOUT-
+                  		; resolve a forward jump due to most recent xWHILE.
+                  		; The end of a pre-tested or mid-tested loop
+		xAGAIN          ; Jump back to the corresponding xBEGIN
+                        LSTOUT-
+		xENDIF          ; Fill in the offset for the last xWHILE
+                        LSTOUT+
+						ENDM        
+
+; A loop may have additional xWHILEs, but each additional one must be balanced by
+; an xENDIF (or xELSE ... xENDIF) after the xREPEAT or xUNTIL. Examples:
+; xBEGIN ... xWHILE ... xWHILE ... xREPEAT ... xENDIF
+; xBEGIN ... xWHILE ... xUNTIL ... xELSE ...  xENDIF
+; xBEGIN ... xWHILE ... xWHILE ... xAGAIN ... xENDIF ... xENDIF
+;
+; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
+
+; CASE statement. Typical use:
+;		; Value to be compared on top of stack
+;       xCASE
+;       xLIT	x1	; First comparison constant
+;		xOF
+;			...		; Code executed if first constant matches
+;		xENDOF
+;		...			; Other xLIT xi xOF ... xENDOFs
+;       xLIT	xn	; Last comparison constant
+;		xOF
+;			...		; Code executed if last constant matches
+;		xENDOF
+;       	...		; Default code, executed if no match
+;       xENDCASE
+
+xCASE   MACRO
+                        LSTOUT-
+        xCS_PUSH 0      ; Push an OF-count of zero onto the control flow stack
+                        LSTOUT+
+                        ENDM
+        
+        
+xOF     MACRO
+                        LSTOUT-
+_count  SET xCS_TOP+1   ; Increment the OF-count
+        xCS_DROP        ; and take it off the stack for now
+        ; Assemble the word comparison
+                        LSTOUT+
+        DB	OVER,Equals	; Compile the copy and test of the CASE value
+                        LSTOUT-
+        xIF				; Mark where a conditional jump will be backfilled later
+                        LSTOUT+
+		DB	DROP		; Compile the discard of the CASE value if equal
+                        LSTOUT-
+        xCS_PUSH _count ; Put the OF-count back on the stack
+                        LSTOUT+
+                        ENDM
+        
+xENDOF  MACRO
+                        LSTOUT-
+_count  SET xCS_TOP     ; Take the OF-count off the stack for now
+                        LSTOUT-
+        xCS_DROP
+        xELSE           ; Resolve the previous unconditional jump
+                        LSTOUT-
+                        ; and mark where an unconditional jump will be backfilled later
+        xCS_PUSH _count ; Put the OF-count back on the stack
+                        LSTOUT+
+                        ENDM
+        
+        
+xENDCASE MACRO
+                        LSTOUT-
+_count  SET xCS_TOP     ; Take the OF-count off the stack for good
+                        LSTOUT-
+        xCS_DROP
+                        LSTOUT+
+		DB	DROP		; Compile the discard of the CASE value
+                        LSTOUT-
+        REPT _count     ; Repeat OF-count times
+          xENDIF        ; Resolve an unconditional forward jump
+                        LSTOUT-
+        ENDR
+                        LSTOUT+
+                        ENDM
+
+; Make another control-flow stack in the assembler, called the LEAVE stack (LS) 
+; so we can implement Forth-like unstructured exits from counted loops 
+; (DO | ?DO ... LOOP | +LOOP) for cross-compilation.
+
+xLS_TOP	SET 0
+xLS2    SET 0
+xLS3    SET 0
+xLS4    SET 0
+xLS5    SET 0
+xLS6    SET 0
+xLS7    SET 0
+xLS8    SET 0
+
+xLS_PUSH MACRO arg
+xLS8	SET xLS7
+xLS7	SET xLS6
+xLS6	SET xLS5
+xLS5    SET xLS4
+xLS4    SET xLS3
+xLS3    SET xLS2
+xLS2    SET xLS_TOP
+xLS_TOP SET arg
+        ENDM
+
+xLS_DROP MACRO
+xLS_TOP	SET xLS2
+xLS2    SET xLS3
+xLS3    SET xLS4
+xLS4    SET xLS5
+xLS5    SET xLS6
+xLS6    SET xLS7
+xLS7    SET xLS8
+xLS8    SET 0
+        ENDM
+
+xLS_SWAP MACRO
+xLS_TOP SET xLS_TOP^xLS2
+xLS2    SET xLS_TOP^xLS2
+xLS_TOP SET xLS_TOP^xLS2
+        ENDM
+        
+; Define macros for 
+; xDO ... xLOOP    (counted post-tested, step by 1)
+; xDO ... x+LOOP   (counted post-tested, step by n)
+; x?DO ... xLOOP   (counted pre-tested, step by 1)
+; x?DO ... x+LOOP  (counted pre-tested, step by n)
+; xFOR ... xNEXT (counted post-tested, step by -1, final value 0)
+; All the above counted loops allow unstructured exits via 
+; xLEAVE (leave the current counted loop) or
+; UNLOOP EXIT (leave the current routine)
+; where an UNLOOP is required for each nested counted loop.
+
+; DO	( C: -- do-dest )
+xDO		MACRO
+						LSTOUT+
+		DB	DORun		; Compile instruction to put loop control parameters on the return stack
+						LSTOUT-
+		xBEGIN     		; Mark a backward destination (i.e. the start of a loop)
+						LSTOUT-
+        xLS_PUSH 0      ; Push a LEAVE-count of zero onto the LEAVE stack
+						LSTOUT+
+						ENDM
+
+; ?DO	( C: -- do-dest ) ( L: -- ?do-origin )
+xQDO	MACRO	
+						LSTOUT-
+						; Mark the origin of a forward conditional jump past a counted loop.
+						; Similar to xIF but using the LEAVE stack instead of the control-flow stack.
+						LSTOUT+
+		DB	QDOJump		; Compile instruction to put loop control parameters on the return stack
+						; and perform a conditional jump (if initial and limit are equal)
+						LSTOUT-
+		xLS_PUSH $		; Push (to the LEAVE stack) the location of, and ...
+        ORG	$+1			; skip over, where its offset will be filled-in later
+		xBEGIN     		; Mark a backward destination (i.e. the start of a loop)
+						LSTOUT-
+        xLS_PUSH 1      ; Push a LEAVE-count of one onto the LEAVE stack (for the QDOJump)
+						LSTOUT+
+						ENDM
+
+; FOR	( C: -- for-dest )
+xFOR		MACRO
+						LSTOUT+
+		DB	FORRun		; Compile instruction to put loop control parameters on the return stack
+						LSTOUT-
+		xBEGIN     		; Mark a backward destination (i.e. the start of a loop)
+						LSTOUT-
+        xLS_PUSH 0      ; Push a LEAVE-count of zero onto the LEAVE stack
+						LSTOUT+
+						ENDM
+
+; LOOP ( -- )
+xLOOP	MACRO
+                        LSTOUT+
+		DB LOOPJump     ; Compile an increment of the loop counter and a backwards conditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the control-flow stack
+						; Similar to xUNTIL
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+		xRAKE			; Resolve any ?DO and LEAVE jump offsets
+                        LSTOUT+
+						ENDM
+
+; NEXT ( -- )
+xNEXT	MACRO
+                        LSTOUT+
+		DB NEXTJump	; Compile a decrement of the loop counter and a backwards conditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the control-flow stack
+						; Similar to xUNTIL
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+		xRAKE			; Resolve any LEAVE jump offsets
+                        LSTOUT+
+						ENDM
+
+; +LOOP ( -- )
+xPlusLOOP	MACRO
+                        LSTOUT+
+		DB PlusLOOPJump ; Compile a subtraction from the loop counter and a backwards conditional jump
+		DB xCS_TOP-$-1  ;  back to the address on the top of the control-flow stack.
+						; Similar to xUNTIL
+                        LSTOUT-
+		xCS_DROP        ; Drop the address off the control-flow stack
+		xRAKE			; Resolve any ?DO and LEAVE jump offsets
+                        LSTOUT+
+						ENDM
+
+; LEAVE	( -- ) ( L: leave-count -- leave-origin  leave-count+1 )
+; Compile an UNLOOP and an unstructured exit from the current counted loop.
+xLEAVE	MACRO     		; Mark the origin of a forward unconditional jump out of a counted loop.
+                        LSTOUT-
+						; Similar to xAHEAD but using LEAVE stack instead of control-flow stack.
+_count  SET xLS_TOP+1   ; Increment the LEAVE-count
+        xLS_DROP        ; and take it off the stack for now
+						LSTOUT+
+		DB	UNLOOP		; Compile instruction to remove loop control parameters from return stack
+		DB	Jump		; Compile an unconditional jump
+						LSTOUT-
+		xLS_PUSH $		; Push (to the LEAVE stack) the location of, and ...
+        ORG	$+1			; skip over, where its offset will be filled-in later
+        xLS_PUSH _count ; Put the LEAVE-count back on the LEAVE stack
+						LSTOUT+
+						ENDM
+						
+; ENDLEAVE	( -- ) ( L: leave-origin -- )
+xENDLEAVE	MACRO     	; Resolve a forward jump due to most recent xLEAVE.
+                        LSTOUT-
+						; Similar to xENDIF but using the LEAVE stack instead of the control-flow stack.
+                  		; Called by xRAKE.
+_SAVEORG SET $          ; Remember where we were up to in compiling
+		ORG xLS_TOP     ; Go back to the address on the top of the LEAVE stack
+                        LSTOUT+
+		DB _SAVEORG-xLS_TOP-1 ; Backfill the jump offset
+                        LSTOUT-
+		xLS_DROP        ; Drop the address off the LEAVE stack
+        ORG _SAVEORG    ; Go forward again to continue compiling
+                        LSTOUT+
+        				ENDM
+
+; RAKE ( -- ) (L: leave_origin_1 .. leave_origin_n n -- )
+; Backfill the jump offsets for all the LEAVEs and any ?DO, of the counted loop that just ended.
+; Called from xLOOP, xPlusLOOP and xNEXT.
+xRAKE	MACRO
+                        LSTOUT-
+_count  SET xLS_TOP     ; Take the _LEAVE-count off the LEAVE stack for good
+                        LSTOUT-
+        xLS_DROP
+                        LSTOUT-
+        REPT _count     ; Repeat _LEAVE-count times
+          xENDLEAVE     ; Resolve an unconditional forward jump
+                        LSTOUT-
+        ENDR
+                        LSTOUT+
+                        ENDM
+		
+;-------------------------------------------------------------------------------
+; Runtime bytecodes used by the above control-flow cross-compiling macros
+
+; EXIT ( -- ) ; Return from a bytecode routine
+
+        xCODE   '^'-64,EXIT,_EXIT ; Control-^ $1E
+        RPOP    Rip             ; Un-nest interpretation
+        next
+
+; RET ( -- ) ; Return from a bytecode routine that is called from machine code.
+             ; This will probably only be used at the end of the outer interpreter.
+
+        xCODE   '\\',RETT,_RETT
+		tst.b	&bCheckForBad	; Are we checking for badness ("\B") commands?
+		jz		noCheckBad
+		; This only happens when the 'u' command is received, and we are the last cell
+		push	Rtos
+		mov.b	@Rip,Rtos
+		xor.b	#'B',Rtos			; Carry cleared if result is zero
+		subc	Rtos,Rtos			; -1 if carry was clear, i.e. 'B' was found
+		call	#m_alarm			; Set or clear the alarm based on Rtos
+		pop		Rtos
+noCheckBad
+        RPOP    Rip             ; Un-nest interpretation
+        RET                     ; Return to address on machine stack
+		
+#if 0
+; EXECUTE ( xt -- ) ; Interpret the single bytecode on the top of the stack
+
+        xCODE   'X',EXECUTE,_EXECUTE
+        MOV.B   Rtos,Rw
+        POP     Rtos
+        JMP     _RUN
+#endif
+
+; Jump	( -- ) ; Unconditional jump using a signed offset in the following byte.
+               ; A Jump 0 is a no-op, a Jump -2 is an infinite loop.
+
+		xCODE	']'-64,Jump,_Jump ; Ctrl-] $1D
+		MOV.B	@Rip+,Rw         ; Fetch the offset byte and increment the Rip
+        SXT     Rw               ; Sign extend the offset to a word
+        ADD     Rw,Rip           ; Add the signed offset to the instruction pointer
+		next
+
+; 0Jump ( flag -- ) ; Jump if flag on top of stack is zero. Consumes flag.
+
+		xCODE	'\\'-64,ZJump,_ZJump ; Ctrl-\ $1C
+		TST		Rtos
+        POP     Rtos
+		JZ		_Jump
+        INC     Rip              ; Skip the offset byte
+		next
+
+#if DOLOOPs
+; ?DOJump	( limit initial -- ) ( R: -- limit-1 counter )
+; Runtime routine compiled by ?DO (xQDO macro)
+; Set up the loop-counting parameters on the return stack as for DORun below.
+; If limit and initial index are equal, jump past the corresponding LOOPJump or PlusLOOPJump
+; using the signed offset in the following byte, back-filled by the xLOOP or xPlusLOOP macro.
+		xCODE	'?'+64,QDOJump,_QDOJump	; Ctrl-? or DEL
+		pop		Rw				; Pop limit into Rw
+		inc		Rip				; Skip over the jump offset byte
+		cmp		Rtos,Rw			; Compare limit and initial index
+		jne		_DORun2			; If not equal, continue as for plain DO
+		dec		Rip				; Undo the skip over the jump offset byte
+		pop		Rtos			; Drop the initial index
+		jmp		_Jump			; Jump to the Jump bytecode definition
+		
+; DORun		( limit initial -- ) ( R: -- limit counter )
+; Runtime routine compiled by DO (xDO macro)
+; Set up the loop-counting parameters on the Return stack.
+; The counter is kept on the top of the return stack. It counts up to zero
+; and so is intialised to the initial index minus the limit.
+; The limit is kept below the counter on the return stack. It is used by the 
+; 'I' bytecode to generate the index by adding the counter to it.
+		xCODE	'U'-64,DORun,_DORun	; Ctrl-U
+		pop		Rw				; Get limit into Rw
+_DORun2
+		sub		#4,Rrsp			; Pre-push two values to return stack
+		mov		Rw,2(Rrsp)		; Push limit to return stack
+		sub		Rw,Rtos			; Calculate the counter as initial index minus limit
+		mov		Rtos,0(Rrsp)	; Push counter to return stack
+		pop		Rtos			; Update the TOS cache reg
+		next
+#endif // DOLOOPs
+
+; FORRun		( initial -- ) ( R: -- 0 counter )
+; Runtime routine compiled by FOR (xFOR macro)
+; Set up the loop-counting parameters on the Return stack.
+; The counter is kept on the top of the return stack. It counts down to -1
+; and is intialised to the initial index.
+; When DO LOOPs are also required, a zero is kept below the counter 
+; on the return stack and is used by the 
+; 'I' bytecode to generate the index by adding the counter to it, 
+; for compatibility with other DO loops that also use 'I'.
+		xCODE	'I'-64,FORRun,_FORRun	; Ctrl-I
+#if DOLOOPs
+		sub		#4,Rrsp			; Pre-push two values to return stack
+		clr		2(Rrsp)			; Push zero to return stack
+#else
+		sub		#2,Rrsp			; Pre-push a value to return stack
+#endif
+		mov		Rtos,0(Rrsp)	; Push initial index to return stack as counter
+		pop		Rtos			; Update the TOS cache reg
+		next
+		
+#if DOLOOPs
+; LOOPJump	( -- ) ( R: limit counter --   | limit counter-1 )
+; Increment the loop counter and if it goes above -1, drop the loop control parameters and continue.
+; otherwise jump back to just after the corresponding DORun or QDoJump.
+; Runtime routine compiled by LOOP (xLOOP macro)
+		xCODE	'['-64,LOOPJump,_LOOPJump	; Ctrl-[ or ESC
+		inc		0(Rrsp)			; Increment the loop counter
+_LOOPJump2						; This label used by PlusLOOPJump
+		jnc		_Jump			; Jump if no carry, to the Jump bytecode definition
+		inc		Rip				; Skip over the jump offset byte
+		jmp		_UNLOOP			; Finish as for UNLOOP below
+
+; +LOOPJump	( step -- ) ( R: limit counter --   | limit counter-step )
+; Add step to the loop counter and if it goes above -1, drop the loop control parameters and continue.
+; otherwise jump back to just after the corresponding DORun or QDoJump.
+; Runtime routine compiled by +LOOP (xPlusLOOP macro)
+		xCODE	'J'-64,PlusLOOPJump,_PlusLOOPJump	; Ctrl-J
+		add		Rtos,0(Rrsp)	; Add the step to the loop counter
+		pop		Rtos			; Update the TOS cache reg
+		jmp		_LOOPJump2		; Continue as for plain LOOP
+#endif // DOLOOPs
+
+; NEXTJump	( -- ) ( R: limit counter --   | limit counter-1 )
+; Decrement the loop counter and if it goes below 0, drop the loop control parameters and continue.
+; otherwise jump back to just after the corresponding FORRun.
+; Runtime routine compiled by NEXT (xNEXT macro)
+		xCODE	'G'-64,NEXTJump,_NEXTJump	; Ctrl-G or BEL
+		dec		0(Rrsp)			; Decrement the loop counter
+		jc		_Jump			; Jump if no borrow, to the Jump bytecode definition
+		inc		Rip				; Skip over the jump offset byte
+		; Fall through to UNLOOP
+
+; UNLOOP	( -- ) ( R: limit-1 counter -- )
+; Drop the current loop control parameters.
+; This is the runtime routine compiled by LEAVE (xLEAVE macro).
+; It is also used explicitly prior to EXITing a word from within DO LOOPs.
+; One call of UNLOOP is required for each nested loop being EXITed from.
+		xCODE	'W'-64,UNLOOP,_UNLOOP	; Ctrl-W
+#if DOLOOPs		
+		add		#4,Rrsp			; Drop limit and counter off return stack
+#else // FOR NEXT only
+		add		#2,Rrsp			; Drop counter off return stack
+#endif
+		next
+
+; I		( -- index ) ( R: limit counter -- limit counter )
+; Push the innermost loop index = limit + counter.
+		xCODE	'I',I,_I
+		push	Rtos			; Push TOS cache reg
+		mov		@Rrsp,Rtos		; Get counter into Rtos
+#if DOLOOPs
+		add		2(Rrsp),Rtos	; Add limit to get index
+#endif
+		next
+
+; J		( -- index ) ( R: limit counter Ilimit Icounter -- limit counter Ilimit Icounter )
+; Push the second innermost loop index = limit + counter.
+		xCODE	'J',J,_J
+		push	Rtos			; Push TOS cache reg
+#if DOLOOPs
+		mov		4(Rrsp),Rtos	; Get counter into Rtos
+		add		6(Rrsp),Rtos	; Add limit to get index
+#else
+		mov		2(Rrsp),Rtos	; Get counter into Rtos
+#endif
+		next
