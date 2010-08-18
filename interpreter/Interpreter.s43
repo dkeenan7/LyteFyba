@@ -19,7 +19,7 @@
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
-#define		OKPROMPT	1		; 1 to respond ' ok<cr>' after every line/packet is processed
+#define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
 
 ; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
@@ -856,10 +856,12 @@ MS1loop2 dec	R8
 				xLIT	'k'
 				db		EMIT
 				db		MS1
+#if CHECKSUM
 				xLIT	'k'
 				db		EMIT
 				db		MS1
-				xLIT	$D			; emit 'k k carriage return'
+#endif
+				xLIT	$D			; emit 'k [k] carriage return'
 				db		EMIT
 		#if 1
 				xLIT	0
