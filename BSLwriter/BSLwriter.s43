@@ -257,10 +257,10 @@ currVersBSL
 ; We don't preserve the ID here because the user may be rewriting the BSL specifically because
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if !CALIBRATE
 #if CALONLYONE | PRESERVEIDS
 			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case, or if PRESERVEIDs is set
 #endif
+#if !CALIBRATE
 #if CALONLYONE
 			cmp.b	#CALTHIS,&mainID			; Calibrate only one... is this the one?
 			jeq		noCopyCalNew
@@ -287,10 +287,10 @@ vers3BSL
 ; We don't preserve the ID here because the user may be updating the BSL specifically because
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if !CALIBRATE
 #if CALONLYONE | PRESERVEIDS
 			mov.b	&inf3ID,&mainID				; Exception: Copy ID since this is a special
 #endif
+#if !CALIBRATE
 #if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
 			jeq		noCopyCalOld3
@@ -316,10 +316,10 @@ vers2BSL
 ; We don't preserve the ID here because the user may be updating the BSL specifically because
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if !CALIBRATE
 #if CALONLYONE | PRESERVEIDS
 			mov.b	&inf2ID,&mainID				; Exception: Copy ID since this is a special
 #endif
+#if !CALIBRATE
 #if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
 			jeq		noCopyCalOld2
@@ -360,10 +360,10 @@ vers1BSL
 ; We don't preserve the ID here because the user may be updating the BSL specifically because
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if !CALIBRATE
 #if CALONLYONE | PRESERVEIDS
 			mov.b	&inf1ID,&mainID				; Exception: Copy ID since this is a special
 #endif
+#if !CALIBRATE
 #if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
 			jeq		noCopyCalOld1
