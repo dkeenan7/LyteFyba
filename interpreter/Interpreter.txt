@@ -278,7 +278,7 @@ Z      0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
 _      NEGATE     Unary minus           (underscore)
 `      1-         Decrement             (grave or backquote)
 a
-b
+b      Link voltage offset caliBration
 c
 d      autonomous Discharge or custom bypass voltage
 e
