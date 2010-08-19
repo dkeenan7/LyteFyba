@@ -36,7 +36,7 @@ Wunth Forth      Description           (Notes)
 --------------------------------------------------------------------------
 L     2*         Arithmetic (or logical) shift left one place (was \)
 %     2/         Arithmetic shift right one place
-;     1+         Increment             (semicolon)
+^^    1+         Increment             (Ctrl-caret)
 `     1-         Decrement             (grave or backquote)
 ^C    ALIGNED    Next even number      (heart symbol)
 ^F    ABS        Absolute value        (spade symbol)
@@ -46,8 +46,8 @@ Z     0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
                  Equal-zero comparison ("Z" for "is Zero")
 [     0<         Signed Less-than-zero comparison    (left square bracket)
 ]     0>         Signed Greater-than-zero comparison (right square bracket)
-?     ?DUP       Duplicate if not zero
 ^E    C>S        sign Extend byte to word (doesn't display on Hyperterminal)
+?     ?DUP       Duplicate if not zero
 
 Binary arithmetic and logic operators
 Wunth Forth      Description           (Notes)
@@ -99,13 +99,11 @@ Wunth Forth      Description                Appearance in Terminal font
 !     !          Store word
 #     C@         Fetch byte
 $     C!         Store byte 
+^M    FlashC!    Flash-write the byte to the given address
 ^S    +!         Fetch word, add and store  Double exclamation mark
 ^T    C+!        Fetch byte, add and store  Pilcrow sign 
-^M    FlashC!    Flash-write the byte to the given address
-                                            (reverse P with vertical bar)
-.     CBITTST    Fetch byte and AND for comparison       (period)
-:     CBITCLR    Fetch byte, AND with inverted and store (colon)
-;     CBITSET    Fetch byte, OR and store                (semi-colon)
+^K    CBITCLR    Fetch byte, AND with inverted and store
+^L    CBITSET    Fetch byte, OR and store
 
 Uppercase alphabetic operators
 Wunth Forth      Description
@@ -141,7 +139,8 @@ Wunth Forth      Description                Appearance in Terminal font
 ---------------------------------------------------------------------------
 space Space      Literal separator no-op (like ENTER key on RPN calculator)
 return Return    End of bytecode packet  (carriage return)
-\                Comment to end of line
+\     EXIT   \   Return from a bytecode routine.   Comment to end of line.
+.     .          Print a signed number                   (period)
 ,     COMPILE,   Write the bytecode on top-of-stack to next flash location
 ^U    DORun      Runtime word for start of DO...LOOP or DO...+LOOP
 DEL   QDOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
@@ -153,8 +152,9 @@ DEL   QDOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
 "     doS" [S"]  Runtime word for start of string literal
 ^\    0Jump      Runtime word for conditional jump   (inverted not sign "L")
 ^]    Jump       Runtime word for unconditional jump (left-right arrow)
-^^    EXIT       Return from a bytecode routine      (up-pointing filled triangle)
 ^H    MS1        Delay for 1 byte transmit time (about 1.04 ms)
+:     :          Begin a bytecode definition (define TOS bytecode)
+;     ;          End a bytecode definition (compile an EXIT)
 
 BMU operations
 ------------------------------------------------------------------------------
@@ -219,7 +219,7 @@ Wunth  Forth      Description           (Notes)
 ^[ ESC LOOPJump   Runtime word for end of DO .. LOOP or ?DO .. LOOP
 ^\ FS  0Jump      Runtime word for conditional jump   (inverted not sign "L")
 ^] GS  Jump       Runtime word for unconditional jump (left-right arrow)
-^^ RS  EXIT       Return from a bytecode routine      (up-pointing filled triangle)
+^^ RS  1+         Increment                      (up-pointing filled triangle)
 ^_ US  UMSlashMOD Unsigned 32/16=16 bit divide   (down-pointing filled triangle)
 space  space      Literal separator no-op (like ENTER key on RPN calculator)
 !      !          Store word
@@ -235,11 +235,11 @@ $      C!         Store byte
 +      +          Add
 ,      COMPILE,   Write the bytecode on top-of-stack to next flash location
 -      -          Subtract
-.      .          Print signed number
+.      .          Print a signed number
 /      /          Divide (signed)
 0..9   Decimal and hex literals
-:      :          Compile a bytecode definition
-;      1+         Increment
+:      :          Begin a bytecode definition (define TOS bytecode)
+;      ;          End a bytecode definition (compile an EXIT)
 <      <          Signed less-than comparison
 =      =          Equals comparison
 >      >          Signed greater-than comparison
@@ -272,12 +272,12 @@ Y      MAX        Signed maximum
 Z      0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
                   Equal-zero comparison ("Z" for "is Zero")
 [      0<         Signed Less-than-zero comparison
-\      \          Comment to end of line
+\      EXIT   \   Return from a bytecode routine.   Comment to end of line.
 ]      0>         Signed Greater-than-zero comparison (right square bracket)
 ^      XOR        Bitwise XOR
 _      NEGATE     Unary minus           (underscore)
 `      1-         Decrement             (grave or backquote)
-a
+a      (temporarily) Hello World (test of string output)
 b      Link voltage offset caliBration
 c
 d      autonomous Discharge or custom bypass voltage
