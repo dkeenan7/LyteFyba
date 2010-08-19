@@ -257,7 +257,7 @@ LESS1:	MOV	#-1,Rtos
 		CMP		Rw,Rtos	; Compare "the wrong way"
 		JMP		LESS0
 
-;   =		( x1 x2 -- flag )
+; =		( x1 x2 -- flag )
 ;		Return true if top two are equal.
 ;
 ;   : = 	XOR 0= ;
@@ -271,9 +271,39 @@ LESS1:	MOV	#-1,Rtos
 		SUBC	Rtos,Rtos	;-1 if not carry (borrow), 0 otherwise
 		next
 		
+		
+; <>	( x1 x2 -- flag )
+;		Return true if top two are not equal.
+
 		xColon	'N',NotEquals,_NotEquals
 		db		Equals,ZeroEquals,EXIT
 		
+		
+;	MAX	( n1 n2 -- n3 )
+;		Return the greater of two top stack items (signed).
+;
+;	: MAX	2DUP < IF SWAP ENDIF DROP ;
+
+		xColon	'Y',MAX,_MAX
+		DB		TwoDUP, LessThan
+		xIF
+			DB		SWAP
+		xENDIF
+		DB		DROP, EXIT
+
+;	MIN	( n1 n2 -- n3 )
+;		Return the smaller of top two stack items (signed).
+;
+;	: MIN	2DUP > IF SWAP THEN DROP ;
+
+		xColon	'G',MIN,_MIN
+		DB		TwoDUP,	GreaterThan
+		xIF
+			DB		SWAP
+		xENDIF
+		DB		DROP, EXIT
+
+
 ;   WITHIN	( n|u n1|n1 nh|uh -- flag )
 ;		Return true if (n1|u1 <= n|u and n|u < n2|u2) or
 ;		(n1|u1 > n2|u2 and (n1|u1 <= n|u or n|u < n2|u2)).
