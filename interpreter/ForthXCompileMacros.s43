@@ -571,38 +571,6 @@ _count  SET xLS_TOP     ; Take the _LEAVE-count off the LEAVE stack for good
 ;-------------------------------------------------------------------------------
 ; Runtime bytecodes used by the above control-flow cross-compiling macros
 
-; EXIT ( -- ) ; Return from a bytecode routine
-
-        xCODE   '^'-64,EXIT,_EXIT ; Control-^ $1E
-        RPOP    Rip             ; Un-nest interpretation
-        next
-
-; RET ( -- ) ; Return from a bytecode routine that is called from machine code.
-             ; This will probably only be used at the end of the outer interpreter.
-
-        xCODE   '\\',RETT,_RETT
-		tst.b	&bCheckForBad	; Are we checking for badness ("\B") commands?
-		jz		noCheckBad
-		; This only happens when the 'u' command is received, and we are the last cell
-		push	Rtos
-		mov.b	@Rip,Rtos
-		xor.b	#'B',Rtos			; Carry cleared if result is zero
-		subc	Rtos,Rtos			; -1 if carry was clear, i.e. 'B' was found
-		call	#m_alarm			; Set or clear the alarm based on Rtos
-		pop		Rtos
-noCheckBad
-        RPOP    Rip             ; Un-nest interpretation
-        RET                     ; Return to address on machine stack
-		
-#if 0
-; EXECUTE ( xt -- ) ; Interpret the single bytecode on the top of the stack
-
-        xCODE   'X',EXECUTE,_EXECUTE
-        MOV.B   Rtos,Rw
-        POP     Rtos
-        JMP     _RUN
-#endif
-
 ; Jump	( -- ) ; Unconditional jump using a signed offset in the following byte.
                ; A Jump 0 is a no-op, a Jump -2 is an infinite loop.
 

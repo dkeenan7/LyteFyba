@@ -131,6 +131,7 @@ interpretByte:
 		tst.b	R8				; Use incoming char being null to trigger initialisation
 		_IF _Z              	; If null
 			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
+			MOV		#CP0,&CP		; Initialise the code pointer
 			MOV		#TIB,&ToIN  	; Initialise packet buffer pointer
 			CLR		&CHKSUM     	; Clear the packet checksum
 			mov.b	#-1,&hexFlag	; Set the hexadecimal input (verses decimal) flag
@@ -140,7 +141,7 @@ interpretByte:
 ;			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
 #if DOINITIALCMD
 			mov		#initCmd,Rw
-			call	#_ENTER
+			call	#evaluate
 			mov		#1,R8			; Prevent infinite loop; ^A is a fairly safe do-nothing char
 #endif
 		_ENDIF					; Endif (init required)
@@ -166,9 +167,9 @@ interpretByte:
 						MOV #TIB,R9
 					_ENDIF
 #endif
-					MOV.B #RETT,0(R9) ;		Overwrite the checksum or carriage return with a RETT bytecode
-					MOV #TIB,Rw 	;       Interpret the packet as bytecode
-					CALL #_ENTER
+					MOV.B	#EXIT,0(R9) ; Overwrite the checksum or carriage return with an EXIT bytecode
+					MOV		#TIB,Rw 	; Interpret the packet as bytecode
+					CALL	#evaluate
 #if OKPROMPT
 					mov.b		#' ',R8
 					call	#doWriteByte
@@ -983,13 +984,13 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 
 ; Test of string-output-compiling macro xDotQuote (Forth ." )
 			xColon	'a',helloWorld,_helloWorld
-			xDotQuote	'Hello World'
+			xDotQuote	'Hello World\r'
 			DB 		EXIT
 			
+CP0			; Used to set the initial value of CP (Code Pointer).
 
 ; To Do:
-; Still need to get rid of RETT. Add headless code calling.
-; Implement backspace editing and checksum on and off.
+; Implement backspace editing.
 ; All undefined bytecodes should act as literal separators if not digits.
 
 

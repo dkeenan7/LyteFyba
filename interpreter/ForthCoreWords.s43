@@ -422,11 +422,11 @@ LESS1:	MOV	#-1,Rtos
 ;
 ;   : 1+	1 + ;
 ;
-;		xColon	';',OnePlus,_OnePlus ; semicolon character
+;		xColon	'^'-64,OnePlus,_OnePlus ; Ctrl-^
 ;       xLIT    1
 ;		DB		Plus, EXIT
 
-		xCODE	';',OnePlus,_OnePlus ; semicolon character
+		xCODE	'^'-64,OnePlus,_OnePlus ; Ctrl-^
 		inc	Rtos
 		next
 		
@@ -630,7 +630,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		xColon	'\"',SQuoteRun,_SQuoteRun
 		DB		RFrom, SWAP, TwoDUP, Plus, ToR, EXIT
 
-                
+#if 0
 ;   HERE	( -- addr )
 ;		Return data space pointer.
 ;
@@ -639,10 +639,10 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		xColon	'H',HERE,_HERE
         xLIT2	VP
 		DB		Fetch, EXIT
+#endif
 
-
-;   COMPILE,	( xt -- )
-;		Compile the execution token on data stack into current
+; COMPILE,	( xt -- )
+;		Compile the execution token (bytecode) on data stack into current
 ;		colon definition.
 ;
 ;   : COMPILE,	CP DUP 1 +! @ FlashC! ;
@@ -653,5 +653,44 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
         DB		PlusStore	; Increment it
 		DB		Fetch		; Fetch the pointer
 		DB		FlashCStore	; Store the byte where it points
+		DB		EXIT
+
+
+; :    ( char -- ) 
+; Point the opcode lookup table entry for <char> at the next free code space,
+; but only if the entry is unused (contains $FFFF).
+
+		xColon ':',Colon,_Colon
+							; Calculate address of opcode table entry for <char>
+		DB		TwoStar		; 2*
+		xLIT2	_OPCODETBL	; _OPCODETBL
+		DB		Plus		; +
+		DB		DUP			; Save a copy of address of opcode table entry
+		DB		Fetch		; @  Fetch the entry
+		xLIT	$FFFF		; $FFFF
+		DB		Equals		; =
+		xIF					; If it's $FFFF (erased flash)
+			xLIT2	CP		;   Fetch the code pointer
+			DB		Fetch	;   @
+							;   Leave the high bit set to say it's bytecode defined
+			DB		TwoDUP
+			DB		SWAP
+			DB		FlashCStore ; !  Store low byte of new opcode table entry
+			xLIT	8
+			DB		RSHIFT
+			DB		SWAP
+			DB		OnePlus
+			DB		FlashCStore ; !  Store hi byte new opcode table entry		  
+		xELSE				; Else
+			DB   	DROP	;   Drop the copy of address of opcode table entry
+		xENDIF				; Endif
+		DB   	EXIT
+
+; ;		( -- ) 
+; Compile an EXIT bytecode at the next free code space.
+
+		xColon ';',Semicolon,_Semicolon
+		xLIT2	EXIT		; Get EXIT bytecode on TOS
+		DB		COMPILEComma ; Store it at code ptr and increment code ptr
 		DB		EXIT
 

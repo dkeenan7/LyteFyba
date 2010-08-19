@@ -3,8 +3,8 @@
 
 
 ; EVALUATE ( addr -- ) ; Interpret the bytecode routine whose address is 
-                       ; on the top of the stack. It must end with an EXIT.
-
+		; on the top of the stack. It must end with an EXIT.
+		; Allows calling Forth routines written in Forth that have no bytecode assigned.
         xCODE   'V',EVALUATE,_EVALUATE
         MOV     Rtos,Rw
         POP     Rtos
@@ -57,7 +57,7 @@ DoOPCD	TST     Rw              ; Is it defined in machine code or bytecode?
         BIS     #1<<15,Rw       ; Restore the address high bit
         JN      _ENTER          ; If it's bytecode, nest interpretation
         BR      Rw              ; Else it is machine-code so branch to it
-                                ; It must end with next macro (or JMP _NEXT or BR #_NEXT)
+                                ; It must end with 'next' macro (or JMP _NEXT or BR #_NEXT)
 DoUNDEF ; Attempt to interpret as hex/decimal digits, otherwise ignore
         DEC     Rip             ; Decrement the instruction pointer to
         MOV.B   @Rip+,Rw        ;  re-fetch the bytecode
@@ -94,3 +94,57 @@ DatMor4 RLA		Rlit			;   Multiply the partial operand by 16 or 10
 		add  	Rw,Rlit			;   Add data into operand reg
 DatEnd4 jmp		_NEXT			; Endif
 
+
+; EXIT ( -- ) ; Return from a bytecode routine
+
+        xCODE   '\\',EXIT,_EXIT ; Slosh
+        RPOP    Rip             ; Un-nest interpretation
+        next
+
+#if 0
+; EXECUTE ( xt -- ) ; Interpret the single bytecode on the top of the stack
+
+        xCODE   'X',EXECUTE,_EXECUTE
+        MOV.B   Rtos,Rw
+        POP     Rtos
+        JMP     _RUN
+#endif
+
+; EVALUATE-CODE ( addr -- ) ; Interpret the machine code Forth routine whose address is 
+		; on the top of the stack. It must end with 'next' macro (or JMP _NEXT or BR #_NEXT)
+		; Allows calling Forth routines written in assembler that have no bytecode assigned.
+        xCODE   'X',EVALUATECODE,_EVALUATECODE
+        MOV     Rtos,Rw
+        POP     Rtos
+        BR		Rw
+
+
+; evaluate ( Regs: Rw )
+; An assembler routine to call a bytecode Forth routine whose address is in Rw.
+; The trick is to arrange things so that its EXIT will bring us back to 
+; our assembly language caller.
+evaluate
+		RPUSH	Rip				; Save interpreter instruction pointer (IP)
+    	mov		#RETTaddr,Rip	; Point the IP at the special bytecodes below
+		jmp		_ENTER			; interpret the Forth-word
+                            	; Its EXIT will cause the interpreter 
+								; to interpret the bytecodes below
+RETTaddr
+		xLIT3	_RETT			; Push address of machine code below
+		DB		EVALUATECODE	; Execute code at addr in TOS
+		EVEN					; Word-align for following machine code
+		
+_RETT
+		RPOP    Rip             ; Restore interpreter instruction pointer
+		ret                     ; Return to assembly language caller
+
+; evaluatecode ( Regs: Rw )
+; An assembler routine to call a machine-code Forth routine whose address is in Rw.
+; The trick is to arrange things so that its 'next' will bring us back to 
+; our assembly language caller.
+evaluatecode
+		RPUSH	Rip				; Save interpreter instruction pointer (IP)
+    	mov		#RETTaddr,Rip	; Point the IP at some special bytecodes above
+		br		Rw				; Branch to the Forth-word
+                            	; Its 'next' will cause the interpreter 
+								; to interpret the special bytecodes above
