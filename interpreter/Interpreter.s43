@@ -1,15 +1,17 @@
+			LSTOUT-
 #include "msp430.h"
 #include "ControlFlowMacros.h"
+			LSTOUT+
 			COL		132
 ; This is a reverse-polish command interpreter for an MSP430F2012 microcontroller.
 ;
-; It was developed by Mike Van Emmerik and Dave Keenan for their 
+; It was developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; This interpreter is normally loaded into the 2kB of main-flash on the MSP430F2012. 
-; using our serial bootstrap-loader (BSL). Its "interpretByte" routine is called from 
+; This interpreter is normally loaded into the 2kB of main-flash on the MSP430F2012.
+; using our serial bootstrap-loader (BSL). Its "interpretByte" routine is called from
 ; the BSL.
-; 
+;
 ; See Interpreter.txt for more explanation.
 
 ; Conditional assembly flags
@@ -19,7 +21,7 @@
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
-#define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
+#define		OKPROMPT	1		; 1 to respond ' ok<cr>' after every line/packet is processed
 
 ; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
@@ -37,9 +39,9 @@ CellVChan	EQU		$7			; ADC channel number for cell voltage
 TempChan	EQU		$A			; ADC channel number for temperature
 LinkVChan	EQU		$3			; ADC channel number for link voltage
 NumSamples	EQU		16			; Number of ADC over-samples (typ. 4 or 16)
-; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits. 
-; i.e. By adding up 4^n samples you get 2n more bits in the result, 
-; but half of them are noise and should be thrown away, 
+; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
+; i.e. By adding up 4^n samples you get 2n more bits in the result,
+; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
 ; Bits in i/o port 1
@@ -65,7 +67,7 @@ SETLOCKA	macro
 			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
 			endm
 
-;------------------------------------------------------------------------------               
+;------------------------------------------------------------------------------
 ; VARIABLEs
 
         ORG $200    	; Start of RAM
@@ -107,9 +109,9 @@ DSP0	EQU		$280	; Bottom of combined Interpreter data stack and machine stack, gr
 #include "ForthXCompileMacros.s43"
 #include "ForthCoreWords.s43"
 #include "BytecodeInterpreter.s43"
-       
-;-------------------------------------------------------------------------------        
-; The outer (serial packet) interpreter   
+
+;-------------------------------------------------------------------------------
+; The outer (serial packet) interpreter
 
 ; Called by the serial-receiver/bootstrap-loader in info-flash.
 ; Accumulates bytes into an input buffer until
@@ -187,7 +189,7 @@ interpretByte:
 				CLR &CHKSUM     	;   Clear the packet checksum
 			_ENDIF					; Endif (equals carriage return )
 ;		_ENDIF						; Endif (higher or same as carriage return)
-        
+
         POP R8
         RET
 		
@@ -202,24 +204,24 @@ initCmd	db		INITIALCMD
 ;-------------------------------------------------------------------------------
 
 
-; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain 
+; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
 ;
-; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour. 
+; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour.
 ; If no byte is received, we adopt an ID of zero and immediately send it downstream
-; so others know not to use it, and we write it to info-flash. 
-;
-; If a byte _is_ received, it is taken to be an ID that is already in use and 
-; we tentatively set our ID to one more than it.
-;
-; The structure of the serial code in info-flash is such that any byte read is also 
-; immediately sent downstream. This ensures that the others downstream keep reading and waiting.
-;
-; We continue waiting for bytes and echoing them downstream and incrementing our tentative ID 
-; until no byte is received within 1.5 byte times.
-; We then adopt the tentative ID as our own, immediately send it downstream 
 ; so others know not to use it, and we write it to info-flash.
 ;
-; To change existing IDs, you need to bootstrap-load the BSL-writer to erase the IDs, 
+; If a byte _is_ received, it is taken to be an ID that is already in use and
+; we tentatively set our ID to one more than it.
+;
+; The structure of the serial code in info-flash is such that any byte read is also
+; immediately sent downstream. This ensures that the others downstream keep reading and waiting.
+;
+; We continue waiting for bytes and echoing them downstream and incrementing our tentative ID
+; until no byte is received within 1.5 byte times.
+; We then adopt the tentative ID as our own, immediately send it downstream
+; so others know not to use it, and we write it to info-flash.
+;
+; To change existing IDs, you need to bootstrap-load the BSL-writer to erase the IDs,
 ; then bootstrap-load this interpreter again before issuing this SetID command.
 ;
 ; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 350 ms
@@ -240,7 +242,7 @@ chkStrt	bit.b		#RXD,&P1IN			; Check for start bit
 		
 gotStart
 		; Because we have already detected the start bit ourselves, the start-bit glitch-check and
-		; the sampling of the first data bit, in ReadByte, will be delayed by 
+		; the sampling of the first data bit, in ReadByte, will be delayed by
 		; an extra 16 cycles (15% of a bit time) from the detection of the start bit.
 		bis.b		#WDTIFG,&IFG1		; Temporarily set the watchdog flag so
 					  					;	ReadByte doesn't recursively call back to interpretByte
@@ -263,7 +265,7 @@ timout
 
 doneId	next
 
-        
+
 ;
 ; cellVolt ( -- )
 ; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
@@ -454,11 +456,11 @@ addSamp	add			@R9+,R8					; Add a sample
 		jnz			addSamp
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
 ; is an unsigned 12.2 bit fixed-point number of millivolts.
 ; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts. 
-; That means we have to shift the product 17 bits to the right, which is equivalent to 
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
 ; throwing away the lo word and shifting the high word one bit to the right.
 		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
 		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
@@ -475,11 +477,11 @@ addSamp	add			@R9+,R8					; Add a sample
 		call		#measure				; Defined in ../common/measure.s43
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading, 
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
 ; is an unsigned 12.2 bit fixed-point number of millivolts.
 ; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts. 
-; That means we have to shift the product 17 bits to the right, which is equivalent to 
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
 ; throwing away the lo word and shifting the high word one bit to the right.
 		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
 		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
@@ -534,7 +536,7 @@ nibOut	and			#$F,R8
 
 ; doWriteByte ( regs: R8 -- R9 R10 R11 ) ; Transmits byte in R8, preserves R8, trashes R9 R10 R11
 ; Call this instead of calling WriteByte directly
-doWriteByte: 
+doWriteByte:
 		clr			R11					; R11 is required to be cleared for the ...
 		br			#WriteByte			; ... WriteByte function in the bootstrap loader (BSL)
 
@@ -746,7 +748,7 @@ MS1loop2 dec	R8
 
 ;
 ; Clear watchdog timer. DO WE NEED THIS?
-; We do if we remove the watchdog clear on every bytecode 
+; We do if we remove the watchdog clear on every bytecode
 ; that's slowing down the inner interpreter
 ;
 		xCODE	'w',clearWatchDog,_clearWatchDog
@@ -759,11 +761,10 @@ MS1loop2 dec	R8
 ;
 #if	1
 		xColon	'l',errorLed,_errorLed
-		DB		ToR
 		xLIT	LED
 		DB		Space
 		xLIT	P1OUT
-		DB		RFrom
+		DB		ROT
 		xIF
 			DB		CBITSET
 		xELSE
@@ -788,11 +789,10 @@ MS1loop2 dec	R8
 ;
 #if 1
 		xColon	'y',bypass,_bypass
-		DB		ToR
 		xLIT	BYP
 		DB		Space
 		xLIT	P1OUT
-		DB		RFrom
+		DB		ROT
 		xIF
 			DB		CBITSET
 		xELSE

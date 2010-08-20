@@ -88,8 +88,8 @@ P     NIP        ( n2 n1 -- n1 )
 U     TUCK       ( n2 n1 -- n1 n2 n1 )
 ^N    2DUP       ( n2 n1 -- n2 n1 n2 n1 ) Two musical notes
 S     2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
-O     >R         ( n1 -- | R: -- n1 )     
-R     R>         ( -- n1 | R: n1 -- )     
+O     >R         ( n1 -- | R: -- n1 )
+R     R>         ( -- n1 | R: n1 -- )
 ^V    R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
 
 Memory operators (The address argument is always top-of-stack)
@@ -98,10 +98,10 @@ Wunth Forth      Description                Appearance in Terminal font
 @     @          Fetch word
 !     !          Store word
 #     C@         Fetch byte
-$     C!         Store byte 
+$     C!         Store byte
 ^M    FlashC!    Flash-write the byte to the given address
 ^S    +!         Fetch word, add and store  Double exclamation mark
-^T    C+!        Fetch byte, add and store  Pilcrow sign 
+^T    C+!        Fetch byte, add and store  Pilcrow sign
 ^K    CBITCLR    Fetch byte, AND with inverted and store
 ^L    CBITSET    Fetch byte, OR and store
 
@@ -111,12 +111,11 @@ Wunth Forth      Description
 A-F   Hex literals
 ;C     CMOVE      Byte block move (NOT implemented yet)
 ;D     DEPTH      Depth of data stack in words
-F     RET        Return from a bytecode routine called from machine code
 G     MIN        Minimum, arithmetic operator, see above
 H     HERE       Address of next available flash location
 I     I          Innermost DO .. LOOP counter
 J     J          Second DO .. LOOP counter
-K     KEY        Get a byte from serial input
+K     ?KEY       Get a byte from serial input if available ( -- 0 | char -1 )
 L     2*         Arithmetic (or logical) shift left one place (was \)
 M     EMIT       Send a byte to serial output
 ;M     MOVE       Word block move
@@ -129,7 +128,7 @@ S     2SWAP      Stack manipulation, see above
 T     TYPE       Send a string to serial output
 U     TUCK       Stack manipulation, see above
 V     EVALUATE   Interpret a string (of bytecodes)
-W     WITHIN     Range comparison, arithmetic operator, see above 
+W     WITHIN     Range comparison, arithmetic operator, see above
 X     EXECUTE    Interpret the single bytecode on the top-of-stack
 Y     MAX        Maximum, arithmetic operator, see above
 Z     0=  NOT    Equals-zero comparison or Logical negation, see above
@@ -141,19 +140,19 @@ space Space      Literal separator no-op (like ENTER key on RPN calculator)
 return Return    End of bytecode packet  (carriage return)
 \     EXIT   \   Return from a bytecode routine.   Comment to end of line.
 .     .          Print a signed number                   (period)
-,     COMPILE,   Write the bytecode on top-of-stack to next flash location
+^H    MS1        Delay for 1 byte transmit time (about 1.04 ms)
 ^U    DORun      Runtime word for start of DO...LOOP or DO...+LOOP
-DEL   QDOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
+DEL   ?DOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
 ^[    LOOPJump   Runtime word for end of DO .. LOOP or ?DO .. LOOP
-^J    PlusLOOPJump Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
+^J    +LOOPJump  Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
 ^I    FORRun     Runtime word for start of FOR...NEXT loop
 ^G    NEXTJump   Runtime word for end of FOR...NEXT loop
 ^W    UNLOOP     Prepare for unstructured exit from counted loop (DO, ?DO, FOR)
 "     doS" [S"]  Runtime word for start of string literal
 ^\    0Jump      Runtime word for conditional jump   (inverted not sign "L")
 ^]    Jump       Runtime word for unconditional jump (left-right arrow)
-^H    MS1        Delay for 1 byte transmit time (about 1.04 ms)
 :     :          Begin a bytecode definition (define TOS bytecode)
+,     COMPILE,   Compile the bytecode on top-of-stack to next flash location
 ;     ;          End a bytecode definition (compile an EXIT)
 
 BMU operations
@@ -179,7 +178,7 @@ z     Sleep n millisconds
 
 In ASCII order
 Wunth  Forth      Description           (Notes)
-                  ( Data stack before -- after )( R: Return stack before -- after ) 
+                  ( Data stack before -- after )( R: Return stack before -- after )
                   top-of-stack to the right
 ---------------------------------------------------------------------------
 ^@ NUL
@@ -198,7 +197,7 @@ Wunth  Forth      Description           (Notes)
 ^H BS  MS1        Delay for 1 byte transmit time (about 1.04 ms)
 		  Outer interpreter: Backspace edit
 ^I TAB FORRun     Runtime word for start of FOR...NEXT loop
-^J LF  PlusLOOPJump Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
+^J LF  +LOOPJump  Runtime word for end of DO .. +LOOP or ?DO .. +LOOP
 ^K VT  CBITCLR    Fetch byte, AND with inverted and store
 ^L FF  CBITSET    Fetch byte, OR and store
 ^M CR  FlashC!    Flash-write the byte to the given address
@@ -209,7 +208,7 @@ Wunth  Forth      Description           (Notes)
 ^Q DC1 -ROT       ( n3 n2 n1 -- n1 n3 n2 ) Left-pointing filled triangle
 ^R DC2 SWAP       ( n2 n1 -- n1 n2 )       Up-down arrow
 ^S DC3 +!         Fetch word, add and store  Double exclamation mark
-^T DC4 C+!        Fetch byte, add and store  Pilcrow sign 
+^T DC4 C+!        Fetch byte, add and store  Pilcrow sign
 ^U NAK DORun      Runtime word for start of DO...LOOP (section sign "S")
 ^V SYN R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
 ^W ETB UNLOOP     Prepare for EXIT from counted loop (DO, ?DO, FOR)
@@ -225,7 +224,7 @@ space  space      Literal separator no-op (like ENTER key on RPN calculator)
 !      !          Store word
 "      doS" [S"]  Runtime word for start of string literal
 #      C@         Fetch byte
-$      C!         Store byte 
+$      C!         Store byte
 %      2/         Arithmetic shift right one place
 &      AND        Bitwise AND           (also works as logical AND)
 '      CLIT       Character literal in following byte
@@ -233,7 +232,7 @@ $      C!         Store byte
 )      RSHIFT     Logical shift right n places   (right paren)
 *      *          Multiply (signed)
 +      +          Add
-,      COMPILE,   Write the bytecode on top-of-stack to next flash location
+,      COMPILE,   Compile the bytecode on top-of-stack to next flash location
 -      -          Subtract
 .      .          Print a signed number
 /      /          Divide (signed)
@@ -253,15 +252,15 @@ G      MIN        Signed minimum
 H      HERE       Address of next available flash location
 I      I          Innermost DO .. LOOP counter
 J      J          Second DO .. LOOP counter
-K      KEY        Get a byte from serial input
+K      ?KEY       Get a byte from serial input if available ( -- 0 | char -1 )
 L      2*         Arithmetic (or logical) shift left one place (was \)
 M      EMIT       Send a byte to serial output
 ;M      MOVE       Word block move
 N      <>         Not-equals comparison
-O      >R         ( n1 -- | R: -- n1 )     
+O      >R         ( n1 -- | R: -- n1 )
 P      NIP        ( n2 n1 -- n1 )
 Q      ABORT      Clear both stacks and restart the outer interpreter (QUIT)
-R      R>         ( -- n1 | R: n1 -- )     
+R      R>         ( -- n1 | R: n1 -- )
 S      2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
 T      TYPE       Send a string to serial output
 U      TUCK       ( n2 n1 -- n1 n2 n1 )
