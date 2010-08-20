@@ -1,17 +1,17 @@
 ;------------------------------------------------------------------------------
 ; CONSTANTs
 
-xBL        MACRO    ; Blank
-           xLIT     $20
-           ENDM
-           
-xFALSE     MACRO
-           xLIT     0
-           ENDM
-           
-xTRUE      MACRO
-           xLIT     -1
-           ENDM
+xBL		MACRO	; Blank
+		xLIT	$20
+		ENDM
+
+xFALSE	MACRO
+		xLIT	0
+		ENDM
+
+xTRUE	MACRO
+		xLIT	-1
+		ENDM
 
 ;-------------------------------------------------------------------------------
 ; Basic stack-machine bytecode definitions
@@ -33,39 +33,42 @@ xTRUE      MACRO
 		next
 
 ; Space	( -- x )	; Push any literal-in-progress. Like ENTER key on RPN calculator.
-        xColon  ' ',Space,_Space     ; Space. For separating literals
-        DB EXIT
+		xColon	' ',Space,_Space	 ; Space. For separating literals
+		DB EXIT
 
 ; DROP	( x -- )	; Discard top stack item.
 		xCODE	'Y'-64,DROP,_DROP ; Ctrl-Y $19
-		POP	Rtos
+		POP		Rtos
 		next
 
-; DUP 	( x -- x x )	; Duplicate the top stack item.
+; DUP	( x -- x x )	; Duplicate the top stack item.
 		xCODE	'Z'-64,DUP,_DUP ; Ctrl-Z $1A, right-arrow in the Terminal font
 		PUSH	Rtos
 		next
 
+#if 0
 ; ?DUP	( x -- x x | 0 ) ; Duplicate top of the stack if it is not zero.
 ;
-;   : ?DUP	DUP IF DUP ENDIF ;
-;
-;		XColon	'?',QDUP,_QDUP
-;		DB	DUP
-;       xIF
-;		  DB	DUP
-;       xENDIF
-;		DB	EXIT
-
-		xCODE	'?',QDUP,_QDUP,0
-		TST	Rtos
-		JZ	QDUP1
+;	: ?DUP	DUP IF DUP ENDIF ;
+#if 0
+		xColon	'?',QuestionDUP,_QuestionDUP
+		DB		DUP
+		xIF
+			DB		DUP
+		xENDIF
+		DB		EXIT
+#else
+		xCODE	'?',QuestionDUP,_QuestionDUP
+		TST		Rtos
+		JZ		QDUP1
 		PUSH	Rtos
 QDUP1:	next
+#endif
+#endif
 
 ; SWAP	( x1 x2 -- x2 x1 ) ; Exchange top two stack items.
 		xCODE	'R'-64,SWAP,_SWAP ; Ctrl-R $12
-        POP	Rw
+		POP	Rw
 		PUSH	Rtos
 		MOV	Rw,Rtos
 		next
@@ -76,100 +79,107 @@ QDUP1:	next
 		PUSH	Rtos
 		MOV	@Rw,Rtos
 		next
-
-;   ROT 	( x1 x2 x3 -- x2 x3 x1 )
-;		Rotate the top three data stack items.
-;
-;   : ROT	>R SWAP R> SWAP ;
-;
-		xColon	'P'-64,ROT,_ROT ; Ctrl-P $10
-		DB	ToR,SWAP,RFrom,SWAP,EXIT
-
-;		xCODE	'P'-64,ROT,_ROT ; Ctrl-P $10
-;		POP	Rw
-;		POP	R10
-;		PUSH	Rw
-;		PUSH	Rtos
-;		MOV	R10,Rtos
-;		next
-
-;   -ROT 	( x1 x2 x3 -- x3 x1 x2 )
-;		Rotate the top three data stack items.
-;
-;   : -ROT	ROT ROT ;
-;
-		xColon	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
-		DB	ROT,ROT,EXIT
-
-;		xCODE	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
-;		POP	Rw
-;		POP	R10
-;		PUSH	Rtos
-;		PUSH	R10
-;		MOV	Rw,Rtos
-;		next
-
-;   NIP 	( n1 n2 -- n2 )
-;		Discard the second stack item.
-;
-;   : NIP	SWAP DROP ;
-;
-		xColon	'P',NIP,_NIP,
-		DB	SWAP,DROP,EXIT
-
-;		xCODE	'P',NIP,_NIP
-;		INCD	SP
-;		next
-
-;   TUCK 	( n1 n2 -- n2 n1 n2)
-;		Copy the top stack item to under the second-top item.
-;
-;   : TUCK	SWAP OVER ;
-;
-		xColon	'U',TUCK,_TUCK,
-		DB	SWAP,OVER,EXIT
-
-;		xCODE	'U',TUCK,_TUCK
-;		POP     Rw
-;               PUSH    Rtos
-;               PUSH    Rw
-;		next
-
-;   2DUP	( x1 x2 -- x1 x2 x1 x2 )
-;		Duplicate cell pair x1 x2.
-;
-		xColon	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
-		DB	OVER,OVER,EXIT
 		
-;		xCODE	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
-;		MOV	SP,Rw
-;		PUSH	Rtos
-;		PUSH	@Rw
-;		next
-
-;   2SWAP	( x1 x2 x3 x4 -- x3 x4 x1 x2 )
-;		Exchange the top two cell pairs.
+; ROT	( x1 x2 x3 -- x2 x3 x1 )
+;		Rotate the top three data stack items.
 ;
-;   : 2SWAP	ROT >R ROT R> ;
-;
-		xColon	'S',TwoSWAP,_TwoSWAP
-		DB	ROT,ToR,ROT,RFrom,EXIT
-
-#if 0		; 'D' wanted as hex digit and 'd' for Discharge command
-;   DEPTH	( -- +n )
-;		Return the depth of the data stack.
-;
-;   : DEPTH	sp0 dsp@ - cell-size / ;
-
-		xCODE	'D',DEPTH,_DEPTH
-        PUSH    Rtos
-		MOV     #$280,Rtos
-        SUB     SP,Rtos
-        RRA     Rtos
-        next
+;	: ROT	>R SWAP R> SWAP ;
+#if 1
+		xColon	'P'-64,ROT,_ROT ; Ctrl-P $10
+		DB		ToR, SWAP, RFrom, SWAP, EXIT
+#else
+		xCODE	'P'-64,ROT,_ROT ; Ctrl-P $10
+		POP		Rw
+		POP		R10
+		PUSH	Rw
+		PUSH	Rtos
+		MOV		R10,Rtos
+		next
 #endif
 
-;   !		( x a-addr -- )
+#if 0
+; -ROT	( x1 x2 x3 -- x3 x1 x2 )
+;		Rotate the top three data stack items.
+;
+;	: -ROT	ROT ROT ;
+#if 1
+		xColon	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
+		DB		ROT, ROT, EXIT
+#else
+		xCODE	'Q'-64,MinusROT,_MinusROT ; Ctrl-Q $11
+		POP		Rw
+		POP		R10
+		PUSH	Rtos
+		PUSH	R10
+		MOV		Rw,Rtos
+		next
+#endif
+#endif
+
+; NIP	( n1 n2 -- n2 )
+;		Discard the second stack item.
+;
+;	: NIP	SWAP DROP ;
+#if 1
+		xColon	'P',NIP,_NIP,
+		DB		SWAP, DROP, EXIT
+#else
+		xCODE	'P',NIP,_NIP
+		INCD	SP
+		next
+#endif
+
+; TUCK	( n1 n2 -- n2 n1 n2)
+;		Copy the top stack item to under the second-top item.
+;
+;	: TUCK	SWAP OVER ;
+#if 1
+		xColon	'U',TUCK,_TUCK,
+		DB		SWAP, OVER, EXIT
+#else
+		xCODE	'U',TUCK,_TUCK
+		POP		Rw
+		PUSH	Rtos
+		PUSH	Rw
+		next
+#endif
+
+; 2DUP	( x1 x2 -- x1 x2 x1 x2 )
+;		Duplicate cell pair x1 x2.
+#if 1
+		xColon	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
+		DB		OVER, OVER, EXIT
+#else
+		xCODE	'N'-64,TwoDUP,_TwoDUP ; Ctrl-N $0E
+		MOV		SP,Rw
+		PUSH	Rtos
+		PUSH	@Rw
+		next
+#endif
+
+; 2SWAP	( x1 x2 x3 x4 -- x3 x4 x1 x2 )
+;		Exchange the top two cell pairs.
+;
+;	: 2SWAP	ROT >R ROT R> ;
+;
+		xColon	'S',TwoSWAP,_TwoSWAP
+		DB		ROT, ToR, ROT, RFrom, EXIT
+
+#if 0		; 'D' wanted as hex digit and 'd' for Discharge command
+; DEPTH	( -- +n )
+;		Return the depth of the data stack.
+;
+;	: DEPTH	sp0 dsp@ - cell-size / ;
+
+		xCODE	'D',DEPTH,_DEPTH
+		PUSH	Rtos
+		MOV	 #$280,Rtos
+		SUB	 SP,Rtos
+		RRA	 Rtos
+		next
+#endif
+
+; !		( x a-addr -- )
 ;		Store x at a aligned address.
 
 		xCODE	'!',Store,_Store
@@ -177,7 +187,7 @@ QDUP1:	next
 		POP		Rtos
 		next
 
-;   0<		( n -- flag )
+; 0<	( n -- flag )
 ;		Return true if n is negative.
 
 		xCODE	'[',ZeroLess,_ZeroLess
@@ -186,7 +196,7 @@ QDUP1:	next
 		INV		Rtos
 		next
 
-;   0=		( x -- flag )
+; 0=	( x -- flag )
 ;		Return true if x is zero.
 
 		xCODE	'Z',ZeroEquals,_ZeroEquals
@@ -194,63 +204,65 @@ QDUP1:	next
 		SUBC	Rtos,Rtos		;0 if carry set, -1 if carry clear
 		next
 		
-;   ABS 	( n -- u )
+; ABS	( n -- u )
 ;		Return the absolute value of n.
-
+#if 1
 		xColon	'F'-64,ABS,_ABS ; Ctrl-F $06, Spade card symbol in Terminal font
 		db		DUP
 		db		ZeroLess
 		xIF						; If operand is <0
-			db		NEGATE		;   then negate
+			db		NEGATE		;	then negate
 		xENDIF
 		db		EXIT
+#else
+		xCODE	'F'-64,ABS,_ABS ; Ctrl-F $06, Spade card symbol in Terminal font
+		tst		Rtos
+		jge		ABS1
+		inv		Rtos
+		inc		Rtos
+ABS1	next
+#endif
 
-;		xCODE	'F'-64,ABS,_ABS ; Ctrl-F $06, Spade card symbol in Terminal font
-;		tst		Rtos
-;		jge		ABS1
-;		inv		Rtos
-;		inc		Rtos
-;ABS1	next
-
-;   U<		( u1 u2 -- flag )
+; U<	( u1 u2 -- flag )
 ;		Unsigned compare of top two items. True if u1 < u2.
 ;
-;   : U<	2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
-;
-;		xColon	'{',ULess,_ULess
-;		DB	TwoDUP,XORR,ZeroLess
-;		DB	ZJump,ULES1
-;		DB	NIP,ZeroLess,EXIT
-;ULES1		DB	Minus,ZeroLess,EXIT
-
+;	: U<	2DUP XOR 0< IF NIP 0< EXIT THEN - 0< ;
+#if 0
+		xColon	'{',ULess,_ULess
+		DB		TwoDUP, XORR, ZeroLess
+		DB		ZJump, ULES1
+		DB		NIP, ZeroLess, EXIT
+ULES1	DB		Minus, ZeroLess, EXIT
+#else
 		xCODE	'{',ULess,_ULess
-		POP	Rw
-		CMP	Rtos,Rw
+		POP		Rw
+		CMP		Rtos,Rw
 		SUBC	Rtos,Rtos
 		next
-		
-;	U>		(u1 u2 -- flag )
+#endif
+
+; U>	(u1 u2 -- flag )
 ;		Unsigned compare of top two items. True if u1 > u2.
 
 		xCODE	'}',UGreater,_UGreater
-		POP	Rw
-		CMP	Rw,Rtos		; Compare "the wrong way"
+		POP		Rw
+		CMP		Rw,Rtos		; Compare "the wrong way"
 		SUBC	Rtos,Rtos
 		next
 		
 
-;   <		( n1 n2 -- flag )
+; <		( n1 n2 -- flag )
 ;		Returns true if n1 is less than n2.
 		xCODE	'<',LessThan,_LessThan
-		POP	Rw
-		CMP	Rtos,Rw
-LESS0:	JL	LESS1
-		MOV	#0,Rtos
+		POP		Rw
+		CMP		Rtos,Rw
+LESS0:	JL		LESS1
+		MOV		#0,Rtos
 		next
-LESS1:	MOV	#-1,Rtos
+LESS1:	MOV		#-1,Rtos
 		next
 
-;   >		( n1 n2 -- flag )
+; >		( n1 n2 -- flag )
 ;		Returns true if n1 is greater than n2.
 		xCODE	'>',GreaterThan,_GreaterThan
 		POP		Rw
@@ -260,26 +272,26 @@ LESS1:	MOV	#-1,Rtos
 ; =		( x1 x2 -- flag )
 ;		Return true if top two are equal.
 ;
-;   : = 	XOR 0= ;
-;
-;		xColon	'=',Equals,_Equals,0
-;		DB	XORR,ZeroEquals,EXIT
-
+;	: =	XOR 0= ;
+#if 0
+		xColon	'=',Equals,_Equals,0
+		DB		XORR, ZeroEquals, EXIT
+#else
 		xCODE	'=',Equals,_Equals
 		POP		Rw
 		XOR		Rw,Rtos		;sets carry if result nonzero (not equal)
 		SUBC	Rtos,Rtos	;-1 if not carry (borrow), 0 otherwise
 		next
-		
+#endif
 		
 ; <>	( x1 x2 -- flag )
 ;		Return true if top two are not equal.
 
 		xColon	'N',NotEquals,_NotEquals
-		db		Equals,ZeroEquals,EXIT
+		DB		Equals, ZeroEquals, EXIT
 		
 		
-;	MAX	( n1 n2 -- n3 )
+; MAX	( n1 n2 -- n3 )
 ;		Return the greater of two top stack items (signed).
 ;
 ;	: MAX	2DUP < IF SWAP ENDIF DROP ;
@@ -291,10 +303,10 @@ LESS1:	MOV	#-1,Rtos
 		xENDIF
 		DB		DROP, EXIT
 
-;	MIN	( n1 n2 -- n3 )
+; MIN	( n1 n2 -- n3 )
 ;		Return the smaller of top two stack items (signed).
 ;
-;	: MIN	2DUP > IF SWAP THEN DROP ;
+;	: MIN	2DUP > IF SWAP ENDIF DROP ;
 
 		xColon	'G',MIN,_MIN
 		DB		TwoDUP,	GreaterThan
@@ -304,40 +316,41 @@ LESS1:	MOV	#-1,Rtos
 		DB		DROP, EXIT
 
 
-;   WITHIN	( n|u n1|n1 nh|uh -- flag )
+; WITHIN	( n|u n1|n1 nh|uh -- flag )
 ;		Return true if (n1|u1 <= n|u and n|u < n2|u2) or
 ;		(n1|u1 > n2|u2 and (n1|u1 <= n|u or n|u < n2|u2)).
 ;
-;   : WITHIN	OVER - >R - R> U< ;
-
+;	: WITHIN	OVER - >R - R> U< ;
+#if 1
 		xColon	'W',WITHIN,_WITHIN
-		DB	OVER,Minus,ToR			;ul <= u < uh
-		DB	Minus,RFrom,ULess,EXIT
+		DB		OVER, Minus, ToR			;ul <= u < uh
+		DB		Minus, RFrom, ULess, EXIT
+#else
+		xCODE	'W',WITHIN,_WITHIN
+		pop		Rw
+		sub		Rw,Rtos
+		pop		R9
+		sub		Rw,R9
+		cmp		Rtos,R9
+		subc	Rtos,Rtos		;-1 if no carry (borrow), 0 otherwise
+		next
+#endif
 
-;		xCODE	'W',WITHIN,_WITHIN
-;		pop		Rw
-;		sub		Rw,Rtos
-;		pop		R9
-;		sub		Rw,R9
-;		cmp		Rtos,R9
-;		subc	Rtos,Rtos		;-1 if no carry (borrow), 0 otherwise
-;		next
-
-;   2*		( x1 -- x2 )
+; 2*	( x1 -- x2 )
 ;		Bit-shift left, filling the least significant bit with 0.
 
 		xCODE	'L',TwoStar,_TwoStar
 		RLA		Rtos
 		next
 
-;   2/		( x1 -- x2 )
+; 2/	( x1 -- x2 )
 ;		Bit-shift right, leaving the most significant bit unchanged.
 
 		xCODE	'%',TwoSlash,_TwoSlash
 		RRA		Rtos
 		next
 
-;   >R		( x -- ) ( R: -- x )
+; >R	( x -- ) ( R: -- x )
 ;		Move top of the data stack item to the return stack.
 
 		xCODE	'O',ToR,_ToR
@@ -345,15 +358,15 @@ LESS1:	MOV	#-1,Rtos
 		POP		Rtos
 		next
 
-;   R>		( -- x ) ( R: x -- )
+; R>	( -- x ) ( R: x -- )
 ;		Move x from the return stack to the data stack.
 
 		xCODE	'R',RFrom,_RFrom
 		PUSH	Rtos
-		RPOP    Rtos
+		RPOP	Rtos
 		next
 
-;   R@		( -- x ) ( R: x -- x )
+; R@	( -- x ) ( R: x -- x )
 ;		Copy top of return stack to the data stack.
 
 		xCODE	'V'-64,RFetch,_RFetch ; Ctrl-V $16
@@ -361,145 +374,149 @@ LESS1:	MOV	#-1,Rtos
 		MOV		@Rrsp,Rtos
 		next
 
-;   @		( a-addr -- x )
+; @		( a-addr -- x )
 ;		Push the contents at a-addr to the data stack.
 
 		xCODE	'@',Fetch,_Fetch
 		MOV		@Rtos,Rtos
 		next
 
-; + 	( x1 x2 -- x3 ) ; Addition.
+; +	( x1 x2 -- x3 ) ; Addition.
 		xCODE	'+',Plus,_Plus
 		POP		Rw
 		ADD		Rw,Rtos
 		next
 
-; - 	( x1 x2 -- x3 ) ; Subtraction.
+; -	( x1 x2 -- x3 ) ; Subtraction.
 		xCODE	'-',Minus,_Minus
 		POP		Rw
 		SUB		Rtos,Rw
 		MOV		Rw,Rtos
 		next
 
-;   +!		( n|u a-addr -- )
+; +!	( n|u a-addr -- )
 ;		Add n|u to the contents at a-addr.
 ;
-;   : +!	SWAP OVER @ + SWAP ! ;
-;
-;		xColon	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
-;		DB	SWAP,OVER,Fetch,Plus
-;		DB	SWAP,Store,EXIT
-		
+;	: +!	SWAP OVER @ + SWAP ! ;
+#if 0
+		xColon	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
+		DB		SWAP, OVER, Fetch, Plus
+		DB		SWAP, Store, EXIT
+#else
 		xCODE	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
 		POP		Rw
 		ADD		Rw,0(Rtos)
 		POP		Rtos
 		next
+#endif
 
-;   C+!		( n|u a-addr -- )
+; C+!	( n|u a-addr -- )
 ;		Add n|u to the contents at a-addr.
 ;
-;   : C+!	SWAP OVER C@ + SWAP C! ;
-;
-;		xColon	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
-;		DB	SWAP,OVER,CFetch,Plus
-;		DB	SWAP,CStore,EXIT
-		
+;	: C+!	SWAP OVER C@ + SWAP C! ;
+#if 0
+		xColon	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
+		DB		SWAP, OVER, CFetch, Plus
+		DB		SWAP, CStore, EXIT
+#else
 		xCODE	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
 		POP		Rw
 		ADD.B	Rw,0(Rtos)
 		POP		Rtos
 		next
+#endif
 
-; AND 	( x1 x2 -- x3 ) ; Bitwise AND.
+; AND	( x1 x2 -- x3 ) ; Bitwise AND.
 		xCODE	'&',ANDD,_ANDD
 		POP		Rw
 		AND		Rw,Rtos
 		next
 
-; OR 	( x1 x2 -- x3 ) ; Bitwise OR.
+; OR	( x1 x2 -- x3 ) ; Bitwise OR.
 		xCODE	'|',ORR,_ORR
 		POP		Rw
 		BIS		Rw,Rtos
 		next
 
-; XOR 	( x1 x2 -- x3 ) ; Bitwise XOR.
+; XOR	( x1 x2 -- x3 ) ; Bitwise XOR.
 		xCODE	'^',XORR,_XORR
 		POP		Rw
 		XOR		Rw,Rtos
 		next
-        
+
 ; INVERT ( x1 -- x2 ) ; Return one's complement of x1.
 ;
-;   : INVERT	-1 XOR ;
-;
-;		xColon	'~',INVERT,_INVERT
-;       xLIT    -1
-;		DB	XORR,EXIT
-
+;	: INVERT	-1 XOR ;
+#if 0
+		xColon	'~',INVERT,_INVERT
+		xLIT	-1
+		DB		XORR ,EXIT
+#else
 		xCODE	'~',INVERT,_INVERT
-		INV	Rtos
+		INV		Rtos
 		next
-		
-; C>S	( c -- n ) ; Sign-extend a character to a signed word. 
+#endif
+
+; C>S	( c -- n ) ; Sign-extend a character to a signed word.
 ;
 		xCODE	'E'-64,CToS,_CToS
-		sxt		Rtos
+		SXT		Rtos
 		next
 
-        
+
 ; 1+	( n1|u1 -- n2|u2 ) ; Increment top of the stack item.
 ;
-;   : 1+	1 + ;
-;
-;		xColon	'^'-64,OnePlus,_OnePlus ; Ctrl-^
-;       xLIT    1
-;		DB		Plus, EXIT
-
+;	: 1+	1 + ;
+#if 0
+		xColon	'^'-64,OnePlus,_OnePlus ; Ctrl-^
+		xLIT	1
+		DB		Plus, EXIT
+#else
 		xCODE	'^'-64,OnePlus,_OnePlus ; Ctrl-^
-		inc	Rtos
+		inc		Rtos
 		next
-		
+#endif
 
 ; 1-	( n1|u1 -- n2|u2 )
 ;		Decrease top of the stack item by 1.
 ;
-;   : 1-	-1 + ;
-;
-;		xColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
-;		xLIT	-1
-;		DB		Plus, EXIT
-
+;	: 1-	-1 + ;
+#if 0
+		xColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
+		xLIT	-1
+		DB		Plus, EXIT
+#else
 		xCODE	'`',OneMinus,_OneMinus ; tock (back-quote) character
-		dec	Rtos
+		dec		Rtos
 		next
+#endif
 
-;   ALIGNED	( addr -- a-addr )
+; ALIGNED	( addr -- a-addr )
 ;		Align address to the cell boundary.
 
 		xCODE	'C'-64,ALIGNED,_ALIGNED		; Ctrl-C $03
-		INC	Rtos
-		BIC	#1,Rtos
+		INC		Rtos
+		BIC		#1,Rtos
 		next
 
 ; NEGATE ( n1 -- n2 ) ; Return two's complement of n1.
 ;
-;   : NEGATE	INVERT 1+ ;
+;	: NEGATE	INVERT 1+ ;
 ;
 ;		xColon	'_',NEGATE,_NEGATE
 ;		DB	INVERT,OnePlus,EXIT
 		
 		xCODE	'_',NEGATE,_NEGATE
-		INV	Rtos
-		INC	Rtos
+		INV		Rtos
+		INC		Rtos
 		next
 
 ; C!	( char c-addr -- ) ; Store char at c-addr.
 
 		xCODE	'$',CStore,_CStore
-		POP	Rw
+		POP		Rw
 		MOV.B	Rw,0(Rtos)
-		POP	Rtos
+		POP		Rtos
 		next
 
 ; C@	( c-addr -- char ) ; Fetch the character stored at c-addr.
@@ -512,92 +529,110 @@ LESS1:	MOV	#-1,Rtos
 ; CBITCLR ( bitmask c-addr -- )
 ; : CBITCLR		DUP C@ ROT INVERT AND SWAP C! ;
 
-	xCODE 'K'-64,CBITCLR,_CBITCLR ; ( bitmask c-addr -- )
-	pop	Rw
-	bic.b	Rw,0(Rtos)
-	pop	Rtos
-	next
+		xCODE	'K'-64,CBITCLR,_CBITCLR ; ( bitmask c-addr -- )
+		pop		Rw
+		bic.b	Rw,0(Rtos)
+		pop		Rtos
+		next
 	
 ; CBITSET ( bitmask c-addr -- )
 ; : CBITSET		DUP C@ ROT OR SWAP C! ;
 
-	xCODE 'L'-64,CBITSET,_CBITSET ; ( bitmask c-addr -- )
-	pop	Rw
-	bis.b	Rw,0(Rtos)
-	pop	Rtos
-	next
+		xCODE	'L'-64,CBITSET,_CBITSET ; ( bitmask c-addr -- )
+		pop		Rw
+		bis.b	Rw,0(Rtos)
+		pop		Rtos
+		next
 	
-; CBITTOG ( bitmask c-addr -- )
-; : CBITTOG 	DUP C@ ROT XOR SWAP C! ;
 #if 0
-	xCODE 'W'-64,CBITTOG,_CBITTOG ; ( bitmask c-addr -- )
-	pop	Rw
-	xor.b	Rw,0(Rtos)
-	pop	Rtos
-	next
+; CBITTOG ( bitmask c-addr -- )
+; : CBITTOG	DUP C@ ROT XOR SWAP C! ;
+		xCODE	'W'-64,CBITTOG,_CBITTOG ; ( bitmask c-addr -- )
+		pop		Rw
+		xor.b	Rw,0(Rtos)
+		pop		Rtos
+		next
 #endif
 
-; CBITTST is not worth having since it only saves a byte over C@ AND. 
-; You'd have to use it more than 3 times in other code for it to save the space 
+#if 0
+; CBITTST is not worth having since it only saves a byte over C@ AND.
+; You'd have to use it more than 3 times in other code for it to save the space
 ; of its definition. (More than 8 times if it's defined in assembler).
 
 ; CBITTST ( bitmask c-addr -- maskedbits )
 ; : CBITTST		C@ AND ;
-#if 0
-	xCODE 'G'-64,CBITTST,_CBITTST ; ( bitmask c-addr -- maskedbits )
-	mov.b	@Rtos,Rtos
-	pop	Rw
-	and	Rw,Rtos
-	next
+		xCODE	'G'-64,CBITTST,_CBITTST ; ( bitmask c-addr -- maskedbits )
+		mov.b	@Rtos,Rtos
+		pop		Rw
+		and		Rw,Rtos
+		next
 #endif
 
 ; LSHIFT	( x1 u -- x2 ) ; logical left shift of u bits on x1, giving x2
-;   : LSHIFT	0 ?DO 2* LOOP ENDIF ;
-;
-;		xColon	'(',LSHIFT,_LSHIFT
-;		xLIT	0
-;		xQDO
-;			DB	TwoStar
-;		xLOOP
-;		DB	EXIT
-
-	xCODE '(',LSHIFT,_LSHIFT
-	mov	Rtos,Rw
-	pop	Rtos
+;	: LSHIFT	0 ?DO 2* LOOP ENDIF ;
+#if 0
+		xColon	'(',LSHIFT,_LSHIFT
+		xLIT	0
+		xQDO
+			DB		TwoStar
+		xLOOP
+		DB		EXIT
+#else
+		xCODE	'(',LSHIFT,_LSHIFT
+		mov		Rtos,Rw
+		pop		Rtos
 lsloop
-	dec	Rw
-	jnc	_NEXT	; jump if borrow, to _NEXT
-	rla	Rtos
-	jmp	lsloop
-	
+		dec		Rw
+		jnc		_NEXT		; jump if borrow, to _NEXT
+		rla		Rtos
+		jmp		lsloop
+#endif
 	
 ; RSHIFT	( x1 u -- x2 ) ; logical right shift of u bits on x1, giving x2
-;   : RSHIFT	0 ?DO 2/ LOOP ENDIF ;
-;
-;		xColon	')',RSHIFT,_RSHIFT
-;		xLIT	0
-;		xQDO
-;			DB	TwoSlash
-;		xLOOP
-;		DB	EXIT
-
-	xCODE ')',RSHIFT,_RSHIFT
-	mov	Rtos,Rw
-	pop	Rtos
+;	: RSHIFT	0 ?DO 2/ LOOP ENDIF ;
+#if 0
+		xColon	')',RSHIFT,_RSHIFT
+		xLIT	0
+		xQDO
+			DB		TwoSlash
+		xLOOP
+		DB	EXIT
+#else
+		xCODE	')',RSHIFT,_RSHIFT
+		mov		Rtos,Rw
+		pop		Rtos
 rsloop
-	dec	Rw
-	jnc	_NEXT	; jump if borrow, to _NEXT
-	clrc
-	rrc	Rtos
-	jmp	rsloop
+		dec		Rw
+		jnc		_NEXT		; jump if borrow, to _NEXT
+		clrc
+		rrc		Rtos
+		jmp		rsloop
+#endif
 
-        
+; ?KEY	( -- 0 | c -1 ) ; Get a character from the input device, if available.
+;		Returns immediately with either a false flag or a character and a true flag
+
+		xCODE	'K',QuestionKEY,_QuestionKEY
+		push	Rtos
+		bis.b	#WDTIFG,&IFG1		; Set watchdog flag so ReadByte doesn't call back to interpreter
+		bit.b	#RXD,&P1IN			; Is there a start bit?
+		_IF		_Z
+			call	#ReadByte		; Yes, read the character into R8. ?Call ReadByte+N?
+			; eint					; Do we need to re-enable interrupts here?
+			push	R8				; Return the character
+			mov		#-1,Rtos		; and true flag
+		_ELSE
+			mov		#0,Rtos			; No, return false flag
+		_ENDIF
+		bic.b	#WDTIFG,&IFG1		; Clear watchdog flag
+		next
+
 ; EMIT	( c -- ) ; Send a character to the output device.
 
 		xCODE	'M',EMIT,_EMIT
 		mov.b	Rtos,R8				; WriteByte uses R8 as parameter
-        POP     Rtos				; Pop first to save stack space
-		CALL    #doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
+		POP		Rtos				; Pop first to save stack space
+		CALL	#doWriteByte		; Call WriteByte in info-flash (via a thunk that clears R11 first)
 		next
 		
 ; TYPE	( c-addr u -- ) ; Send u characters to the output device from c-addr
@@ -609,65 +644,65 @@ rsloop
 		xLOOP
 		DB		EXIT
 		
-#if 0		; 'M' wanted for EMIT because 'E' wanted as hex digit        
-;   MOVE	( addr1 addr2 u -- )
+#if 0		; 'M' wanted for EMIT because 'E' wanted as hex digit
+; MOVE	( addr1 addr2 u -- )
 ;		Copy u address units from addr1 to addr2 if u is greater
 ;		than zero. This word is CODE defined since no other Standard
 ;		words can handle address unit directly.
 
 		xCODE	'M',MOVE,_MOVE
-		POP	Rw
-		POP	R10
-		TST	Rtos
-		JZ	MOVE2
-		CMP	Rw,R10
-		JC	MOVE1
+		POP		Rw
+		POP		R10
+		TST		Rtos
+		JZ		MOVE2
+		CMP		Rw,R10
+		JC		MOVE1
 		PUSH	SR
 		DINT
 MOVE3:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
-		JNZ	MOVE3
+		JNZ		MOVE3
 		MOV.B	@R10+,0(Rw)
-		INC	Rw
-		DEC	Rtos
-		JNZ	MOVE3
-		POP	SR
-MOVE2:		POP	Rtos
+		INC		Rw
+		DEC		Rtos
+		JNZ		MOVE3
+		POP		SR
+MOVE2:	POP		Rtos
 		next
 		
-MOVE1:		ADD	Rtos,Rw		;start at end and work backwards
-		DEC	Rw
-		ADD	Rtos,R10
-		DEC	R10
+MOVE1:	ADD		Rtos,Rw		;start at end and work backwards
+		DEC		Rw
+		ADD		Rtos,R10
+		DEC		R10
 		PUSH	SR
 		DINT
 MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
-		JNZ	MOVE4
-		DEC	Rw
-		DEC	R10
+		JNZ		MOVE4
+		DEC		Rw
+		DEC		R10
 		MOV.B	@R10,0(Rw)
-		DEC	Rtos
-		JNZ	MOVE4
-		POP	SR
-		POP	Rtos
+		DEC		Rtos
+		JNZ		MOVE4
+		POP		SR
+		POP		Rtos
 		next
 #endif
 
-;   S"Run        ( u -- c-addr u )
+; S"Run		( u -- c-addr u )
 ;		Run-time code for string literals
 ;
-;   : S"Run      R> SWAP 2DUP + >R ; COMPILE-ONLY
+;	: S"Run		R> SWAP 2DUP + >R ; COMPILE-ONLY
 
 		xColon	'\"',SQuoteRun,_SQuoteRun
 		DB		RFrom, SWAP, TwoDUP, Plus, ToR, EXIT
 
 #if 0
-;   HERE	( -- addr )
+;	HERE	( -- addr )
 ;		Return data space pointer.
 ;
-;   : HERE	VP @ ;
+;	: HERE	VP @ ;
 
 		xColon	'H',HERE,_HERE
-        xLIT2	VP
+		xLIT2	VP
 		DB		Fetch, EXIT
 #endif
 
@@ -675,23 +710,25 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 ;		Compile the execution token (bytecode) on data stack into current
 ;		colon definition.
 ;
-;   : COMPILE,	CP DUP 1 +! @ FlashC! ;
+;	: COMPILE,	CP DUP 1 +! @ FlashC! ;
 		xColon	',',COMPILEComma,_COMPILEComma
-		xLIT2 	CP			; Get address of code pointer
-        DB   	DUP
-        xLIT	1
-        DB		PlusStore	; Increment it
+		xLIT2	CP			; Get address of code pointer
+		DB		DUP
+		xLIT	1
+		DB		PlusStore	; Increment it
 		DB		Fetch		; Fetch the pointer
 		DB		FlashCStore	; Store the byte where it points
 		DB		EXIT
 
 
-; :    ( char -- ) 
+; :		( char -- )
 ; Point the opcode lookup table entry for <char> at the next free code space,
 ; but only if the entry is unused (contains $FFFF).
 
-		xColon ':',Colon,_Colon
+		xColon	':',Colon,_Colon
 							; Calculate address of opcode table entry for <char>
+		xLIT	$7F			; Ensure we stay within the opcode table
+		DB		ANDD
 		DB		TwoStar		; 2*
 		xLIT2	_OPCODETBL	; _OPCODETBL
 		DB		Plus		; +
@@ -710,16 +747,16 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 			DB		RSHIFT
 			DB		SWAP
 			DB		OnePlus
-			DB		FlashCStore ; !  Store hi byte new opcode table entry		  
+			DB		FlashCStore ; !  Store hi byte new opcode table entry		
 		xELSE				; Else
-			DB   	DROP	;   Drop the copy of address of opcode table entry
+			DB		DROP	;   Drop the copy of address of opcode table entry
 		xENDIF				; Endif
-		DB   	EXIT
+		DB		EXIT
 
-; ;		( -- ) 
+; ;		( -- )
 ; Compile an EXIT bytecode at the next free code space.
 
-		xColon ';',Semicolon,_Semicolon
+		xColon	';',Semicolon,_Semicolon
 		xLIT2	EXIT		; Get EXIT bytecode on TOS
 		DB		COMPILEComma ; Store it at code ptr and increment code ptr
 		DB		EXIT
