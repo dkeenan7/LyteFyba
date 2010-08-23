@@ -21,7 +21,7 @@
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
-#define		OKPROMPT	1		; 1 to respond ' ok<cr>' after every line/packet is processed
+#define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
 
 ; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
@@ -81,8 +81,12 @@ ToIN	DS		2		; Pointer to current character being stored or parsed in text input 
 CHKSUM  DS		1		; Packet xor checksum
 
 hexFlag	DS		1		; 1 = hex mode (default)
+
 bCheckForBad DS	1		; 1 = check \ command for \B (badness). Only set if aUtonomous command
 						; received and we are the last cell
+
+currBadness DS	1		; Current badness (0 = no badness, 7 = highest badness)
+
 		EVEN	$FF		; Make it an even address (0x20A)
 bypassVolts	DS	2		; Non-zero = use this value as the bypass voltage
 
@@ -118,19 +122,57 @@ DSP0	EQU		$280	; Bottom of combined Interpreter data stack and machine stack, gr
 ; a carriage return (end of packet) is received, whereupon it checks
 ; the preceding checksum and, if correct, calls the inner interpreter to interpret the buffer.
 ; Otherwise it will reset the buffer, ready for the next packet.
-		EVEN		; Word-align for following code
+				EVEN				; Word-align for following code
+				; Encoded badness table. The badness information is transmitted in one byte,
+				; with no checksum correction. To counter this, badness is encoded, so that only
+				; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
+				; are treated as a corrupted attempt to send badness information; current badness
+				; for this BMU is sent instead.
+				; The table is indexed by raw badness value (i.e. the least significant 3 bits of
+				; the encoded badness byte).
+badnessTable	DB		$80			; $80 is least badness
+				DB		$91,$A2,$B3,$C4,$D5,$E6
+				DB		$F7			; $F7 is the worst badness
 main:
 interpretByte:
 		cmp		#InitRetAddr,0(SP)	; If the call is not merely for initialisation
 		_IF		_NE
-			call	#doWriteByte		; FOR NOW: echo the byte here, as the BSL has not
+			tst.b	R8					; Test for badness command ($80-$F7)
+			_IF		_L					; If negative
+				mov.b	R8,R9				; Copy
+				and		#7,R9				; Consider only raw badness bits
+				cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
+				mov.b	&currBadness,R9		; Current badness
+				mov.b	badnessTable(R9),R9	; Present encoded badness
+				jne		sendMyBadness		; NO! So just send my badness instead
+				cmp.b	R8,R9				; Compare incoming badness to ours
+				_IF		_C					; If incoming is less bad than us,
+sendMyBadness		mov		R9,R8				; then we are worse; send our badness
+					; Note that the above does not preserve R8. However, strict preservation
+					; is no longer necessary, and since password and non-password bytes can't
+					; be interchanged, it is safe
+				_ENDIF
+			_ENDIF
+			call	#doWriteByte		; echo the byte here, as the BSL has not
 		_ENDIF						; Endif
 		bic.b	#LED,&P1OUT			; FOR NOW, we set the LED in WriteByte, and clear it here.
+		tst.b	R8					; Is R8
+		_IF		_L					;	 a badness?
+			tst.b	&bCheckForBad	; Are we checking
+			_IF		_NZ				;	for badness (because we're the last BMU)?
+				push	Rtos
+				mov		R8,Rtos
+				sub		#$80,Rtos		; Zero if badness is zero
+				call	#m_alarm		; Set or clear the alarm based on Rtos
+			_ENDIF
+			ret							; Yes, don't interpret as a literal
+		_ENDIF
 
         ; Received byte is passed in R8, which must be preserved
 		PUSH R8
         ; Determine if initialisation is required
-		tst.b	R8				; Use incoming char being null to trigger initialisation
+		; Test below is commented out, as the flags are still set by the test above
+;		tst.b	R8				; Use incoming char being null to trigger initialisation
 		_IF _Z              	; If null
 			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
 			MOV		#CP0,&CP		; Initialise the code pointer
@@ -139,6 +181,7 @@ interpretByte:
 			mov.b	#-1,&hexFlag	; Set the hexadecimal input (verses decimal) flag
 			clr.b	&bCheckForBad	; Clear the "checking for badness" flag
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
+			clr		&currBadness	; Clear current badness
 									; Other initialisation goes here
 ;			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
 #if DOINITIALCMD
@@ -692,39 +735,32 @@ oflo	PUSH    #-1
 			xLIT		3600			; Put fixed bypass voltage to TOS
 		xENDIF
 		db			UGreater		; 1 if greater, 0 otherwise
-		db			bypass			; Bypass if cell voltage > 3.55 V (or > bypassVoltage if 'd' command is active)
+		db			bypass			; Bypass if cell voltage > 3.65 V (or > bypassVoltage if 'd' command is active)
 		db			DUP
-		xLIT		3650			; !! FOR NOW !! Upper voltage limit
-		db			UGreater
+		; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
+		xLIT		3650-49
+		db			Minus			; Measurement - 3.65 V + 0.49 V
+		xLIT		0
+		db			MAX				; Minimum of 0
+		xLIT		50
+		db			Slash			; Divide by 50 mV
+		; Undervoltage badness: for every 100 mv below 2.5 V, we add one level of badness, to a maximum of 7 for < 1.9 V
+		db			SWAP			; Original measurement on top
+		xLIT		2500+99
 		db			SWAP
-		xLIT		3000			; !! FOR NOW !! Lower voltage limit
-		db			ULess
-		db			ORR
-		xIF
-			xLIT2		bCheckForBad
-			db			CFetch
-			xIF
-				; bCheckForBad is on and we are bad ourselves; set the alarm
-				xLIT		1
-				db			alarm
-			xENDIF
-#if 0
-			xLIT	1
-			db		errorLed	; Turn on error LED. Maybe it should go off with no badness (any more) ?
-#endif
-			db		MS1			; Allow time for downstream echo, less voltage measurement
-			xLIT	'\\'
-			db		EMIT
-			db		MS1
-			xLIT	'B'			; B=BAD!
-			db		EMIT
-			db		MS1
-			xLIT	'B'^'\\'	; CRC
-			db		EMIT
-			db		MS1
-			xLIT	$0D			; CR
-			db		EMIT
-		xENDIF
+		db			Minus			; 2.5 V - measurement + 0.99 V
+		xLIT		0
+		db			MAX				; Minimum of 0
+		xLIT		100
+		db			Slash			; Difference / 100
+		db			MAX				; Get the max of overvolts and undervolts
+		xLIT		7
+		db			MIN				; Maximum of 7 for either
+		db			DUP				; For error LED below
+		xLIT2		currBadness		; Address of current badness
+		db			CStore			; Store it
+		db			errorLed		; Turn on error LED if any badness
+		
 		db			EXIT
 
 ;
@@ -954,7 +990,7 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 			pop		R8
 			call	#aFlashCStore
 			pop		Rtos
-			next
+			BR		#_NEXT					; FIXME!
 			
 aFlashCStore:
 			; Assembly language flash writer
