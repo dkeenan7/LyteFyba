@@ -1,3 +1,5 @@
+; Ensure you set the FET Debugger download options to erase main memory _only_,
+; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
 			LSTOUT-
 #include "msp430.h"
 #include "ControlFlowMacros.h"
@@ -183,7 +185,6 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
 			clr		&currBadness	; Clear current badness
 									; Other initialisation goes here
-;			BIS		#1<<14,SR   	; Set "initialised" flag (bit 14 of status reg)
 #if DOINITIALCMD
 			mov		#initCmd,Rw
 			call	#evaluate
@@ -191,51 +192,78 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 #endif
 		_ENDIF					; Endif (init required)
 		
-		
-		MOV &ToIN,R9
-        CMP #$0D,R8
-;		_IF _HS						; Ignore if less
-			_IF _NE					; If not carriage return
-				MOV.B R8,0(R9)		;   Write the byte to the buffer
-				INC &ToIN       	; 	Increment the pointer
-				; May need to check for buffer overflow one day.
-				; It may run into the interpreter return stack.
-				; They grow towards each other.
-				XOR.B R8,&CHKSUM	;   Accumulate the checksum		
-			_ELSE					; Else (carriage return)
-#if CHECKSUM
-		    	TST.B &CHKSUM
-				_IF _Z				;   If good checksum
-			    	DEC R9			;     Overwrite the checksum with a RETT bytecode
-					CMP #TIB,R9 	;     Handle case of empty packet with no checksum
-					_IF _LO
-						MOV #TIB,R9
-					_ENDIF
-#endif
-					MOV.B	#EXIT,0(R9) ; Overwrite the checksum or carriage return with an EXIT bytecode
-					MOV		#TIB,Rw 	; Interpret the packet as bytecode
-					CALL	#evaluate
-#if OKPROMPT
-					mov.b		#' ',R8
-					call	#doWriteByte
-					mov.b		#'o',R8
-					call	#doWriteByte
-					mov.b		#'k',R8
-					call	#doWriteByte
-					mov.b		#$0D,R8
-					call	#doWriteByte
-#endif
-#if CHECKSUM
-				_ENDIF				;   Endif (good checksum)
-#endif
-				MOV #TIB,&ToIN  	;   Initialise packet buffer pointer
-				CLR &CHKSUM     	;   Clear the packet checksum
-			_ENDIF					; Endif (equals carriage return )
-;		_ENDIF						; Endif (higher or same as carriage return)
-
+		push	Rtos
+		mov		R8,Rtos			; Push the received character
+		mov		#_ACCEPT,Rw		; Call the headerless bytecode for ACCEPT
+		call	#evaluate
         POP R8
         RET
 		
+; ACCEPT	( char -- )	; Accept a character into the line buffer.
+; Implements backspace editing and calls the inner interpreter
+; to interpret the line when a valid checksum and a carriage return are received.
+_ACCEPT
+		xLIT2	ToIN
+		DB		Fetch, SWAP		; Get address of next TIB location under char
+        xCASE					; Case char ( ToIN@ char )
+		
+		xLIT	$0D				; Of carriage return
+		xOF
+#if CHECKSUM
+			xLIT2	CHKSUM
+			DB		Fetch, ZeroEquals
+			xIF					; If good checksum
+				DB		OneMinus	; ( ToIN@-1 )
+				xLIT2	TIB 		; Handle case of empty packet with no checksum
+				DB		MAX			; ( Max(ToIN@-1,TIB) )
+#endif
+				xLIT2	EXIT		; Overwrite the checksum or carriage return
+				DB		SWAP, CStore ;  with an EXIT bytecode
+				xLIT2	TIB			; Interpret the input buffer
+				DB		EVALUATE
+#if CHECKSUM
+			xENDIF				; Endif (good checksum)
+#endif
+			xLIT2	TIB			; Initialise packet buffer pointer
+			DB		Space
+			xLIT2	ToIN		; ( TIB ToIN )
+			DB		Store
+			xLIT	0     		; Clear the packet checksum
+			DB		Space
+			xLIT2	CHKSUM		; ( 0 CKSUM )
+			DB		CStore
+#if OKPROMPT
+			xDotQuote	' ok\r'
+#endif
+		xENDOF					; End Of carriage return
+		
+		xLIT	$08				; Of backspace
+		xOF
+			DB		OneMinus	; Decrement pointer into input buffer
+			xLIT2	TIB 		; Don't go back past start of TIB
+			DB		MAX			; ( char Max(ToIN@-1,TIB) )
+			xLIT2	ToIN		; Get address of pointer into input buffer
+			DB		Store		; Update the pointer
+		xENDOF					; End Of backspace
+		
+		; Default case (if not CR or BS)
+			DB		SWAP, TwoDUP ; ( char ToIN@ char ToIN@)
+			DB		CStore 		; Write the byte to the buffer ( char ToIN@ )
+			DB		OnePlus 	; Increment the pointer ( char ToIN@+1 )
+			xLIT2	ToIN		; ( char ToIN@+1 ToIN )
+			DB		Store		; Update the pointer ( char )
+			; May need to check for buffer overflow one day.
+			; It may run into the interpreter return stack.
+			; They grow towards each other.
+			DB		DUP			; ( char char ) need to keep something for ENDCASE to drop
+			xLIT2	CHKSUM		; ( char char CKSUM
+			DB		DUP, CFetch ; Get the checksum so far ( char char CKSUM CKSUM@ )
+			DB		ROT, XORR	; ( char CKSUM CKSUM@^char )
+			DB		SWAP, CStore ; Update the checksum ( char )
+		xENDCASE				; End Case char (Drops case value)
+		DB		EXIT
+
+
 #if DOINITIALCMD
 ; The intitial command (bytecode) to execute at power up
 initCmd	db		INITIALCMD
@@ -424,8 +452,6 @@ doneId	next
 		xLIT		$D				; Carriage return
 		db			EMIT
 		db			EXIT
-		
-		
 
 
 ;
@@ -553,7 +579,7 @@ addSamp	add			@R9+,R8					; Add a sample
 		RPOP		Rip					; Pop to the bytecode that called this
 		RET								; Return to the outer interpreter (i.e. ignore rest of packet)
 
-#if 0			; Because the below would decrease the number of JMP _NEXTs that will reach
+#if 0
 ;
 ; For debugging only: output R12 in hex
 ; NOT USED AT PRESENT
@@ -656,25 +682,24 @@ oflo	PUSH    #-1
 ; i.e. same routine works for signed or unsigned.
 
 		xColon '*',Star,_Star
-;		xLIT _UMStar    ; Do the multiplication
-;		DB   CALLM
-		db	 UMStar
-		DB   DROP       ; Throw away the high word of the result
-		DB   EXIT
+;		xLIT2 	_UMStar			; Do the multiplication
+;		DB   	EXECUTECODE
+		db	 	UMStar
+		DB   	DROP			; Throw away the high word of the result
+		DB   	EXIT
 
 ; U/ ( u1 u2 -- u3 )
 ; Divide u1 by u2, giving the single unsigned quotient u3.
 ; Returns $FFFF if u2 is zero.
 
 		xColon  '/',Slash,_Slash
-		DB   ToR           ; Move divisor to return stack temporarily
-		xLIT 0             ; Pad the dividend to a double word
-		DB   RFrom         ; Bring divisor back from return stack
-;		xLIT _UMSlashMOD   ; Do the division
-;		DB   CALLM
-		db	UMSlashMOD
-		DB   NIP           ; Throw away the remainder
-		DB   EXIT
+		xLIT 	0				; Pad the dividend to a double word
+		DB   	SWAP
+;		xLIT2 	_UMSlashMOD		; Do the division
+;		DB   	EXECUTECODE
+		db		UMSlashMOD
+		DB		NIP				; Throw away the remainder
+		DB		EXIT
 
 ;
 ; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
@@ -1024,10 +1049,6 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			DB 		EXIT
 			
 CP0			; Used to set the initial value of CP (Code Pointer).
-
-; To Do:
-; Implement backspace editing.
-; All undefined bytecodes should act as literal separators if not digits.
 
 
 		ORG		0xFFFE			; Reset power-on vector

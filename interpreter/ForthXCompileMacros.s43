@@ -1,6 +1,7 @@
 ; Conditional assembly of counted loops
 DOLOOPs EQU		1	; Conditional assembly flag to include DO, ?DO, LOOP and +LOOP.
 FORNEXTs EQU	0	; Conditional assembly flag to include FOR NEXT
+IJs		EQU		0	; Conditional assembly flag to include the I and J bytecodes
 
 ; If DOLOOPs = 0 and FORNEXTs = 1 then the only counted loops available will be FOR NEXT loops
 ; and these will be optimised to use only one loop control parameter
@@ -130,8 +131,8 @@ _VALUE	SET		VALUE
 
 ; Three versions of the xLIT macro for expressions that depend on the program location counter
 
-; Use xLIT3 for values of $2000 to $7FFF, or $8000 to $DFFF
-; Will work for all values, but will waste up to 2 bytes depending on the value
+; For values from $8000 to $DFFF (-$8000 to -$2001) and from $2000 to $7FFF inclusive.
+; Works for all values, but may waste up to 2 bytes depending on the value.
 xLIT3	MACRO	VALUE
 						LSTOUT-
 PFIX	SET		$80			; Set the high bit to distinguish literal prefix bytes from opcodes
@@ -142,8 +143,8 @@ _VALUE	SET		VALUE
 		DB		PFIX | (_VALUE & $7F)
 						ENDM
 
-; For values between $40 and $1FFF or $E000 and $FFC0 inclusive.
-; Would also work for values between $FFC0 and $003F, but wastes a byte.
+; For values from $E000 to $FFBF (-$2000 to -$41) and from $40 to $1FFF inclusive.
+; Works for all values from $E000 (-$2000) to $1FFF, but may waste a byte.
 xLIT2	MACRO	VALUE
 						LSTOUT-
 PFIX	SET		$80			; Set the high bit to distinguish literal prefix bytes from opcodes
@@ -153,7 +154,7 @@ _VALUE	SET		VALUE
 		DB		PFIX | (_VALUE & $7F)
 						ENDM
 
-; For values between $FFC0 and $003F inclusive
+; For values from $FFC0 (-$40) to $3F inclusive.
 xLIT1	MACRO	VALUE
 						LSTOUT-
 PFIX	SET		$80			; Set the high bit to distinguish literal prefix bytes from opcodes
@@ -165,7 +166,7 @@ _VALUE	SET		VALUE
 ; Set _LEN to length of string (in bytes). Used by the xSLIT (string-literal) macro.
 xGETLEN	MACRO	string
 _SAVEORG SET	$
-		COMMON	_GETLEN :NOROOT		;switch to a COMMON segment
+		COMMON	_GETLEN :NOROOT ; Switch to a COMMON segment
 _LEN	SET		$			;  to allow overlaying
 		DB		string
 _LEN	SET		$ - _LEN
@@ -697,7 +698,7 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		add		#2,Rrsp			; Drop counter off return stack
 #endif // DOLOOPs
 		next
-
+#if IJs
 ; I		( -- index ) ( R: limit counter -- limit counter )
 ; Push the innermost loop index = limit + counter.
 		xCODE	'I',I,_I
@@ -719,4 +720,5 @@ _LOOPJump2						; This label used by PlusLOOPJump
 		mov		2(Rrsp),Rtos	; Get counter into Rtos
 #endif // DOLOOPs
 		next
+#endif // IJs
 #endif // DOLOOPs OR FORNEXTs
