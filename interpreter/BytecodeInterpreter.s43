@@ -59,7 +59,9 @@ DoOPCD	TST		Rw			; Is it defined in machine code or bytecode?
 		BR		Rw			; Else it is machine-code so branch to it
 							; It must end with 'next' macro (or JMP _NEXT or BR #_NEXT)
 
-DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits, otherwise ignore
+
+DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
+		; otherwise treat them as literal-separating no-ops.
 		DEC		Rip			; Decrement the instruction pointer to
 		MOV.B	@Rip+,Rw	;  re-fetch the bytecode
 		SUB.B	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
@@ -78,30 +80,23 @@ FncPFX4 TST		SR			; Test the operand-in-progress flag
 		JN		DatMor4		; If there was no operand-in-progress
 
 DatFst4 MOV		Rw,Rlit		;	Move 4-bit data to partial-operand register
-		JMP		DatEnd4		; Else (operand-in-progress)
+		JMP		_NEXT		; Else (operand-in-progress)
 
-DatMor4 RLA		Rlit		;	Multiply the partial operand by 16 or 10
+DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
+		mov		Rlit,R9		;	Save 2*Rlit in R9
+		rla		Rlit		;	4*Rlit
+		rla		Rlit		;	8*Rlit
 		tst.b	&hexFlag
 		_IF		_Z
-			mov		Rlit,R9	;	2*Rlit
-			rla		R9
-			rla		R9		;	8*Rlit
 			add		R9,Rlit	;	10*Rlit
 		_ELSE
-			RLA		Rlit	;	4*Rlit
-			RLA		Rlit
-			RLA		Rlit	;	16*Rlit
+			rla		Rlit	;	16*Rlit
 		_ENDIF
 		add		Rw,Rlit		;	Add data into operand reg
 DatEnd4 jmp		_NEXT		; Endif
 
-NotDigit TST	 SR			; Check for an implied push-literal
-		JGE		_NEXT		; If there's an operand-in-progress
-							;	there's an implied LIT now
-		BIC		#1<<15,SR	;	Clear the operand-in-progress flag
-		PUSH	Rtos		;	Push the operand now
-		MOV		Rlit,Rtos
-		jmp		_NEXT
+NotDigit mov	#_Space,Rw	; Treat as literal separator
+		jmp		FncLIT
 
 
 ; EXIT ( -- ); Return from a bytecode routine
@@ -135,11 +130,11 @@ NotDigit TST	 SR			; Check for an implied push-literal
 evaluate
 		RPUSH	Rip				; Save interpreter instruction pointer (IP)
 		mov		#RETTaddr,Rip	; Point the IP at the special bytecodes below
-		jmp		_ENTER			; interpret the Forth-word
+		jmp		_ENTER			; Interpret the Forth-word whose address is in Rw
 								; Its EXIT will cause the interpreter
 								; to interpret the bytecodes below
 RETTaddr
-		xLIT3	_RETT			; Push address of machine code below
+		xLIT2	_RETT			; Push address of machine code below
 		DB		EVALUATECODE	; Execute code at addr in TOS
 		EVEN					; Word-align for following machine code
 		
@@ -154,6 +149,6 @@ _RETT
 evaluatecode
 		RPUSH	Rip				; Save interpreter instruction pointer (IP)
 		mov		#RETTaddr,Rip	; Point the IP at some special bytecodes above
-		br		Rw				; Branch to the Forth-word
+		br		Rw				; Branch to the Forth-word whose address is in Rw
 								; Its 'next' will cause the interpreter
 								; to interpret the special bytecodes above

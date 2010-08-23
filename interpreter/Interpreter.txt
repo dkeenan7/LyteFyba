@@ -75,7 +75,7 @@ W     WITHIN     Range comparison
 
 Stack manipulation operators
 Wunth Forth      Description               Appearance in Terminal font
-                 ( Data stack before -- after | Return stack before -- after )
+                 ( Data stack before -- after )( R: Return stack before -- after )
                  (top-of-stack to the right)
 ---------------------------------------------------------------------------
 ^Y    DROP       ( n1 -- )                Down arrow
@@ -88,9 +88,9 @@ P     NIP        ( n2 n1 -- n1 )
 U     TUCK       ( n2 n1 -- n1 n2 n1 )
 ^N    2DUP       ( n2 n1 -- n2 n1 n2 n1 ) Two musical notes
 S     2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
-O     >R         ( n1 -- | R: -- n1 )
-R     R>         ( -- n1 | R: n1 -- )
-^V    R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
+O     >R         ( n1 -- )( R: -- n1 )
+R     R>         ( -- n1 )( R: n1 -- )
+^V    R@         ( -- n1 )( R: n1 -- n1 )  Low filled rectangle
 
 Memory operators (The address argument is always top-of-stack)
 Wunth Forth      Description                Appearance in Terminal font
@@ -210,7 +210,7 @@ Wunth  Forth      Description           (Notes)
 ^S DC3 +!         Fetch word, add and store  Double exclamation mark
 ^T DC4 C+!        Fetch byte, add and store  Pilcrow sign
 ^U NAK DORun      Runtime word for start of DO...LOOP (section sign "S")
-^V SYN R@         ( -- n1 | R: n1 -- n1 )  Low filled rectangle
+^V SYN R@         ( -- n1 )( R: n1 -- n1 )  Low filled rectangle
 ^W ETB UNLOOP     Prepare for EXIT from counted loop (DO, ?DO, FOR)
 ^X CAN UMStar     Unsigned 16x16=32 bit multiply (up arrow)
 ^Y EM  DROP       ( n1 -- )                Down arrow
@@ -257,10 +257,10 @@ L      2*         Arithmetic (or logical) shift left one place (was \)
 M      EMIT       Send a byte to serial output
 ;M      MOVE       Word block move
 N      <>         Not-equals comparison
-O      >R         ( n1 -- | R: -- n1 )
+O      >R         ( n1 -- )( R: -- n1 )
 P      NIP        ( n2 n1 -- n1 )
 Q      ABORT      Clear both stacks and restart the outer interpreter (QUIT)
-R      R>         ( -- n1 | R: n1 -- )
+R      R>         ( -- n1 )( R: n1 -- )
 S      2SWAP      ( n4 n3 n2 n1 -- n2 n1 n4 n3 )
 T      TYPE       Send a string to serial output
 U      TUCK       ( n2 n1 -- n1 n2 n1 )
