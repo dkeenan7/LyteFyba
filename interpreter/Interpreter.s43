@@ -191,7 +191,69 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			mov		#1,R8			; Prevent infinite loop; ^A is a fairly safe do-nothing char
 #endif
 		_ENDIF					; Endif (init required)
+
+
+#if 1	; Outer interpreter code choice: 0 for bytecode, 1 for machine code.
+
+		MOV &ToIN,R9
+		_CASE
 		
+        _OFb #$0D,R8			; Carriage return = end of packet
+#if CHECKSUM
+			TST.B &CHKSUM
+			_IF _Z				; If good checksum
+				DEC R9			;	Prepare to overwrite the checksum with an EXIT bytecode
+				CMP #TIB,R9 	;	Handle case of empty packet with no checksum
+				_IF _LO
+					MOV #TIB,R9
+				_ENDIF
+#endif
+				MOV.B	#EXIT,0(R9) ; Overwrite the checksum or carriage return with an EXIT bytecode
+				MOV		#TIB,Rw 	; Interpret the packet as bytecode
+				CALL	#evaluate
+#if CHECKSUM
+			_ENDIF				; Endif (good checksum)
+#endif
+			MOV #TIB,&ToIN  	; Initialise packet buffer pointer
+			CLR &CHKSUM     	; Clear the packet checksum
+#if OKPROMPT
+			mov.b		#' ',R8
+			call	#doWriteByte
+			mov.b		#'o',R8
+			call	#doWriteByte
+			mov.b		#'k',R8
+			call	#doWriteByte
+			mov.b		#$0D,R8
+			call	#doWriteByte
+#endif
+		_ENDOF					; End Of carriage return
+		
+        _OFb #$08,R8			; Backspace editing
+			DEC R9				; Decrement the pointer, but
+			CMP #TIB,R9 		; don't go back past start of packet
+			_IF _LO
+				MOV #TIB,R9
+			_ENDIF
+			MOV	R9,&ToIN
+		_ENDOF					; End Of backspace
+		
+		; Default case, if not CR or BS
+			MOV.B R8,0(R9)		;   Write the byte to the buffer
+			INC &ToIN       	; 	Increment the pointer
+			; May need to check for buffer overflow one day.
+			; It may run into the interpreter return stack.
+			; They grow towards each other.
+			XOR.B R8,&CHKSUM	;   Accumulate the checksum		
+
+		_ENDCASE					; End Case char
+
+        POP R8
+        RET
+		
+		
+#else	; Outer interpreter in bytecode
+
+
 		push	Rtos
 		mov		R8,Rtos			; Push the received character
 		mov		#_ACCEPT,Rw		; Call the headerless bytecode for ACCEPT
@@ -260,8 +322,11 @@ _ACCEPT
 			DB		DUP, CFetch ; Get the checksum so far ( char char CKSUM CKSUM@ )
 			DB		ROT, XORR	; ( char CKSUM CKSUM@^char )
 			DB		SWAP, CStore ; Update the checksum ( char )
+
 		xENDCASE				; End Case char (Drops case value)
 		DB		EXIT
+		
+#endif	; Outer interpreter code choice
 
 
 #if DOINITIALCMD
@@ -1045,7 +1110,7 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 
 ; Test of string-output-compiling macro xDotQuote (Forth ." )
 			xColon	'a',helloWorld,_helloWorld
-			xDotQuote	'Hello World\r'
+			xDotQuote	'Hello Whirled\r'
 			DB 		EXIT
 			
 CP0			; Used to set the initial value of CP (Code Pointer).
