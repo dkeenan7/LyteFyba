@@ -104,6 +104,7 @@ $     C!         Store byte
 ^T    C+!        Fetch byte, add and store  Pilcrow sign
 ^K    CBITCLR    Fetch byte, AND with inverted and store
 ^L    CBITSET    Fetch byte, OR and store
+^G    CBIT!      Set or clear a bit depending on flag
 
 Uppercase alphabetic operators
 Wunth Forth      Description
@@ -193,7 +194,8 @@ Wunth  Forth      Description           (Notes)
 ^E ENQ C>S        sign Extend byte to word (doesn't display on Hyperterminal)
 
 ^F ACK ABS        Absolute value        (spade symbol)
-^G BEL NEXTJump   Runtime word for end of FOR...NEXT loop
+^G BEL CBIT!      Set or clear a bit depending on flag
+;^G BEL NEXTJump   Runtime word for end of FOR...NEXT loop
 ^H BS  MS1        Delay for 1 byte transmit time (about 1.04 ms)
 		  Outer interpreter: Backspace edit
 ^I TAB FORRun     Runtime word for start of FOR...NEXT loop

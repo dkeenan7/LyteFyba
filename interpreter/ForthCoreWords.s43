@@ -400,7 +400,7 @@ LESS1:	MOV		#-1,Rtos
 ;	: +!	SWAP OVER @ + SWAP ! ;
 #if 0
 		xColon	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
-		DB		SWAP, OVER, Fetch, Plus
+		DB		TUCK, Fetch, Plus
 		DB		SWAP, Store, EXIT
 #else
 		xCODE	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
@@ -416,7 +416,7 @@ LESS1:	MOV		#-1,Rtos
 ;	: C+!	SWAP OVER C@ + SWAP C! ;
 #if 0
 		xColon	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
-		DB		SWAP, OVER, CFetch, Plus
+		DB		TUCK, CFetch, Plus
 		DB		SWAP, CStore, EXIT
 #else
 		xCODE	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
@@ -525,9 +525,8 @@ LESS1:	MOV		#-1,Rtos
 		MOV.B	@Rtos,Rtos
 		next
 		
-	
 ; CBITCLR ( bitmask c-addr -- )
-; : CBITCLR		DUP C@ ROT INVERT AND SWAP C! ;
+; : CBITCLR		TUCK C@ SWAP INVERT AND SWAP C! ;
 
 		xCODE	'K'-64,CBITCLR,_CBITCLR ; ( bitmask c-addr -- )
 		pop		Rw
@@ -536,17 +535,17 @@ LESS1:	MOV		#-1,Rtos
 		next
 	
 ; CBITSET ( bitmask c-addr -- )
-; : CBITSET		DUP C@ ROT OR SWAP C! ;
+; : CBITSET		TUCK C@ OR SWAP C! ;
 
 		xCODE	'L'-64,CBITSET,_CBITSET ; ( bitmask c-addr -- )
 		pop		Rw
 		bis.b	Rw,0(Rtos)
 		pop		Rtos
 		next
-	
+
 #if 0
 ; CBITTOG ( bitmask c-addr -- )
-; : CBITTOG	DUP C@ ROT XOR SWAP C! ;
+; : CBITTOG		TUCK C@ XOR SWAP C! ;
 		xCODE	'W'-64,CBITTOG,_CBITTOG ; ( bitmask c-addr -- )
 		pop		Rw
 		xor.b	Rw,0(Rtos)
@@ -558,6 +557,7 @@ LESS1:	MOV		#-1,Rtos
 ; CBITTST is not worth having since it only saves a byte over C@ AND.
 ; You'd have to use it more than 3 times in other code for it to save the space
 ; of its definition. (More than 8 times if it's defined in assembler).
+; Could be called CBIT@.
 
 ; CBITTST ( bitmask c-addr -- maskedbits )
 ; : CBITTST		C@ AND ;
@@ -567,6 +567,17 @@ LESS1:	MOV		#-1,Rtos
 		and		Rw,Rtos
 		next
 #endif
+
+; CBIT!	( flag bitmask c-addr -- )
+; : CBIT!		ROT IF CBITSET ELSE CBITCLR ENDIF ;
+		xColon	'G'-64,CBITStore,_CBITStore
+		DB		ROT
+		xIF
+			DB		CBITSET
+		xELSE
+			DB		CBITCLR
+		xENDIF
+		DB		EXIT
 
 ; LSHIFT	( x1 u -- x2 ) ; logical left shift of u bits on x1, giving x2
 ;	: LSHIFT	0 ?DO 2* LOOP ENDIF ;
