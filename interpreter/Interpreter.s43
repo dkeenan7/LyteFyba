@@ -193,7 +193,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 		_ENDIF					; Endif (init required)
 
 
-#if 1	; Outer interpreter code choice: 0 for bytecode, 1 for machine code.
+#if 0	; Outer interpreter code choice: 0 for bytecode, 1 for machine code.
 
 		MOV &ToIN,R9
 		_CASE
@@ -265,31 +265,32 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 ; Implements backspace editing and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 _ACCEPT
-		xLIT2	ToIN
-		DB		Fetch, SWAP		; Get address of next TIB location under char
-        xCASE					; Case char ( ToIN@ char )
+		xLIT2	TIB				; Get the address of the start of the buffer
+		DB		Space			; Separate the literals
+		xLIT2	ToIN			; Get the address of the buffer pointer
+		DB		ROT				; Get the character back on top
+		
+        xCASE					; Case char ( TIB ToIN char )
 		
 		xLIT	$0D				; Of carriage return
 		xOF
+			DB		TwoDUP		; ( TIB ToIN TIB ToIN )
+			DB		Fetch		; Get the pointer ( TIB ToIN TIB ToIN@ )
+			DB		TwoSWAP		; ( TIB ToIN@ TIB ToIN )
+			DB		Store		; Reset the pointer ( TIB ToIN@ )
 #if CHECKSUM
 			xLIT2	CHKSUM
 			DB		Fetch, ZeroEquals
 			xIF					; If good checksum
-				DB		OneMinus	; ( ToIN@-1 )
-				xLIT2	TIB 		; Handle case of empty packet with no checksum
-				DB		MAX			; ( Max(ToIN@-1,TIB) )
+				DB		OneMinus	; ( TIB ToIN@-1 )
+				DB		OVER, MAX	; Handle empty packet no checksum( TIB Max(TIB, ToIN@-1) )
 #endif
 				xLIT2	EXIT		; Overwrite the checksum or carriage return
-				DB		SWAP, CStore ;  with an EXIT bytecode
-				xLIT2	TIB			; Interpret the input buffer
-				DB		EVALUATE
+				DB		SWAP, CStore ;  with an EXIT bytecode ( TIB )
+				DB		EVALUATE	; Interpret the input buffer
 #if CHECKSUM
 			xENDIF				; Endif (good checksum)
 #endif
-			xLIT2	TIB			; Initialise packet buffer pointer
-			DB		Space
-			xLIT2	ToIN		; ( TIB ToIN )
-			DB		Store
 			xLIT	0     		; Clear the packet checksum
 			DB		Space
 			xLIT2	CHKSUM		; ( 0 CKSUM )
@@ -301,30 +302,27 @@ _ACCEPT
 		
 		xLIT	$08				; Of backspace
 		xOF
-			DB		OneMinus	; Decrement pointer into input buffer
-			xLIT2	TIB 		; Don't go back past start of TIB
-			DB		MAX			; ( char Max(ToIN@-1,TIB) )
-			xLIT2	ToIN		; Get address of pointer into input buffer
-			DB		Store		; Update the pointer
+			DB		TUCK, Fetch, OneMinus ; Decrement buffer pointer ( ToIN TIB ToIN@-1 )
+			DB		MAX			; Don't go back past start of TIB ( ToIN Max(ToIN@-1,TIB) )
+			DB		SWAP, Store	; Update the pointer
 		xENDOF					; End Of backspace
 		
 		; Default case (if not CR or BS)
-			DB		SWAP, TwoDUP ; ( char ToIN@ char ToIN@)
-			DB		CStore 		; Write the byte to the buffer ( char ToIN@ )
-			DB		OnePlus 	; Increment the pointer ( char ToIN@+1 )
-			xLIT2	ToIN		; ( char ToIN@+1 ToIN )
-			DB		Store		; Update the pointer ( char )
+			DB		TUCK, OVER, Fetch ; ( TIB char ToIN char ToIN@ )
+			DB		CStore 		; Write the byte to the buffer ( TIB char ToIN )
+			xLIT	1			; ( TIB char ToIN 1 )
+			DB		SWAP, PlusStore ; Increment the pointer ( char )
 			; May need to check for buffer overflow one day.
 			; It may run into the interpreter return stack.
 			; They grow towards each other.
-			DB		DUP			; ( char char ) need to keep something for ENDCASE to drop
-			xLIT2	CHKSUM		; ( char char CKSUM
-			DB		DUP, CFetch ; Get the checksum so far ( char char CKSUM CKSUM@ )
-			DB		ROT, XORR	; ( char CKSUM CKSUM@^char )
-			DB		SWAP, CStore ; Update the checksum ( char )
-
-		xENDCASE				; End Case char (Drops case value)
+			xLIT2	CHKSUM		; ( TIB char CKSUM )
+			DB		TUCK, CFetch ; Get the checksum so far ( char CKSUM char CKSUM@ )
+			DB		XORR		; ( TIB CKSUM CKSUM@^char )
+			DB		SWAP, CStore ; Update the checksum ( TIB )
+		
+		xENDCASE				; End Case char (Drops TIB in default case)
 		DB		EXIT
+		
 		
 #endif	; Outer interpreter code choice
 
@@ -890,12 +888,7 @@ MS1loop2 dec	R8
 		xLIT	LED
 		DB		Space
 		xLIT	P1OUT
-		DB		ROT
-		xIF
-			DB		CBITSET
-		xELSE
-			DB		CBITCLR
-		xENDIF
+		DB		CBITStore
 		DB		EXIT
 		
 #else
@@ -918,12 +911,7 @@ MS1loop2 dec	R8
 		xLIT	BYP
 		DB		Space
 		xLIT	P1OUT
-		DB		ROT
-		xIF
-			DB		CBITSET
-		xELSE
-			DB		CBITCLR
-		xENDIF
+		DB		CBITStore
 		DB		EXIT
 		
 #else
@@ -1110,7 +1098,7 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 
 ; Test of string-output-compiling macro xDotQuote (Forth ." )
 			xColon	'a',helloWorld,_helloWorld
-			xDotQuote	'Hello Whirled\r'
+			xDotQuote	'Hi\r'
 			DB 		EXIT
 			
 CP0			; Used to set the initial value of CP (Code Pointer).
