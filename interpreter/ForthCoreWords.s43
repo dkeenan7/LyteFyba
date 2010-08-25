@@ -273,7 +273,7 @@ LESS1:	MOV		#-1,Rtos
 ;		Return true if top two are equal.
 ;
 ;	: =	XOR 0= ;
-#if 0
+#if 1
 		xColon	'=',Equals,_Equals,0
 		DB		XORR, ZeroEquals, EXIT
 #else
@@ -290,7 +290,7 @@ LESS1:	MOV		#-1,Rtos
 		xColon	'N',NotEquals,_NotEquals
 		DB		Equals, ZeroEquals, EXIT
 		
-		
+#if 1
 ; MAX	( n1 n2 -- n3 )
 ;		Return the greater of two top stack items (signed).
 ;
@@ -314,7 +314,7 @@ LESS1:	MOV		#-1,Rtos
 			DB		SWAP
 		xENDIF
 		DB		DROP, EXIT
-
+#endif
 
 ; WITHIN	( n|u n1|n1 nh|uh -- flag )
 ;		Return true if (n1|u1 <= n|u and n|u < n2|u2) or
@@ -398,7 +398,7 @@ LESS1:	MOV		#-1,Rtos
 ;		Add n|u to the contents at a-addr.
 ;
 ;	: +!	SWAP OVER @ + SWAP ! ;
-#if 0
+#if 1
 		xColon	'S'-64,PlusStore,_PlusStore ; Ctrl-S $13
 		DB		TUCK, Fetch, Plus
 		DB		SWAP, Store, EXIT
@@ -414,7 +414,7 @@ LESS1:	MOV		#-1,Rtos
 ;		Add n|u to the contents at a-addr.
 ;
 ;	: C+!	SWAP OVER C@ + SWAP C! ;
-#if 0
+#if 1
 		xColon	'T'-64,CPlusStore,_CPlusStore ; Ctrl-T $14
 		DB		TUCK, CFetch, Plus
 		DB		SWAP, CStore, EXIT
@@ -447,10 +447,10 @@ LESS1:	MOV		#-1,Rtos
 ; INVERT ( x1 -- x2 ) ; Return one's complement of x1.
 ;
 ;	: INVERT	-1 XOR ;
-#if 0
+#if 1
 		xColon	'~',INVERT,_INVERT
 		xLIT	-1
-		DB		XORR ,EXIT
+		DB		XORR, EXIT
 #else
 		xCODE	'~',INVERT,_INVERT
 		INV		Rtos
@@ -467,7 +467,7 @@ LESS1:	MOV		#-1,Rtos
 ; 1+	( n1|u1 -- n2|u2 ) ; Increment top of the stack item.
 ;
 ;	: 1+	1 + ;
-#if 0
+#if 1
 		xColon	'^'-64,OnePlus,_OnePlus ; Ctrl-^
 		xLIT	1
 		DB		Plus, EXIT
@@ -481,7 +481,7 @@ LESS1:	MOV		#-1,Rtos
 ;		Decrease top of the stack item by 1.
 ;
 ;	: 1-	-1 + ;
-#if 0
+#if 1
 		xColon	'`',OneMinus,_OneMinus ; tock (back-quote) character
 		xLIT	-1
 		DB		Plus, EXIT
@@ -491,6 +491,7 @@ LESS1:	MOV		#-1,Rtos
 		next
 #endif
 
+#if 0
 ; ALIGNED	( addr -- a-addr )
 ;		Align address to the cell boundary.
 
@@ -498,18 +499,20 @@ LESS1:	MOV		#-1,Rtos
 		INC		Rtos
 		BIC		#1,Rtos
 		next
+#endif
 
 ; NEGATE ( n1 -- n2 ) ; Return two's complement of n1.
 ;
 ;	: NEGATE	INVERT 1+ ;
-;
-;		xColon	'_',NEGATE,_NEGATE
-;		DB	INVERT,OnePlus,EXIT
-		
+#if 1
+		xColon	'_',NEGATE,_NEGATE
+		DB		INVERT, OnePlus, EXIT
+#else
 		xCODE	'_',NEGATE,_NEGATE
 		INV		Rtos
 		INC		Rtos
 		next
+#endif
 
 ; C!	( char c-addr -- ) ; Store char at c-addr.
 
@@ -581,7 +584,7 @@ LESS1:	MOV		#-1,Rtos
 
 ; LSHIFT	( x1 u -- x2 ) ; logical left shift of u bits on x1, giving x2
 ;	: LSHIFT	0 ?DO 2* LOOP ENDIF ;
-#if 0
+#if 1
 		xColon	'(',LSHIFT,_LSHIFT
 		xLIT	0
 		xQDO
@@ -601,7 +604,7 @@ lsloop
 	
 ; RSHIFT	( x1 u -- x2 ) ; logical right shift of u bits on x1, giving x2
 ;	: RSHIFT	0 ?DO 2/ LOOP ENDIF ;
-#if 0
+#if 1
 		xColon	')',RSHIFT,_RSHIFT
 		xLIT	0
 		xQDO
@@ -620,6 +623,7 @@ rsloop
 		jmp		rsloop
 #endif
 
+#if 0
 ; ?KEY	( -- 0 | c -1 ) ; Get a character from the input device, if available.
 ;		Returns immediately with either a false flag or a character and a true flag
 
@@ -637,6 +641,7 @@ rsloop
 		_ENDIF
 		bic.b	#WDTIFG,&IFG1		; Clear watchdog flag
 		next
+#endif
 
 ; EMIT	( c -- ) ; Send a character to the output device.
 
@@ -717,6 +722,7 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		DB		Fetch, EXIT
 #endif
 
+#if 0
 ; COMPILE,	( xt -- )
 ;		Compile the execution token (bytecode) on data stack into current
 ;		colon definition.
@@ -771,4 +777,4 @@ MOVE4:	;	BIT	#BUSY,&FCTL3	;in case the destination is flash
 		xLIT2	EXIT		; Get EXIT bytecode on TOS
 		DB		COMPILEComma ; Store it at code ptr and increment code ptr
 		DB		EXIT
-
+#endif
