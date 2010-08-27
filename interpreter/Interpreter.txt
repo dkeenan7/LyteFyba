@@ -252,7 +252,8 @@ A..F   Hex literals
 ;D      DEPTH      Depth of data stack in words
 ;F      RET        Return from a bytecode routine called from machine code
 G      MIN        Signed minimum
-H      HERE       Address of next available flash location
+H      HEX        ( flag -- ) Turn on/off hex mode (0 = decimal)
+;H      HERE       Address of next available flash location
 I      I          Innermost DO .. LOOP counter
 J      J          Second DO .. LOOP counter
 K      ?KEY       Get a byte from serial input if available ( -- 0 | char -1 )
@@ -286,7 +287,7 @@ d      autonomous Discharge or custom bypass voltage
 e
 f
 g      Turn alarm on/off (think ^g)
-h      Turn on/off hex mode (0 = decimal)
+h
 i      Ident setup
 j
 k      Regular check (tick) for badness
