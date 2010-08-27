@@ -18,8 +18,6 @@
 
 ; Conditional assembly flags
 #define		TEST		1		; 1 for testing with BMU cell-inputs in parallel
-#define		SLOWSAMP	1		; 1 for slower samples (29 uS vs 15.4 uS), with the
-								; longer sample time (16 uS vs 13 uS) for more stability
 #define		DOINITIALCMD 0		; 1 to execute an initial command on power up
 #define		INITIALCMD "9u\\"	; Initial command to execute
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
@@ -137,11 +135,18 @@ badnessTable	DB		$80			; $80 is least badness
 				DB		$F7			; $F7 is the worst badness
 main:
 interpretByte:
+		; We want the long delay on any incoming byte: on an initialising null so all BMUs start slow
+		; (and BMU 0 is the first to start master processing); on an ordinary byte so we can type without
+		; frequent echo, and on badness, so that an upstream master can take over
+		call	#longTimerDelay		; Set long delay
 		cmp		#InitRetAddr,0(SP)	; If the call is not merely for initialisation
 		_IF		_NE
 			tst.b	R8					; Test for badness command ($80-$F7)
-			_IF		_L					; If negative
-				mov.b	R8,R9				; Copy
+			_IF		_L					; If negative (i.e. badness)
+				push	R8					; Save incoming badness
+				call	#aTick				; Do our own tick processing first (updates our badness)
+				pop		R8
+				mov.b	R8,R9				; Copy incoming badness
 				and		#7,R9				; Consider only raw badness bits
 				cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
 				mov.b	&currBadness,R9		; Current badness
@@ -157,7 +162,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			_ENDIF
 			call	#doWriteByte		; echo the byte here, as the BSL has not
 		_ENDIF						; Endif
-		bic.b	#LED,&P1OUT			; FOR NOW, we set the LED in WriteByte, and clear it here.
+		bic.b	#LED,&P1OUT			; We set the LED in WriteByte, and clear it here.
 		tst.b	R8					; Is R8
 		_IF		_L					;	 a badness?
 			tst.b	&bCheckForBad	; Are we checking
@@ -166,8 +171,10 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 				mov		R8,Rtos
 				sub		#$80,Rtos		; Zero if badness is zero
 				call	#m_alarm		; Set or clear the alarm based on Rtos
+				pop		Rtos
 			_ENDIF
-			ret							; Yes, don't interpret as a literal
+			; Don't continue on and interpret this badness as a literal
+			ret						; Just return instead
 		_ENDIF
 
         ; Received byte is passed in R8, which must be preserved
@@ -179,12 +186,25 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			MOV		#RSP0,Rrsp  	; Initialise interpreter return stack pointer
 			MOV		#CP0,&CP		; Initialise the code pointer
 			MOV		#TIB,&ToIN  	; Initialise packet buffer pointer
-			CLR		&CHKSUM     	; Clear the packet checksum
+			clr.b	&CHKSUM     	; Clear the packet checksum
 			mov.b	#-1,&hexFlag	; Set the hexadecimal input (verses decimal) flag
 			clr.b	&bCheckForBad	; Clear the "checking for badness" flag
 			clr.w	&bypassVolts	; Clear the variable bypass voltage value/flag
 			clr		&currBadness	; Clear current badness
-									; Other initialisation goes here
+
+			; Initialise the timer
+			; DIVS_3 = divide MCLK by 8 for SMCK
+			mov.b		#DIVS_3, &BCSCTL2
+			; TASSEL_2 = SMCK clock source; ID_3 = divide SMCK by 8; MC_1 = up mode
+			; TACLR = clear clock count
+			; TAIE = Timer A Interrupt Enable, BUT NOTE that this just enables things we don't want, like
+			;	the timer overflow interrupt
+			mov			#TASSEL_2 + ID_3 + MC_1 + TACLR, &TACTL
+			; CCIE = Capture/Compare Interrupt Enable
+			mov			#CCIE,&TACCTL0 ; Enable interrupts based on TACCR0
+			eint					; Enable interrupts
+			; Other initialisation goes here
+
 #if DOINITIALCMD
 			mov		#initCmd,Rw
 			call	#evaluate
@@ -193,7 +213,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 		_ENDIF					; Endif (init required)
 
 
-#if 0	; Outer interpreter code choice: 0 for bytecode, 1 for machine code.
+#if 1	; Outer interpreter code choice: 0 for bytecode, 1 for machine code.
 
 		MOV &ToIN,R9
 		_CASE
@@ -215,7 +235,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			_ENDIF				; Endif (good checksum)
 #endif
 			MOV #TIB,&ToIN  	; Initialise packet buffer pointer
-			CLR &CHKSUM     	; Clear the packet checksum
+			CLR.B &CHKSUM     	; Clear the packet checksum
 #if OKPROMPT
 			mov.b		#' ',R8
 			call	#doWriteByte
@@ -280,7 +300,7 @@ _ACCEPT
 			DB		Store		; Reset the pointer ( TIB ToIN@ )
 #if CHECKSUM
 			xLIT2	CHKSUM
-			DB		Fetch, ZeroEquals
+			DB		CFetch, ZeroEquals
 			xIF					; If good checksum
 				DB		OneMinus	; ( TIB ToIN@-1 )
 				DB		OVER, MAX	; Handle empty packet no checksum( TIB Max(TIB, ToIN@-1) )
@@ -412,13 +432,13 @@ doneId	next
 		xLIT		4				; Print 4 digits
 		db			prettyPrint
 		db			EXIT
-		
+
 ;
 ; Cell temperature measurement (cellID --)
 ; Measurement is in degrees C
 ;
 		xColon		't',cellTemp,_cellTemp
-		xLIT		0xF8			; Degree symbol (Terminal font only)
+		xLIT		'C'				; Don't use degree symbol (0xF8, Terminal font only); it's treated as a badness
 		db			Space
 		xLIT		TempChan<<12	; ADC channel for temperature sensor
 		db			llVolt
@@ -524,88 +544,12 @@ doneId	next
 ; Measurement is in millivolts (0 to 4095 mV)
 ;
 		xCODE		'o',llVolt,_llVolt
-#if 0
-;
-; Initialise the ADC10 system
-;
-; SREF_1 = 4 volt mode; ; REFBURST = save power by turning off buffer when not sampling
-; ADC10SHT_3 = 64 ADC10CLKs (~ 13 uS sample time with ADCCLK) or ADC10SHT_2 = 16 clocks (16 uS with MCLK)
-; MSC = continuous sampling; REFON = turn on internal reference; ADC10ON = power up the ADC system
-#if TEST
-		; When testing with BMUs in parallel, we want P1.4 to be digital output 0V so that even with the
-		; link input = 3.6 V, P1.3 won't exceed Vcc and therefore won't upset the ADC10 readings
-#if SLOWSAMP
-		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON,&ADC10CTL0
-#else
-		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON,&ADC10CTL0
-#endif
-		cmp			#LinkVChan,Rtos				; ADC channel for link voltage
-		jnz			noRefOut
-		bis.b		#1<<4,&ADC10AE0				;  then make P1.4 analogue, and
-		bis			#REFOUT,&ADC10CTL0			;  set REFOUT
-		jmp			p1_4_input
-noRefOut
-		mov.b		#(1<<7)+(1<<3),&ADC10AE0; Enable P1.7 and P1.3 as analogue inputs, i.e.
-											; make P1.4 digital
-		bis.b		#1<<4,&P1DIR			; Make P1.4 an output, so when testing with paralleled BMUs,
-p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
-#else
-		; On cells, we want P1.4 to be set as an analog I/O pin (ADC10AE.4=1) and we set REFOUT in ADC10CTL0
-		; so that it always outputs Vref on P1.4. That way, even with regen putting negative voltages on the
-		; link input, P1.3 doesn't go below analogue ground (would invalidate readings)
-#if SLOWSAMP
-		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
-#else
-		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON+REFOUT,&ADC10CTL0
-#endif
-		mov.b		#(1<<7)+(1<<3)+(1<<4),&ADC10AE0	; Enable P1.7, P1.3  and P1.4 as analogue
-#endif
+		mov			Rtos,R8
+		call		#asm_llvolt				; Measure and use calibration
+		mov			R10,Rtos				; Result to TOS
+		next
 
-; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
-; CONSEQ_2 = repeat-single-channel
-		; Note that Rtos has the channel number already in the right position
-		mov			Rtos,R8
-		swpb		R8						; Move channel number to top halfword
-#if SLOWSAMP
-		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R8
-#else
-		bis			#SHS_0+ADC10SSEL_0+CONSEQ_2,R8
-#endif
-		mov			R8,&ADC10CTL1
-		mov.b		#NumSamples,&ADC10DTC1	; 16 conversions
-		mov			#sampleBuf,&ADC10SA		; Set start address
-		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
-convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
-		jz			convert					; No, busy wait
-		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
-;
-; Sum the samples
-;
-		mov			#sampleBuf,R9
-		mov			#0,R8					; Initialise the sum
-addSamp	add			@R9+,R8					; Add a sample
-		cmp			#sampleBuf+2*NumSamples,R9
-		jnz			addSamp
-;
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts.
-; That means we have to shift the product 17 bits to the right, which is equivalent to
-; throwing away the lo word and shifting the high word one bit to the right.
-		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
-		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-		call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
-		mov			R10,Rtos				; Result
-#else
-		mov			Rtos,R8
+asm_llvolt:									; Assembler (including interrupt) callable: R8 has channel << 12
 		call		#measure				; Defined in ../common/measure.s43
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
@@ -624,10 +568,8 @@ addSamp	add			@R9+,R8					; Add a sample
 											; Note: calls assembler code that ends in ret
 		inc			R10						; For correct rounding
 		rra			R10						; Shift product hi word right one bit
-		mov			R10,Rtos
-#endif
 
-		next					; Finished
+		ret					; Finished
 
 #include "../common/measure.s43"			; Declare the measure routine
 
@@ -807,9 +749,119 @@ oflo	PUSH    #-1
 		DB			EXIT
 		
 
+
+;
+; Delay for n milliseconds (n --)
+;
+		xCODE	'z',MS,_MS
+MSloop1	mov		#331,R8		; 1 ms delay, less a few overheads
+MSloop2	dec		R8
+		jnz		MSloop2
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
+		dec		Rtos
+		jnz		MSloop1
+		pop		Rtos
+		next
+		
+		xCODE	'H'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
+		mov		#345,R8
+MS1loop2 dec	R8
+		jnz		MS1loop2
+		next
+
+#if 0
+;
+; Clear watchdog timer. DO WE NEED THIS?
+; We do if we remove the watchdog clear on every bytecode
+; that's slowing down the inner interpreter
+;
+		xCODE	'w',clearWatchDog,_clearWatchDog
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
+		next
+#endif
+
+;
+; aUtonomous operation; cell 0 (or any after a comms break) send tick commands to others;
+; last cell operates warning LED/buzzer
+; For 'u' command, top of stack has number of cells (num_cells --)
+; 'd' (Discharge) command is the same, but sets bypass voltage to a value from the second operand
+; (num_cells thresh --) thresh is in millivolts
+; 'd' can be used for top, mid, or bottom balancing at various voltages
+; Since 'd' relies on a value in RAM, most charging should use 'u' instead
+;
+		xColon	'u',auton,_auton
+		xLIT	0
+		db		Space
+		; Fall through to 'd' command; 'u' is like "num_cells 0 d"
+
+		xColon	'd',Discharge,_Discharge
+		xLIT2	bypassVolts
+		db		Store			; Set or clear bypassVolts based on u or d commmand
+
+		db		DUP				; Num_cells parameter (or 0 to turn off badness sending)
+		xIF
+			xLIT	CCIE			; Non zero parameter: set the interrupt enable bit
+		xELSE
+			xLIT	0				; Zero parameter (0u); reset the interrupt enable bit
+		xENDIF
+		db		Space
+		xLIT	TACCTL0			; TACCR0 control port
+		db		Store			; Store CCIE or zero to the control port
+
+		db		OneMinus		; Parameter (number of cells) -1
+		xLIT	ID
+		db		CFetch
+		db		Equals
+		; If last cell, need alarm processing
+		xLIT2	bCheckForBad
+		db		CStore
+		db		resetTimer		; Start the timer with the long, ID dependent time
+		db		EXIT			; Then do nothing (apart from waiting for more commands)
+
+#if 0
+;
+; Quiet - is the RS232 input quiet?  ( -- flag )
+; Returns -1 for quiet, 0 for byte being sent
+;
+			xCODE	'q',quiet,_quiet
+			push	Rtos
+			mov.b	&P1IN,Rtos
+			and.b	#RXD,Rtos		; Clears carry if was zero
+			subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
+			inv		Rtos			; -1 if was 1 (= quiet)
+			next
+#endif
+
+;
+; FlashC! ( char c-addr -- ) ; DANGER: flash byte-write command
+;
+			EVEN
+			xCODE	'M'-64,FlashCStore,_FlashCStore
+			mov		Rtos,R9
+			pop		R8
+			call	#aFlashCStore
+			pop		Rtos
+			next
+
+;
+; Set or reset alarm ( flag -- )
+;
+			xCODE	'g',alarm,_alarm
+			call	#m_alarm			; Machine code does the work
+			pop		Rtos				; Remove argument
+aNext		next
+
+;
+; Reset badness timer ( -- )
+;
+			xCODE	'r',resetTimer,_resetTimer
+			call	#longTimerDelay
+			next
+
 ; Regular tick.
 ; Turn on the bypass resistors if the cell is over 3.55 V
-; Send badness message if over or under volts
+; Set badness if over or under volts
+#if 0				; This needs to be called from an interrupt routine, so best to have it in assembler
 		xColon		'k',Tick,_Tick
 		xLIT		CellVChan<<12	; ADC channel for cell voltage divider
 		db			llVolt
@@ -850,35 +902,77 @@ oflo	PUSH    #-1
 		db			errorLed		; Turn on error LED if any badness
 		
 		db			EXIT
-
-;
-; Delay for n milliseconds (n --)
-;
-		xCODE	'z',MS,_MS
-MSloop1	mov		#331,R8		; 1 ms delay, less a few overheads
-MSloop2	dec		R8
-		jnz		MSloop2
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
-		dec		Rtos
-		jnz		MSloop1
-		pop		Rtos
-		next
-		
-		xCODE	'H'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
-		mov		#345,R8
-MS1loop2 dec	R8
-		jnz		MS1loop2
+#else
+		; Assembler version of the above
+		xCODE		'k',Tick,_Tick
+		call		#aTick			; Call the pure assembler Tick code
 		next
 
-;
-; Clear watchdog timer. DO WE NEED THIS?
-; We do if we remove the watchdog clear on every bytecode
-; that's slowing down the inner interpreter
-;
-		xCODE	'w',clearWatchDog,_clearWatchDog
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
-		next
+aTick:	mov			#CellVChan<<12,R8
+		call		#asm_llvolt		; Cell voltage measurement to R10 (in millivolts)
+		mov			R10,R8
+		mov			&bypassVolts,R9	; Do we have a special bypass limit?
+		tst			R9
+		_IF			_Z				; If not,
+			mov			#3600,R9		; then use 3.600 V
+		_ENDIF
+		cmp			R8,R9
+		subc		R10,R10			; Set R10 to -1 if carry was 0, i.e. cell voltage not less than threshold
+		xor.b		&P1OUT,R10		; R10 has all the bits that are different
+		and.b		#BYP,R10		; Leave only BYP bit standing
+		xor.b		R10,&P1OUT		; Toggle if necessary
 		
+		inv			R9				; 2's complement and subtract one
+		; The "and subtract one" above means badness actually starts at 3651 mV (3651 - 3601 = 50 -> bad)
+		add			R8,R9			; R9 has cell voltage - bypass threshold
+		_IF			_NC				; If this generated a carry (result negative)
+			clr			R9				; then use 0
+		_ENDIF
+		mov			#1312,R10		; 65536/50 = 1312
+		call		#mulR10R9		; Mult by 1312 = divide by 50, result in R10
+		mov			R10,R11			; Save the overvolts badness
+		mov			#2500+99,R9
+		sub			R8,R9			; R9 = 2500 - cell voltage + 99
+		_IF			_NC				; If result was negative (borrow = no carry)
+			clr			R9				; then use 0
+		_ENDIF
+		mov			#655,R10		; 65536/100 = 655
+		call		#mulR10R9		; Multiply by 655 = divide by 100
+		; R10 has undervolts badness
+		cmp			R10,R11
+		_IF			_NC				; If R10 >= R11
+			mov			R10,R11			; then copy worst (R10) to R11
+		_ENDIF
+		cmp			#7+1,R11		; Want maximum badness of 7
+		_IF			_C				; If R11 >= 7
+			mov			#7,R11			; record maximum badness of 7
+		_ENDIF
+		mov.b		R11,&currBadness ; Store current badness
+
+		; Set error LED if >= 2 badness
+		cmp			#2,R11			; Clears carry if badness was < 2
+		subc		R10,R10			; Set R10 to -1 if carry was 0, badness was < 2
+		inv			R10				; Set to -1 if badness was >= 2
+		xor.b		&P1OUT,R10		; R10 has all the bits that are different
+		and.b		#LED,R10		; Leave only BYP bit standing
+		xor.b		R10,&P1OUT		; Toggle if necessary
+
+		ret
+
+
+
+
+mulR10R9:		; Short assembler routine to multiply R10 by R9, result to R10:R9,
+					; preserving other registers
+		push		R8
+		push		R11
+		mov			R10,R8
+		call		#aUMStar			; Call aUMStar and return
+		pop			R11
+		pop			R8
+		ret
+
+#endif
 
 ;
 ; Turn on or off the error LED (bool -- )
@@ -940,90 +1034,8 @@ MS1loop2 dec	R8
 		db		EXIT
 #endif
 
-;
-; aUtonomous operation; cell 0 sends tick commands to others; last cell operates warning LED/buzzer
-; For 'u' command, top of stack has number of cells (num_cells --)
-; 'd' (Discharge) command is the same, but sets bypass voltage to a value from the second operand
-; (num_cells thresh --) thresh is in millivolts
-; 'd' can be used for top, mid, or bottom balancing at various voltages
-; Since 'd' relies on a value in RAM, most charging should use 'u' instead
-;
 
-		xColon	'u',auton,_auton
-		xLIT	0
-		db		Space
-		; Fall through to 'd' command; 'u' is like "num_cells 0 d"
-
-		xColon	'd',Discharge,_Discharge
-		xLIT2	bypassVolts
-		db		Store		; Set or clear bypassVolts based on u or d commmand
-		xLIT	ID
-		db		CFetch
-		db		ZeroEquals
-		xIF
-			;
-			; Cell 0 is special: send ticK command every 2 seconds
-			;
-			db		DROP		; Ignore the number of cells
-			xLIT	2			; Allow time for
-			db		MS			;   downstream neighbour to echo CR
-			xBEGIN				; Start of indefinite loop
-				xLIT	'k'
-				db		EMIT
-				db		MS1
-#if CHECKSUM
-				xLIT	'k'
-				db		EMIT
-				db		MS1
-#endif
-				xLIT	$D			; emit 'k [k] carriage return'
-				db		EMIT
-		#if 1
-				xLIT	0
-				db		errorLed	; Turn off the LED due to the emits
-		#endif						;   (may come back on due to \B from Tick below)
-				db		Tick		; Do tick processing ourselves!
-				xLIT	3800		; ~ 1 second total loop time
-				DB		Space
-				xLIT	0
-				xQDO				; Start of counted loop
-					db		quiet		; Is the RS232 quiet?
-					db		ZeroEquals	; Not
-					xIF
-						DB		UNLOOP, EXIT	; Exit routine if RS232 is not quiet
-					xENDIF ; End: if not quiet
-				xLOOP	; Decrement and jump if not negative, back to xQDO
-			xAGAIN	; Keep looping to xBEGIN			
-		xENDIF	; End: if ID is zero
-		db		OneMinus	; Number of cells -1
-		xLIT	ID
-		db		CFetch
-		db		Equals
-		; If last cell, need special processing of \ command to check for 'B' (Badness)
-		xLIT2	bCheckForBad
-		db		CStore
-		db		EXIT		; Then do nothing (apart from waiting for more commands)
-		
-;
-; Quiet - is the RS232 input quiet?  ( -- flag )
-; Returns -1 for quiet, 0 for byte being sent
-;
-		xCODE	'q',quiet,_quiet
-		push	Rtos
-		mov.b	&P1IN,Rtos
-		and.b	#RXD,Rtos		; Clears carry if was zero
-		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
-		inv		Rtos			; -1 if was 1 (= quiet)
-		next
-
-;
-; Set or reset alarm ( flag -- )
-;
-		xCODE	'g',alarm,_alarm
-		call	#m_alarm			; Machine code does the work
-		pop		Rtos				; Remove argument
-		next
-
+		EVEN
 ; NOTE: pure machine code (ends in RET instruction)
 ; Do the work of setting or clearing the alarm (based on Rtos)
 m_alarm:		
@@ -1060,15 +1072,6 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 		DB		EXIT
 
 
-;
-; FlashC! ( char c-addr -- ) ; DANGER: flash byte-write command
-;
-			xCODE	'M'-64,FlashCStore,_FlashCStore
-			mov		Rtos,R9
-			pop		R8
-			call	#aFlashCStore
-			pop		Rtos
-			BR		#_NEXT					; FIXME!
 			
 aFlashCStore:
 			; Assembly language flash writer
@@ -1100,11 +1103,58 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			xColon	'a',helloWorld,_helloWorld
 			xDotQuote	'Hi\r'
 			DB 		EXIT
+
+			EVEN
+int_ccr0	; Interrupt service routine for TACCR0
+			; Its jobs are to set the time for the next interrupt, do tick processing, and transmit the current badness.
+			push	R8						; We trash R8
+			push	R9						; WriteByte trashes R9-R11
+			push	R10
+			push	R11
+
+			mov		#1000000>>6,&TACCR0		; Set period to 1 second
+
+			; Call tick processing
+			call	#aTick					; Call the pure assembler version
+
+			mov.b	&currBadness,R8			; The current badness
+			mov.b	badnessTable(R8),R8		; Encode it
+			call	#doWriteByte			; Clear R11 and call WriteByte
+			bic.b	#LED,&P1OUT				; We set the LED in WriteByte, and clear it here.
+
+			pop		R11
+			pop		R10
+			pop		R9
+			pop		R8
+areti		reti
+
+; Set the TACCR0 timer period to 3 seconds plus an extra ~ 4ms per ID, or ID << 6
+; NOTE: this variation seems to be insufficient to prevent multiple masters initially
+; Trashes R9
+; Probably doesn't need to be a subroutine any more
+longTimerDelay:
+;			clr		&TAR				; Clear the counter: THIS DOESN'T SEEM TO WORK!
+			bis		#TACLR,&TACTL		; Clear the counter
+			mov.b	&ID,R9
+			swpb	R9					; Effectively shift left 8 bits
+			rra		R9
+			rra		R9					; then 2 right
+			add		#3000000>>6,R9		; Add 3 seconds
+			mov		R9,&TACCR0			; Interrupt again with that period
+			ret
 			
 CP0			; Used to set the initial value of CP (Code Pointer).
+SPACE		EQU		_OPCODETBL-$	; This is the space left in mainflash
 
+			ORG		_OPCODETBL
+			; The following makes sure we detect when we've overflowed the main flash
+			dw		$FFFF			; Table entry for bytecode 0: unused
 
-		ORG		0xFFFE			; Reset power-on vector
-		DW		0x1000			; Start of BSL
-
-		END
+			ORG		0xFFF0			; Timer A interrupt vectors
+			DW		areti			; All other timer A interrupts
+			DW		int_ccr0		; TACCR0 interrupt vector (the one we use)
+	
+			ORG		0xFFFE			; Reset power-on vector
+			DW		0x1000			; Start of BSL
+	
+			END

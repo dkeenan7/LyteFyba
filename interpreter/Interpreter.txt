@@ -59,7 +59,7 @@ Wunth Forth      Description           (Notes)
 +     +          Add
 -     -          Subtract
 Y     MAX        Signed maximum
-G     MIN        Signed minimum
+;G     MIN        Signed minimum
 (     LSHIFT     Logical shift left n places    (left paren)
 )     RSHIFT     Logical shift right n places   (right paren)
 &     AND        Bitwise AND           (also works as logical AND)
@@ -112,7 +112,7 @@ Wunth Forth      Description
 A-F   Hex literals
 ;C     CMOVE      Byte block move (NOT implemented yet)
 ;D     DEPTH      Depth of data stack in words
-G     MIN        Minimum, arithmetic operator, see above
+;G     MIN        Minimum, arithmetic operator, see above
 H     HERE       Address of next available flash location
 I     I          Innermost DO .. LOOP counter
 J     J          Second DO .. LOOP counter
@@ -169,10 +169,11 @@ m     Emit n2 with n1 decimal places (n2 n1 --)
 n     liNk voltage
 o     Low level voltage measurement (channel -- result)
 p     Pretty print tos as a comment packet
+r     Reset badness timer
 t     Temperature measurement
 u     aUtonomous (masterless) operation; cell 0 sends ticK commands
 v     Cell voltage measurement
-w     Clear watchdog timer
+;w     Clear watchdog timer
 y     Turn bypass resistors on/off
 z     Sleep n millisconds
 
@@ -295,12 +296,12 @@ n      liNk voltage
 o      Low level voltage measurement (channel -- result)
 p      Pretty print tos as a comment packet
 q      is serial input Quiet?
-r
+r      Reset badness timer
 s
 t      Temperature measurement
 u      aUtonomous (masterless) operation; cell 0 sends ticK commands
 v      Cell Voltage measurement
-w      Clear Watchdog timer
+;w      Clear Watchdog timer
 y      Turn bypass resistors on/off
 z      Sleep n millisconds
 {      U<         Unsigned less-than comparison    (left curly brace)

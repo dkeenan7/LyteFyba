@@ -302,7 +302,9 @@ LESS1:	MOV		#-1,Rtos
 			DB		SWAP
 		xENDIF
 		DB		DROP, EXIT
+#endif
 
+#if 0
 ; MIN	( n1 n2 -- n3 )
 ;		Return the smaller of top two stack items (signed).
 ;

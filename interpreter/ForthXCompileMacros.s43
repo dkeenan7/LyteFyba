@@ -45,8 +45,7 @@ RPOP	MACRO	arg
 ; that implements the operation, with a flag in the high bit to say whether
 ; it is machine code or bytecode.  0=machine code, 1=bytecode.
 
-_OPCODETBL	EQU	$FEE0	; Could change to $FEF0 and write over unused interrupt vectors
-
+_OPCODETBL	EQU		$FEF0	; Was at $FEE0 but we need to write over unused interrupt vectors
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in future.
