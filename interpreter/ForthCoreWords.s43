@@ -18,9 +18,9 @@ xTRUE	MACRO
 ; e.g. DUP SWAP DROP OVER + - AND OR XOR etc.
 
 
-; hexMode ( bool -- ) ; Set the hexadecimal (vs decimal) input mode flag
+; HEX ( flag -- ) ; Set the hexadecimal (vs decimal) input mode flag
 
-		xCODE	'h',hexMode,_hexMode
+		xCODE	'H',HEX,_HEX
 		mov.b	Rtos,&hexFlag
 		pop		Rtos
 		next
