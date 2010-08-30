@@ -1,0 +1,324 @@
+		COL		132			; Wide listings
+;*******************************************************************************
+;   MSP430F20xx Software UART - Timer_A
+;
+;   Description: Use Timer_A CCR0 hardware output modes and SCCI data latch
+;   to implement UART function @ 9600 baud. Software does not directly read from
+;   RX pin, except for noise averaging; instead SCCI data latch is used.
+;   Use of this hardware features eliminates ISR
+;   latency effects as hardware insures that input bit latching and
+;   timing are perfectly synchronised with Timer_A regardless of other
+;   software activity.
+;   TACLK = SMCLK/8 = DCOCLK/1/8 = 125 kHz, MCLK = DCOCLK/1 = 1.00 MHz, ACLK = LFXT1/1 = unused
+;
+;                MSP430F20xx
+;             -----------------
+;         /|\|                 |
+;          | |                 |
+;          --|RST              |
+;            |                 |
+;            |     TA0/TXD/P1.1|-------->
+;            |                 | 9600 8N1
+;            |   CCI1A/RXD/P1.2|<--------
+;
+;
+;   Based on code by:
+;   M. Buccini / L. Westlund
+;   Texas Instruments Inc.
+;   October 2005
+;*******************************************************************************
+#include  "msp430.h"
+#include  "io430.h"		// For #define TAIV_CCIFG1
+
+        NAME    main                    ; module name
+        PUBLIC  main                    ; make the main label vissible
+
+
+#define		LEDWITHTX		1		; True to have LED come on with any transmit byte
+
+
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
+TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
+TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
+BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
+LED			EQU		1<<6			; LED on bit 6
+info1MHzCalB EQU	0x1002			; Frequency calibration
+info1MHzCalD EQU	0x1008			;	for 1 MHz
+
+#define     TACCTLr   TACCTL1   ; Receive using CCI1 (P1.2)
+#define     TACCTLt   TACCTL0   ; Transmit (and everything else) using TA0
+#define     TACCRt    TACCR0    ; Transmit compare register
+#define     TACCRr    TACCR1    ; Receive capture/compare register
+#define     RTRASH    R13       ; Trashed in interrupt routines
+
+;
+;
+;   Conditions for 9600 Baud SW UART
+Bitime_5    EQU     3                       ; 0.5 bit length less some
+Bitime      EQU     13                      ; 104us bit length = 13 clocks
+
+;
+;           Memory definitions
+;
+            ORG     0200h
+RCACB       DS      2                       ; Received char available callback
+TXCCB       DS      2                       ; Transmit complete callback
+RTCB        DS      2                       ; Real Time clock callback
+TXData      DS      1                       ; Char to transmit
+RXData      DS      1                       ; Received char
+BitCntTx    DS      1                       ; Bit count 10 -> 1
+BitCntRx    DS      1                       ; Bit count 8 -> 1
+State       DS      1
+
+
+;-------------------------------------------------------------------------------
+            ORG     0F800h                  ; Program Reset
+;-------------------------------------------------------------------------------
+main:       mov.w   #0280h,SP               ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
+            clr     &RTCB                   ; No real time callback yet
+
+;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
+            mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+            mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+
+
+;
+			; DIVS_0 => SMCLK = DCOCLK/1
+			; Other zero bits select MCLK = DCOCLK/1
+			mov.b		#DIVS_0, &BCSCTL2
+
+; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+; ID: 3 = /8; 2 = /4; 1 = /2
+; MC: 2 = continuous mode 1 = up mode
+; TAIE = interrupt enable (for timer overflow)
+            mov     #TASSEL_2+ID_3+MC_2+TAIE,&TACTL
+
+SetupC0     ;mov.w   #OUT,&TACCTLt				; TXD Idle as Mark
+			mov.b	#TXDp,&P1OUT				; TXD Idle as Mark: noninverted output 1, inverted output 0
+            bis.b   #RXD,&P1SEL					; Select timer function for pin (not I/O port)
+            bis.b   #TXDp+TXDm+LED,&P1DIR		; TXD and LED are outputs
+            ; Make the "send next char" function the transmit complete callback
+;            mov     #SendNext, &TXCCB       ; Transmit complete callback
+            clr     &TXCCB
+;            clr     &RCACB
+            mov     #Echo, &RCACB           ; Received char callback
+
+;
+; Setup RX
+;
+            mov.b   #08,&BitCntRx           ; Load Bit Counter, 8 data bits
+SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr
+											; Falling edge, Input A, Sync, Capture
+            mov.b   #'$',R4                 ; Current char
+            mov.b   R4,&TXData
+            call    #TX_Byte                ; Send a dollar as first char
+
+;            clr.b   &State                  ; Clear echo routine state
+                                            ;
+idle:       ;bis     #CPUOFF+GIE,SR          ; Turn off CPU, enable interrupts
+            jmp     idle                    ; Does get reached at times
+
+Echo:       clr.b   &State
+            mov     #EchoCB,&TXCCB          ; Call the echo state machine on transmit ready
+            mov.b   #'<',&TXData
+            call    #TX_Byte
+            reti                            ; Callbacks end with reti to preserve status
+
+;
+; State 0: echo rxdata; state 1: '>'; state 2: do nothing
+EchoCB:     cmp.b   #1,&State
+            jge     Echo1
+            mov.b   &RXData,R4
+next:       mov.b   R4,&TXData         ; State 1: echo received char
+            call    #TX_Byte
+            inc.b   &State
+;            jmp     just_reti         ; Evil saved instruction: &State will be NZ here
+Echo1:      jne     just_reti
+            mov.b   #'>',R4
+            jmp     next
+
+;
+; Send an infinite block of incrementing characters
+;
+SendNext:   bic     #CPUOFF,0(SP)           ; In case mainline had CPU off
+            pop     SR                      ; Not saving mainline status
+            inc.b   R4                      ; Next char
+            cmp.b   #0xFF,R4                ; Up to last?
+            jnz     notlast                 ; Branch if no
+            mov.b   #0x20,R4                ; Wrap around
+notlast     mov.b   R4,&TXData
+            ; Fall through to TX_Byte
+
+;-------------------------------------------------------------------------------
+TX_Byte   ; Subroutine Transmits Character from TXData location
+;-------------------------------------------------------------------------------
+; Need to disable interrupts here; there is a critical time period between
+; reading the current timer value (TAR) and writing the capture register (TACCRt)
+; and to a lesser but valid extent the timer control register (TACCTLt)
+            dint                            ; NOTE: instruction following DINT is not protected!
+            mov.b   #8,&BitCntTx            ; Load Bit counter
+            mov     &TAR,R13
+            add     #Bitime,R13
+            mov     R13,&TACCRt             ; Some time till first bit
+            eint                            ; Instruction after eint always protected
+;
+; CM: 0 = no capture; CCIE = compare interrupt enable
+            mov.w   #CM_0+CCIE,&TACCTLt
+			mov.b	&P1OUT,R11
+			bic.b	#TXDp,R11		; Clear the non inverted output
+			bis.b	#TXDm,R11		; Set the inverted output
+            mov.b	R11,&P1OUT		; Change output
+
+            ret                     ;
+
+;-------------------------------------------------------------------------------
+TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow interrupt service routine
+;-------------------------------------------------------------------------------
+										  ; (6) for interrupt accepted
+            cmp     #TAIV_CCIFG1,&TAIV    ; (4) Combined interrupt: was it CC1?
+            jeq     UART_RX               ; (2) Yes, was CC1
+#if 0
+            jl      just_reti             ; No interruipt pending
+            ; Can't be CC2 interrupt source; MSP430F201x doesn't have this
+            ; So must be timer overflow
+;
+;  ~ 1.9 Hz timer interrupt: call a userland callback function to check voltages etc
+;
+            mov   &RTCB,RTRASH              ; Real Time CallBack pointer
+#else
+			reti
+#endif
+
+DispatchCB: TST   RTRASH                    ; Is there a callback function?
+            jz    just_reti                 ; Just return from interrupt if no
+            eint                            ; Callbacks can be interrupted
+; Avoiding a call here saves a precious return stack location:
+            br    RTRASH                    ; Jump to callback; will restore status and return to mainline
+just_reti:  reti
+
+;  RXData location holds received byte
+UART_RX     add.w   #Bitime,&TACCRr         ; (5) Time to next bit
+            bit.w   #CAP,&TACCTLr           ; (5) Capture mode = start bit edge
+            jz      RX_Bit                  ; (2) Start bit edge?
+RX_Edge:
+;
+; Noise immunity: sample the serial line 3 (was 4) times, and check for at most 1 mark
+; Registers R15 (was: and R14_ trashed without saving: beware! Needed for speed here
+;
+            clr     R15                     ; (1) Set if mark seen already
+			bit     #CCI,&TACCTLr			; (4) Test the serial line
+            jnc     RX_Edge1				; (2) Line is space, as expected
+            tst     R15                     ;  (1) Already seen a mark, i.e. second mark?
+            jnz     just_reti				;  (2) Yes, ignore this false start bit
+            inc     R15						;  (1) Set flag: already seen
+RX_Edge1	bit     #CCI,&TACCTLr			; (4) Test the serial line
+            jnc     RX_Edge2				; (2) Line is space, as expected
+            tst     R15                     ;  (1) Already seen a mark, i.e. second mark?
+            jnz     just_reti				;  (2) Yes, ignore this false start bit
+            inc     R15						;  (1) Set flag: already seen
+RX_Edge2	bit     #CCI,&TACCTLr			; (4) Test the serial line
+            jnc     RX_Edge3				; (2) Line is space, as expected
+            tst     R15						;  (1) Already seen a mark, i.e. second mark?
+            jnz     just_reti				;  (2) Yes, ignore this false start bit
+			
+RX_Edge3	bic.w   #CAP,&TACCTLr           ; (5) Switch to compare mode
+            ; Already burned about 30 cycles to this point. But it doesn't matter,
+            ; since the value in TACCRr was captured by the timer hardware.
+            add.w   #Bitime_5,&TACCRr       ; (5) First databit 1.5 bits from edge
+            reti							; (5)
+;
+; Second part of noise immunity: sample line 3 times and take majority vote
+; NOTE: R15 trashed again without saving
+;
+RX_Bit      bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
+            ; Want as many instructions as reasonably possible between samples
+            clr     R15                     ; (1) Clear R15; carry NOT affected
+#if 0
+            rlc     R15                     ; (1) Shift into R15
+            jmp     $+2                     ; (2) Waste 2 cycles
+            bit.w   #CCI,&TACCTLr           ; (4) Sample
+            rlc     R15						; (1)
+;
+; R15 now has 0-7; do a population count using a lookup table
+			bit.b	#1,poptable(R15)        ; (4) Read table
+#else
+			addc	#0,R15					; (1) Add one if carry (read a 1)
+			bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
+			addc	#0,R15					; (1) Add one if carry (read a 1)
+			bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
+			addc	#0,R15					; (1) Add one if carry (read a 1)
+			cmp		#2,R15					; (1) Carry set if R15 (num bits) >= 2
+#endif
+			rrc.b	RXData                  ; (4) Store received bit
+RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
+			jnz		just_reti               ; (2+5) If there's a next bit, just exit
+			mov.b	#08,&BitCntRx           ; Setup bit counter for next byte
+			bis.w	#CAP,&TACCTLr           ; Back to capture mode
+			mov		&RCACB,RTRASH           ; Received char callback
+			jmp		DispatchCB
+
+#if 0
+; Population count table, used for majority voting on 3 sampled bits
+poptable:   db    0     ; 000
+            db    0     ; 001
+            db    0     ; 010
+            db    1     ; 011
+            db    0     ; 100
+            db    1     ; 101
+            db    1     ; 110
+            db    1     ; 111
+#endif
+
+;-------------------------------------------------------------------------------
+TA0_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
+;-------------------------------------------------------------------------------
+; First interrupt BitCntTx is 8, start  bit just sent, LSB needs sending now
+; 8th interrupt, BitCntTx is 1, 7th bit just sent, MSB needs sending now
+; 9th interrupt, BitCnt is 0, MSB just sent, stop bit needs sending now
+; 10th interrupt, BitCnt is -1, stop bit just sent, need to disable Tx interrupts
+; and transmit is complete (safe to start another)
+											; (6) for interrupt accepted
+			add.w	#Bitime,&TACCRt         ; (5) Time to next bit, when next bit is due
+			push	R11						; (3)
+UART_TX		cmp.b	#0,&BitCntTx            ; (5) All data bits done?
+			jl		TX_Done                 ; (2) Yes
+			; Carry (=not borrow) will be set after comparing 0 to 0
+			jz		TX_Mark                 ; (2) Transmit stop bit
+			
+			rra.b	&TXData					; (1) Next bit to C.
+TX_Mark		clr		R11						; (1) R11 must be clear
+			subc.b	#TXDp,R11				; (1) 1111 11(1)(0)b if C, 1111 11(0)(1)b if NC
+			xor.b	&P1OUT,R11				; (3) Determine if TXD bits need toggling
+#if LEDWITHTX
+			; The below will actually turn the LED on for every bit sent. It's not how I meant it to be.
+			; But it works well enough.
+			and.b	#TXDp+TXDm+LED,R11		; (2) Ensure only TXD and LED bits can be toggled below
+#else
+            and.b	#TXDp+TXDm,R11			; (alt 2) Ensure only TXD bits can be toggled below
+#endif
+            xor.b	R11,&P1OUT				; (4) Toggle as needed, to send bit
+
+TX_dec		dec.b   &BitCntTx               ; (4)
+			pop		R11						; (2)
+			reti                            ; (5) Expecting more interrupts this byte
+
+TX_Done:	pop		R11
+			bic.w	#CCIE,&TACCTLt          ; All Bits TX; disable Int.  FIXME: if sharing with other interrupts
+			mov		&TXCCB,RTRASH           ; Transmit complete callback
+			jmp		DispatchCB
+
+
+;-------------------------------------------------------------------------------
+;           Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     0FFF0h                  ; TimerA Vectors
+            DW      TACOM_ISR               ; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
+            DW      TA0_ISR                 ; Timer A CC0IFG (transmit compare)
+            ORG     0FFFEh                  ; MSP430 RESET Vector
+            DW      main                    ;
+
+
+
+            END
