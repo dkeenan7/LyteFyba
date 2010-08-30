@@ -2,7 +2,18 @@
 <body>
 <h1>Cell Top Battery Management Units</h1>
 
+<ul>
+  <li><a href=#intro>Introduction</li>
+  <li><a href=#CommunicationsSystem>Communications System</li>
+  <li><a href=#BMUconnections>BMU Connections</li>
+  <li><a href=#Circuit>Circuit Diagram</li>
+  <li><a href=#Artwork>Printed Circuit Artwork</li>
+</ul>
+
 <img src=BMUs_installed.jpg></img>    <img src=BMU_tester_04_sm.jpg></img>
+
+<a name=intro>
+<h3>Introduction</h3>
 
 <p>This project describes a celltop Battery Management Unit (BMU) designed for an
 <a href=http://www.evalbum.com/2507>electric vehicle</a>. One BMU is placed on top
@@ -35,6 +46,7 @@ Forth interpreter. This interpreter allows the master or an interactive user to
 perform a variety of cell management functions, and is quite compact (more compact
 than native assembly language, in fact). </p>
 
+<a name=CommunicationsSystem>
 <h3>Communications system</h3>
 
 <p>Each BMU has an optical isolator ("opto") which take care of the voltage difference between
@@ -59,6 +71,7 @@ communications signals on a high voltage battery pack will not be lethal if touc
 For most BMUs, this area of the board is not populated. There is no danger since
 these connections will not come out of the battery box.</p>
 
+<a name=BMUconnections>
 <h3>BMU connections</h3>
 
 <p> The communications channel requires two connections from one cell to the next. 
@@ -73,4 +86,14 @@ five BMUs, since that is the longest string that we can bit into a frying pan to
 solder the components to the boards. Where the squiggle joins are not available, three
 wires are needed between one BMU and the next.</p>
 
+<a name=Circuit>
+<h3>Circuit Diagram</h3>
+
+<p><img src=bms_digital41_sch1.gif></img></p>
+<p><img src=bms_digital41_sch2.gif></img></p>
+
+<a name=Artwork>
+<h3>Printed Circuit Artwork</h3>
+
+<p><img src=bms_digital41_pcb.gif></img></p>
 </body>
