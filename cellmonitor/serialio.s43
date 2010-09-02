@@ -36,6 +36,8 @@
 
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
+#define		BRACKETS		1		; True to echo angle brackets around received char
+#define		INCCHAR			0		; True to echo one more than received (for full duplex test)
 
 
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
@@ -43,8 +45,8 @@ TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
 TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
 BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
 LED			EQU		1<<6			; LED on bit 6
-;info1MHzCalB EQU	0x1002			; Frequency calibration
-;info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
+info1MHzCalB EQU	0x1002			; Frequency calibration
+info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
 
 #define     TACCTLr   TACCTL1   ; Receive using CCI1 (P1.2)
 #define     TACCTLt   TACCTL0   ; Transmit (and everything else) using TA0
@@ -55,13 +57,18 @@ LED			EQU		1<<6			; LED on bit 6
 ;
 ;
 ;   Conditions for 9600 Baud SW UART
+#if 0
+MClock		EQU		1000000					; Main clock in Hz
+Divider1	EQU		1						; Number of main clocks per SMCK
+#else
 MClock		EQU		4000000					; Main clock in Hz
 Divider1	EQU		2						; Number of main clocks per SMCK
+#endif
 Divider2	EQU		8						; Number of SMCK clocks per timer clock
 Divider3	EQU		Divider1*Divider2		; Number of main clocks per timer clock
 TClock		EQU		MClock/Divider3			; Timer frequency in Hertz
-Bitime      EQU     (TClock+4800)/9600		; 104.16us bit length
-Bitime_5    EQU     (Bitime-1)/2			; 0.5 bit length less some
+Bitime      EQU     (TClock+4800)/9600		; 104.17 us bit length in timer clock periods
+Bitime_5    EQU     (Bitime/2)-2			; 0.5 bit length less some
 
 ;
 ;           Memory definitions
@@ -70,11 +77,18 @@ Bitime_5    EQU     (Bitime-1)/2			; 0.5 bit length less some
 RCACB       DS      2                       ; Received char available callback
 TXCCB       DS      2                       ; Transmit complete callback
 RTCB        DS      2                       ; Real Time clock callback
+echoMe		DS		2						; =1 if something to echo
 TXData      DS      1                       ; Char to transmit
 RXData      DS      1                       ; Received char
 BitCntTx    DS      1                       ; Bit count 10 -> 1
 BitCntRx    DS      1                       ; Bit count 8 -> 1
 State       DS      1
+
+; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
+; It is valid for the domain 1-8, and range 0-6.
+; NOTE: it depends in the assembler rounding down on division, even for negative results
+; There is a similar simple formula for rounding towards zero
+#define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
 
 ;-------------------------------------------------------------------------------
@@ -82,25 +96,32 @@ State       DS      1
 ;-------------------------------------------------------------------------------
 main:       mov.w   #0280h,SP               ; Initialize stackpointer
 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
-            clr     &RTCB                   ; No real time callback yet
+#if		INCCHAR
+			mov		#MyRTCB,&RTCB			; My real time callback
+#else
+			clr     &RTCB                   ; No real time callback yet
+#endif
 
 ;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
-;			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-;			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+#if MClock = 1000000
+			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+#else
 			mov.b	#$8A,&BCSCTL1			; Set range for near 4 MHz
 			; FIXME: this is for ONE INDIVIDUAL BOARD only!!!:
 			mov.b	#$BB,&DCOCTL			; Set DCO step + modulation for 4.00 MHz
+#endif
 
 			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
 			; Other zero bits select MCLK = DCOCLK/1
-			mov.b		#DIVS_1, &BCSCTL2
+			mov.b		#LOG2(Divider1)*DIVS_1, &BCSCTL2
 
 ; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 ; ID: 3 = /8; 2 = /4; 1 = /2
 ; MC: 2 = continuous mode 1 = up mode
 ; TAIE = interrupt enable (for timer overflow)
-            mov     #TASSEL_2+ID_3+MC_2+TAIE,&TACTL
+            mov     #TASSEL_2 + LOG2(Divider2)*ID_1 + MC_2+TAIE, &TACTL
 
 SetupC0     ;mov.w   #OUT,&TACCTLt				; TXD Idle as Mark
 			mov.b	#TXDp,&P1OUT				; TXD Idle as Mark: noninverted output 1, inverted output 0
@@ -124,14 +145,22 @@ SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr
 
 ;            clr.b   &State                  ; Clear echo routine state
                                             ;
-idle:       ;bis     #CPUOFF+GIE,SR          ; Turn off CPU, enable interrupts
+idle:       bis     #CPUOFF+GIE,SR          ; Turn off CPU, enable interrupts
             jmp     idle                    ; Does get reached at times
 
-Echo:       clr.b   &State
+Echo:
+#if			!BRACKETS
+			reti							; Don't do anything here; wait for timer interrupt to echo
+#endif
+			clr.b   &State
             mov     #EchoCB,&TXCCB          ; Call the echo state machine on transmit ready
+#if BRACKETS
             mov.b   #'<',&TXData
             call    #TX_Byte
             reti                            ; Callbacks end with reti to preserve status
+#else
+			; Fall through to EchoCB
+#endif
 
 ;
 ; State 0: echo rxdata; state 1: '>'; state 2: do nothing
@@ -144,7 +173,11 @@ next:       mov.b   R4,&TXData         ; State 1: echo received char
 ;            jmp     just_reti         ; Evil saved instruction: &State will be NZ here
 Echo1:      jne     just_reti
             mov.b   #'>',R4
+#if BRACKETS
             jmp     next
+#else
+			jmp		just_reti
+#endif
 
 ;
 ; Send an infinite block of incrementing characters
@@ -186,7 +219,6 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
 										  ; (6) for interrupt accepted
             cmp     #TAIV_CCIFG1,&TAIV    ; (4) Combined interrupt: was it CC1?
             jeq     UART_RX               ; (2) Yes, was CC1
-#if 0
             jl      just_reti             ; No interruipt pending
             ; Can't be CC2 interrupt source; MSP430F201x doesn't have this
             ; So must be timer overflow
@@ -194,9 +226,6 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
 ;  ~ 1.9 Hz timer interrupt: call a userland callback function to check voltages etc
 ;
             mov   &RTCB,RTRASH              ; Real Time CallBack pointer
-#else
-			reti
-#endif
 
 DispatchCB: TST   RTRASH                    ; Is there a callback function?
             jz    just_reti                 ; Just return from interrupt if no
@@ -263,6 +292,7 @@ RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
 			jnz		just_reti               ; (2+5) If there's a next bit, just exit
 			mov.b	#08,&BitCntRx           ; Setup bit counter for next byte
 			bis.w	#CAP,&TACCTLr           ; Back to capture mode
+			mov		#1,&echoMe				; Something to echo
 			mov		&RCACB,RTRASH           ; Received char callback
 			jmp		DispatchCB
 
@@ -315,6 +345,16 @@ TX_Done:	pop		R11
 			bic.w	#CCIE,&TACCTLt          ; All Bits TX; disable Int.  FIXME: if sharing with other interrupts
 			mov		&TXCCB,RTRASH           ; Transmit complete callback
 			jmp		DispatchCB
+			
+			
+#if INCCHAR
+MyRTCB:		dec		&echoMe					; Test and unset the "something to be echoed" semaphore
+			jnz		just_reti
+			mov.b	&RXData,&TXData
+			inc.b	&TXData
+			call	#TX_Byte
+			reti
+#endif
 
 
 ;-------------------------------------------------------------------------------
