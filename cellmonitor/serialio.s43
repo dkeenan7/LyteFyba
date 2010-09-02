@@ -9,7 +9,7 @@
 ;   latency effects as hardware insures that input bit latching and
 ;   timing are perfectly synchronised with Timer_A regardless of other
 ;   software activity.
-;   TACLK = SMCLK/8 = DCOCLK/1/8 = 125 kHz, MCLK = DCOCLK/1 = 1.00 MHz, ACLK = LFXT1/1 = unused
+;   TACLK = SMCLK/8 = DCOCLK/2/8 = 250 kHz, MCLK = DCOCLK/1 = 4.00 MHz, ACLK = LFXT1/1 = unused
 ;
 ;                MSP430F20xx
 ;             -----------------
@@ -17,9 +17,10 @@
 ;          | |                 |
 ;          --|RST              |
 ;            |                 |
-;            |     TA0/TXD/P1.1|-------->
+;            |     TA0/TXD/P1.1|--------> TXDp
+;			 |             P1.0|--------> TXDm
 ;            |                 | 9600 8N1
-;            |   CCI1A/RXD/P1.2|<--------
+;            |   CCI1A/RXD/P1.2|<-------- RXD
 ;
 ;
 ;   Based on code by:
@@ -42,8 +43,8 @@ TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
 TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
 BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
 LED			EQU		1<<6			; LED on bit 6
-info1MHzCalB EQU	0x1002			; Frequency calibration
-info1MHzCalD EQU	0x1008			;	for 1 MHz
+;info1MHzCalB EQU	0x1002			; Frequency calibration
+;info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
 
 #define     TACCTLr   TACCTL1   ; Receive using CCI1 (P1.2)
 #define     TACCTLt   TACCTL0   ; Transmit (and everything else) using TA0
@@ -54,8 +55,13 @@ info1MHzCalD EQU	0x1008			;	for 1 MHz
 ;
 ;
 ;   Conditions for 9600 Baud SW UART
-Bitime_5    EQU     3                       ; 0.5 bit length less some
-Bitime      EQU     13                      ; 104us bit length = 13 clocks
+MClock		EQU		4000000					; Main clock in Hz
+Divider1	EQU		2						; Number of main clocks per SMCK
+Divider2	EQU		8						; Number of SMCK clocks per timer clock
+Divider3	EQU		Divider1*Divider2		; Number of main clocks per timer clock
+TClock		EQU		MClock/Divider3			; Timer frequency in Hertz
+Bitime      EQU     (TClock+4800)/9600		; 104.16us bit length
+Bitime_5    EQU     (Bitime-1)/2			; 0.5 bit length less some
 
 ;
 ;           Memory definitions
@@ -80,14 +86,15 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 
 ;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
-            mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-            mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+;			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+;			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+			mov.b	#$8A,&BCSCTL1			; Set range for near 4 MHz
+			; FIXME: this is for ONE INDIVIDUAL BOARD only!!!:
+			mov.b	#$BB,&DCOCTL			; Set DCO step + modulation for 4.00 MHz
 
-
-;
-			; DIVS_0 => SMCLK = DCOCLK/1
+			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
 			; Other zero bits select MCLK = DCOCLK/1
-			mov.b		#DIVS_0, &BCSCTL2
+			mov.b		#DIVS_1, &BCSCTL2
 
 ; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 ; ID: 3 = /8; 2 = /4; 1 = /2
@@ -272,7 +279,7 @@ poptable:   db    0     ; 000
 #endif
 
 ;-------------------------------------------------------------------------------
-TA0_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
+TX_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
 ;-------------------------------------------------------------------------------
 ; First interrupt BitCntTx is 8, start  bit just sent, LSB needs sending now
 ; 8th interrupt, BitCntTx is 1, 7th bit just sent, MSB needs sending now
@@ -315,7 +322,7 @@ TX_Done:	pop		R11
 ;-------------------------------------------------------------------------------
             ORG     0FFF0h                  ; TimerA Vectors
             DW      TACOM_ISR               ; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
-            DW      TA0_ISR                 ; Timer A CC0IFG (transmit compare)
+            DW      TX_ISR                 ; Timer A CC0IFG (transmit compare)
             ORG     0FFFEh                  ; MSP430 RESET Vector
             DW      main                    ;
 
