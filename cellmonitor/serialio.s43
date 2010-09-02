@@ -85,7 +85,7 @@ BitCntRx    DS      1                       ; Bit count 8 -> 1
 State       DS      1
 
 ; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
-; It is valid for the domain 1-8, and range 0-6.
+; It is valid for the domain 1-64, and range 0-6.
 ; NOTE: it depends in the assembler rounding down on division, even for negative results
 ; There is a similar simple formula for rounding towards zero
 #define LOG2(x) (4 * (x-8) / (x+8) + 3)
