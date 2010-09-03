@@ -126,11 +126,18 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
             mov     #TASSEL_2 + LOG2(Divider2)*ID_1 + MC_2 + TAIE, &TACTL
 			
 #if ALSOTA0
+			; Set up differential timer outputs for transmit data.
+			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
             bis.b   #TXDp,&P1SEL				; Select timer function TA0 for pin (not I/O port)
-			mov.b	#USIPE5 + USIMST, &USICTL0 ; SCLK out on P1.5, SPI Master mode, remove SW Reset
-			; USISSEL_5 means TA0 into the USI clock input multiplexer; USICKPL means use the inverter
+			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
+			; when TA0 appears on P1.1.
+			; We use the clock inverter in the USI (Universal Serial Interface)
+			; to invert TA0 and put it out as SCLK, in SPI master mode.
+			; We don't use the shift register of the USI because there is
+			; no way to get differential outputs from that without external hardware.
+			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
 			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
-			mov.b	#31, &USICNT ; To clear USIIFG so SCLK will not be stopped
+			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 			mov.w   #OUTMOD_0 + OUT, &TACCTLt	; TXD Idle as Mark
 #else
 			mov.b	#TXDp,&P1OUT				; TXD Idle as Mark: noninverted output 1, inverted output 0
@@ -207,7 +214,9 @@ TX_Byte   ; Subroutine Transmits Character from TXData location
 ; Need to disable interrupts here; there is a critical time period between
 ; reading the current timer value (TAR) and writing the capture register (TACCRt)
 ; and to a lesser but valid extent the timer control register (TACCTLt)
-            dint                            ; NOTE: instruction following DINT is not protected!
+			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDm) will not be held
+
+			dint                            ; NOTE: instruction following DINT is not protected!
             mov.b   #8,&BitCntTx            ; Load Bit counter
             mov     &TAR,R13
             add     #Bitime,R13
@@ -363,7 +372,6 @@ TX_dec		dec.b   &BitCntTx               ; (4)
 			reti                            ; (5) Expecting more interrupts this byte
 
 TX_Done:	pop		R11
-			mov.b	#31, &USICNT			; To keep USIIFG clear so SCLK (TXDm) will not be stopped
 			bic.w	#CCIE,&TACCTLt          ; All Bits TX; disable Int.  FIXME: if sharing with other interrupts
 			bic.b	#LED,&P1OUT				; Clear the LED at the end of the transmit (for now)
 			mov		&TXCCB,RTRASH           ; Transmit complete callback
