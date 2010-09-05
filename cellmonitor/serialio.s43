@@ -29,27 +29,9 @@
 ;	Texas Instruments Inc.
 ;	October 2005
 ;*******************************************************************************
-#include  "msp430.h"
 #include  "io430.h"		// For #define TAIV_CCIFG1
-#include "../interpreter/ControlFlowMacros.h"
-
-        NAME    main                    ; module name
-        PUBLIC  main                    ; make the main label visible
 
 
-#define		LEDWITHTX		1		; True to have LED come on with any transmit byte
-#define		BRACKETS		1		; True to echo angle brackets around received char
-#define		INCCHAR			0		; True to echo one more than received (for full duplex test)
-#define		SOLIDUs			0		; True to send solid "U" characters as fast as possible (throughput test)
-
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
-; FIXME! The below disagree with the diagram above, but are correct for now (if highly confusing!!)
-TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
-TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
-BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
-LED			EQU		1<<6			; LED on bit 6
-info1MHzCalB EQU	0x1002			; Frequency calibration
-info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
 
 #define     TACCTLr   TACCTL1		; Receive using CCI1 (P1.2)
 #define     TACCTLt   TACCTL0		; Transmit (and everything else) using TA0
@@ -73,20 +55,6 @@ TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
 Bitime      EQU     (TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
 Bitime_5    EQU     (Bitime/2)-2			; 0.5 bit length less some
 
-;
-;           Memory definitions
-;
-            ORG     0200h
-RCACB       DS      2                       ; Received char available callback
-TXCCB       DS      2                       ; Transmit complete callback
-RTCB        DS      2                       ; Real Time clock callback
-echoMe		DS		2						; =1 if something to echo
-TXData      DS		2                       ; Byte to transmit in lower byte; always $FF in high byte
-RXData      DS      1                       ; Received char
-BitCntTx    DS      1                       ; Bit count 10 -> 1
-BitCntRx    DS      1                       ; Bit count 8 -> 1
-State       DS      1
-TX_Sem		DS		1						; Semaphore for TX_Byte. 1 = allowed to send.
 
 ; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
@@ -95,134 +63,6 @@ TX_Sem		DS		1						; Semaphore for TX_Byte. 1 = allowed to send.
 #define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
 
-;-------------------------------------------------------------------------------
-            ORG     0F800h                  ; Program Reset
-;-------------------------------------------------------------------------------
-main:       mov.w   #0280h,SP               ; Initialize stackpointer
-StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
-#if		INCCHAR
-			mov		#MyRTCB,&RTCB			; My real time callback
-#else
-			clr     &RTCB                   ; No real time callback yet
-#endif
-
-;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
-#if Mfreq = 1000000
-			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
-#else
-			mov.b	#$8A,&BCSCTL1			; Set range for near 4 MHz
-			; FIXME: this is for ONE INDIVIDUAL BOARD only!!!:
-			mov.b	#$BB,&DCOCTL			; Set DCO step + modulation for 4.00 MHz
-#endif
-
-			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
-			; Other zero bits select MCLK = DCOCLK/1
-			mov.b		#LOG2(MckPerSMck)*DIVS_1, &BCSCTL2
-
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			; TAIE = interrupt enable (for timer overflow)
-            mov     #TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
-			
-			; Set up differential timer outputs for transmit data.
-			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
-			; when TA0 appears on P1.1.
-			; We use the clock inverter in the USI (Universal Serial Interface)
-			; to invert TA0 and put it out as SCLK, in SPI master mode.
-			; We don't use the shift register of the USI because there is
-			; no way to get differential outputs from that without external hardware.
-			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
-			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
-			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
-
-			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			mov		&TAR,&TACCRt				; Make an output event
-			; We want to set the CCIFG so that TX_Byte won't
-			; belive that this value is the end of a previous stop bit
-			add		#2,&TACCRt					; happen as soon as possible
-			mov.b   #RXD+TXDp,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
-            bis.b   #TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
-#if 1
-			mov.w   #OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Non-idle or space; seems necessary to "wake up" divider
-			mov.w   #OUTMOD_0, &TACCTLt			; TXD=0 Idle or Mark       (for the internal inverter)
-#endif
-			mov.w   #OUTMOD_5, &TACCTLt			; When the compare happens, set TXD=0 =Idle or Mark
-
-			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit, idle bit)
-			mov.b	#1,TX_Sem					; Initialise transmit semaphore
-
-            ; Make the "send next char" function the transmit complete callback
-;            mov     #SendNext, &TXCCB       ; Transmit complete callback
-            clr     &TXCCB
-;            clr     &RCACB
-            mov     #Echo, &RCACB           ; Received char callback
-
-;
-; Setup RX
-;
-            mov.b   #08,&BitCntRx           ; Load Bit Counter, 8 data bits
-SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr
-											; Falling edge, Input A, Sync, Capture
-            mov.b	#'$',R4                 ; Current char
-            mov.b	R4,&TXData
-            call    #TX_Byte                ; Send a dollar as first char
-
-;            clr.b   &State                  ; Clear echo routine state
-                                            ;
-idle:
-#if SOLIDUs
-			mov.b	#'U',&TXData			; Just send Us with no gap
-			call	#TX_Byte
-#else
-			bis     #CPUOFF+GIE,SR          ; Turn off CPU, enable interrupts
-#endif
-            jmp     idle                    ; Does get reached at times
-
-Echo:
-#if			!BRACKETS
-			reti							; Don't do anything here; wait for timer interrupt to echo
-#endif
-			clr.b   &State
-            mov     #EchoCB,&TXCCB          ; Call the echo state machine on transmit ready
-#if BRACKETS
-            mov.b   #'<',&TXData
-            call    #TX_Byte
-            reti                            ; Callbacks end with reti to preserve status
-#else
-			; Fall through to EchoCB
-#endif
-
-;
-; State 0: echo rxdata; state 1: '>'; state 2: do nothing
-EchoCB:     cmp.b   #1,&State
-            jge     Echo1
-            mov.b   &RXData,R4
-next:       mov.b   R4,&TXData         ; State 1: echo received char
-            call    #TX_Byte
-            inc.b   &State
-;            jmp     just_reti         ; Evil saved instruction: &State will be NZ here
-Echo1:      jne     just_reti
-            mov.b   #'>',R4
-#if BRACKETS
-            jmp     next
-#else
-			jmp		just_reti
-#endif
-
-;
-; Send an infinite block of incrementing characters
-;
-SendNext:   bic     #CPUOFF,0(SP)           ; In case mainline had CPU off
-            pop     SR                      ; Not saving mainline status
-            inc.b   R4                      ; Next char
-            cmp.b   #0xFF,R4                ; Up to last?
-            jnz     notlast                 ; Branch if no
-            mov.b   #0x20,R4                ; Wrap around
-notlast     mov.b   R4,&TXData
-            ; Fall through to TX_Byte
 
 ;-------------------------------------------------------------------------------
 TX_Byte:	; Subroutine Transmits Character from TXData location
@@ -278,9 +118,10 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
             ; Can't be CC2 interrupt source; MSP430F201x doesn't have this
             ; So must be timer overflow
 ;
-;  Regular timer overflow interrupt: call a userland callback function to check voltages etc
+;  Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
-            mov   &RTCB,Rcallback              ; Real Time CallBack pointer
+			mov		#startMeasure,&IdleDest		; Point the idle code at the measurement code
+			reti
 
 DispatchCB: TST   Rcallback                    ; Is there a callback function?
             jz    just_reti                 ; Just return from interrupt if no
@@ -306,20 +147,18 @@ RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
 			jnz		just_reti               ; (2+5) If there's a next bit, just exit
 			mov.b	#8,&BitCntRx			; Setup bit counter for next byte
 			bis.w	#CAP,&TACCTLr			; Back to capture mode
-			mov		#1,&echoMe				; Something to echo
-			mov		&RCACB,Rcallback		; Received char callback
-			jmp		DispatchCB
+			eint							; Enable interrupts
+			jmp		OnRxByte				; Start the received character callback routine
 
 
 ;-------------------------------------------------------------------------------
 TX_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
 ;-------------------------------------------------------------------------------
-; First interrupt BitCntTx is 11 (decrements to 10), start  bit just sent, LSB needs sending now
-; 8th interrupt, BitCntTx is 4, data bit 6 just sent, MSB needs sending now
-; 9th interrupt, BitCnt is 3, MSB just sent, stop bit needs sending now
-; 10th interrupt, BitCntTx is 2, stop bit just sent, need to send idle state
-	; 11th interrupt, BitCntTx is 1 (decrements to 0), idle "bit" just sent, we're now past
-		;	the end of the stop bit, need to disable Tx interrupts, transmit is complete (safe to start another)
+; First interrupt BitCntTx is 10 (decrements to 9), start  bit just sent, LSB needs sending now
+; 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
+; 9th interrupt, BitCnt is 2, MSB just sent, stop bit needs sending now
+; 10th interrupt, BitCntTx is 1 (decrements to 0), stop bit just sent, need to send idle state;
+;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
 
 											; (6) for interrupt accepted
 			add.w	#Bitime,&TACCRt         ; (5) Time to next bit, when next bit is due
@@ -340,35 +179,8 @@ TX_Mark
 TX_Done:	bic.w	#CCIE,&TACCTLt          ; (5) All Bits TX; disable Int.
 			bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
 			inc		&TX_Sem					; (4) Release the transmit semaphore
-			;reti							; (5) Eventually!
-			mov		&TXCCB,Rcallback           ; Transmit complete callback
-			jmp		DispatchCB
+			reti							; (5) Eventually!
 			
 			
-#if INCCHAR
-MyRTCB:
-#if 0	; Quick test: solid Us
-			dec		&echoMe					; Test and unset the "something to be echoed" semaphore
-			jnz		just_reti
-			mov.b	&RXData,&TXData
-			inc.b	&TXData
-#else
-			mov.b	#'U',TX_Byte
-#endif
-			call	#TX_Byte
-			reti
-#endif
 
 
-;-------------------------------------------------------------------------------
-;           Interrupt Vectors
-;-------------------------------------------------------------------------------
-            ORG     0FFF0h                  ; TimerA Vectors
-            DW      TACOM_ISR               ; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
-            DW      TX_ISR                 ; Timer A CC0IFG (transmit compare)
-            ORG     0FFFEh                  ; MSP430 RESET Vector
-            DW      main                    ;
-
-
-
-            END

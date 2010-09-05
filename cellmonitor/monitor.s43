@@ -1,0 +1,256 @@
+		COL		132			; Wide listings
+
+#include  "msp430.h"
+#include "../interpreter/ControlFlowMacros.h"
+
+        NAME    main                    ; module name
+        PUBLIC  main                    ; make the main label visible
+		
+#define		LEDWITHTX		1		; True to have LED come on with any transmit byte
+#define		BRACKETS		1		; True to echo angle brackets around received char
+#define		INCCHAR			0		; True to echo one more than received (for full duplex test)
+#define		SOLIDUs			0		; True to send solid "U" characters as fast as possible (throughput test)
+#define		TEST			1		; 1 for testing with BMU cell-inputs in parallel
+
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
+; FIXME! The below disagree with the diagram above, but are correct for now (if highly confusing!!)
+TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
+TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
+BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
+LED			EQU		1<<6			; LED on bit 6
+info1MHzCalB EQU	0x1002			; Frequency calibration
+info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
+
+; ADC channel numbers
+CellVChan	EQU		$7				; ADC channel number for cell voltage
+TempChan	EQU		$A				; ADC channel number for temperature
+LinkVChan	EQU		$3				; ADC channel number for link voltage
+NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+
+;
+;           Memory definitions
+;
+            ORG     0200h
+RCACB       DS      2				; Received char available callback
+TXCCB       DS      2				; Transmit complete callback
+RTCB        DS      2               ; Real Time clock callback
+sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
+IdleDest	DS		2				; Code pointer for idle loop
+TXData      DS		2               ; Byte to transmit in lower byte; always $FF in high byte
+RXData      DS      1               ; Received char
+BitCntTx    DS      1               ; Bit count 10 -> 1
+BitCntRx    DS      1               ; Bit count 8 -> 1
+EchoState	DS      1				; Temp: this will go away
+TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
+currBadness	DS		1				; Current badness
+bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
+
+;-------------------------------------------------------------------------------
+            ORG     0F800h                  ; Program Reset
+;-------------------------------------------------------------------------------
+
+; Comms routines
+#include "serialio.s43"
+; voltage measurement functions
+#include "../common/measure.s43"
+
+
+main:       mov.w   #0280h,SP               ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
+#if		INCCHAR
+			mov		#MyRTCB,&RTCB			; My real time callback
+#else
+			clr     &RTCB                   ; No real time callback yet
+#endif
+
+;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
+#if Mfreq = 1000000
+			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+#else
+			mov.b	#$8A,&BCSCTL1			; Set range for near 4 MHz
+			; FIXME: this is for ONE INDIVIDUAL BOARD only!!!:
+			mov.b	#$BB,&DCOCTL			; Set DCO step + modulation for 4.00 MHz
+#endif
+
+			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
+			; Other zero bits select MCLK = DCOCLK/1
+			mov.b		#LOG2(MckPerSMck)*DIVS_1, &BCSCTL2
+
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			; TAIE = interrupt enable (for timer overflow)
+            mov     #TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
+			
+			; Set up differential timer outputs for transmit data.
+			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
+			; when TA0 appears on P1.1.
+			; We use the clock inverter in the USI (Universal Serial Interface)
+			; to invert TA0 and put it out as SCLK, in SPI master mode.
+			; We don't use the shift register of the USI because there is
+			; no way to get differential outputs from that without external hardware.
+			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
+			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
+			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
+
+			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
+			mov		&TAR,&TACCRt				; Make an output event
+			; We want to set the CCIFG so that TX_Byte won't
+			; belive that this value is the end of a previous stop bit
+			add		#2,&TACCRt					; happen as soon as possible
+			mov.b   #RXD+TXDp,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+            bis.b   #TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
+#if 1
+			mov.w   #OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Non-idle or space; seems necessary to "wake up" divider
+			mov.w   #OUTMOD_0, &TACCTLt			; TXD=0 Idle or Mark       (for the internal inverter)
+#endif
+			mov.w   #OUTMOD_5, &TACCTLt			; When the compare happens, set TXD=0 =Idle or Mark
+
+			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit, idle bit)
+			mov.b	#1,TX_Sem					; Initialise transmit semaphore
+
+            ; Make the "send next char" function the transmit complete callback
+;            mov     #SendNext, &TXCCB       ; Transmit complete callback
+            clr     &TXCCB
+;            clr     &RCACB
+            mov     #Echo, &RCACB           ; Received char callback
+
+;
+; Setup RX
+;
+            mov.b   #08,&BitCntRx           ; Load Bit Counter, 8 data bits
+SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+
+			mov		#IdleLoop,&IdleDest		; Initialise the idle code pointer to just loop
+
+			; Fall through to the start of the measurement loop
+
+startMeasure:
+;
+; Regular measurement goes here
+; Called about 4 times per second
+;
+			mov		#CellVChan<<12,R8
+			call	#measure
+
+IdleLoop:	bis     #CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
+			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the measurement loop
+            br     &IdleDest				; Gets reached after interrupts
+
+Echo:
+#if			!BRACKETS
+			reti							; Don't do anything here; wait for timer interrupt to echo
+#endif
+			clr.b   &EchoState
+            mov     #EchoCB,&TXCCB          ; Call the echo EchoState machine on transmit ready
+#if BRACKETS
+            mov.b   #'<',&TXData
+            call    #TX_Byte
+            reti                            ; Callbacks end with reti to preserve status
+#else
+			; Fall through to EchoCB
+#endif
+
+;
+; EchoState 0: echo rxdata; EchoState 1: '>'; EchoState 2: do nothing
+EchoCB:     cmp.b   #1,&EchoState
+            jge     Echo1
+            mov.b   &RXData,R4
+next:       mov.b   R4,&TXData         ; EchoState 1: echo received char
+            call    #TX_Byte
+            inc.b   &EchoState
+;            jmp     just_reti         ; Evil saved instruction: &EchoState will be NZ here
+Echo1:      jne     just_reti
+            mov.b   #'>',R4
+#if BRACKETS
+            jmp     next
+#else
+			jmp		just_reti
+#endif
+
+;
+; Send an infinite block of incrementing characters
+;
+SendNext:   bic     #CPUOFF,0(SP)           ; In case mainline had CPU off
+            pop     SR                      ; Not saving mainline status
+            inc.b   R4                      ; Next char
+            cmp.b   #0xFF,R4                ; Up to last?
+            jnz     notlast                 ; Branch if no
+            mov.b   #0x20,R4                ; Wrap around
+notlast     mov.b   R4,&TXData
+			jmp		TX_Byte
+
+
+			EVEN				; Word-align for following code
+			; Encoded badness table. The badness information is transmitted in one byte,
+			; with no checksum correction. To counter this, badness is encoded, so that only
+			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
+			; are treated as a corrupted attempt to send badness information; current badness
+			; for this BMU is sent instead.
+			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
+			; the encoded badness byte).
+badnessTable DB		$80			; $80 is least badness
+			DB		$91,$A2,$B3,$C4,$D5,$E6
+			DB		$F7			; $F7 is the worst badness
+
+;
+;	Callback routine for received byte.
+;	Process badness channel, and execute commands.
+OnRxByte:
+		push	R8
+		push	R9
+		mov.b	RXData,R8
+		tst.b	R8					; Test for badness command ($80-$F7)
+		_IF		_L					; If negative (i.e. badness)
+			mov.b	R8,R9				; Copy incoming badness
+			and		#7,R9				; Consider only raw badness bits
+			cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
+			mov.b	&currBadness,R9		; Current badness
+			mov.b	badnessTable(R9),R9	; Present encoded badness
+			jne		sendMyBadness		; NO! So just send my badness instead
+			cmp.b	R8,R9				; Compare incoming badness to ours
+			_IF		_C					; If incoming is less bad than us,
+sendMyBadness		mov		R9,R8				; then we are worse; send our badness
+				; Note that the above does not preserve R8. However, strict preservation
+				; is no longer necessary, and since password and non-password bytes can't
+				; be interchanged, it is safe
+			_ENDIF
+		_ENDIF
+		mov.b	R8,&TXData
+		call	#TX_Byte			; echo the byte
+		tst.b	R8					; Is R8
+		_IF		_L					;	 a badness?
+			tst.b	&bCheckForBad	; Are we checking
+			_IF		_NZ				;	for badness (because we're the last BMU)?
+				call	#m_alarm		; Set or clear the alarm based on R8
+			_ENDIF
+		_ELSE						; Else R8 has command byte
+			;
+			; Process command byte here
+			;
+		_ENDIF
+
+exitOnRx
+		pop		R9
+		pop		R8
+		reti						; Callback functions end with reti, to preserve flags
+
+
+m_alarm:
+		; Process alarm here; R8 has badness
+		ret
+
+;-------------------------------------------------------------------------------
+;           Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     0FFF0h                  ; TimerA Vectors
+            DW      TACOM_ISR               ; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
+            DW      TX_ISR                 ; Timer A CC0IFG (transmit compare)
+            ORG     0FFFEh                  ; MSP430 RESET Vector
+            DW      main                    ;
+
+
+
+            END
