@@ -278,7 +278,7 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
             ; Can't be CC2 interrupt source; MSP430F201x doesn't have this
             ; So must be timer overflow
 ;
-;  ~ 1.9 Hz timer interrupt: call a userland callback function to check voltages etc
+;  Regular timer overflow interrupt: call a userland callback function to check voltages etc
 ;
             mov   &RTCB,Rcallback              ; Real Time CallBack pointer
 
@@ -294,74 +294,22 @@ UART_RX     add.w   #Bitime,&TACCRr         ; (5) Time to next bit
             bit.w   #CAP,&TACCTLr           ; (5) Capture mode = start bit edge
             jz      RX_Bit                  ; (2) Start bit edge?
 RX_Edge:
-;
-; Noise immunity: sample the serial line 3 (was 4) times, and check for at most 1 mark
-; Registers R15 (was: and R14_ trashed without saving: beware! Needed for speed here
-;
-            clr     R15                     ; (1) Set if mark seen already
-			bit     #CCI,&TACCTLr			; (4) Test the serial line
-            jnc     RX_Edge1				; (2) Line is space, as expected
-            tst     R15                     ;  (1) Already seen a mark, i.e. second mark?
-            jnz     just_reti				;  (2) Yes, ignore this false start bit
-            inc     R15						;  (1) Set flag: already seen
-RX_Edge1	bit     #CCI,&TACCTLr			; (4) Test the serial line
-            jnc     RX_Edge2				; (2) Line is space, as expected
-            tst     R15                     ;  (1) Already seen a mark, i.e. second mark?
-            jnz     just_reti				;  (2) Yes, ignore this false start bit
-            inc     R15						;  (1) Set flag: already seen
-RX_Edge2	bit     #CCI,&TACCTLr			; (4) Test the serial line
-            jnc     RX_Edge3				; (2) Line is space, as expected
-            tst     R15						;  (1) Already seen a mark, i.e. second mark?
-            jnz     just_reti				;  (2) Yes, ignore this false start bit
-			
-RX_Edge3	bic.w   #CAP,&TACCTLr           ; (5) Switch to compare mode
-            ; Already burned about 30 cycles to this point. But it doesn't matter,
+			bic.w   #CAP,&TACCTLr           ; (5) Switch to compare mode
+            ; Already burned many cycles to this point. But it doesn't matter,
             ; since the value in TACCRr was captured by the timer hardware.
             add.w   #Bitime_5,&TACCRr       ; (5) First databit 1.5 bits from edge
             reti							; (5)
 ;
-; Second part of noise immunity: sample line 3 times and take majority vote
-; NOTE: R15 trashed again without saving
-;
-RX_Bit      bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
-            ; Want as many instructions as reasonably possible between samples
-            clr     R15                     ; (1) Clear R15; carry NOT affected
-#if 0
-            rlc     R15                     ; (1) Shift into R15
-            jmp     $+2                     ; (2) Waste 2 cycles
-            bit.w   #CCI,&TACCTLr           ; (4) Sample
-            rlc     R15						; (1)
-;
-; R15 now has 0-7; do a population count using a lookup table
-			bit.b	#1,poptable(R15)        ; (4) Read table
-#else
-			addc	#0,R15					; (1) Add one if carry (read a 1)
-			bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
-			addc	#0,R15					; (1) Add one if carry (read a 1)
-			bit.w   #CCI,&TACCTLr           ; (4) Sampled bit to carry
-			addc	#0,R15					; (1) Add one if carry (read a 1)
-			cmp		#2,R15					; (1) Carry set if R15 (num bits) >= 2
-#endif
-			rrc.b	RXData                  ; (4) Store received bit
+RX_Bit      bit.w   #SCCI,&TACCTLr			; (4) Sampled bit to carry
+			rrc.b	&RXData					; (4) Store received bit
 RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
 			jnz		just_reti               ; (2+5) If there's a next bit, just exit
-			mov.b	#08,&BitCntRx           ; Setup bit counter for next byte
-			bis.w	#CAP,&TACCTLr           ; Back to capture mode
+			mov.b	#8,&BitCntRx			; Setup bit counter for next byte
+			bis.w	#CAP,&TACCTLr			; Back to capture mode
 			mov		#1,&echoMe				; Something to echo
-			mov		&RCACB,Rcallback           ; Received char callback
+			mov		&RCACB,Rcallback		; Received char callback
 			jmp		DispatchCB
 
-#if 0
-; Population count table, used for majority voting on 3 sampled bits
-poptable:   db    0     ; 000
-            db    0     ; 001
-            db    0     ; 010
-            db    1     ; 011
-            db    0     ; 100
-            db    1     ; 101
-            db    1     ; 110
-            db    1     ; 111
-#endif
 
 ;-------------------------------------------------------------------------------
 TX_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
