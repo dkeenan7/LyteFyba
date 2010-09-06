@@ -121,14 +121,7 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
 ;  Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
 			mov		#startMeasure,&IdleDest		; Point the idle code at the measurement code
-			reti
-
-DispatchCB: TST   Rcallback                    ; Is there a callback function?
-            jz    just_reti                 ; Just return from interrupt if no
-            eint                            ; Callbacks can be interrupted
-; Avoiding a call here saves a precious return stack location:
-            br    Rcallback                    ; Jump to callback; will restore status and return to mainline
-just_reti:  reti
+just_reti	reti
 
 ;  RXData location holds received byte
 UART_RX     add.w   #Bitime,&TACCRr         ; (5) Time to next bit
