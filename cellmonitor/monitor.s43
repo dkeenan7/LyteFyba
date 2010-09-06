@@ -6,10 +6,19 @@
         NAME    main                    ; module name
         PUBLIC  main                    ; make the main label visible
 		
+; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
+InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
+ReadByte	EQU		$108A		; Calling-address to receive byte in R8
+WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
+ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
+VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
+VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
+TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
+MHz4Cal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+
+
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
-#define		BRACKETS		1		; True to echo angle brackets around received char
-#define		INCCHAR			0		; True to echo one more than received (for full duplex test)
-#define		SOLIDUs			0		; True to send solid "U" characters as fast as possible (throughput test)
 #define		TEST			1		; 1 for testing with BMU cell-inputs in parallel
 
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
@@ -31,10 +40,8 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ;           Memory definitions
 ;
             ORG     0200h
-RCACB       DS      2				; Received char available callback
-TXCCB       DS      2				; Transmit complete callback
-RTCB        DS      2               ; Real Time clock callback
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
+bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 IdleDest	DS		2				; Code pointer for idle loop
 TXData      DS		2               ; Byte to transmit in lower byte; always $FF in high byte
 RXData      DS      1               ; Received char
@@ -43,7 +50,10 @@ BitCntRx    DS      1               ; Bit count 8 -> 1
 EchoState	DS      1				; Temp: this will go away
 TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
 currBadness	DS		1				; Current badness
+lastSentBad	DS		1				; Last sent badness
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
+ticksSinceLastSend DS 1				; Timer overflow events (~1/4 second ticks) since last badness send
+ticksSinceLastRx DS	1				; Timer overflow events (~1/4 second ticks) since last badness received
 
 ;-------------------------------------------------------------------------------
             ORG     0F800h                  ; Program Reset
@@ -57,11 +67,6 @@ bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has ala
 
 main:       mov.w   #0280h,SP               ; Initialize stackpointer
 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
-#if		INCCHAR
-			mov		#MyRTCB,&RTCB			; My real time callback
-#else
-			clr     &RTCB                   ; No real time callback yet
-#endif
 
 ;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
@@ -111,19 +116,21 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit, idle bit)
 			mov.b	#1,TX_Sem					; Initialise transmit semaphore
 
-            ; Make the "send next char" function the transmit complete callback
-;            mov     #SendNext, &TXCCB       ; Transmit complete callback
-            clr     &TXCCB
-;            clr     &RCACB
-            mov     #Echo, &RCACB           ; Received char callback
-
 ;
 ; Setup RX
 ;
             mov.b   #08,&BitCntRx           ; Load Bit Counter, 8 data bits
 SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 
+;
+; Miscallaneous initialisation
+;
 			mov		#IdleLoop,&IdleDest		; Initialise the idle code pointer to just loop
+			clr		&bypassVolts			; No special bypass voltage as yet
+			clr.b	&currBadness			; Current badness is none
+			clr.b	&lastSentBad			; Last badness we sent was zero
+			clr.b	&ticksSinceLastSend
+			clr.b	&ticksSinceLastRx
 
 			; Fall through to the start of the measurement loop
 
@@ -132,58 +139,156 @@ startMeasure:
 ; Regular measurement goes here
 ; Called about 4 times per second
 ;
+			inc.b	&ticksSinceLastSend		; Increment these counters
+			inc.b	&ticksSinceLastRx
+			_IF		_Z						; Wrapped around to 0?
+				mov.b	#$FF,&ticksSinceLastRx	; Yes, saturate at $FF
+			_ENDIF
+
 			mov		#CellVChan<<12,R8
-			call	#measure
+			call	#measAndCal
+			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
+			tst		R8
+			_IF		_Z
+				mov		#3600,R8				; Default of 3.6 V
+			_ENDIF
+			cmp		R8,R10					; Is the current cell voltage >= the bypass threshold?
+			subc	R8,R8					; If so, carry was set and we get 0 here
+			inv		R8						; -1 if bypass needed
+			xor.b	&P1OUT,R8				; Which bits differ
+			and		#BYPASS,R8				; Only BYPASS left on, and only if wrong
+			xor.b	R8,&P1OUT				; Change if necessary
+
+			; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
+			mov		R10,R9					; Measurement
+			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
+			_IF		_L
+				clr		R9						; Minimum of zero
+			_ENDIF
+			push	R10						; Save measurement
+			clr		R10						; R10:R9 has meas - 3.6
+			mov		#50,R8
+			call	#UMSlashMod				; (meas - 3.6) / 50 -> R9
+			mov		R9,R15					; Keep this partial badness
+
+			; Undervoltage badness: for every 100 mv below 2.5 V, we add one level of badness, to a maximum of 7 for < 1.9 V
+			pop		R10						; Original measurement
+			mov		#2500+99,R9
+			sub		R10,R9					; R9 has 2.5 V - meas plus 99 for rounding
+			clr		R10						; R10:R9 has this
+			_IF		_L
+				clr		R9						; Minimum of zero
+			_ENDIF
+			mov		#100,R8
+			call	#UMSlashMod				; (2.5 V - meas) / 100 -> R9
+			cmp		R9,R15					; Which badness is worse?
+			_IF		_GE
+				mov		R15,R9				; Worst to R9
+			_ENDIF
+			
+			; Temperature measurement
+			push	R9
+			mov		#TempChan<<12, R8
+			call	#measAndCal
+; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+; But the measurement M is 4096* V/1.5 = 2731*V.
+; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
+; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
+			mov		R10,R8
+			mov		#6760,R9
+			call	UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
+			sub		#273,R10				; M/9.694 - 273
+			mov.b	&TempCal,R8
+			sxt		R8
+			sub		R8,R10					; R10 has temperature in degrees Celsius
+			; Temperature badness: 1 for every 2 degrees over 60
+			sub		#60-1,R10				; -1 for rounding
+			_IF		_L
+				clr		R10					; Minimum of 0
+			_ENDIF
+			rra		R10
+			pop		R9						; Restore current worst badness
+			cmp		R10,R9					; Is temp badness worse than current?
+			_IF		_C
+				mov		R10,R9					; Yes, new worst
+			_ENDIF
+
+			
+			; Link measurement, if appropriate
+			cmp		#$80,&LinkCal			; Special "calibration failure" code?
+			_IF		_NE						; Only measure link voltage if not this code
+				; Link voltage measurement in mV
+				; Circuit has 2:1 voltage divider with Vref at the bottom.
+				; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
+				; Reading = 2048 + (Vin/2)(4096/1.5)
+				; R = 2048 + Vin * 1365.3 (Vin in volts)
+				; R = 2048 + Vin * 1.3653 (Vin in mV)
+				; Vin = (R - 2048)/1.3653 mV
+				; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
+				push	R9
+				mov		#LinkVChan<<12, R8
+				call	#measAndCal
+				sub		#2048,R10			; R10 has M-2048
+				mov.b	&LinkCal,R8
+				sxt		R8
+				sub		R8,R10				; R10 has M-2048-LinkCal
+				_IF		_L
+					inv		R10					; Get absolute value
+					inc		R10
+				_ENDIF
+				mov		R10,R8
+				mov		#48001,R9
+				call	#UMStar				; R10 has absolute link voltage in mV
+				; Link badness: 1 for every 50 mV over 100 mV
+				sub		#100-49,R10
+				mov		R10,R9
+				clr		R10
+				mov		#50,R8
+				call	#UMSlashMod
+				pop		R8					; Current worst badness
+				cmp		R8,R9
+				_IF		_NC
+					mov		R8,R9
+				_ENDIF
+			_ENDIF
+
+			cmp		#7,R9					; Is the overall badness worse than 7?
+			_IF		_GE
+				mov		#7,R9					; Yes, use 7
+			_ENDIF
+
+			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
+			cmp		#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+			_IF		_C
+				tst.b	&ID						; Only if ID
+				_IF		_NZ						;	is nonzero...
+					tst		R9						; Yes, are we at badness zero?
+					_IF		_Z
+						mov		#1,R9				; Yes, make it 1 for the comms error
+					_ENDIF
+				_ENDIF
+			_ENDIF
+
+			cmp		R9,&lastSentBad			; Is this worse than the last badness we sent?
+			jl		sendBadnessNow			;	Jump if so to send the badness immediately
+
+			cmp		#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+			_IF		_C
+				cmp		#4,&ticksSinceLastSend
+				_IF		_C
+sendBadnessNow		clr		&ticksSinceLastSend
+					mov		badnessTable(R9),&TXData	; Look up the encoded badness
+					call	TX_Byte						; Send it
+				_ENDIF
+			_ENDIF
+			
+
 
 IdleLoop:	bis     #CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the measurement loop
             br     &IdleDest				; Gets reached after interrupts
 
-Echo:
-#if			!BRACKETS
-			reti							; Don't do anything here; wait for timer interrupt to echo
-#endif
-			clr.b   &EchoState
-            mov     #EchoCB,&TXCCB          ; Call the echo EchoState machine on transmit ready
-#if BRACKETS
-            mov.b   #'<',&TXData
-            call    #TX_Byte
-            reti                            ; Callbacks end with reti to preserve status
-#else
-			; Fall through to EchoCB
-#endif
 
-;
-; EchoState 0: echo rxdata; EchoState 1: '>'; EchoState 2: do nothing
-EchoCB:     cmp.b   #1,&EchoState
-            jge     Echo1
-            mov.b   &RXData,R4
-next:       mov.b   R4,&TXData         ; EchoState 1: echo received char
-            call    #TX_Byte
-            inc.b   &EchoState
-;            jmp     just_reti         ; Evil saved instruction: &EchoState will be NZ here
-Echo1:      jne     just_reti
-            mov.b   #'>',R4
-#if BRACKETS
-            jmp     next
-#else
-			jmp		just_reti
-#endif
-
-;
-; Send an infinite block of incrementing characters
-;
-SendNext:   bic     #CPUOFF,0(SP)           ; In case mainline had CPU off
-            pop     SR                      ; Not saving mainline status
-            inc.b   R4                      ; Next char
-            cmp.b   #0xFF,R4                ; Up to last?
-            jnz     notlast                 ; Branch if no
-            mov.b   #0x20,R4                ; Wrap around
-notlast     mov.b   R4,&TXData
-			jmp		TX_Byte
-
-
-			EVEN				; Word-align for following code
 			; Encoded badness table. The badness information is transmitted in one byte,
 			; with no checksum correction. To counter this, badness is encoded, so that only
 			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
@@ -199,43 +304,118 @@ badnessTable DB		$80			; $80 is least badness
 ;	Callback routine for received byte.
 ;	Process badness channel, and execute commands.
 OnRxByte:
-		push	R8
-		push	R9
-		mov.b	RXData,R8
-		tst.b	R8					; Test for badness command ($80-$F7)
-		_IF		_L					; If negative (i.e. badness)
-			mov.b	R8,R9				; Copy incoming badness
-			and		#7,R9				; Consider only raw badness bits
-			cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&currBadness,R9		; Current badness
-			mov.b	badnessTable(R9),R9	; Present encoded badness
-			jne		sendMyBadness		; NO! So just send my badness instead
-			cmp.b	R8,R9				; Compare incoming badness to ours
-			_IF		_C					; If incoming is less bad than us,
+			push	R8
+			push	R9
+			mov.b	RXData,R8
+			tst.b	R8					; Test for badness command ($80-$F7)
+			_IF		_L					; If negative (i.e. badness)
+				clr		&ticksSinceLastRx	; Now no time since last received badness
+				mov.b	R8,R9				; Copy incoming badness
+				and		#7,R9				; Consider only raw badness bits
+				cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
+				mov.b	&currBadness,R9		; Current badness
+				mov.b	badnessTable(R9),R9	; Present encoded badness
+				jne		sendMyBadness		; NO! So just send my badness instead
+				cmp.b	R8,R9				; Compare incoming badness to ours
+				_IF		_C					; If incoming is less bad than us,
 sendMyBadness		mov		R9,R8				; then we are worse; send our badness
-				; Note that the above does not preserve R8. However, strict preservation
-				; is no longer necessary, and since password and non-password bytes can't
-				; be interchanged, it is safe
+					; Note that the above does not preserve R8. However, strict preservation
+					; is no longer necessary, and since password and non-password bytes can't
+					; be interchanged, it is safe
+				_ENDIF
 			_ENDIF
-		_ENDIF
-		mov.b	R8,&TXData
-		call	#TX_Byte			; echo the byte
-		tst.b	R8					; Is R8
-		_IF		_L					;	 a badness?
-			tst.b	&bCheckForBad	; Are we checking
-			_IF		_NZ				;	for badness (because we're the last BMU)?
-				call	#m_alarm		; Set or clear the alarm based on R8
+			mov.b	R8,&TXData
+			call	#TX_Byte			; echo the byte
+			tst.b	R8					; Is R8
+			_IF		_L					;	 a badness?
+				tst.b	&bCheckForBad	; Are we checking
+				_IF		_NZ				;	for badness (because we're the last BMU)?
+					call	#m_alarm		; Set or clear the alarm based on R8
+				_ENDIF
+			_ELSE						; Else R8 has command byte
+				;
+				; Process command byte here
+				;
 			_ENDIF
-		_ELSE						; Else R8 has command byte
-			;
-			; Process command byte here
-			;
-		_ENDIF
-
+	
 exitOnRx
-		pop		R9
-		pop		R8
-		reti						; Callback functions end with reti, to preserve flags
+			pop		R9
+			pop		R8
+			reti						; Callback functions end with reti, to preserve flags
+	
+
+measAndCal:
+		call		#measure				; Defined in ../common/measure.s43
+;
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
+; throwing away the lo word and shifting the high word one bit to the right.
+		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
+		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
+		swpb		R10						; Assemble the two bytes into a word
+		bis			R10,R9					; as multiplicand in R9
+											; Multiplier is sum-of-samples, already in R8
+		call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+											; Note: calls assembler code that ends in ret
+		inc			R10						; For correct rounding
+		rra			R10						; Shift product hi word right one bit
+
+		ret					; Finished
+
+; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
+
+		; Unsigned multiply
+		; Starts with 16 bit multiplicand in R8, multiplier in R9 and
+		; ends with 32 bit product in R10 (hi) and R9 (lo).
+UMStar:
+		clr		R10			; Clear hi word of product so far
+		mov		#16,R11		; Do 16 times
+
+mullp	bit		#1,R9		; Test low bit of multiplier
+		jz		mulz		; If it's a 1
+		add		R8, R10		;   add multiplicand to product hi word; Endif
+mulz	rrc		R10			; Shift product hi word (incl. carry) right
+		rrc		R9			; into product lo and simul. shift multiplier right
+		dec		R11			; Decrement loop counter
+		jnz		mullp		; Loop until zero
+		ret
+
+
+; UM/MOD ( ud u1 -- u2 u3 )
+; R10:R9 / R8 -> R9, remainder to R10
+; Divide ud by u1, giving the remainder u2 and the quotient u3.
+; All values and arithmetic are unsigned. An ambiguous condition exists
+; if u1 is zero or if the quotient lies outside the range of a single
+; unsigned integer.
+; In this case we return $FFFF for both quotient and remainder.
+; Algorithm is from eForth by Bill Muench.
+; It is essentially the reverse of the multiplication algorithm above.
+
+UMSlashMod:
+		cmp     R8,R10   ; Overflow?
+		jc      oflo     ; Jump to error exit if divide by zero or overflow.
+		mov     #16,R11  ; Do 16 times
+
+ummlp	rla     R9       ; Shift quotient left and simul. shift dividend lo
+		rlc     R10      ;   into dividend hi
+		jc      umm2     ; If carry OR
+		cmp     R8,R10
+		jlo     umm1     ;   no carry AND remainder-so-far >= divisor
+umm2	sub     R8,R10   ;     Subtract divisor from remainder-so-far
+		bis     #1,R9    ;     Set low bit of quotient-so-far
+                         ; Endif
+umm1	dec     R11      ; Decrement loop counter
+		jnz     ummlp    ; Loop until zero
+		ret
+
+oflo	mov    #-1,R9
+		mov    #-1,R10
+		ret
+
 
 
 m_alarm:
