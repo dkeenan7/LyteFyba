@@ -1,7 +1,9 @@
-		COL		132			; Wide listings
+		COL		156			; Wide listings
 
+		LSTOUT-
 #include  "msp430.h"
 #include "../interpreter/ControlFlowMacros.h"
+		LSTOUT+
 
         NAME    main                    ; module name
         PUBLIC  main                    ; make the main label visible
@@ -196,7 +198,7 @@ startMeasure:
 ; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
 			mov		R10,R8
 			mov		#6760,R9
-			call	UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
+			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
 			sub		#273,R10				; M/9.694 - 273
 			mov.b	&TempCal,R8
 			sxt		R8
@@ -278,7 +280,7 @@ startMeasure:
 				_IF		_C
 sendBadnessNow		clr		&ticksSinceLastSend
 					mov		badnessTable(R9),&TXData	; Look up the encoded badness
-					call	TX_Byte						; Send it
+					call	#TX_Byte					; Send it
 				_ENDIF
 			_ENDIF
 			

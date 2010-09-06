@@ -1,4 +1,3 @@
-		COL		132			; Wide listings
 ;*******************************************************************************
 ;   MSP430F20xx Software UART - Timer_A
 ;
@@ -81,7 +80,7 @@ gotTxSem
 											; This is so that P1.5 will always be an inversion of P1.1
 
 			mov.b   #10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 11 times,
-											; just after the start of each bit sent /*, and once jsut after
+											; just after the start of each bit sent /*, and once just after
 											; the end of the stop bit */
 
 			dint							; NOTE: instruction following DINT is not protected!
