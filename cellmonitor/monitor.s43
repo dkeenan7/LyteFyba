@@ -1,4 +1,4 @@
-		COL		156			; Wide listings
+		COL		132			; Wide listings
 
 		LSTOUT-
 #include  "msp430.h"
@@ -17,17 +17,26 @@ VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
-MHz4Cal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+MHz4Cal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next
+								; data version in BSL-writer
 
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
 #define		TEST			1		; 1 for testing with BMU cell-inputs in parallel
+#define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
 
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
-; FIXME! The below disagree with the diagram above, but are correct for now (if highly confusing!!)
-TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
+#if			ROTATE3
+TXDp		EQU		1<<1			; TA0/P1.1
+TXDm		EQU		1<<5			; SCLK/P1.5
+BYPASS		EQU		1<<0			; P1.0
+#else
+; The below are how things used to be; can't really run this software on that old hardware
+TXDm		EQU		1<<0			; Normally 1<<n with n < 4 for compactness (costs 1 word if not)
 TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
 BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
+#endif
+
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
 LED			EQU		1<<6			; LED on bit 6
 info1MHzCalB EQU	0x1002			; Frequency calibration
 info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
@@ -107,8 +116,9 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			; We want to set the CCIFG so that TX_Byte won't
 			; belive that this value is the end of a previous stop bit
 			add		#2,&TACCRt					; happen as soon as possible
-			mov.b   #RXD+TXDp,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+			mov.b   #RXD+(1<<1),&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
             bis.b   #TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
+			clr.b	&P1OUT						; Clear LED and bypass
 #if 1
 			mov.w   #OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Non-idle or space; seems necessary to "wake up" divider
 			mov.w   #OUTMOD_0, &TACCTLt			; TXD=0 Idle or Mark       (for the internal inverter)
@@ -154,9 +164,8 @@ startMeasure:
 			_IF		_Z
 				mov		#3600,R8				; Default of 3.6 V
 			_ENDIF
-			cmp		R8,R10					; Is the current cell voltage >= the bypass threshold?
-			subc	R8,R8					; If so, carry was set and we get 0 here
-			inv		R8						; -1 if bypass needed
+			cmp		R10,R8					; Is the current cell voltage >= the bypass threshold?
+			subc	R8,R8					; If so, carry was clear and we get -1 here, else 0
 			xor.b	&P1OUT,R8				; Which bits differ
 			and		#BYPASS,R8				; Only BYPASS left on, and only if wrong
 			xor.b	R8,&P1OUT				; Change if necessary
@@ -211,11 +220,12 @@ startMeasure:
 			rra		R10
 			pop		R9						; Restore current worst badness
 			cmp		R10,R9					; Is temp badness worse than current?
-			_IF		_C
+			_IF		_NC
 				mov		R10,R9					; Yes, new worst
 			_ENDIF
 
-			
+
+#if 0		; For now, since LinkCal can't be set to $80
 			; Link measurement, if appropriate
 			cmp		#$80,&LinkCal			; Special "calibration failure" code?
 			_IF		_NE						; Only measure link voltage if not this code
@@ -253,6 +263,7 @@ startMeasure:
 					mov		R8,R9
 				_ENDIF
 			_ENDIF
+#endif
 
 			cmp		#7,R9					; Is the overall badness worse than 7?
 			_IF		_GE
@@ -260,7 +271,7 @@ startMeasure:
 			_ENDIF
 
 			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
-			cmp		#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 			_IF		_C
 				tst.b	&ID						; Only if ID
 				_IF		_NZ						;	is nonzero...
@@ -271,16 +282,18 @@ startMeasure:
 				_ENDIF
 			_ENDIF
 
-			cmp		R9,&lastSentBad			; Is this worse than the last badness we sent?
-			jl		sendBadnessNow			;	Jump if so to send the badness immediately
+			mov.b	badnessTable(R9),R9		; Look up the encoded badness
+			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
+			jnc		sendBadnessNow			;	Jump if so to send the badness immediately
 
-			cmp		#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 			_IF		_C
-				cmp		#4,&ticksSinceLastSend
+				cmp.b	#4,&ticksSinceLastSend
 				_IF		_C
-sendBadnessNow		clr		&ticksSinceLastSend
-					mov		badnessTable(R9),&TXData	; Look up the encoded badness
-					call	#TX_Byte					; Send it
+sendBadnessNow		clr.b	&ticksSinceLastSend
+					mov.b	R9,lastSentBad			; Update remembered value
+					mov.b	R9,&TXData			
+					call	#TX_Byte					; Send the encoded badness
 				_ENDIF
 			_ENDIF
 			
