@@ -119,7 +119,8 @@ TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow inter
 ;
 ;  Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
-			mov		#startMeasure,&IdleDest		; Point the idle code at the measurement code
+			mov		#startMeasure,&IdleDest	; Point the idle code at the measurement code
+			bic		#CPUOFF,0(SP)			; When return, have CPU continue running
 just_reti	reti
 
 ;  RXData location holds received byte
