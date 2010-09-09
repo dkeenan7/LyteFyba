@@ -68,6 +68,8 @@ DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 PRESERVEIDS	EQU		1				; 1 to preserve IDs
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
 FREQCAL		EQU		$86C0			; Value to force frequency calibration to
+FORCEFCAL4	EQU		0				; 1 to force compressed 4MHz cal (temporary)
+FREQCAL4	EQU		$8AA6			; Uncompressed value to set 4MHz cal to
 
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
@@ -275,7 +277,11 @@ currVersBSL
 ;			mov.b	&infoLinkCal,&mainLinkCal
 			mov.b	&infoDataVers,&mainDataVers
 #endif
+#if	FORCEFCAL4
+			mov.b	#((FREQCAL4>>1) & $FF),&main4MHzCal	; Set compressed version of forced value
+#else
 			mov.b	&info4MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
+#endif
 noCopyCalNew
 #if FORCEFCAL
 			mov.b	#FREQCAL >> 8,&main1MHzCalB
@@ -916,7 +922,7 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 
             mov.b	#0,&P1OUT   	; Set TXD outputs the same, bypass and LED off
             bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
-#if			MHz4
+#if	MHz4
 			mov.b	info4MHzCal,R8			; Get compressed 4MHz calibration
 			rla		R8						; Uncompress
 			bis		#$8A00,R8				; OR in assumed MSBs
