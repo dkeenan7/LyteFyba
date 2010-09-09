@@ -17,8 +17,7 @@ VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
-MHz4Cal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next
-								; data version in BSL-writer
+MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layout
 
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
@@ -71,6 +70,7 @@ ticksSinceLastRx DS	1				; Timer overflow events (~1/4 second ticks) since last 
 ;-------------------------------------------------------------------------------
 
 ; Comms routines
+			jmp		main					; For when started by the BSL
 #include "serialio.s43"
 ; voltage measurement functions
 #include "../common/measure.s43"
@@ -84,10 +84,14 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 #if Mfreq = 1000000
 			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
-#else
-			mov.b	#$8A,&BCSCTL1			; Set range for near 4 MHz
-			; FIXME: this is for ONE INDIVIDUAL BOARD only!!!:
-			mov.b	#$BB,&DCOCTL			; Set DCO step + modulation for 4.00 MHz
+#else		; FIXME: this needs to change with version 5 data layout!!
+			mov.b	&MHz4Cal,R8				; Compressed 4MHz calibration data
+			rla		R8						; Uncompress
+			bis		#$8A00,R8				; OR in most significant bits
+			swpb	R8						; Get MSB (might be important to write first)
+			mov.b	R8,&BCSCTL1				; Write MSB
+			swpb	R8
+			mov.b	R8,&DCOCTL				; and LSB
 #endif
 
 			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
@@ -225,7 +229,8 @@ startMeasure:
 			_ENDIF
 
 
-#if 0		; For now, since LinkCal can't be set to $80
+#if 0		; FIXME: Temporarily disable link measurement while debugging in parallel, until I have a
+			; way of setting LinkCal to $80
 			; Link measurement, if appropriate
 			cmp		#$80,&LinkCal			; Special "calibration failure" code?
 			_IF		_NE						; Only measure link voltage if not this code
@@ -248,11 +253,15 @@ startMeasure:
 					inv		R10					; Get absolute value
 					inc		R10
 				_ENDIF
-				mov		R10,R8
+				mov		R10,R8				; R8 has R-2048-LinkCal
 				mov		#48001,R9
+				clr		R10					; R10:R9 has 48001
 				call	#UMStar				; R10 has absolute link voltage in mV
 				; Link badness: 1 for every 50 mV over 100 mV
 				sub		#100-49,R10
+				_IF		_L
+					clr		R10					; Minimum of 0
+				_ENDIF
 				mov		R10,R9
 				clr		R10
 				mov		#50,R8
