@@ -47,9 +47,9 @@
 ; For this reason, the BSL code is highly hand-optimised for space and
 ; uses many tricks that can make it hard to follow and hard to modify.
 ;
-; The following is true of this BSL-writer, and the BSL itself:fco
-;   They use no interrupts, since the interrupt vectors will be reprogrammed.
-;   They use no timer; too many 6-byte instructions!
+; The following is true of this BSL-writer, and the BSL itself
+;	They use no interrupts, since the interrupt vectors will be reprogrammed.
+;	They use no timer; too many 6-byte instructions!
 ; The BSL serial input code has some noise immunity.
 
 ; Conditional assembly parameters which may be changed for special purposes
@@ -63,7 +63,7 @@ CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
 CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
 CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALVOLTOFF	EQU		0				; Fudge factor to make the measurements better
-CALTEMP		EQU		19				; Ambient temperature in degrees Centigrade
+CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 PRESERVEIDS	EQU		1				; 1 to preserve IDs
 FORCEFCAL	EQU		0				; 1 to force calibration frequency
@@ -168,7 +168,7 @@ SETLOCKA	macro
 sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 
 
-            ORG		$FFFE			; The reset vector
+			ORG		$FFFE			; The reset vector
 ;			dw		$1000			; If this BSL-writer is bootstrap-loaded
 									; the reset vector will remain pointing to the BSL
 									; and it will be called via interpretByte.
@@ -204,23 +204,24 @@ anInit		call	#compareImage			; Is it before the BSLwriter is run?
 ; Start of the actual BSL-writer
 ;
 BSLwriter:	mov		#$280,SP
-StopWDT		mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
+StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; If the calibration words get corrupted, we're probably better off not using them here:
-;			MOV.B     &CALBC1_1MHZ, &BCSCTL1  ; Set range for 0.54 to 1.06 MHz
-;			MOV.B     &CALDCO_1MHZ,&DCOCTL    ; Set DCO step + modulation for 1.00 MHz
+;			MOV.B		&CALBC1_1MHZ, &BCSCTL1	; Set range for 0.54 to 1.06 MHz
+;			MOV.B		&CALDCO_1MHZ,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4),&P1DIR				; Set LED and P1.4 bits to output
-			bic.b	#LED+(1<<4),&P1OUT				; Turn off LED and set P1.4 to 0V
+			mov.b	#LED+(1<<4),&P1DIR		; Set LED and P1.4 bits to output
+;			bic.b	#LED+BYPASS+(1<<4),&P1OUT ; Turn off LED and bypass, and set P1.4 to 0V
+			clr.b	&P1OUT					; Turn off LED and bypass, and set P1.4 to 0V
 			clr		rERR					; Clear error register
 
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 5=divide by 6. Must end up in the range 257-476 kHz
-			MOV     #FWKEY+FSSEL_1+3-1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
-			MOV     #FWKEY,&FCTL3       ; Clear LOCK, don't toggle LOCKA
-            MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write block that can't be)
+			MOV		#FWKEY+FSSEL_1+3-1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+			MOV		#FWKEY,&FCTL3		; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write block that can't be)
 ;
 ; If we find $FFFF (erased flash) at $10C0 (start of info-flash protected segment A),
 ; then assume it's a new chip.
@@ -245,8 +246,8 @@ newChip
 			mov.w	&infN4MHzCalD,R8			; 4 MHz calibration word (presumed, not documented)
 			rra		R8							; Shift right
 			mov.b	R8,&main4MHzCal				; Use bottom half; flash-program
-			; If you ever need to restore the full word of 4 MHz calibration data, shift left one bit and OR with $8A00
-			;  then find the least significant bit by trial and error.
+			; If you ever need to restore the full word of 4 MHz calibration data, shift left one bit
+			; and OR with $8A00 then find the least significant bit by trial and error.
 			mov.b	&infN1MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration data
 			mov.b	&infN1MHzCalD,&main1MHzCalD
 			jmp		donePrep
@@ -264,7 +265,7 @@ currVersBSL
 ; that's the only way to erase the ID. It's easy to reset the IDs with the interpreter 'i' (SetID) command.
 ;			mov.b	&infoID,&mainID				; Copy ID (commented out)
 #if CALONLYONE | PRESERVEIDS
-			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case, or if PRESERVEIDs is set
+			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case, or if PRESERVEIDS is set
 #endif
 #if !CALIBRATE
 #if CALONLYONE
@@ -342,10 +343,10 @@ vers2BSL
 			rla		R8					; Shift it left one bit
 			bit		#$100,R8			; Test MSB
 			jnz		noSet12v2			; If it was 0
-			bis		#$1000,R8			;   then bit 12 needs to be on
+			bis		#$1000,R8			;	then bit 12 needs to be on
 			jmp		set12v2
 noSet12v2								; else
-			bis			#$e00,R8		;   set these extra 3 bits on, leave bit 12 off
+			bis			#$e00,R8		;	set these extra 3 bits on, leave bit 12 off
 set12v2
 			rla		R8					; Shift it 3 bits left
 			rla		R8					; to become a 1.15 bit fixed-point number
@@ -385,10 +386,10 @@ vers1BSL
 			rla		R8
 			bit		#$100,R8			; Test MSB
 			jnz		noSet12v1			; If it was 0
-			bis		#$1000,R8			;   then bit 12 needs to be on
+			bis		#$1000,R8			;	then bit 12 needs to be on
 			jmp		set12v1
 noSet12v1								; else
-			bis			#$e00,R8		;   set these extra 3 bits on, leave bit 12 off
+			bis			#$e00,R8		;	set these extra 3 bits on, leave bit 12 off
 set12v1
 			rla		R8					; Shift it 3 bits left
 			rla		R8					; to become a 1.15 bit fixed-point number
@@ -445,15 +446,15 @@ CalVoltDividend	SET	(CALVOLTS+CALVOLTOFF)<<17	; The CALVOLTOFF is just a fudge f
 			mov		R9,R11
 			bit		#$1000,R11				; Look at bit 12
 			jz		vcMsbZ					; If 1
-			and		#$F00,R11				;   look at next 4 bits
-			jz		calVoltOk				;   if not 0
-			mov		#1,rERR					;      VOLT READING TOO LOW
-			jmp		startErase				;      Carry on and flash with no cal bytes
+			and		#$F00,R11				;	look at next 4 bits
+			jz		calVoltOk				;	if not 0
+			mov		#1,rERR					;		VOLT READING TOO LOW
+			jmp		startErase				;		Carry on and flash with no cal bytes
 											; endif endif
-vcMsbZ		and		#$F00,R11 				;   look at next 4 bits
-			cmp		#$F00,R11				;   check for all 1s
-			jz		calVoltOk				;   if not all 1s
-			mov		#2,rERR					;      VOLT READING TOO HIGH
+vcMsbZ		and		#$F00,R11 				;	look at next 4 bits
+			cmp		#$F00,R11				;	check for all 1s
+			jz		calVoltOk				;	if not all 1s
+			mov		#2,rERR					;		VOLT READING TOO HIGH
 			jmp		startErase
 calVoltOk									; endif endif
 			; We can reproduce this number now from the 8 bits 8 .. 1 (so shift right)
@@ -467,8 +468,8 @@ calVoltOk									; endif endif
 ;
 ; Temperature offset calibration
 ; M = 4096/1.5 * (.00355 T + typ0.986)
-;   = 9.694*T + typ2692
-; M/9.694  = T + typ277.7
+;	= 9.694*T + typ2692
+; M/9.694	= T + typ277.7
 ; Per the MSP430F2012 datasheet, typ277.7 aims at 273, so the reading is proportional
 ; to the absolute temperature, with an offset of +- 100 mV.
 			; We use offsetByte = (M/9.694 - T) >> 1
@@ -489,9 +490,9 @@ calVoltOk									; endif endif
 			mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
 			swpb		R10						; Assemble the two bytes into a word
 			bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-			call		#aUMStar				; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
+												; Multiplier is sum-of-samples, already in R8
+			call		#aUMStar				; Gives unsigned product in R10 (hi word) & R9 (lo word)
+												; Note: calls assembler code that ends in ret
 			inc			R10						; For correct rounding
 			rra			R10						; Shift product hi word right one bit
 
@@ -500,8 +501,8 @@ calVoltOk									; endif endif
 			mov		#6760,R9
 			call	#aUMStar
 			sub		#CALTEMP+273,R10
-;			rra		R10						; Temp offset now fits in a byte
-			mov.b	R10,&mainTempCal		; Flash write temperature offset calibration value
+;			rra		R10							; Temp offset now fits in a byte
+			mov.b	R10,&mainTempCal			; Flash write temperature offset calibration value
 			
 #endif		/* #if CALIBRATE */
 
@@ -511,65 +512,67 @@ doneCalibrate
 
 ; Erase info flash including segment A. Assumes MCLK=1.00 MHz
 startErase
-			mov		#$1000,R12			; Start of info-flash
-eraseInfo   MOV     #FWKEY,&FCTL3       ; Clear LOCK, don't toggle LOCKA
-			MOV     #FWKEY+ERASE,&FCTL1 ; Enable single segment erase (doesn't seem to "stick")
-            rra     @R12				; Dummy write: erase segment
-			add		#64,R12				; Next segment
+			mov		#$1000,R12				; Start of info-flash
+eraseInfo	MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+ERASE,&FCTL1 	; Enable single segment erase (doesn't seem to "stick")
+			rra		@R12					; Dummy write: erase segment
+			add		#64,R12					; Next segment
 			cmp		#$10C0,R12
-			jnz		eraseInfo			; Loop until at start of segment A
-			CLRLOCKA					; Clear segment A lock (so we can erase and write it as well)
-			MOV     #FWKEY+ERASE,&FCTL1 ; Enable single segment erase
-            rra     @R12				; Dummy write: erase segment A
+			jnz		eraseInfo				; Loop until at start of segment A
+			CLRLOCKA						; Clear segment A lock (so we can erase and write it also)
+			MOV		#FWKEY+ERASE,&FCTL1 	; Enable single segment erase
+			rra		@R12					; Dummy write: erase segment A
 
-            MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write block that can't be)
-            clr		R12       			; $1000 is start of info flash
-            mov     #for1000,R9			; Start of code to write there
-pifLoop		mov.w   @R9+,$1000(R12)		; Program word
-            incd	R12
-            cmp     #256,R12			; Test index
-            jnz     pifLoop				; Repeat until done
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+			clr		R12						; $1000 is start of info flash
+			mov		#for1000,R9				; Start of code to write there
+pifLoop		mov.w	@R9+,$1000(R12)			; Program word
+			incd	R12
+			cmp		#256,R12				; Test index
+			jnz		pifLoop					; Repeat until done
 			
 
-            MOV     #FWKEY,&FCTL1		; Done. Clear WRT
-            MOV     #FWKEY+LOCK+LOCKA,&FCTL3   ; Set LOCKs
-			SETLOCKA					; Ensure segment A is locked
+			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
+			MOV		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCKs
+			SETLOCKA						; Ensure segment A is locked
 			;
 			; Check that the flash programming worked
 			;
-			call	#compareImage		; Compare the for1000 image with what's at 1000
+			call	#compareImage			; Compare the for1000 image with what's at 1000
 			jnz		failCompare
 			
 			tst		rERR
 			jnz		errorFlash
 			;
 			; Compares successfully. Point reset vector to new code.
-			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of main-flash!
+			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
+			; main-flash!
 			;
-			bis.b	#LED,&P1OUT			; Turn on LED briefly (BSL will turn if off) to indicate success
-			MOV     #FWKEY,&FCTL3       ; Clear LOCK, don't toggle LOCKA
-			MOV     #FWKEY+ERASE,&FCTL1 ; Enable single segment erase
-            rra.b	&$FFFF				; Dummy write: erase segment
-            MOV		#FWKEY+WRT,&FCTL1	; Enable write
-			mov		#$1000,&$FFFE		; Re-point reset vector
-            MOV     #FWKEY+LOCK,&FCTL3  ; Set LOCK; no accidental flash programming
+			bis.b	#LED,&P1OUT				; Turn on LED briefly (BSL will revert) to indicate success
+			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+ERASE,&FCTL1 	; Enable single segment erase
+			rra.b	&$FFFF					; Dummy write: erase segment
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write
+			mov		#$1000,&$FFFE			; Re-point reset vector
+			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 
-#if 0		; If we do a PUC using the watchdog timer, we'll never call dummyInterpretByte to clear the error LED
+#if 0		; If we do a PUC using the watchdog timer, we'll never call dummyInterpretByte to clear the
+			; error LED
 			; Now we want to start the new BSL code, but we want to force a PUC (Power Up Clear).
 			; We do this by allowing the watchdog timer to force a reset
 			;
-            mov.w   #WDTPW+WDTCNTCL,&WDTCTL    ; Reenable (and clear) the Watchdog Timer
-pucWait		bis		#CPUOFF,SR			; Just sleep
-			jmp		pucWait				; till the watchdog timer fires
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Reenable (and clear) the Watchdog Timer
+pucWait		bis		#CPUOFF,SR				; Just sleep
+			jmp		pucWait					; till the watchdog timer fires
 #else
 			bic.b	#WDTIFG,&IFG1		
-			br		#$1000				; Start the new BSL
+			br		#$1000					; Start the new BSL
 #endif
 
 failCompare mov		#3,rERR
 errorFlash	mov		rERR,R11
 			add		R11,R11
-errFlashLp	xor.b	#LED,&P1OUT			; The best we can do is freeze and flash LED
+errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
@@ -619,8 +622,8 @@ convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		; Sum the samples
 		;
 		mov			#sampleBuf,R11
-		mov			#0,R8			; Initialise sum
-addSamp	add			@R11+,R8		; Add a sample
+		mov			#0,R8					; Initialise sum
+addSamp	add			@R11+,R8				; Add a sample
 		cmp			#sampleBuf+2*NumSamples,R11
 		jnz			addSamp
 		ret
@@ -631,21 +634,21 @@ addSamp	add			@R11+,R8		; Add a sample
 ;
 ; Unsigned divide: R10:R9 / R8 -> R9, remainder to R10
 ;
-aUMSlashMOD:				 ; Divide with quotient and remainder
-		cmp     R8,R10   ; Overflow?
-		jc      oflo     ; Jump to error exit if divide by zero or overflow.
-		mov     #16,R11  ; Do 16 times
+aUMSlashMOD:					; Divide with quotient and remainder
+		cmp		R8,R10		; Overflow?
+		jc		oflo			; Jump to error exit if divide by zero or overflow.
+		mov		#16,R11		; Do 16 times
 
-ummlp	rla     R9       ; Shift quotient left and simul. shift dividend lo
-		rlc     R10      ;   into dividend hi
-		jc      umm2     ; If carry OR
-		cmp     R8,R10
-		jlo     umm1     ;   no carry AND remainder-so-far >= divisor
-umm2	sub     R8,R10   ;     Subtract divisor from remainder-so-far
-		bis     #1,R9    ;     Set low bit of quotient-so-far
-						 ; Endif
-umm1	dec     R11      ; Decrement loop counter
-		jnz     ummlp    ; Loop until zero
+ummlp	rla		R9			; Shift quotient left and simul. shift dividend lo
+		rlc		R10			;	into dividend hi
+		jc		umm2		; If carry OR
+		cmp		R8,R10
+		jlo		umm1		;	no carry AND remainder-so-far >= divisor
+umm2	sub		R8,R10		;		Subtract divisor from remainder-so-far
+		bis		#1,R9		;		Set low bit of quotient-so-far
+							; Endif
+umm1	dec		R11			; Decrement loop counter
+		jnz		ummlp		; Loop until zero
 		ret
 		
 oflo	mov		#-1,R10
@@ -664,7 +667,7 @@ aUMStar:
 
 mullp	bit		#1,R9		; Test low bit of multiplier
 		jz		mulz		; If it's a 1
-		add		R8, R10		;   add multiplicand to product hi word; Endif
+		add		R8, R10		;	add multiplicand to product hi word; Endif
 mulz	rrc		R10			; Shift product hi word (incl. carry) right
 		rrc		R9			; into product lo and simul. shift multiplier right
 		dec		R11			; Decrement loop counter
@@ -688,15 +691,19 @@ justRet		ret
 ; The bootstrap loader (BSL)
 ;
 ; This will be relocated to info-flash which starts at $1000.
+#define		TXONSCLK	0			; Set if USI SCLK on P1.5 is used as a TX output
+
+MClock		EQU		1000000			; MCLK (CPU clock) frequency in Hertz
+BaudRate	EQU		9600			; Serial comms rate in bits per second
+BitTime		EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock periods per bit
+BitTime1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock periods per 1.5 bits
 
 ; Bits in i/o port 1
-; Prefer that RXD is bit 0-3, so that RXD can be constant-generated
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
-; Prefer TXDm is bit 2 at most, so that TXDp is at most 8 and can be constant-generated
-TXDm		EQU		1<<0			; Normally 1<<n is n < 4 for compactness (costs 1 word if not)
-TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
-BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
-LED			EQU		1<<6			; LED on bit 6
+BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
+TXDm		EQU		1<<1			; Code requires TXDm bit somewhere to right of TXDp bit
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
+TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
+LED			EQU		1<<6			; LED on P1.6
 
 #define		Rstate	R15				// Register holding the state of the password checking FSM
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
@@ -727,8 +734,30 @@ mainVoltCalL ds		1				; Voltage scale calibration lo byte; may be written by BSL
 			db		TXDp+TXDm+BYPASS+LED
 mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL writer
 			dw		P1DIR
-			
-			mov.b	#TXDp,&P1OUT	; Set TXD state to idle, bypass and LED off
+
+#if TXONSCLK
+			; Set up differential timer outputs for transmit data.
+			; We use a tricky way of getting inverted TA0 to appear on P1.5 automatically
+			; when TA0 appears on P1.1.
+			; We use the clock inverter in the USI (Universal Serial Interface)
+			; to invert TA0 and put it out as SCLK, in SPI master mode.
+			; We don't use the shift register of the USI because there is
+			; no way to get differential outputs from that without external hardware.
+			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
+			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
+			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
+			; At this point TXDm = TA0 = 0 and TXDp = SCLK = 1 so TXD is in the idle state as required.
+			; However the SCLK divider is still in a state where setting TA0 will not result in
+			; clearing SCLK. For some unknown, undocumented reason it needs its input to be
+			; cycled once, before that will happen.
+			mov.w	#OUTMOD_0 + OUT, &TACCTL0	; TA0 = 1 to "wake up" divider. SCLK will not change.
+			mov.w	#OUTMOD_0, &TACCTL0			; Back to TA0 = 0 (Idle)
+			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1.
+			; We did not do this earlier as we did not want the above cycling of TA0
+			; to be visible to the outside world
+			bis.b	#TXDm,&P1SEL				; Select timer function TA0 for pin (not I/O port)
+#endif
+			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
 			mov		#$280,SP
 main:		; This label is partly for the debugger, but is also the start of the main loop.
 
@@ -747,7 +776,7 @@ FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to
 			jn		progByte		; If state is negative, program, don't interpret
 
 			; Check for a continuing password match
-            cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+			cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
 			jne		resetFSM
 			tst		Rstate
 			jnz		FSMloop
@@ -757,96 +786,80 @@ FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to
 			;
 			dint					; Main-flash has probably turned on interrupts; can't have them now
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
-            mov		#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
-            mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
+			mov		#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-            mov		#$F800+2,R12	; Start of main flash +2. The +2 to start saves a 2-word compare to stop
+			mov		#$F800+2,R12	; Start of main flash +2. The +2 to start saves a 2-word compare to stop
 			; Could save a reg by using Rstate also as the programming address counter
-			;  but we'd be forced to send the data in reverse order.
+			;	but we'd be forced to send the data in reverse order.
 			; This would not save any space (compare-against-F800 to stop versus initialise-to-F800 to start).
 
-            mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
-            rra		@R12			; Dummy write: erase segments
+			mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
+			rra		@R12			; Dummy write: erase segments
 			
 			; Immediately replace reset vector to this boot loader
-            mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
-            mov		#$1000,&$FFFE	; Write the reset vector to point to the start of info-flash (start of BSL)
-            clr.b	Rcksum			; Initialise the checksum to 0
+			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
+			mov		#$1000,&$FFFE	; Write the reset vector to point to the start of info-flash (start of BSL)
+			clr.b	Rcksum			; Initialise the checksum to 0
 			; Assume a bad checksum, clear on good checksum. Also prevents interpreting till the end of flash programming			
-            bis.b	#WDTIFG,&IFG1
+			bis.b	#WDTIFG,&IFG1
 			jmp		FSMloop			; Read first byte to program
 
 			; Program (flash write) byte in R8
 			;
-progByte    mov.b	R8,-2(R12)		; Program it
-            xor.b	R8,Rcksum		; Include in check-XOR
-            inc		R12
-            jnz		FSMloop			; Repeat until R12 wraps to zero
+progByte	mov.b	R8,-2(R12)		; Program it
+			xor.b	R8,Rcksum		; Include in check-XOR
+			inc		R12
+			jnz		FSMloop			; Repeat until R12 wraps to zero
 
-            mov		#FWKEY,&FCTL1	; Done. Clear WRT
-            mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
-            tst.b	Rcksum			; Check the checksum
-            jnz		resetFSM		; If bad checksum, leave the no interpret flag set
+			mov		#FWKEY,&FCTL1	; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
+			tst.b	Rcksum			; Check the checksum
+			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
 			
-            bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
-            jmp		main			; Back to looking for ^B, but first send a null to interpretByte
+			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
+			jmp		main			; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
 
-; ReadByte ( regs: -- R8 R9 R10 R11 R13 )
-; Reads a byte from serial input to R8. Trashes R9 R10 R11 R13.
+; ReadByte ( regs: -- R8 R9 R10 R11 )
+; Reads a byte from serial input to R8. Trashes R9 R10 R11.
 ; Also echoes the byte to serial output (by falling through to WriteByte)
 ;
 ReadByte:
-			mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
-waitStartR  						; (Number of cycles)
-            bit.b   #RXD,&P1IN		; (4) Start bit?
-            jnz     waitStartR		; (2) Loop while not 0 (start bit)
-			; The above loop takes 6 cycles so on average we will have missed the start bit by
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+waitStartR							; (Number of cycles)
+			; The loop below takes 6 cycles so on average we will have missed the start bit by
 									; (3) cycles
-            mov.w   #WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and restart Watchdog Timer
+			bit.b	#RXD,&P1IN		; (4) Start bit?
+			jnz		waitStartR		; (2) Loop while not 0 (start bit)
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and restart Watchdog Timer
 
-			; Put these necessary moves here to put time between first sample of start bit
-			; and the glitch check, in case the glitch is wide
-            mov     #8,R10			; (1) Bit count
-			
-;           mov.b   #41,R11			; (2) Loop count for waitMid delay loop
+;			mov.b	#(BitTime1_5-12+1)/3,R11 ; (2) Loop count for waitMid delay loop
 			dw		$407B			; Opcode for mov.b #src,R11 (LS-nibble is reg num)
-			db		41				; Immediate src operand
+			db		(BitTime1_5-12+1)/3 ; Immediate src operand
 mainTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 			
-checkstart  bit.b   #RXD,&P1IN		; (4) Test the serial line
-            jnz     ReadByte		; (2) Glitch: ignore
 			; Pad out the average delay between starting edge of start bit
-			; and middle sample of first bit below to ~ 1.5 bittimes = 156 cycles.
-			; 32 + 3*41 = 155 cycles
-waitMid     dec     R11				; (1) Delay loop
-            jnz     waitMid			; (2) Note: Clearing of R11 by this loop is assumed below
-			;
-			; Second part of noise immunity: sample line 3 times and take majority vote
-			;
-			; RX_bit loop is 1 + 8*3 + 4 + 3*24 + 3 = 104 cycles long (1MHz/9600baud)
-RX_Bit      mov     #3-1,R13		; (1) Sample count (3 samples) but #2 uses one less instruction word
-RX_sample   bit.b   #RXD,&P1IN		; (4) Sampled bit to carry
-            addc    #0,R11			; (1) Add into R11 count
-TwentyNine	; This location is used as a source of the constant 29 (first byte of "dec r13" opcode)
-			; for the purpose of a space-saving trick in WriteByte below.
-            dec     R13				; (1) Decrement sample counter
-            jc      RX_sample		; (2) #2 is one less, so jump on carry (not borrow) rather than zero
+			; and middle sample of first bit below to ~ 1.5 bittimes
+waitMid		dec		R11				; (1) Delay loop
+			jnz		waitMid			; (2) Note: Clearing of R11 by this loop is assumed below
 
-            cmp     #2,R11			; (1) Carry set (borrow clear) if R11 >= 2
-            rrc.b   R8				; (1) Store received (inverted) bit
-
-;			mov.b   #24,R11			; (2) Pad RX_bit loop out to 104 cycles
+			mov		#8,R10			; (1) Bit count
+RX_Bit		bit.b	#RXD,&P1IN		; (4) Sampled bit to carry
+			rrc.b	R8				; (1) Store received bit
+			
+;			mov.b	#(BitTime-10+1)/3,R11 ; (2) Pad RX_bit loop out to one bit time
 			dw		$407B			; Opcode for mov.b #src,R11 (LS-nibble is reg num)
-			db		24				; Immediate src operand
+			db		(BitTime-10+1)/3 ; Immediate src operand
 mainLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
 
-waitNextR   dec     R11				; (1) Delay loop
-            jnz     waitNextR		; (2) Note: Clearing of R11 by this loop is assumed in WriteByte below
-            dec     R10				; (1) All bits RXed?
-            jnz     RX_Bit			; (2) Sample next bit
+waitNextR	dec		R11				; (1) Delay loop
+			jnz		waitNextR		; (2) Note: Clearing R11 here may be assumed in WriteByte below
+			dec		R10				; (1) All bits RXed?
+			jnz		RX_Bit			; (2) Sample next bit
 			
+			; ??? Is this still valid?
 			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
 			; But it's not needed, since we always echo before waiting for the next byte
@@ -856,57 +869,62 @@ testNoInterp
 			jnz		WriteByte		; Jump around call, if set
 			br		#interpretByte	; tail-call interpretByte in main flash
 									; It must preserve at least R8, Rstate(=R15)
-			
+
 ; WriteByte ( R8 R11 -- R9 R10 R11 )
-; Write the low byte of R8 to serial output. R11 must be clear on entry.
+; Write the low byte of R8 to serial output. R11 must be clear on entry is TXONSCLK is off.
 ; Trashes R9 R10 R11. Preserves R8.
 ;
 WriteByte:
-            mov		R8,R9			; Allow R8 to be preserved for password compare
+#if TXONSCLK
+			mov.b	#8, &USICNT		; To clear USIIFG so SCLK = TXDp will not be
+									;	held high, but will be inverted TA0 = TXDm.
+#endif
+			mov		R8,R9			; Allow R8 to be preserved for password compare
 			
 ;			mov.b	#10,R10			; 8 data + 1 start and 1 stop
 			dw		$407A			; Opcode for mov.b #src,R10 (LS-nibble is reg num)
 			db		10				; Immediate src operand
 main4MHzCal	ds		1				; Compressed 4 MHz DCO range and frequency calibration byte
 
-            rla		R9				; Add a start  bit
-            bis		#1<<9,R9		; Add a stop bit
+			rla		R9				; Add a start	bit
+			bis		#1<<9,R9		; Add a stop bit
 		
-write_next	; write_next loop is 14 + 3*29 + 3 = 104 cycles long (1MHz/9600baud)
-									; (Number of cycles)
-            rrc		R9				; (1) Next bit to C.
-									;     R11 must be guaranteed clear in advance
-            subc.b	#TXDp,R11		; (1) 1111(1)(0)00b if C, 1111(0)(1)11b if NC
-            xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
-#if LEDWITHTX
+write_next							; (Number of cycles)
+			rrc		R9				; (1) Next bit to C.
+			
+#if TXONSCLK
+;			subc	#OUT,R11		; (alt 1) Bits 1111 1(1)00 if C, 1111 1(0)11 if NC;
+									;	R11 must be guaranteed clear in advance
+			subc	R11,R11			; (1) Bits 0000 0(0)00 if C, 1111 1(1)11 if NC
+			and		#OUT,R11
+			mov		R11,&TACCTL0
+#else // not TXONSCLK
+			subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C, 11(0)111(1)1 if NC;
+									;	R11 must be guaranteed clear in advance
+			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
+	#if LEDWITHTX
 			; The below will actually turn the LED on for every bit sent. It's not how I meant it to be.
 			; But it works well enough.
 	; Spare high byte in immediate argument below, could be used for more calibration data
 			and.b	#TXDp+TXDm+LED,R11 ; (2) Ensure only TXD and LED bits can be toggled below
-#else
-            and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
-#endif
-            xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
-            ; We need to pad this loop with an extra cycle, so it takes 104 cycles
-			; which corresponds to 9600 baud with a 1 MHz clock.
-			; But we can't afford to waste space on a NOP.
-			; So we waste a cycle below by loading the constant 29 from elsewhere
-			; in the code, instead of as an immediate operand. Pretty tricky huh?
-			; Note that it's a PC-relative operand (no "&") so it will still work after
-			; relocation to info-flash.
-			; mov.b		  #29,R11
-			mov.b	TwentyNine,R11	; (3) Set the delay counter to 29
-write_dly   dec		R11				; (1)
-            jnz		write_dly		; (2)
-            dec		R10				; (1)
-            jnz		write_next		; (2)
+	#else // not LEDWITHTX
+			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
+	#endif // LEDWITHTX
+			xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
+#endif // TXONSCLK
+
+			mov.b	#(BitTime-17+1)/3,R11 ; (3) Set the delay counter to pad out to one bit time
+write_dly	dec		R11				; (1) Note: Clearing of R11 here may be assumed by write_next above
+			jnz		write_dly		; (2)
+			dec		R10				; (1)
+			jnz		write_next		; (2)
 			ret
 
 endFor1000:
 
 lengthForInfo EQU	endFor1000-for1000	; Must be <= 256-1-3 = 252 = $FC
 
-			ORG     for1000+$FC
+			ORG		for1000+$FC
 			; Could save space by making the password a simple function of Rstate instead of storing it
 mainPWtable	db		4,1,2			; The password backwards: ^D ^A ^B
 mainDataVers db		DATAVERS		; Data Version byte (cannot move)
@@ -915,13 +933,15 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 ; -----------------------------------------------------------------------------
 
 
-			ORG		$FD00			; Short test program for processor Frequency Derivation. Handy when lose the frequency calibration values.
-											; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
+; Short test program for processor Frequency Derivation. Handy when lose the frequency calibration
+; values.
+; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
+			ORG		$FD00			
 			mov		#$280,SP
-			mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop watchdog timer
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
-            mov.b	#0,&P1OUT   	; Set TXD outputs the same, bypass and LED off
-            bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
+			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
+			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
 #if	MHz4
 			mov.b	info4MHzCal,R8			; Get compressed 4MHz calibration
 			rla		R8						; Uncompress
@@ -931,8 +951,8 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 			swpb	R8
 			mov.b	R8,&DCOCTL				; and LSB
 #else
-            mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-            mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
+			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 #endif
 
 			call	#flash20
@@ -940,11 +960,11 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 ;
 ; Fastest possible toggle: 7 cycles, or 1000/14 = 71.4 kHz @ 1 MHz, or 2000/14 = 142.9 kHz @ 2 MHz
 ; or 4000/14 = 285.7 kHz @ 4 MHz
-			mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 fastFlash
 			xor.b	#LED+TXDp+TXDm,&P1OUT	; Toggle the LED and both transmit outputs at the same time
-											; This won't upset the next BMU, if in-situ, and the frequency
-											; can be tested from above the board
+											; This won't upset the next BMU, if in-situ, and the
+											; frequency can be tested from above the board
 ;			mov		#30000,R12				; Longer delay (slower flash)
 ;delay		dec		R12
 ;			jnz		delay
@@ -952,12 +972,12 @@ fastFlash
 
 flash20		mov		#20,R11
 first		xor.b	#LED,&P1OUT
-			mov		#20000,R12			; Longer delay (slow flash)
-delay1      mov.w   #WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
-			dec		R12					; 7 cycle loop
+			mov		#20000,R12				; Longer delay (slow flash)
+delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+			dec		R12						; 7 cycle loop
 			jnz		delay1
 			dec		R11
 			jnz		first
 			ret
 
-            END
+			END
