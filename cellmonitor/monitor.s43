@@ -49,7 +49,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ;
 ;           Memory definitions
 ;
-            ORG     0200h
+            ORG     $200
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 IdleDest	DS		2				; Code pointer for idle loop
@@ -64,6 +64,7 @@ lastSentBad	DS		1				; Last sent badness
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 second ticks) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events (~1/4 second ticks) since last badness received
+passWordState DS	1				; State machine for password recogniser
 
 ;-------------------------------------------------------------------------------
             ORG     0F800h                  ; Program Reset
@@ -148,6 +149,7 @@ SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, 
 			clr.b	&lastSentBad			; Last badness we sent was zero
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
+			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
 
 			; Fall through to the start of the measurement loop
 
@@ -331,6 +333,7 @@ badnessTable DB		$80			; $80 is least badness
 OnRxByte:
 			push	R8
 			push	R9
+			push	R4					; We will call TX_Byte eventually, which will trash R4
 			mov.b	&RXData,R8
 			tst.b	R8					; Test for badness command ($80-$F7)
 			_IF		_L					; If negative (i.e. badness)
@@ -344,13 +347,11 @@ OnRxByte:
 				cmp.b	R8,R9				; Compare incoming badness to ours
 				_IF		_C					; If incoming is less bad than us,
 sendMyBadness		mov		R9,R8				; then we are worse; send our badness
-					; Note that the above does not preserve R8. However, strict preservation
-					; is no longer necessary, and since password and non-password bytes can't
-					; be interchanged, it is safe
 				_ENDIF
 			_ENDIF
 			mov.b	R8,&TXData
-			call	#TX_Byte			; echo the byte
+			mov.b	R8,&lastSentBad		; Remember that we sent this
+			call	#TX_Byte			; echo/send the byte
 			tst.b	R8					; Is R8
 			_IF		_L					;	 a badness?
 				tst.b	&bCheckForBad	; Are we checking
@@ -358,16 +359,43 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 					call	#m_alarm		; Set or clear the alarm based on R8
 				_ENDIF
 			_ELSE						; Else R8 has command byte
+
+	;
+	; Check for a password character
+	; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
+	; 0 = waiting for ^D and erase if received. We should not receive any negative value
+	;
+				dec		&passWordState
+				jn		resetFSM			; This should never happen! Just reset FSM and
+											; process as an ordinary command
+	
+				; Check for a continuing password match
+				mov.b	&passWordState,R9
+				cmp.b	PWtable(R9),R8		; Check against table
+				jnz		resetFSM			; If mismatch, jump and reset FSM		
+				tst		R9					; Are we now at state 0?
+				jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
+											;	Just exit this callback and wait for more
+				; FIXME: Jump to the code in the BSL which will
+				;	erase main flash memory and wait for more bytes without using interrupts
+				clr		R15					; The BSL uses R15 as its FSM state variable
+				jmp		$		; FIXME: TBC!!!
+	
+resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
 				;
 				; Process command byte here
 				;
 			_ENDIF
 	
-exitOnRx
+exitOnRx	pop		R4
 			pop		R9
 			pop		R8
 			reti						; Callback functions end with reti, to preserve flags
-	
+
+PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order that the FSM
+												;	is looking for
+			EVEN
+
 
 measAndCal:
 		call		#measure				; Defined in ../common/measure.s43
