@@ -73,7 +73,7 @@ TX_Byte:	; Subroutine Transmits Character from TXData location
 			; Decrement instruction is used here as an atomic test-and-set instruction:
 getTxSem	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
 			jz		gotTxSem				; If decrements to zero, we got it
-			inc		&TX_Sem					; Undo our decrement
+			inc.b	&TX_Sem					; Undo our decrement
 			eint							; Interrupts must be on to exit this loop!
 			jmp		getTxSem				; Try again in a busy wait
 gotTxSem
