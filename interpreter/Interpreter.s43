@@ -1,3 +1,4 @@
+; Requires a 1 MHz MCLK (set by the BSL).
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
 			LSTOUT-
@@ -23,16 +24,19 @@
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
 #define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
 
-; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
-InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
-ReadByte	EQU		$108A		; Calling-address to receive byte in R8
-WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
-ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
-VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
-VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
-TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
-LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
-; 4MHzCal		EQU		$10D7		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+; Addresses manually imported from the BSL-writer. Version 5. Keep up to date!
+InitRetAddr	EQU		$1022		; Return address when interpretByte is called for initialisation
+ReadByte	EQU		$108C		; Calling-address to receive byte in R8
+WriteByte	EQU		$10C4		; Calling-address to transmit byte in R8
+ID			EQU		$10F2		; Address of this Cell's/BMU's identification byte
+VoltCalL	EQU		$10F8		; Address of Voltage scale calibration lo byte
+VoltCalH	EQU		$10F9		; Address of Voltage scale calibration hi byte
+TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
+; 1MHzCalD		EQU		$10F4		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+; 1MHzCalB		EQU		$10F5		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+; 4MHzCalD		EQU		$10F6		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
+; 4MHzCalB		EQU		$10F7		; Not used by interpreter, but handy to look up here when doing next data version in BSL-writer
 
 ; ADC channel numbers
 CellVChan	EQU		$7			; ADC channel number for cell voltage
@@ -46,15 +50,16 @@ NumSamples	EQU		16			; Number of ADC over-samples (typ. 4 or 16)
 
 ; Bits in i/o port 1
 LED			EQU		1 << 6		; Bit 6 out is red error LED; 1 = on
-BYP			EQU		1 << 5		; Bit 5 out is bypass MOSFET and resistors; 1 = on
+TXDp        EQU     1 << 5      ; Bit 5 out is non-inverted TXD
 RXD			EQU		1 << 2		; Bit 2 in is RXD; 1 = mark
-TXDp        EQU     1 << 1      ; Bit 1 out is non-inverted TXD
-TXDm        EQU     1 << 0		; Bit 0 out is inverted TXD
+TXDm        EQU     1 << 1		; Bit 1 out is inverted TXD
+BYP			EQU		1 << 0		; Bit 0 out is bypass MOSFET and resistors; 1 = on
 
 ;-------------------------------------------------------------------------------
 ; Flash programming macros
 
-; The LOCKA bit in FCTL3 is a *toggle*, for reasons unknown to me. Use this macro to set; could write a 1 to reset later.
+; The LOCKA bit in FCTL3 was made a *toggle*, for backward compatibility.
+; Use these macros to clear and set safely.
 CLRLOCKA	macro
 			BIT 	#LOCKA,&FCTL3		; Test LOCKA
 			JZ		$+2+6				; Already unlocked?
