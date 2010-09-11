@@ -116,10 +116,11 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			mov		&TAR,&TACCRt				; Make an output event
 			; We want to set the CCIFG so that TX_Byte won't
 			; belive that this value is the end of a previous stop bit
-			add		#2,&TACCRt					; happen as soon as possible
+			mov		&TAR,&TACCRt				; Make an output event
+			add		#4,&TACCRt					;	happen in a dozen or so instructions
+			; NOTE: the above has to be enough to get past clearing of TACCTLt below
 			mov.b   #RXD+(1<<1),&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
             bis.b   #TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
 			clr.b	&P1OUT						; Clear LED and bypass
@@ -139,7 +140,7 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 
 ;
-; Miscallaneous initialisation
+; Miscellaneous initialisation
 ;
 			mov		#IdleLoop,&IdleDest		; Initialise the idle code pointer to just loop
 			clr		&bypassVolts			; No special bypass voltage as yet
@@ -300,9 +301,9 @@ startMeasure:
 				cmp.b	#4,&ticksSinceLastSend
 				_IF		_C
 sendBadnessNow		clr.b	&ticksSinceLastSend
-					mov.b	R9,lastSentBad			; Update remembered value
+					mov.b	R9,&lastSentBad			; Update remembered value
 					mov.b	R9,&TXData			
-					call	#TX_Byte					; Send the encoded badness
+					call	#TX_Byte				; Send the encoded badness
 				_ENDIF
 			_ENDIF
 			
@@ -330,7 +331,7 @@ badnessTable DB		$80			; $80 is least badness
 OnRxByte:
 			push	R8
 			push	R9
-			mov.b	RXData,R8
+			mov.b	&RXData,R8
 			tst.b	R8					; Test for badness command ($80-$F7)
 			_IF		_L					; If negative (i.e. badness)
 				clr		&ticksSinceLastRx	; Now no time since last received badness
