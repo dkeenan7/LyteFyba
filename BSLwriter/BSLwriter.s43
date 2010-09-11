@@ -208,8 +208,8 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
-; FSSEL: 1=MCLK FN: 2=divide by 3, 5=divide by 6. Must end up in the range 257-476 kHz
-			MOV		#FWKEY+FSSEL_1+3-1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+			MOV		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			MOV		#FWKEY,&FCTL3		; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write-block can't be)
 ;
@@ -557,11 +557,11 @@ LED			EQU		1<<6			; LED on P1.6
 for1000:	; This will be relocated to info-flash at $1000.
 
 #if	MClock = 1000000
-			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz			
+			mov.b	&info1MHzCalB,&BCSCTL1 ; Set DCO range for 1 MHz			
 			mov.b	&info1MHzCalD,&DCOCTL ; Set DCO step + modulation for 1.00 MHz
 #else
-			mov.b	&info4MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz			
-			mov.b	&info4MHzCalD,&DCOCTL ; Set DCO step + modulation for 1.00 MHz
+			mov.b	&info4MHzCalB,&BCSCTL1 ; Set DCO range for 4 MHz			
+			mov.b	&info4MHzCalD,&DCOCTL ; Set DCO step + modulation for 4.00 MHz
 #endif
 			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, BYPASS and LED as outputs
 			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
