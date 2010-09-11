@@ -42,8 +42,8 @@ MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layo
 #define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
 
 #if			ROTATE3
-TXDp		EQU		1<<1			; TA0/P1.1
-TXDm		EQU		1<<5			; SCLK/P1.5
+TXDm		EQU		1<<1			; TA0/P1.1
+TXDp		EQU		1<<5			; SCLK/P1.5
 BYPASS		EQU		1<<0			; P1.0
 #else
 ; The below are how things used to be; can't really run this software on that old hardware
@@ -371,49 +371,49 @@ OnRxByte:
 				_IF		_C					; If incoming is less bad than us,
 sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 				_ENDIF
+				mov.b	R8,&lastSentBad		; Remember that we sent this
 			_ENDIF
 			mov.b	R8,&TXData
-			mov.b	R8,&lastSentBad		; Remember that we sent this
 			call	#TX_Byte			; echo/send the byte
 			tst.b	R8					; Is R8
 			_IF		_L					;	 a badness?
 				tst.b	&bCheckForBad	; Are we checking
-				_IF		_NZ				;	for badness (because we're the last BMU)?
-					call	#m_alarm		; Set or clear the alarm based on R8
+				_IF		_NZ					;	for badness (because we're the last BMU)?
+					call	#m_alarm			; Set or clear the alarm based on R8
 				_ENDIF
-			_ELSE						; Else R8 has command byte
-
+				jmp		exitOnRx			; No further processing of badness byte
+			_ENDIF
 	;
 	; Check for a password character
 	; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
 	; 0 = waiting for ^D and erase if received. We should not receive any negative value
 	;
-				dec		&passWordState
-				jn		resetFSM			; This should never happen! Just reset FSM and
-											; process as an ordinary command
-	
-				; Check for a continuing password match
-				mov.b	&passWordState,R9
-				cmp.b	PWtable(R9),R8		; Check against table
-				jnz		resetFSM			; If mismatch, jump and reset FSM		
-				tst		R9					; Are we now at state 0?
-				jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
-											;	Just exit this callback and wait for more
-				; Jump to the code in the BSL which will
-				;	erase main flash memory and wait for more bytes without using interrupts
-				dint
-				clr		&TACTL				; Disable the timer
-				mov.b	#TXDp,&P1OUT		; Set TXD to idle, bypass and error LED off
-				clr.b	&P1SEL				; All P1 bits are ordinary I/O now
-				clr		R15					; The BSL uses R15 as its FSM state variable
-				mov		#$280,SP			; Give the BSL maximum stack
-				br		#BSLErase			; Jump into the BSL to finish the download
-	
+			dec.b	&passWordState
+			jn		resetFSM			; This should never happen! Just reset FSM and
+										; process as an ordinary command
+
+			; Check for a continuing password match
+			mov.b	&passWordState,R9
+			cmp.b	PWtable(R9),R8		; Check against table
+			jnz		resetFSM			; If mismatch, jump and reset FSM
+			tst		R9					; Are we now at state 0?
+			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
+										;	Just exit this callback and wait for more
+			; Jump to the code in the BSL which will
+			;	erase main flash memory and wait for more bytes without using interrupts
+			dint
+			clr		&TACTL				; Disable the timer
+			mov.b	#TXDp,&P1OUT		; Set TXD to idle, bypass and error LED off
+			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
+			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
+			clr		R15					; The BSL uses R15 as its FSM state variable
+			mov		#$280,SP			; Give the BSL maximum stack
+			br		#BSLErase			; Jump into the BSL to finish the download
+
 resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
-				;
-				; Process command byte here
-				;
-			_ENDIF
+			;
+			; Process command byte here
+			;
 	
 exitOnRx	pop		R4
 			pop		R9
