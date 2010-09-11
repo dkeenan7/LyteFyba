@@ -101,6 +101,7 @@ infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpr
 														; is called for initialisation
 infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
+infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
 infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
 info1MHzCalD	EQU		main1MHzCalD-for1000+$1000		; Address of 1 MHz DCO frequency calibration
 info1MHzCalB	EQU		main1MHzCalB-for1000+$1000		; Address of 1 MHz DCO range calibration
@@ -195,6 +196,7 @@ anInit		call	#compareImage			; Is it before the BSLwriter is run?
 ;
 ; Start of the actual BSL-writer
 ;
+main:										; For debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
@@ -406,7 +408,7 @@ CalVoltDividend	SET	CALVOLTS<<17
 doneCalibrate
 
 
-; Erase info flash including segment A. Assumes MCLK=1.00 MHz
+; Erase info flash including segment A.
 startErase
 			mov		#$1000,R12				; Start of info-flash
 eraseInfo	MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
@@ -537,7 +539,7 @@ justRet		ret
 ;
 ; This will be relocated to info-flash which starts at $1000.
 
-MClock		EQU		1000000			; MCLK (CPU clock) frequency in hertz
+MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz
 BaudRate	EQU		9600			; Serial comms rate in bits per second
 BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
@@ -567,7 +569,7 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
 			
 			mov		#$280,SP
-main:		; This label is partly for the debugger, but is also the start of the main loop.
+mainLoop:							; Start of the main BSL loop
 
 			; Initialise the interpreter (or BSL-writer), if possible
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
@@ -594,6 +596,7 @@ FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to
 			; Erase main flash memory
 			; Master will need to delay at least 33 ms before sending first byte to program.
 			;
+mainBSLErase:
 			dint					; Main-flash has probably turned on interrupts; can't have them now
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
@@ -626,7 +629,7 @@ progByte	mov.b	R8,-2(R12)		; Program it
 			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
 			
 			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
-			jmp		main			; Back to looking for ^B, but first send a null to interpretByte
+			jmp		mainLoop		; Back to looking for ^B, but first send a null to interpretByte
 			
 			; end FSM code
 
@@ -659,10 +662,9 @@ waitNextR	dec		R11				; (1) Delay loop
 			dec		R10				; (1) All bits RXed?
 			jnz		RX_Bit			; (2) Sample next bit
 			
-			; ??? Is this still valid?
 			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
-			; But it's not needed, since we always echo before waiting for the next byte
+			; But it's not needed, since we always send something before waiting for the next byte
 			
 testNoInterp
 			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
@@ -705,7 +707,7 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 			ORG		for1000+$F2
 			; Calibration data
 mainID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
-mainSpare	ds			1				; Padding so 4MHz cal data ends up at same address as in new chip
+mainSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
 main1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
 main1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
 main4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte

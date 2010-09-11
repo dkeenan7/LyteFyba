@@ -8,16 +8,33 @@
         NAME    main                    ; module name
         PUBLIC  main                    ; make the main label visible
 		
+
+DATAVERS5	EQU		1			; True if data layout version 5
+#if	DATAVERS5
+InitRetAddr	EQU		$1022		; Return address when interpretByte is called for initialisation
+ReadByte	EQU		$108C		; Calling-address to receive byte in R8
+WriteByte	EQU		$10C4		; Calling-address to transmit byte in R8
+BSLErase	EQU		$1038		; Jump-in-address for erasing flash and continuing a download
+ID			EQU		$10F2		; Address of this Cell's/BMU's identification byte
+VoltCalL	EQU		$10F8		; Address of Voltage scale calibration lo byte
+VoltCalH	EQU		$10F9		; Address of Voltage scale calibration hi byte
+TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
+LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
+MHz4CalD	EQU		$10F6		; Uncompressed 4MHz calibration value for version 5 data layout
+MHz4CalB	EQU		$10F7		; Unompressed 4MHz calibration value for version 5 data layout
+#else	; Assume data layout version 4
 ; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$108A		; Calling-address to receive byte in R8
 WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
+;BSLErase	EQU		$1038		; Jump-in-address for erasing flash and continuing a download
 ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
 VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
 MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layout
+#endif
 
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
@@ -83,9 +100,13 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 ;            MOV.B   &CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;            MOV.B   &CALDCO_1MHZ,&DCOCTL   ; Set DCO step + modulation for 1.00 MHz
 #if Mfreq = 1000000
-			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL  ; Set DCO step + modulation for 1.00 MHz
-#else		; FIXME: this needs to change with version 5 data layout!!
+			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+#else										; Else frequency is 4MHz
+#if			DATAVERS5
+			mov.b	&MHz4CalB,&BCSCTL1		; Version 5: just copy
+			mov.b	&MHz4CalD,&DCOCTL		;	the two bytes
+#else
 			mov.b	&MHz4Cal,R8				; Compressed 4MHz calibration data
 			rla		R8						; Uncompress
 			bis		#$8A00,R8				; OR in most significant bits
@@ -93,6 +114,7 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			mov.b	R8,&BCSCTL1				; Write MSB
 			swpb	R8
 			mov.b	R8,&DCOCTL				; and LSB
+#endif
 #endif
 
 			; DIVS_0 => SMCLK = DCOCLK/1  DIVS_1 -> SMCK = DOCLK/2
@@ -149,6 +171,7 @@ SetupRX     mov.w   #CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, 
 			clr.b	&lastSentBad			; Last badness we sent was zero
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
+			clr.b	&bCheckForBad
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
 
 			; Fall through to the start of the measurement loop
@@ -376,10 +399,15 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 				tst		R9					; Are we now at state 0?
 				jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
 											;	Just exit this callback and wait for more
-				; FIXME: Jump to the code in the BSL which will
+				; Jump to the code in the BSL which will
 				;	erase main flash memory and wait for more bytes without using interrupts
+				dint
+				clr		&TACTL				; Disable the timer
+				mov.b	#TXDp,&P1OUT		; Set TXD to idle, bypass and error LED off
+				clr.b	&P1SEL				; All P1 bits are ordinary I/O now
 				clr		R15					; The BSL uses R15 as its FSM state variable
-				jmp		$		; FIXME: TBC!!!
+				mov		#$280,SP			; Give the BSL maximum stack
+				br		#BSLErase			; Jump into the BSL to finish the download
 	
 resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
 				;
