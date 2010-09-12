@@ -1,25 +1,25 @@
 ;*******************************************************************************
-;   MSP430F20xx Software UART - Timer_A
+;	MSP430F20xx Software UART - Timer_A
 ;
-;   Description: Use Timer_A CCR0 hardware output modes and SCCI data latch
-;   to implement UART function @ 9600 baud. Software does not directly read from
-;   RX pin, except for noise averaging; instead SCCI data latch is used.
-;   Use of this hardware features eliminates ISR
-;   latency effects as hardware insures that input bit latching and
-;   timing are perfectly synchronised with Timer_A regardless of other
-;   software activity.
-;   TACLK = SMCLK/8 = DCOCLK/2/8 = 250 kHz, MCLK = DCOCLK/1 = 4.00 MHz, ACLK = LFXT1/1 = unused
+;	Description: Use Timer_A CCR0 hardware output modes and SCCI data latch
+;	to implement UART function @ 9600 baud. Software does not directly read and
+;	write to RX and TX pins, instead proper use of output modes and SCCI data
+;	latch are demonstrated. Use of these hardware features eliminates ISR
+;	latency effects as hardware insures that output and input bit latching and
+;	timing are perfectly synchronised with Timer_A regardless of other
+;	software activity.
+;	TACLK = SMCLK/8 = DCOCLK/2/8 = 250 kHz, MCLK = DCOCLK/1 = 4.00 MHz, ACLK = LFXT1/1 = unused
 ;
 ;				MSP430F20xx
-;             --------------
-;         /|\|				|
-;          | |				|
-;          --|RST			|
-;			 |				|
-;			 |		TA0/P1.1|--------> TXDm (mark = low)
-;			 |	   SCLK P1.5|--------> TXDp (mark = high; via internal inverter from TA0)
-;			 |				| 9600 8N1 full duplex
-;			 |	  CCI1A/P1.2|<-------- RXD
+;			 ---------------
+;		 /|\|				|
+;		  | |				|
+;		  --|RST			|
+;			|				|
+;			|		TA0/P1.1|--------> TXDm (mark = low)
+;			|	   SCLK P1.5|--------> TXDp (mark = high; via internal inverter from TA0)
+;			|				| 9600 8N1 full duplex
+;			|	  CCI1A/P1.2|<-------- RXD
 ;
 ;
 ;	September 2010
@@ -28,19 +28,19 @@
 ;	Texas Instruments Inc.
 ;	October 2005
 ;*******************************************************************************
-#include  "io430.h"		// For #define TAIV_CCIFG1
+#include	"io430.h"		// For #define TAIV_CCIFG1
 
 
 
-#define     TACCTLr   TACCTL1		; Receive using CCI1 (P1.2)
-#define     TACCTLt   TACCTL0		; Transmit (and everything else) using TA0
-#define     TACCRt    TACCR0		; Transmit compare register
-#define     TACCRr    TACCR1		; Receive capture/compare register
-#define     Rcallback	R13			; Trashed in callback routines
+#define		TACCTLr		TACCTL1		; Receive using CCI1 (P1.2)
+#define		TACCTLt		TACCTL0		; Transmit (and everything else) using TA0
+#define		TACCRt		TACCR0		; Transmit compare register
+#define		TACCRr		TACCR1		; Receive capture/compare register
+#define		Rcallback	R13			; Trashed in callback routines
 
 ;
 ;
-;   Conditions for 9600 Baud SW UART
+;	Conditions for 9600 Baud SW UART
 #if 0
 Mfreq		EQU		1000000					; Main clock in Hz
 MckPerSMck	EQU		1						; Number of main clocks per SMCK
@@ -51,8 +51,8 @@ MckPerSMck	EQU		2						; Number of main clocks per SMCK
 SMckPerTAck	EQU		8						; Number of SMCK clocks per timer clock
 MckPerTAck	EQU		MckPerSMck*SMckPerTAck	; Number of main clocks per timer clock
 TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
-Bitime      EQU     (TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
-Bitime_5    EQU     (Bitime/2)-2			; 0.5 bit length less some
+Bitime		EQU		(TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
+Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
 
 ; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
@@ -80,7 +80,7 @@ gotTxSem
 			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDp) will not be held
 											; This is so that P1.5 will always be an inversion of P1.1
 
-			mov.b   #10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 11 times,
+			mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 11 times,
 											; just after the start of each bit sent /*, and once just after
 											; the end of the stop bit */
 
@@ -94,52 +94,52 @@ gotTxSem
 			jz		keepOldStop				; (2) If zero, leave the compare value alone
 			add		&TAR,R9					; (3) Where the current count will be soon
 			; Even though interrupts are enabled here, nothing can disturb TACCRt
-			mov     R9,&TACCRt				; (5) Some time till first interrupt
+			mov		R9,&TACCRt				; (5) Some time till first interrupt
 			; We can't afford to have interrupts enabled here; the timer counter must not advance past TACCRt's
 			; value until compare interrupts are enabled below
-keepOldStop2	eint                            ; (1) Instruction after eint always protected
+keepOldStop2 eint							; (1) Instruction after eint always protected
 ; CM: 0 = no capture; CCIE = compare interrupt enable; OUT is the async output bit (not used)
 ; OUTMOD_1 means set when the interrupt happens (to start the start bit)
-            mov.w   #CM_0 + OUTMOD_1 + CCIE, &TACCTLt	; (5)
+			mov.w	#CM_0 + OUTMOD_1 + CCIE, &TACCTLt	; (5)
 			; End of code protected by dint/eint. Interrupts were disabled for a maximum of
 			;	5+2+3+5+1+5 = 21 cycles (if the branch is taken, 8 cycles are removed)
 
 			bis.b	#LED,&P1OUT				; Set the LED for visual feedback. We might miss the start
 											; bit, but it doesn't matter.
-            ret
-keepOldStop jmp keepOldStop2	; DELETEME: for debugging
+			ret
+keepOldStop jmp 	keepOldStop2	; DELETEME: for debugging
 
 ;-------------------------------------------------------------------------------
-TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow interrupt service routine
+TACOM_ISR	; Combined timer capture/compare 1 (receive) and timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
-										  ; (6) for interrupt accepted
-            cmp     #TAIV_CCIFG1,&TAIV    ; (4) Combined interrupt: was it CC1?
-            jeq     UART_RX               ; (2) Yes, was CC1
-            jl      just_reti             ; No interruipt pending
-            ; Can't be CC2 interrupt source; MSP430F201x doesn't have this
-            ; So must be timer overflow
+											; (6) for interrupt accepted
+			cmp		#TAIV_CCIFG1,&TAIV		; (4) Combined interrupt: was it CC1?
+			jeq		UART_RX					; (2) Yes, was CC1
+			jl		just_reti				; No interruipt pending
+			; Can't be CC2 interrupt source; MSP430F201x doesn't have this
+			; So must be timer overflow
 ;
-;  Regular timer overflow interrupt: cause the mainline code to measure voltages etc
+;	Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
 			mov		#startMeasure,&IdleDest	; Point the idle code at the measurement code
 			bic		#CPUOFF,0(SP)			; When return, have CPU continue running
 just_reti	reti
 
-;  RXData location holds received byte
-UART_RX     add.w   #Bitime,&TACCRr         ; (5) Time to next bit
-            bit.w   #CAP,&TACCTLr           ; (5) Capture mode = start bit edge
-            jz      RX_Bit                  ; (2) Start bit edge?
+;	RXData location holds received byte
+UART_RX		add.w	#Bitime,&TACCRr			; (5) Time to next bit
+			bit.w	#CAP,&TACCTLr			; (5) Capture mode = start bit edge
+			jz		RX_Bit					; (2) Start bit edge?
 RX_Edge:
-			bic.w   #CAP,&TACCTLr           ; (5) Switch to compare mode
-            ; Already burned many cycles to this point. But it doesn't matter,
-            ; since the value in TACCRr was captured by the timer hardware.
-            add.w   #Bitime_5,&TACCRr       ; (5) First databit 1.5 bits from edge
-            reti							; (5)
+			bic.w	#CAP,&TACCTLr			; (5) Switch to compare mode
+			; Already burned many cycles to this point. But it doesn't matter,
+			; since the value in TACCRr was captured by the timer hardware.
+			add.w	#Bitime_5,&TACCRr		; (5) First databit 1.5 bits from edge
+			reti							; (5)
 ;
-RX_Bit      bit.w   #SCCI,&TACCTLr			; (4) Sampled bit to carry
+RX_Bit		bit.w	#SCCI,&TACCTLr			; (4) Sampled bit to carry
 			rrc.b	&RXData					; (4) Store received bit
-RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
-			jnz		just_reti               ; (2+5) If there's a next bit, just exit
+RX_Test		dec.b	&BitCntRx				; (4) All bits RXed?
+			jnz		just_reti				; (2+5) If there's a next bit, just exit
 			mov.b	#8,&BitCntRx			; Setup bit counter for next byte
 			bis.w	#CAP,&TACCTLr			; Back to capture mode
 			eint							; Enable interrupts
@@ -149,33 +149,31 @@ RX_Test		dec.b	&BitCntRx               ; (4) All bits RXed?
 ;-------------------------------------------------------------------------------
 TX_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
 ;-------------------------------------------------------------------------------
-; First interrupt BitCntTx is 10 (decrements to 9), start  bit just sent, LSB needs sending now
+; First interrupt BitCntTx is 10 (decrements to 9), start	bit just sent, LSB needs sending now
 ; 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
 ; 9th interrupt, BitCnt is 2, MSB just sent, stop bit needs sending now
 ; 10th interrupt, BitCntTx is 1 (decrements to 0), stop bit just sent, need to send idle state;
 ;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
 
 											; (6) for interrupt accepted
-			add.w	#Bitime,&TACCRt         ; (5) Time to next bit, when next bit is due
-			dec.b   &BitCntTx               ; (4)
-UART_TX		jz		TX_Done                 ; (2) Jump if stop bit just sent 
+			add.w	#Bitime,&TACCRt			; (5) Time to next bit, when next bit is due
+			dec.b	&BitCntTx				; (4)
+UART_TX		jz		TX_Done					; (2) Jump if stop bit just sent
 			
 			rra.w	&TXData					; (1) Next bit to C. NOTE: upper byte remains -1 always,
 											;	so stop and idle bits are always treated like data 1's
 TX_Mark		
 			_IF		_NC						; (2) If bit is 0
-				mov		#OUTMOD_1+CCIE,&TACCTLt		; (5) then set output high
+				mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) then set output high
 			_ELSE							; (2)
 				mov		#OUTMOD_5+CCIE,&TACCTLt	; (5) Else reset output low
 			_ENDIF
 
-			reti                            ; (5) Expecting more interrupts this byte
+			reti							; (5) Expecting more interrupts this byte
 
-TX_Done:	bic.w	#CCIE,&TACCTLt          ; (5) All Bits TX; disable Int.
+TX_Done:	bic.w	#CCIE,&TACCTLt			; (5) All Bits TX; disable Int.
 			bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
 			inc.b	&TX_Sem					; (4) Release the transmit semaphore
 			reti							; (5) Eventually!
 			
 			
-
-
