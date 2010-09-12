@@ -255,8 +255,6 @@ startMeasure:
 			_ENDIF
 
 
-#if 0		; FIXME: Temporarily disable link measurement while debugging in parallel, until I have a
-			; way of setting LinkCal to $80
 			; Link measurement, if appropriate
 			cmp		#$80,&LinkCal			; Special "calibration failure" code?
 			_IF		_NE						; Only measure link voltage if not this code
@@ -298,7 +296,6 @@ startMeasure:
 					mov		R8,R9
 				_ENDIF
 			_ENDIF
-#endif
 
 			cmp		#7,R9					; Is the overall badness worse than 7?
 			_IF		_GE
@@ -355,8 +352,7 @@ badnessTable DB		$80			; $80 is least badness
 ;	Process badness channel, and execute commands.
 OnRxByte:
 			push	R8
-			push	R9
-			push	R4					; We will call TX_Byte eventually, which will trash R4
+			push	R9					; We will call TX_Byte eventually, which will trash R9
 			mov.b	&RXData,R8
 			tst.b	R8					; Test for badness command ($80-$F7)
 			_IF		_L					; If negative (i.e. badness)
@@ -425,8 +421,7 @@ resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
 			; Process ordinary command bytes here
 			;
 	
-exitOnRx	pop		R4
-			pop		R9
+exitOnRx	pop		R9
 			pop		R8
 			reti						; Callback functions end with reti, to preserve flags
 
