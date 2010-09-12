@@ -137,7 +137,8 @@ infN4MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
 infN1MHzCalD	EQU		$10FE		; Address of 1 MHz DCO frequency calibration
 infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
 
-#include "msp430.h"					; #define controlled include file
+#include "msp430.h"				// #define controlled include file
+#include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 
 ; Error register. 0 means no error
 #define		rERR	r4
@@ -211,7 +212,12 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			MOV		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			cmp.b	#$88,&BCSCTL1		; Is DCO range hi or low?
+			_IF		_L
+				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
+			_ELSE
+				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+			_ENDIF
 			MOV		#FWKEY,&FCTL3		; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write-block can't be)
 ;

@@ -3,7 +3,7 @@
 ; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
 			LSTOUT-
 #include "msp430.h"
-#include "ControlFlowMacros.h"
+#include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 			LSTOUT+
 			COL		132
 ; This is a reverse-polish command interpreter for an MSP430F2012 microcontroller.
