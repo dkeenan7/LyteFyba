@@ -65,7 +65,7 @@ Bitime_5    EQU     (Bitime/2)-2			; 0.5 bit length less some
 
 ;-------------------------------------------------------------------------------
 TX_Byte:	; Subroutine Transmits Character from TXData location
-			; Trashes R4
+			; Trashes R9
 ;-------------------------------------------------------------------------------
 ; Need to disable interrupts here; there is a critical time period between
 ; reading the current timer value (TAR) and writing the capture register (TACCRt)
@@ -87,17 +87,17 @@ gotTxSem
 			dint							; NOTE: instruction following DINT is not protected!
 			; We want the number of clock cycles till interrupts are enabled. The +MckPerTAck-1 is for rounding up.
 			; The +1 is in case the TAck increments just after we read it.
-			mov		#((3+5+1+5+MckPerTAck-1)/MckPerTAck) +1, R4
+			mov		#((3+5+1+5+MckPerTAck-1)/MckPerTAck) +1, R9
 			; If the CCIFG bit is clear, it means that the last stop bit has not yet expired, so we must
 			; not set an earlier time than that
 			bit		#CCIFG,&TACCTLt			; (5)
 			jz		keepOldStop				; (2) If zero, leave the compare value alone
-			add		&TAR,R4					; (3) Where the current count will be soon
+			add		&TAR,R9					; (3) Where the current count will be soon
 			; Even though interrupts are enabled here, nothing can disturb TACCRt
-			mov     R4,&TACCRt				; (5) Some time till first interrupt
+			mov     R9,&TACCRt				; (5) Some time till first interrupt
 			; We can't afford to have interrupts enabled here; the timer counter must not advance past TACCRt's
 			; value until compare interrupts are enabled below
-keepOldStop	eint                            ; (1) Instruction after eint always protected
+keepOldStop2	eint                            ; (1) Instruction after eint always protected
 ; CM: 0 = no capture; CCIE = compare interrupt enable; OUT is the async output bit (not used)
 ; OUTMOD_1 means set when the interrupt happens (to start the start bit)
             mov.w   #CM_0 + OUTMOD_1 + CCIE, &TACCTLt	; (5)
@@ -107,6 +107,7 @@ keepOldStop	eint                            ; (1) Instruction after eint always 
 			bis.b	#LED,&P1OUT				; Set the LED for visual feedback. We might miss the start
 											; bit, but it doesn't matter.
             ret
+keepOldStop jmp keepOldStop2	; DELETEME: for debugging
 
 ;-------------------------------------------------------------------------------
 TACOM_ISR  ; Combined timer capture/compare 1 (receive) and timer overflow interrupt service routine
