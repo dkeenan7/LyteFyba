@@ -1,0 +1,184 @@
+; Contains both an outer (packet) interpreter with backspace editing
+; and a cutdown inner (bytecode) interpreter.
+; The bytecode interpreter does not allow nested bytecode definitions,
+; i.e. a bytecode can only be defined in machine code, not bytecode.
+
+#define		CHECKSUM	0		; 1 to require a checksum immediately before end-of-line/packet
+
+;-------------------------------------------------------------------------------
+; Interpreter Register Usage
+
+;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
+;		Rdsp	SP	// Data stack pointer (and machine stack pointer)
+; #define Rrsp	R4	// Return stack pointer ; not required in this version
+#define Rip		R5	// Virtual machine instruction pointer
+#define Rlit	R6	// Holds partial literals
+#define Rtos	R7	// Top of data stack item - could do without this reg if necc.
+#define Rw		R8	// Working register - temporary - anyone can use
+
+;
+; Status flag usage
+;
+; Bit 15 = literal in progress
+
+
+;-------------------------------------------------------------------------------
+; Opcode-table Macros
+
+; The opcode lookup table is in high memory.
+; It contains one word per bytecode, which is the address of the code
+; that implements the operation.
+
+_OPCODETBL	EQU		$FEF0	; Was at $FEE0 but we need to write over unused interrupt vectors
+
+; The "x" at the start of the following macro names stands for "cross-compiling"
+; to distinguish them from possible native versions on the MSP430 in other versions.
+; The name "CODE" is from Forth.
+
+
+; Assemble an opcode-table entry that has a machine-code definition.
+
+xCODE	MACRO	OPCODE,OPCODENAM,_ADDRLBL
+						LSTOUT-
+		EVEN								; Force to word boundary
+_ADDRLBL:									; Define the machine-code address label
+OPCODENAM EQU	OPCODE						; Define the opcode name
+		ORG		_OPCODETBL+(OPCODE)*2		; Point to correct opcode-table entry
+						LSTOUT+
+		DW		_ADDRLBL					; Assemble the address
+						LSTOUT-
+		ORG		_ADDRLBL					; Point back to where the machine code will be assembled
+						LSTOUT+
+						ENDM
+
+;-------------------------------------------------------------------------------
+; The inner (bytecode) interpreter
+
+; Bytecode interpreter for 7 bit bytecodes
+_ENTER
+_NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
+		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
+		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
+		
+_RUN	RLA.B	Rw			; Multiply bytecode by 2
+FncOPCD MOV _OPCODETBL(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
+							;	the code address
+		CMP		#$FFFF,Rw	; Check for undefined bytecodes
+		JNE		FncLIT		; If undefined and >= $60
+NotDigit MOV	#_Space,Rw	;		Treat as literal-separator no-op
+
+FncLIT	TST		SR			; Check for an implied push-literal
+		JGE		DoOPCD		; If there's an operand-in-progress
+							;	there's an implied LIT now
+		BIC		#1<<15,SR	;	Clear the operand-in-progress flag
+		PUSH	Rtos		;	Push the operand now, before doing the
+		MOV		Rlit,Rtos	;	operation
+
+DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
+							; It must end with an RTS
+		JMP		_NEXT
+
+DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
+		; otherwise treat them as literal-separating no-ops.
+		SUB.B	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		JN		NotDigit	; Ignore undefined bytecodes below '0'
+		CMP.B	#$0A,Rw
+		_IF		_GE
+			CMP.B	#$17,Rw
+			JGE		NotDigit ; Ignore undefined bytecodes above 'F'
+			CMP.B	#$11,Rw
+			JL		NotDigit ; Ignore undefined between '9' and 'A'
+			SUB.B	#'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
+		_ENDIF
+		
+FncPFX4 TST		SR			; Test the operand-in-progress flag
+		BIS		#1<<15,SR	; Set the operand-in-progress flag
+		JN		DatMor4		; If there was no operand-in-progress
+
+DatFst4 MOV		Rw,Rlit		;	Move 4-bit data to partial-operand register
+		JMP		_NEXT		; Else (operand-in-progress)
+
+DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
+		mov		Rlit,R9		;	Save 2*Rlit in R9
+		rla		Rlit		;	4*Rlit
+		rla		Rlit		;	8*Rlit
+		tst.b	&hexFlag
+		_IF		_Z
+			add		R9,Rlit	;	10*Rlit
+		_ELSE
+			rla		Rlit	;	16*Rlit
+		_ENDIF
+		add		Rw,Rlit		;	Add data into operand reg
+DatEnd4 jmp		_NEXT		; Endif
+
+
+; EXIT ( -- ); Return from a bytecode sequence
+
+		xCODE	'|',EXIT,_EXIT ; Vertical bar
+		incd	SP			; Drop the return address within the interpreter
+_Space	ret					; Return to whoever called the interpreter (_ENTER)
+							; or when _Space is called, be a no-op (for separating literals)
+		
+; HEX ( flag -- ) ; Set the hexadecimal (vs decimal) input mode flag
+
+		xCODE	'h',HEX,_HEX
+		mov.b	Rtos,&hexFlag
+		pop		Rtos
+		ret
+
+; CLIT ( -- c ) ; Character literal. Treat the next bytecode as a literal character.
+
+		xCODE	'`',CLIT,_CLIT ; back-quote or tock
+		PUSH	Rtos
+		MOV.B	@Rip+,Rtos
+		ret
+
+;-------------------------------------------------------------------------------
+; The outer (packet) interpreter
+; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
+; Implements backspace editing and calls the inner interpreter
+; to interpret the line when a valid checksum and a carriage return are received.
+ACCEPT
+		PUSH	R8
+		MOV		&ToIN,R9
+		_CASE
+		
+		_OFb	#$0D,R8			; Carriage return = end of packet
+#if CHECKSUM
+			TST.B	&CHKSUM
+			_IF		_Z			; If good checksum
+				DEC		R9		;	Prepare to overwrite the checksum with an EXIT bytecode
+				CMP		#TIB,R9	;	Handle case of empty packet with no checksum
+				_IF		_LO
+					MOV		#TIB,R9
+				_ENDIF
+#endif
+				MOV.B	#EXIT,0(R9) ; Overwrite the checksum or carriage return with an EXIT bytecode
+				MOV		#TIB,Rip	; Interpret the packet as bytecode
+				CALL	#_ENTER
+#if CHECKSUM
+			_ENDIF				; Endif (good checksum)
+#endif
+			MOV		#TIB,&ToIN	; Initialise packet buffer pointer
+			CLR.B	&CHKSUM		; Clear the packet checksum
+		_ENDOF					; End Of carriage return
+		
+		_OFb	#$08,R8			; Backspace editing
+			DEC		R9			; Decrement the pointer, but
+			CMP		#TIB,R9		; don't go back past start of packet
+			_IF		_LO
+				MOV		#TIB,R9
+			_ENDIF
+			MOV		R9,&ToIN
+		_ENDOF					; End Of backspace
+		
+		; Default case, if not CR or BS
+			MOV.B	R8,0(R9)	;	Write the byte to the buffer
+			INC		&ToIN		;		Increment the pointer
+			XOR.B	R8,&CHKSUM	;	Accumulate the checksum		
+
+		_ENDCASE				; End Case char
+
+		POP R8
+		RET
+
