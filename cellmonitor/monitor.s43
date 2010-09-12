@@ -2,7 +2,7 @@
 
 		LSTOUT-
 #include  "msp430.h"
-#include "../interpreter/ControlFlowMacros.h"
+#include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 		LSTOUT+
 
         NAME    main                    ; module name
