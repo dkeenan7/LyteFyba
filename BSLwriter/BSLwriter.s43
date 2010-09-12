@@ -740,15 +740,10 @@ mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
 			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
 #if	FD4MHz
-			mov.b	inf44MHzCal,R8			; Get compressed 4MHz calibration
-			rla		R8						; Uncompress
-			bis		#$8A00,R8				; OR in assumed MSBs
-			swpb	R8						; Get MSB (might be important to write first)
-			mov.b	R8,&BCSCTL1				; Write MSB
-			swpb	R8
-			mov.b	R8,&DCOCTL				; and LSB
+			mov.b	&info4MHzCalB,&BCSCTL1	; Set for 4 MHz using data layout version 5
+			mov.b	&info4MHzCalD,&DCOCTL
 #else
-			mov.b	&info1MHzCalB,&BCSCTL1 ; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
 			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 #endif
 
