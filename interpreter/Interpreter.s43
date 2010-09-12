@@ -1059,7 +1059,7 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 ; Assumes zero link voltage due to zero link current
 ;
 		xColon	'b',calLink,_calLink
-		xLIT2	LinkVChan<<12
+		xLIT	LinkVChan<<12
 		DB		llVolt
 		xLIT	2048				; Zero volts for link voltage is a 2048 reading
 		DB		Minus				; So subtract from result
