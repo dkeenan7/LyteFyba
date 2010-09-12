@@ -1065,6 +1065,7 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 		DB		Minus				; So subtract from result
 		DB		DUP
 		xLIT	$80
+		DB		Space
 		xLIT	$FF81				; -$7F
 		DB		WITHIN
 		xIF							; If result (under TOS) is < -$7F or >= $80
