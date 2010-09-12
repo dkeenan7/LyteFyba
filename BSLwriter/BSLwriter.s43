@@ -213,7 +213,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
 			cmp.b	#$88,&BCSCTL1		; Is DCO range hi or low?
-			_IF		_L
+			_IF		_LO
 				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
 			_ELSE
 				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
