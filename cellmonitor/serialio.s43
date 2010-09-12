@@ -64,12 +64,9 @@ Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
 
 ;-------------------------------------------------------------------------------
-TX_Byte:	; Subroutine Transmits Character from TXData location
+TX_Byte:	; Subroutine Transmits Character from R8
 			; Trashes R9
 ;-------------------------------------------------------------------------------
-; Need to disable interrupts here; there is a critical time period between
-; reading the current timer value (TAR) and writing the capture register (TACCRt)
-; and the timer control register (TACCTLt)
 			; Decrement instruction is used here as an atomic test-and-set instruction:
 getTxSem	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
 			jz		gotTxSem				; If decrements to zero, we got it
@@ -77,6 +74,7 @@ getTxSem	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
 			eint							; Interrupts must be on to exit this loop!
 			jmp		getTxSem				; Try again in a busy wait
 gotTxSem
+			mov.b	R8,&TXData				; Now it's safe to save to TXData
 			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDp) will not be held
 											; This is so that P1.5 will always be an inversion of P1.1
 
@@ -84,6 +82,9 @@ gotTxSem
 											; just after the start of each bit sent /*, and once just after
 											; the end of the stop bit */
 
+; Need to disable interrupts here; there is a critical time period between
+; reading the current timer value (TAR) and writing the capture register (TACCRt)
+; and the timer control register (TACCTLt)
 			dint							; NOTE: instruction following DINT is not protected!
 			; We want the number of clock cycles till interrupts are enabled. The +MckPerTAck-1 is for rounding up.
 			; The +1 is in case the TAck increments just after we read it.

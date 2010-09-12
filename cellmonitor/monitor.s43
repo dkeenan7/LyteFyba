@@ -71,6 +71,8 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 IdleDest	DS		2				; Code pointer for idle loop
 TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
+									;	NOTE: don't write to this directly except when proptected by
+									;	TX_Sem
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
@@ -79,8 +81,9 @@ TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
 currBadness	DS		1				; Current badness
 lastSentBad	DS		1				; Last sent badness
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
-ticksSinceLastSend DS 1				; Timer overflow events (~1/4 second ticks) since last badness send
-ticksSinceLastRx DS	1				; Timer overflow events (~1/4 second ticks) since last badness received
+bSendBad	DS		1				; Non zero if sending badness bytes at all
+ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
+ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
 hexFlag		DS		1				; 1 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
@@ -152,12 +155,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			bis.b	#TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
 			clr.b	&P1OUT						; Clear LED and bypass
 #if 1
-			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Non-idle or space; seems necessary to "wake up" divider
+			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Space; seems necessary to "wake up" divider
 			mov.w	#OUTMOD_0, &TACCTLt			; TXD=0 Idle or Mark		(for the internal inverter)
 #endif
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TXD=0 =Idle or Mark
 
-			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit, idle bit)
+			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
+												;	idle bit)
 			mov.b	#1,TX_Sem					; Initialise transmit semaphore
 
 ;
@@ -165,6 +169,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ;
 			mov.b	#08,&BitCntRx			; Load Bit Counter, 8 data bits
 SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+
+;
+; Setup the stripped-down bytecode interpreter
+;
+			mov.b	#1,&hexFlag				; Hex mode by default
+			clr.b	&CHKSUM
+			mov		#TIB,&ToIN				; Packet pointer
 
 ;
 ; Miscellaneous initialisation
@@ -176,6 +187,7 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
 			clr.b	&bCheckForBad
+			mov		#1,&bSendBad
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
 
 			; Fall through to the start of the measurement loop
@@ -328,7 +340,7 @@ startMeasure:
 				_IF		_C
 sendBadnessNow		clr.b	&ticksSinceLastSend
 					mov.b	R9,&lastSentBad			; Update remembered value
-					mov.b	R9,&TXData			
+					mov.b	R9,R8			
 					call	#TX_Byte				; Send the encoded badness
 				_ENDIF
 			_ENDIF
@@ -337,6 +349,8 @@ sendBadnessNow		clr.b	&ticksSinceLastSend
 
 IdleLoop:	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the measurement loop
+			tst.b	bSendBad				; Check if sending badness
+			jz		IdleLoop				; If not, just idle immediately
 			br		&IdleDest				; Gets reached after interrupts
 
 
@@ -373,7 +387,6 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 				_ENDIF
 				mov.b	R8,&lastSentBad		; Remember that we sent this
 			_ENDIF
-			mov.b	R8,&TXData
 			call	#TX_Byte			; echo/send the byte
 			tst.b	R8					; Is R8
 			_IF		_L					;		a badness?
@@ -421,9 +434,9 @@ gotTxSem2
 			br		#BSLErase			; Jump into the BSL to finish the download
 
 resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
-			;
-			; Process ordinary command bytes here
-			;
+
+			; Process ordinary command bytes here, via the stripped down bytecode interpreter
+;			call	#ACCEPT
 	
 exitOnRx	pop		R9
 			pop		R8

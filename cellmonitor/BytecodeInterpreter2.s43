@@ -132,6 +132,20 @@ _Space	ret					; Return to whoever called the interpreter (_ENTER)
 		PUSH	Rtos
 		MOV.B	@Rip+,Rtos
 		ret
+		
+; EMIT ( c --)	; Emit the character on top of stack
+
+		xCODE	'e',EMIT,_EMIT
+		mov.b	Rtos,R8
+		call	#TX_Byte
+		pop		Rtos
+		ret
+		
+; aUtonomous mode badness sending (n --)
+		xCODE	'u',auton,_auton
+		mov.b	Rtos,&bSendBad
+		pop		Rtos
+		ret
 
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
