@@ -144,7 +144,7 @@ StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop Watchdog Timer
 			mov		&TAR,&TACCRt				; Make an output event
 			add		#4,&TACCRt					;	happen in a dozen or so instructions
 			; NOTE: the above has to be enough to get past clearing of TACCTLt below
-			mov.b   #RXD+(1<<1),&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+			mov.b   #RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
             bis.b   #TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
 			clr.b	&P1OUT						; Clear LED and bypass
 #if 1
@@ -399,10 +399,20 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			tst		R9					; Are we now at state 0?
 			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
 										;	Just exit this callback and wait for more
-			; Jump to the code in the BSL which will
-			;	erase main flash memory and wait for more bytes without using interrupts
+			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
+			;	without using interrupts.
+			; May be important: it could be bad to have receive interrupts sending badness bytes after
+			;	this last password byte goes out; it could be interpreted as a byte to flash program!
+			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
+			; Important: wait for the last password byte to be echoed before disabling interrupts!
+getTxSem2	dec.b	&TX_Sem				; Attempt to get the transmit semaphore
+			jz		gotTxSem2			; If decrements to zero, we got it
+			inc.b	&TX_Sem				; Undo our decrement
+			jmp		getTxSem2			; Try again in a busy wait
+gotTxSem2
+
 			dint
-			clr		&TACTL				; Disable the timer
+			clr		&TACTL				; Disable the timer completely; may use less power
 			mov.b	#TXDp,&P1OUT		; Set TXD to idle, bypass and error LED off
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
@@ -412,7 +422,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 
 resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
 			;
-			; Process command byte here
+			; Process ordinary command bytes here
 			;
 	
 exitOnRx	pop		R4
