@@ -26,10 +26,10 @@
 ; Opcode-table Macros
 
 ; The opcode lookup table is in high memory.
-; It contains one word per bytecode, which is the address of the code
-; that implements the operation.
+; It contains one word per bytecode from $60 to $7F, which is the address of the code that implements
+; the operation.
 
-_OPCODETBL	EQU		$FEF0	; Was at $FEE0 but we need to write over unused interrupt vectors
+_OPCODETBL	EQU		$FF00-$40				; Immediately below lowest used interrupt vector
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.
@@ -57,7 +57,7 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
 _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
-		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
+		SUB.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
 		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
 		
 _RUN	RLA.B	Rw			; Multiply bytecode by 2
@@ -80,7 +80,7 @@ DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
 
 DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
-		SUB.B	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		SUB.B	#'0'-$60,Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16 ($60 was subtracted off earlier)
 		JN		NotDigit	; Ignore undefined bytecodes below '0'
 		CMP.B	#$0A,Rw
 		_IF		_GE
@@ -111,41 +111,6 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		add		Rw,Rlit		;	Add data into operand reg
 DatEnd4 jmp		_NEXT		; Endif
 
-
-; EXIT ( -- ); Return from a bytecode sequence
-
-		xCODE	'|',EXIT,_EXIT ; Vertical bar
-		incd	SP			; Drop the return address within the interpreter
-_Space	ret					; Return to whoever called the interpreter (_ENTER)
-							; or when _Space is called, be a no-op (for separating literals)
-		
-; HEX ( flag -- ) ; Set the hexadecimal (vs decimal) input mode flag
-
-		xCODE	'h',HEX,_HEX
-		mov.b	Rtos,&hexFlag
-		pop		Rtos
-		ret
-
-; CLIT ( -- c ) ; Character literal. Treat the next bytecode as a literal character.
-
-		xCODE	'`',CLIT,_CLIT ; back-quote or tock
-		PUSH	Rtos
-		MOV.B	@Rip+,Rtos
-		ret
-		
-; EMIT ( c --)	; Emit the character on top of stack
-
-		xCODE	'e',EMIT,_EMIT
-		mov.b	Rtos,R8
-		call	#TX_Byte
-		pop		Rtos
-		ret
-		
-; aUtonomous mode badness sending (n --)
-		xCODE	'u',auton,_auton
-		mov.b	Rtos,&bSendBad
-		pop		Rtos
-		ret
 
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
@@ -195,4 +160,6 @@ ACCEPT
 
 		POP R8
 		RET
+		
+
 

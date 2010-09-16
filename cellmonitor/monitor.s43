@@ -100,6 +100,7 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 #include "serialio.s43"
 #include "../common/measure.s43"	// voltage measurement functions
 #include "BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No bytecodes defined in bytecode
+#include "definitions.s43"			// Bytecode definitions
 
 main:		mov.w	#0280h,SP				; Initialize stackpointer
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
@@ -436,7 +437,7 @@ gotTxSem2
 resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
 
 			; Process ordinary command bytes here, via the stripped down bytecode interpreter
-;			call	#ACCEPT
+			call	#ACCEPT
 	
 exitOnRx	pop		R9
 			pop		R8
