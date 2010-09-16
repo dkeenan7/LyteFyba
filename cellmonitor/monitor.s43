@@ -449,7 +449,7 @@ PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order t
 
 
 measAndCal:
-		call		#measure				; Defined in ../common/measure.s43
+			call		#measure				; Defined in ../common/measure.s43
 ;
 ; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
@@ -458,17 +458,17 @@ measAndCal:
 ; We want a 12 bit integer result in millivolts.
 ; That means we have to shift the product 17 bits to the right, which is equivalent to
 ; throwing away the lo word and shifting the high word one bit to the right.
-		mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
-		mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
-		swpb		R10						; Assemble the two bytes into a word
-		bis			R10,R9					; as multiplicand in R9
-											; Multiplier is sum-of-samples, already in R8
-		call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
-											; Note: calls assembler code that ends in ret
-		inc			R10						; For correct rounding
-		rra			R10						; Shift product hi word right one bit
-
-		ret					; Finished
+			mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
+			mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
+			swpb		R10						; Assemble the two bytes into a word
+			bis			R10,R9					; as multiplicand in R9
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+												; Note: calls assembler code that ends in ret
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+	
+			ret					; Finished
 
 ; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
 
@@ -476,17 +476,17 @@ measAndCal:
 		; Starts with 16 bit multiplicand in R8, multiplier in R9 and
 		; ends with 32 bit product in R10 (hi) and R9 (lo).
 UMStar:
-		clr		R10			; Clear hi word of product so far
-		mov		#16,R11		; Do 16 times
+			clr		R10			; Clear hi word of product so far
+			mov		#16,R11		; Do 16 times
 
-mullp	bit		#1,R9		; Test low bit of multiplier
-		jz		mulz		; If it's a 1
-		add		R8, R10		;	add multiplicand to product hi word; Endif
-mulz	rrc		R10			; Shift product hi word (incl. carry) right
-		rrc		R9			; into product lo and simul. shift multiplier right
-		dec		R11			; Decrement loop counter
-		jnz		mullp		; Loop until zero
-		ret
+mullp		bit		#1,R9		; Test low bit of multiplier
+			jz		mulz		; If it's a 1
+			add		R8, R10		;	add multiplicand to product hi word; Endif
+mulz		rrc		R10			; Shift product hi word (incl. carry) right
+			rrc		R9			; into product lo and simul. shift multiplier right
+			dec		R11			; Decrement loop counter
+			jnz		mullp		; Loop until zero
+			ret
 
 
 ; UM/MOD ( ud u1 -- u2 u3 )
@@ -500,31 +500,34 @@ mulz	rrc		R10			; Shift product hi word (incl. carry) right
 ; It is essentially the reverse of the multiplication algorithm above.
 
 UMSlashMod:
-		cmp		R8,R10	; Overflow?
-		jc		oflo		; Jump to error exit if divide by zero or overflow.
-		mov		#16,R11	; Do 16 times
-
-ummlp	rla		R9		; Shift quotient left and simul. shift dividend lo
-		rlc		R10		;	into dividend hi
-		jc		umm2		; If carry OR
-		cmp		R8,R10
-		jlo		umm1		;	no carry AND remainder-so-far >= divisor
-umm2	sub		R8,R10	;		Subtract divisor from remainder-so-far
-		bis		#1,R9	;		Set low bit of quotient-so-far
-							; Endif
-umm1	dec		R11		; Decrement loop counter
-		jnz		ummlp	; Loop until zero
-		ret
-
-oflo	mov	#-1,R9
-		mov	#-1,R10
-		ret
+			cmp		R8,R10	; Overflow?
+			jc		oflo		; Jump to error exit if divide by zero or overflow.
+			mov		#16,R11	; Do 16 times
+	
+ummlp		rla		R9		; Shift quotient left and simul. shift dividend lo
+			rlc		R10		;	into dividend hi
+			jc		umm2		; If carry OR
+			cmp		R8,R10
+			jlo		umm1		;	no carry AND remainder-so-far >= divisor
+umm2		sub		R8,R10	;		Subtract divisor from remainder-so-far
+			bis		#1,R9	;		Set low bit of quotient-so-far
+								; Endif
+umm1		dec		R11		; Decrement loop counter
+			jnz		ummlp	; Loop until zero
+			ret
+	
+oflo		mov	#-1,R9
+			mov	#-1,R10
+			ret
 
 
 
 m_alarm:
 		; Process alarm here; R8 has badness
 		ret
+		
+freespace	EQU		_OPCODETBL-$
+spaceaspercent EQU	(100*freespace)/2048
 
 ;-------------------------------------------------------------------------------
 ;			Interrupt Vectors
@@ -532,6 +535,7 @@ m_alarm:
 			ORG		0FFF0h					; TimerA Vectors
 			DW		TACOM_ISR				; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
 			DW		TX_ISR					; Timer A CC0IFG (transmit compare)
+;			There are 10 bytes here that could be used if desperate
 			ORG		0FFFEh					; MSP430 RESET Vector
 			DW		main					;
 
