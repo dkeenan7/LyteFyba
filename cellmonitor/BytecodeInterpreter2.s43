@@ -9,18 +9,81 @@
 ; Interpreter Register Usage
 
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
-;		Rdsp	SP	// Data stack pointer (and machine stack pointer)
-; #define Rrsp	R4	// Return stack pointer ; not required in this version
-#define Rip		R5	// Virtual machine instruction pointer
-#define Rlit	R6	// Holds partial literals
-#define Rtos	R7	// Top of data stack item - could do without this reg if necc.
-#define Rw		R8	// Working register - temporary - anyone can use
+#define 	Rip		R5		// Virtual machine instruction pointer
+#define 	Rlit	R6		// Holds partial literals
+#define 	Rw		R8		// Working register - temporary - anyone can use
 
 ;
 ; Status flag usage
 ;
 ; Bit 15 = literal in progress
 
+; Macros for 3-register interpreter data stack
+; Not used yet
+; Not sure which choice of registers is best
+#if 1
+	#define 	Rtos	R7		// Top element of data stack
+	#define 	Rsec	R4		// Second element from top
+	#define 	Rthd	R13		// Third element from top
+#else
+	#define 	Rtos	R8		// Top element of data stack
+	#define 	Rsec	R9		// Second element from top
+	#define 	Rthd	R10		// Third element from top
+#endif
+
+DPUSH		MACRO	arg
+			mov		Rsec,Rthd
+			mov		Rtos,Rsec
+			mov		arg,Rtos
+			ENDM
+			
+DROP		MACRO
+			mov		Rsec,Rtop
+			mov		Rthd,Rsec
+			END
+			
+SWAP		MACRO
+			xor		Rtos,Rsec
+			xor		Rsec,Rtos
+			xor		Rtos,Rsec
+			ENDM
+			
+DUP			MACRO
+			mov		Rsec,Rthd
+			mov		Rtos,Rsec
+			ENDM
+			
+OVER		MACRO
+			mov		Rsec,Rthd
+			mov		Rtop,Rsec
+			mov		Rthd,Rtop
+			ENDM
+
+NIP			MACRO
+			mov		Rthd,Rsec
+			ENDM
+			
+TUCK		MACRO
+			mov		Rtos,Rthd
+			ENDM
+
+ROT			MACRO
+			xor		Rsec,Rthd
+			xor		Rthd,Rsec
+			xor		Rsec,Rthd
+			xor		Rtos,Rsec
+			xor		Rsec,Rtos
+			xor		Rtos,Rsec
+			ENDM
+
+MinusROT	MACRO
+			xor		Rtos,Rsec
+			xor		Rsec,Rtos
+			xor		Rtos,Rsec
+			xor		Rsec,Rthd
+			xor		Rthd,Rsec
+			xor		Rsec,Rthd
+			ENDM
 
 ;-------------------------------------------------------------------------------
 ; Opcode-table Macros
@@ -43,7 +106,7 @@ xCODE	MACRO	OPCODE,OPCODENAM,_ADDRLBL
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
 OPCODENAM EQU	OPCODE						; Define the opcode name
-		ORG		_OPCODETBL-(2*$60)+(OPCODE)*2	; Point to correct opcode-table entry
+		ORG		_OPCODETBL-($60*2)+(OPCODE)*2	; Point to correct opcode-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
@@ -57,11 +120,11 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
 _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
-		SUB.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
+		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
 		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
 		
 _RUN	RLA.B	Rw			; Multiply bytecode by 2
-FncOPCD MOV _OPCODETBL(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
+FncOPCD MOV _OPCODETBL-($60*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
 							;	the code address
 		CMP		#$FFFF,Rw	; Check for undefined bytecodes
 		JNE		FncLIT		; If undefined and >= $60
@@ -80,7 +143,7 @@ DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
 
 DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
-		SUB.B	#'0'-$60,Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16 ($60 was subtracted off earlier)
+		SUB.B	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		JN		NotDigit	; Ignore undefined bytecodes below '0'
 		CMP.B	#$0A,Rw
 		_IF		_GE
