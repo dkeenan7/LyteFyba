@@ -29,7 +29,7 @@
 ; It contains one word per bytecode from $60 to $7F, which is the address of the code that implements
 ; the operation.
 
-_OPCODETBL	EQU		$FF00-$40				; Immediately below lowest used interrupt vector
+_OPCODETBL	EQU		$FFF0-$40				; Immediately below lowest used interrupt vector
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.
@@ -43,7 +43,7 @@ xCODE	MACRO	OPCODE,OPCODENAM,_ADDRLBL
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
 OPCODENAM EQU	OPCODE						; Define the opcode name
-		ORG		_OPCODETBL+(OPCODE)*2		; Point to correct opcode-table entry
+		ORG		_OPCODETBL-(2*$60)+(OPCODE)*2	; Point to correct opcode-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
