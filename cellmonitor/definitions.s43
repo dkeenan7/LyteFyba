@@ -35,7 +35,19 @@ _Space	ret					; Return to whoever called the interpreter (_ENTER)
 		xCODE	'u',auton,_auton
 		mov.b	Rtos,&bSendBad
 		pop		Rtos
-		ret
+justRet	ret
+		
+;
+; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
+;
+		; This is actually longer in bytecode
+		xCODE		's',Select,_Select
+		cmp.b		&ID,Rtos			; Correct ID?
+		pop			Rtos				; Pop the argument
+		jz			justRet				; If so, just continue interpreting rest of packet
+		incd		SP
+		RET								; Return to the outer interpreter (i.e. ignore rest of packet)
+
 		
 ;
 ; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
@@ -76,7 +88,7 @@ eDecLoop2
 ;
 		xCODE	'p',prettyPrint,_prettyPrint
 		mov		#'|',R8				; Initial vertical bar
-		call	TX_Byte				; (interpreted as comment character)
+		call	#TX_Byte			; (interpreted as comment character)
 		push	Rtos
 		push	&ID					; Put ID on stack
 		mov		#3,Rtos				; 3 digits
