@@ -36,6 +36,161 @@ _Space	ret					; Return to whoever called the interpreter (_ENTER)
 		mov.b	Rtos,&bSendBad
 		pop		Rtos
 		ret
+		
+;
+; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
+
+		xCODE	'm',emitDec,_emitDec
+		mov		Rtos,R11			; Count to R11
+		pop		Rtos
+		tst		Rtos				; Is n negative?
+		_IF		_L
+			mov		#'-',R8				; Emit minus sign
+			call	#TX_Byte
+			inv		Rtos
+			inc		Rtos				; Negate
+		_ENDIF
+		mov		Rtos,R9					; R10:R9 will have n initially
+		pop		Rtos
+		mov		#10,R8
+		mov		R11,R12					; Copy count
+		dec		R12						; Count-1
+eDecLoop1
+		clr		R10
+		call	#UMSlashMod				; dividend/10 -> R9, remainder to R10
+		push	R10						; Push remainder
+		dec		R12
+		jnz		eDecLoop1				; R9 keeps quotient as next dividend
+		push	R9
+		; Now we have n results on the stack; print these as decimal
+eDecLoop2
+		pop		R8
+		add		#'0',R8
+		call	#TX_Byte
+		dec		R11
+		jnz		eDecLoop2
+		ret
+
+;
+; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
+;
+		xCODE	'p',prettyPrint,_prettyPrint
+		mov		#'|',R8				; Initial vertical bar
+		call	TX_Byte				; (interpreted as comment character)
+		push	Rtos
+		push	&ID					; Put ID on stack
+		mov		#3,Rtos				; 3 digits
+		call	#_emitDec			; emit
+		mov		#':',R8				; Colon separator
+		call	#TX_Byte
+		call	#_emitDec			; Emit the result (n and m are on the stack)
+		mov		Rtos,R8				; ch to R8
+		pop		Rtos
+		call	#TX_Byte
+		mov		#'\r',R8			; Carriage return to R8
+		jmp		TX_Byte				; Emit and return
+		
+;
+; Low level voltage measurement (channel -- measurement)
+; Channel has channel number shifted left 12 bits (e.g. $7000 for cell voltage)
+; Channel 7 is currently cell voltage; 10 is temperature sensor
+; Measurement is in millivolts (0 to 4095 mV)
+;
+		xCODE		'o',llVolt,_llVolt
+		mov			Rtos,R8
+		call		#measAndCal			; Measure and use calibration
+		mov			R10,Rtos
+		ret
+		
+;
+; cellVolt ( -- )
+; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
+;
+		xCODE		'v',cellVolt,_cellVolt
+		push		Rtos
+		push		#'V'				; Units are volts
+		mov			#CellVChan<<12,Rtos	; ADC channel for cell voltage divider
+		call		#_llVolt
+		push		Rtos
+		mov			#4,Rtos				; Print 4 digits
+		jmp			_prettyPrint		; Pretty print and return
+
+;
+; Cell temperature measurement ( -- )
+; Measurement is in degrees C
+;
+		xCODE		't',cellTemp,_cellTemp
+		push		Rtos
+		push		#'C'				; Don't use degree symbol (0xF8, Terminal font only);
+										;	it's treated as a badness
+		mov			#TempChan<<12,Rtos	; ADC channel for temperature sensor
+		call		#_llVolt
+;
+; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+; But the measurement M is 4096* V/1.5 = 2731*V.
+; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
+; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
+
+		mov			Rtos,R9			; Don't pop; replace with number of digits to print
+		mov			#6760,R8
+		call		#UMStar
+		; Most significant half is in R10
+		; Temperature offset is now offset by 273
+		sub			#273,R10
+		mov.b		&TempCal,R8		; Temp offset calibration
+		sxt			R8				; Sign extend
+		sub			R8,R10
+		push		R10
+		mov			#3,Rtos			; 3 digits
+		jmp			_prettyPrint	; Pretty print and exit
+
+
+;
+; Link voltage measurement ( -- )
+; Measurement is in mV
+; Circuit has 2:1 voltage divider with Vref at the bottom.
+; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
+; Reading = 2048 + (Vin/2)(4096/1.5)
+; R = 2048 + Vin * 1365.3 (Vin in volts)
+; R = 2048 + Vin * 1.3653 (Vin in mV)
+; Vin = (R - 2048)/1.3653 mV
+; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
+
+		xCODE		'n',linkVolt,_linkVolt
+		push		Rtos
+		push		#'m'			; Units are millivolts
+		mov.b		&LinkCal,R8		; Link offset calibration
+		cmp			#$80,R8			; $80 is a special value representing "calibration failure"
+		_IF			_EQ				; If link calibration value is $80
+			clr		R10					; then use value 0
+		_ELSE
+			mov			#LinkVChan<<12,Rtos	; Shifted ADC channel for link voltage divider
+			call		#_llVolt
+			sub			#2048,Rtos
+			mov.b		&LinkCal,R8		; Link offset calibration
+			sxt			R8				; Sign extend
+			sub			R8,Rtos
+			_IF			_NN
+				mov			Rtos,R8
+				mov			#48001,R9
+				call		#UMStar
+				; Most significant half is in R10
+			_ELSE
+				inv			Rtos
+				inc			Rtos			; Negate
+				mov			Rtos,R8
+				mov			#48001,R9
+				call		#UMStar
+				inv			R10				; Only interested in top half
+				inc			R10				; Negate back
+			_ENDIF
+		_ENDIF
+		push		R10
+		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
+		jmp			_prettyPrint
+
+
+
 
 ; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
 ;

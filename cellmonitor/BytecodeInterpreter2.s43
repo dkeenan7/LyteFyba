@@ -178,10 +178,11 @@ DatEnd4 jmp		_NEXT		; Endif
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
 ; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
+; Trashes R8
 ; Implements backspace editing and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ACCEPT
-		PUSH	R8
+;		PUSH	R8				; No need to save R8, and stack space is tight
 		MOV		&ToIN,R9
 		_CASE
 		
@@ -221,7 +222,7 @@ ACCEPT
 
 		_ENDCASE				; End Case char
 
-		POP R8
+;		POP R8
 		RET
 		
 
