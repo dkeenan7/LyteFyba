@@ -144,7 +144,7 @@ RX_Test		dec.b	&BitCntRx				; (4) All bits RXed?
 			mov.b	#8,&BitCntRx			; Setup bit counter for next byte
 			bis.w	#CAP,&TACCTLr			; Back to capture mode
 			eint							; Enable interrupts
-			jmp		OnRxByte				; Start the received character callback routine
+			br		&RxByteDest				; Start the received character callback routine
 
 
 ;-------------------------------------------------------------------------------

@@ -7,7 +7,8 @@
 
 		NAME	main					; module name
 		PUBLIC	main					; make the main label visible
-		
+
+#define		Rtrash	R13			// Junked in flashCStore
 
 DATAVERS5	EQU		1			; True if data layout version 5
 #if	DATAVERS5
@@ -38,7 +39,6 @@ MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layo
 
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
-#define		TEST			1		; 1 for testing with BMU cell-inputs in parallel
 #define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
 
 #if			ROTATE3
@@ -62,16 +62,20 @@ CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 
 ;
 ;			Memory definitions
 ;
 			ORG		$200
+#if	!NOBUF
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
+#endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 IdleDest	DS		2				; Code pointer for idle loop
+RxByteDest	DS		2				; Code pointer for received byte
 TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
-									;	NOTE: don't write to this directly except when proptected by
+									;	NOTE: don't write to this directly except when protected by
 									;	TX_Sem
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
@@ -182,6 +186,7 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 ; Miscellaneous initialisation
 ;
 			mov		#IdleLoop,&IdleDest		; Initialise the idle code pointer to just loop
+			mov		#OnRxByte,&RxByteDest	; Initialise the RX byte code pointer
 			clr		&bypassVolts			; No special bypass voltage as yet
 			clr.b	&currBadness			; Current badness is none
 			clr.b	&lastSentBad			; Last badness we sent was zero
@@ -527,7 +532,8 @@ m_alarm:
 		ret
 		
 freespace	EQU		_OPCODETBL-$
-spaceaspercent EQU	(100*freespace)/2048
+#define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
+spaceaspercent EQU BCD( (100*freespace)/2048)
 
 ;-------------------------------------------------------------------------------
 ;			Interrupt Vectors
