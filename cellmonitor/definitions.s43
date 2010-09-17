@@ -36,3 +36,115 @@ _Space	ret					; Return to whoever called the interpreter (_ENTER)
 		mov.b	Rtos,&bSendBad
 		pop		Rtos
 		ret
+
+; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
+;
+; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour.
+; If no byte is received, we adopt an ID of zero and immediately send it downstream
+; so others know not to use it, and we write it to info-flash.
+;
+; If a byte _is_ received, it is taken to be an ID that is already in use and
+; we tentatively set our ID to one more than it.
+;
+; The structure of the serial code in info-flash is such that any byte read is also
+; immediately sent downstream. This ensures that the others downstream keep reading and waiting.
+;
+; We continue waiting for bytes and echoing them downstream and incrementing our tentative ID
+; until no byte is received within 1.5 byte times.
+; We then adopt the tentative ID as our own, immediately send it downstream
+; so others know not to use it, and we write it to info-flash.
+;
+; To change existing IDs, you need to bootstrap-load the BSL-writer to erase the IDs,
+; then bootstrap-load this interpreter again before issuing this SetID command.
+;
+; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 175 ms
+; for 114 cells at 9600 baud.
+
+		xCODE		'i',SetID,_SetID
+		bis.b		#LED,&P1OUT			; Set the error LED
+		mov			#OnRxID,&RxByteDest	; Point received bytes to OnRxID instead of OnRxByte
+		clr.b		R8					; Tentative ID starts at 0
+		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
+		add			&TAR,R9				; Target timer expiry time
+
+nextID
+; Here we need to check whether the timer register TAR has exceeded the time in TAR.
+; We need to be careful, and use either signed or unsigned arithmetic depending on the target time value
+		cmp			#$4000,R9			; Is the target time <u $4000?
+		jnc			timeCmpSigned		; If so use a signed comparison
+		cmp			#$C000,R9			; Is the target time >u $C000?
+		jc			timeCmpSigned		; If so, use signed compare
+		cmp			R9,&TAR				; Compare target time with current time
+		jnc			nextID				; Branch if unsigned less to the start of this loop
+timeCmpSigned
+		cmp			R9,&TAR				; Compare again
+		jl			nextID				; Branch if signed less to the start of this loop
+		
+		;
+		; Timeout with no received ID byte. ID is now definite. Send immediately so others dont use it
+		;
+		call		#TX_Byte			; Transmit this ID upstream
+
+		;
+		; Now flash-program this ID
+		mov			#ID,R9
+		call		#flashCStore
+		mov			#OnRxByte,&RxByteDest	; Restore RX callback code pointer
+		ret
+
+;
+; This callback gets called when we receive a byte during the SetID command
+;
+OnRxID:
+		tst.b		&RXData				; Test for badness
+		jl			OnRxByte			; Some badness snuck in. Process it as badness, not an ID
+		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
+		add			&TAR,R9				; New target timer expiry time
+		call		#TX_Byte			; Echo downstream so they don't use this ID either
+		mov.b		&RXData,R8			; This is the ID that an upstream BMU has 
+		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
+		reti							; Return to the loop checking for timeout
+
+
+;-------------------------------------------------------------------------------
+; Flash programming macros
+
+; The LOCKA bit in FCTL3 was made a *toggle*, for backward compatibility.
+; Use these macros to clear and set safely.
+CLRLOCKA	macro
+			BIT 	#LOCKA,&FCTL3		; Test LOCKA
+			JZ		$+2+6				; Already unlocked?
+			MOV		#FWKEY+LOCKA,&FCTL3 ; No, unlock
+			endm
+
+SETLOCKA	macro
+			BIT 	#LOCKA,&FCTL3		; Test LOCKA
+			JNZ		$+2+6				; Already locked?
+			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
+			endm
+
+
+flashCStore:
+			; Assembly language flash writer
+			; Byte  in R8, address in R9. Trashes Rtrash
+			;
+			; Check if it is possible to flash-program this ID
+			;
+			mov.b		R8,Rtrash			; Need to check for 1 bits in new ID
+			bic.b		@R9,Rtrash		    ;	that are already 0s in the existing byte
+			tst.b		Rtrash				; Set Z flag if result is 0; bic doesn't
+			jnz			cantFlsh			; Impossible flash-write; can't do it
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3
+			MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
+			MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
+			CLRLOCKA
+			mov.b	R8,0(R9)				; Flash-write it
+			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
+			SETLOCKA
+			MOV		#FWKEY,&FCTL1			; Disable flash write
+			bic.b	#LED,&P1OUT				; Clear the error LED: done!
+			ret
+cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
+			ret
