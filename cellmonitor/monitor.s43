@@ -340,6 +340,8 @@ startMeasure:
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
 			jnc		sendBadnessNow			;	Jump if so to send the badness immediately
 
+			tst.b	&bSendBad				; Check if sending regular badness
+			jz		IdleLoop				; If not, just idle immediately
 			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 			_IF		_C
 				cmp.b	#4,&ticksSinceLastSend
@@ -355,8 +357,6 @@ sendBadnessNow		clr.b	&ticksSinceLastSend
 
 IdleLoop:	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the measurement loop
-			tst.b	bSendBad				; Check if sending badness
-			jz		IdleLoop				; If not, just idle immediately
 			br		&IdleDest				; Gets reached after interrupts
 
 
@@ -495,7 +495,7 @@ mulz		rrc		R10			; Shift product hi word (incl. carry) right
 
 
 ; UM/MOD ( ud u1 -- u2 u3 )
-; R10:R9 / R8 -> R9, remainder to R10
+; R10:R9 / R8 -> R9, remainder to R10. Clears R11
 ; Divide ud by u1, giving the remainder u2 and the quotient u3.
 ; All values and arithmetic are unsigned. An ambiguous condition exists
 ; if u1 is zero or if the quotient lies outside the range of a single

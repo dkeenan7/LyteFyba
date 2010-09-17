@@ -51,9 +51,10 @@ justRet	ret
 		
 ;
 ; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
+; Trashes R8-R12
 
 		xCODE	'm',emitDec,_emitDec
-		mov		Rtos,R11			; Count to R11
+		mov		Rtos,R12			; Count to R12
 		pop		Rtos
 		tst		Rtos				; Is n negative?
 		_IF		_L
@@ -63,9 +64,9 @@ justRet	ret
 			inc		Rtos				; Negate
 		_ENDIF
 		mov		Rtos,R9					; R10:R9 will have n initially
-		pop		Rtos
+		; Leave Rtos on the machine stack for now, so we can use it as a temp
+		mov		R12,Rtos				; Copy count
 		mov		#10,R8
-		mov		R11,R12					; Copy count
 		dec		R12						; Count-1
 eDecLoop1
 		clr		R10
@@ -79,8 +80,9 @@ eDecLoop2
 		pop		R8
 		add		#'0',R8
 		call	#TX_Byte
-		dec		R11
+		dec		Rtos
 		jnz		eDecLoop2
+		pop		Rtos
 		ret
 
 ;
@@ -89,13 +91,21 @@ eDecLoop2
 		xCODE	'p',prettyPrint,_prettyPrint
 		mov		#'|',R8				; Initial vertical bar
 		call	#TX_Byte			; (interpreted as comment character)
-		push	Rtos
-		push	&ID					; Put ID on stack
+		push	#postED1			; Push return address
+		push	Rtos				; Push m
+		push.b	&ID					; Put ID on stack
 		mov		#3,Rtos				; 3 digits
-		call	#_emitDec			; emit
+		jmp		_emitDec			; Call _emitDec (return address already pushed)
+postED1
 		mov		#':',R8				; Colon separator
 		call	#TX_Byte
-		call	#_emitDec			; Emit the result (n and m are on the stack)
+		; ret-addr-for-prettyPrint ch n m -- (m in Rtos)
+		push	2(SP)				; Duplicate n. Note: SP is decremented before arg is read
+		mov		4(SP),2(SP)			; Copy ch over old n
+		mov		#postED2,4(SP)		; Move postED2 (return address) over old ch
+		; ret-adr-for-prettyPrint postED2 ch n m -- (m in Rtos)
+		jmp		_emitDec			; Emit the result (n and m are on the stack)
+postED2
 		mov		Rtos,R8				; ch to R8
 		pop		Rtos
 		call	#TX_Byte
