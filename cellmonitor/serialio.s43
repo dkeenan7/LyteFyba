@@ -32,12 +32,6 @@
 
 
 
-#define		TACCTLr		TACCTL1		; Receive using CCI1 (P1.2)
-#define		TACCTLt		TACCTL0		; Transmit (and everything else) using TA0
-#define		TACCRt		TACCR0		; Transmit compare register
-#define		TACCRr		TACCR1		; Receive capture/compare register
-#define		Rcallback	R13			; Trashed in callback routines
-
 ;
 ;
 ;	Conditions for 9600 Baud SW UART
@@ -54,12 +48,6 @@ TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
 Bitime		EQU		(TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
 Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
-
-; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
-; It is valid for the domain 1-64, and range 0-6.
-; NOTE: it depends in the assembler rounding down on division, even for negative results
-; There is a similar simple formula for rounding towards zero
-#define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
 
 
@@ -177,4 +165,12 @@ TX_Done:	bic.w	#CCIE,&TACCTLt			; (5) All Bits TX; disable Int.
 			inc.b	&TX_Sem					; (4) Release the transmit semaphore
 			reti							; (5) Eventually!
 			
-			
+#if 1		// Decided this should not be needed
+waitTxCmpl:	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
+			jz		gotTxSem1				; If decrements to zero, we got it
+			inc.b	&TX_Sem					; Undo our decrement
+			eint							; Interrupts must be on to exit this loop!
+			jmp		waitTxCmpl				; Try again in a busy wait
+gotTxSem1	inc.b	&TX_Sem					; Release the semaphore
+			ret
+#endif
