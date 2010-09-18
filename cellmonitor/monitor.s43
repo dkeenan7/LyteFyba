@@ -330,6 +330,7 @@ startMeasure:
 			_IF		_GE
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
+			mov.b	R9,&currBadness
 
 			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
 			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
