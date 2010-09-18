@@ -38,9 +38,9 @@ DPUSH		MACRO	arg
 			ENDM
 			
 DROP		MACRO
-			mov		Rsec,Rtop
+			mov		Rsec,Rtos
 			mov		Rthd,Rsec
-			END
+			ENDM
 			
 SWAP		MACRO
 			xor		Rtos,Rsec
@@ -134,8 +134,9 @@ FncLIT	TST		SR			; Check for an implied push-literal
 		JGE		DoOPCD		; If there's an operand-in-progress
 							;	there's an implied LIT now
 		BIC		#1<<15,SR	;	Clear the operand-in-progress flag
-		PUSH	Rtos		;	Push the operand now, before doing the
-		MOV		Rlit,Rtos	;	operation
+;		PUSH	Rtos		;	Push the operand now, before doing the
+;		MOV		Rlit,Rtos	;	operation
+		DPUSH	Rlit
 
 DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
 							; It must end with an RTS

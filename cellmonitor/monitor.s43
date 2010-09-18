@@ -8,7 +8,7 @@
 		NAME	main					; module name
 		PUBLIC	main					; make the main label visible
 
-#define		Rtrash	R13			// Junked in flashCStore
+#define		Rtrash	R14			// Junked in flashCStore
 
 DATAVERS5	EQU		1			; True if data layout version 5
 #if	DATAVERS5
@@ -64,6 +64,19 @@ LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 
+; Serialio definitions
+#define		TACCTLr		TACCTL1		; Receive using CCI1 (P1.2)
+#define		TACCTLt		TACCTL0		; Transmit (and everything else) using TA0
+#define		TACCRt		TACCR0		; Transmit compare register
+#define		TACCRr		TACCR1		; Receive capture/compare register
+
+; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
+; It is valid for the domain 1-64, and range 0-6.
+; NOTE: it depends in the assembler rounding down on division, even for negative results
+; There is a similar simple formula for rounding towards zero
+#define LOG2(x) (4 * (x-8) / (x+8) + 3)
+
+
 ;
 ;			Memory definitions
 ;
@@ -99,12 +112,6 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 			ORG		0F800h					; Program Reset
 ;-------------------------------------------------------------------------------
 
-; Comms routines
-			jmp		main					; For when started by the BSL
-#include "serialio.s43"
-#include "../common/measure.s43"	// voltage measurement functions
-#include "BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No bytecodes defined in bytecode
-#include "definitions.s43"			// Bytecode definitions
 
 main:		mov.w	#0280h,SP				; Initialize stackpointer
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
@@ -340,8 +347,6 @@ startMeasure:
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
 			jnc		sendBadnessNow			;	Jump if so to send the badness immediately
 
-			tst.b	&bSendBad				; Check if sending regular badness
-			jz		IdleLoop				; If not, just idle immediately
 			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 			_IF		_C
 				cmp.b	#4,&ticksSinceLastSend
@@ -356,7 +361,11 @@ sendBadnessNow		clr.b	&ticksSinceLastSend
 
 
 IdleLoop:	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
-			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the measurement loop
+			tst.b	&bSendBad				; Check if sending regular badness
+			jz		IdleLoop				; If not, just idle immediately, skipping measurement and
+											;	set/clear of bypass
+			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the
+			;	measurement loop
 			br		&IdleDest				; Gets reached after interrupts
 
 
@@ -396,9 +405,9 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			call	#TX_Byte			; echo/send the byte
 			tst.b	R8					; Is R8
 			_IF		_L					;		a badness?
-				tst.b	&bCheckForBad	; Are we checking
+				tst.b	&bCheckForBad		; Are we checking
 				_IF		_NZ					;	for badness (because we're the last BMU)?
-					call	#m_alarm			; Set or clear the alarm based on R8
+					call	#m_alarm			; Yes, set or clear the alarm based on R8
 				_ENDIF
 				jmp		exitOnRx			; No further processing of badness byte
 			_ENDIF
@@ -505,20 +514,20 @@ mulz		rrc		R10			; Shift product hi word (incl. carry) right
 ; It is essentially the reverse of the multiplication algorithm above.
 
 UMSlashMod:
-			cmp		R8,R10	; Overflow?
+			cmp		R8,R10		; Overflow?
 			jc		oflo		; Jump to error exit if divide by zero or overflow.
-			mov		#16,R11	; Do 16 times
+			mov		#16,R11		; Do 16 times
 	
-ummlp		rla		R9		; Shift quotient left and simul. shift dividend lo
-			rlc		R10		;	into dividend hi
+ummlp		rla		R9			; Shift quotient left and simul. shift dividend lo
+			rlc		R10			;	into dividend hi
 			jc		umm2		; If carry OR
 			cmp		R8,R10
 			jlo		umm1		;	no carry AND remainder-so-far >= divisor
-umm2		sub		R8,R10	;		Subtract divisor from remainder-so-far
-			bis		#1,R9	;		Set low bit of quotient-so-far
+umm2		sub		R8,R10		;		Subtract divisor from remainder-so-far
+			bis		#1,R9		;		Set low bit of quotient-so-far
 								; Endif
-umm1		dec		R11		; Decrement loop counter
-			jnz		ummlp	; Loop until zero
+umm1		dec		R11			; Decrement loop counter
+			jnz		ummlp		; Loop until zero
 			ret
 	
 oflo		mov	#-1,R9
@@ -526,11 +535,25 @@ oflo		mov	#-1,R9
 			ret
 
 
-
+;
+; Process alarm; R8 has unencoded badness. Trashes R8
 m_alarm:
-		; Process alarm here; R8 has badness
-		ret
-		
+			cmp		#2,R8			; Carry set if badness >= 2
+			subc	R8,R8			; -1 if badness >= 2
+			inv		R8				; 0 if badness >= 2, -1 otherwise
+			and		#OUT,R8			; Clear all but OUT bit
+			mov		R8,&TACCTLt		; Set TXn to 0 if badness >= 2
+			ret
+
+
+#include "serialio.s43"				// Comms routines
+#include "../common/measure.s43"	// Voltage measurement functions
+#include "BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No bytecodes defined in bytecode
+#include "definitions.s43"			// Bytecode definitions
+
+
+
+
 freespace	EQU		_OPCODETBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent EQU BCD( (100*freespace)/2048)
