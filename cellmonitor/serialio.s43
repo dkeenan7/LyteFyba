@@ -165,12 +165,9 @@ TX_Done:	bic.w	#CCIE,&TACCTLt			; (5) All Bits TX; disable Int.
 			inc.b	&TX_Sem					; (4) Release the transmit semaphore
 			reti							; (5) Eventually!
 			
-#if 1		// Decided this should not be needed
-waitTxCmpl:	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
-			jz		gotTxSem1				; If decrements to zero, we got it
-			inc.b	&TX_Sem					; Undo our decrement
-			eint							; Interrupts must be on to exit this loop!
-			jmp		waitTxCmpl				; Try again in a busy wait
-gotTxSem1	inc.b	&TX_Sem					; Release the semaphore
+;
+; Wait for the currently transmitting byte (if any) to complete.
+waitTxCmpl:
+			cmp.b	#1,&TX_Sem				; Don't need test and set here
+			jnz		waitTxCmpl				; Just wait for TX_Sem to become 1
 			ret
-#endif

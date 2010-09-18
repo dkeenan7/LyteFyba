@@ -38,7 +38,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		mov.b	Rtos,&bSendBad
 ;		pop		Rtos
 		DROP
-justRet	ret
+		ret
 		
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
@@ -47,10 +47,10 @@ justRet	ret
 		xCODE		's',Select,_Select
 		cmp.b		&ID,Rtos			; Correct ID?
 ;		pop			Rtos				; Pop the argument
-		DROP							; Pop the argument
+;		DROP							; Pop the argument
 		jz			justRet				; If so, just continue interpreting rest of packet
-		incd		SP
-		RET								; Return to the outer interpreter (i.e. ignore rest of packet)
+		incd		SP					; Return to the outer interpreter (i.e. ignore rest of packet)
+justRet	ret								
 
 ;
 ; Turn on or off the error LED (bool -- )
@@ -255,7 +255,7 @@ postED2
 		mov.b		&LinkCal,R8		; Link offset calibration
 		cmp			#$80,R8			; $80 is a special value representing "calibration failure"
 		_IF			_EQ				; If link calibration value is $80
-			clr		R10					; then use value 0
+			mov		#15000,R10			; then use special value that will print as ?000
 		_ELSE
 			mov			#LinkVChan<<12,Rtos	; Shifted ADC channel for link voltage divider
 			call		#_llVolt
@@ -288,6 +288,23 @@ postED2
 		jmp			_prettyPrint
 
 
+;
+; Link voltage offset caliBration (--)
+; Assumes zero link voltage due to zero link current
+;
+		xCODE	'b',calLink,_calLink
+		mov		#LinkVChan<<12,Rtos
+		call	#_llVolt
+		sub		#2048,Rtos				; Zero volts for link voltage is a 2048 reading
+		cmp		#$FF81,Rtos				; -$7F
+		jl		nonCal					; If <s -$7F, use the $80 non-calibrated value
+		cmp		#$80,Rtos
+		jl		realCal					; If >s -$7F and <s $80, use as real calibration value
+nonCal	mov		#$80,Rtos
+realCal
+		mov		#LinkCal,R9				; Address of byte to flash
+		mov		Rtos,R8					; Value to flash
+		jmp		flashCStore				; Write the calibration value and exit
 
 
 ; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
@@ -314,6 +331,7 @@ postED2
 ; for 114 cells at 9600 baud.
 
 		xCODE		'i',SetID,_SetID
+		call		#waitTxCmpl			; Wait for the CR to echo
 		bis.b		#LED,&P1OUT			; Set the error LED
 		mov			#OnRxID,&RxByteDest	; Point received bytes to OnRxID instead of OnRxByte
 		clr.b		R8					; Tentative ID starts at 0
@@ -383,10 +401,11 @@ flashCStore:
 			;
 			; Check if it is possible to flash-program this ID
 			;
-			mov.b		R8,Rtrash			; Need to check for 1 bits in new ID
-			bic.b		@R9,Rtrash		    ;	that are already 0s in the existing byte
-			tst.b		Rtrash				; Set Z flag if result is 0; bic doesn't
-			jnz			cantFlsh			; Impossible flash-write; can't do it
+			call	#waitTxCmpl				; Wait for any byte to transmit (likely CR echo)
+			mov.b	R8,Rtrash				; Need to check for 1 bits in new ID
+			bic.b	@R9,Rtrash				;	that are already 0s in the existing byte
+			tst.b	Rtrash					; Set Z flag if result is 0; bic doesn't
+			jnz		cantFlsh				; Impossible flash-write; can't do it
 			; Assumes ACCVIE = NMIIE = OFIE = 0.
 			; FSSEL: 1=MCLK FN: 2=divide by 3
 			MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
