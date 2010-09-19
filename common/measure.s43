@@ -8,27 +8,30 @@
 ; Suitable use at appropriate part of assembly file: #include ../common/measure.s43
 ; Sensitive to these defines:
 ;	VoltCalL, VoltCalH: addresses of low and high bytes of the voltage calibration values
+;	NumSamples
+;	NOBUF: set if not using a 16-word sample buffer
 
 measure:
 ;
 ; Initialise the ADC10 system
 ;
-; SREF_1 = 4 volt mode; ; REFBURST = save power by turning off buffer when not sampling
-; ADC10SHT_3 = 64 ADC10CLKs (~ 13 uS sample time with ADCCLK)
-; or ADC10SHT_2 = 16 clocks (16 uS with MCLK) (_3 = 64 clocks = 64uS for temperature measurement)
+; Current clock selection: 64 cycle samples, using MCLK (16 uS) for voltage and SMCLK (32 uS) for temp
 ; MSC = continuous sampling; REFON = turn on internal reference; ADC10ON = power up the ADC system
 		; When testing with BMUs in parallel, we want P1.4 to be digital output 0V so that even with the
 		; link input = 3.6 V, P1.3 won't exceed Vcc and therefore won't upset the ADC10 readings
-		cmp			#TempChan<<12,R8
-		jnz			notTempChan
-		mov			#SREF_1+ADC10SHT_3+MSC+REFON+ADC10ON,&ADC10CTL0		; Very slow 64uS sample for temperature
-		jmp			doneCTL0
-notTempChan
-		mov			#SREF_1+ADC10SHT_2+MSC+REFON+ADC10ON,&ADC10CTL0		; Slower 16 uS sample
-doneCTL0
-		cmp			#LinkVChan<<12,R8			; ADC channel for link voltage
+#if NOBUF
+#define USEMSC	0			// Don't want multiple samples if not using buffer
+#define USESEQ	CONSEQ_0	// Single channel single conversion
+#else
+#define USEMSC MSC			// Multiple samples
+#define USESEQ	CONSEQ_2	// Repeat single channel
+#endif
+; SREF_1 = 4 volt mode; ; REFBURST = save power by turning off buffer when not sampling
+; ADC10SHT_3 = 64 ADC10CLKs or _2 = 16 clocks 
+		mov			#SREF_1+ADC10SHT_3+USEMSC+REFON+ADC10ON,&ADC10CTL0
+		cmp			#LinkVChan<<12,R8			; ADC channel for link voltage?
 		jnz			noRefOut
-		bis.b		#1<<4,&ADC10AE0				;  then make P1.4 analogue, and
+		bis.b		#1<<4,&ADC10AE0				;  If so, make P1.4 analogue, and
 		bis			#REFOUT,&ADC10CTL0			;  set REFOUT
 		jmp			p1_4_input
 noRefOut
@@ -37,11 +40,29 @@ noRefOut
 		bis.b		#1<<4,&P1DIR			; Make P1.4 an output, so when testing with paralleled BMUs,
 p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
 
-; INCH_7 = ADC7 (VDIV); SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK;
-; CONSEQ_2 = repeat-single-channel
-		; Note that R8 has the channel number already in the right position
-		bis			#SHS_0+ADC10SSEL_2+CONSEQ_2,R8
+		cmp			#TempChan<<12,R8
+		_IF			_EQ
+; SHS_0 = software start; ADC10SSEL_0 = ADC10OSC or _2 = MCLK or _3 = SMCLK
+; CONSEQ_2 = repeat-single-channel, or _0 = single channel single conversion
+; Note that R8 has the channel number already in the right position
+			bis			#SHS_0+ADC10SSEL_3+USESEQ,R8	; Use SMCLK (2 MHz so 32 uS sample time)
+		_ELSE
+			bis			#SHS_0+ADC10SSEL_2+USESEQ,R8	; Use MCLK (4 MHz so 16 uS sample time)
+		_ENDIF
 		mov			R8,&ADC10CTL1
+#if NOBUF			// New code to not read 16 samples to RAM
+		mov			#0,R8					; Initialise the sum
+		mov			#NumSamples,R9			; Sample counter
+addRes	bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
+convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
+		jz			convert					; No, busy wait
+		add			&ADC10MEM,R8			; Add a result
+		dec			R9
+		jnz			addRes					; Continue converting
+		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
+		ret
+		
+#else				// Original code which read 16 samples to a buffer and added them at the end
 		mov.b		#NumSamples,&ADC10DTC1	; 16 conversions
 		mov			#sampleBuf,&ADC10SA		; Set start address
 		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
@@ -57,3 +78,4 @@ addSamp	add			@R9+,R8					; Add a sample
 		cmp			#sampleBuf+2*NumSamples,R9
 		jnz			addSamp
 		ret
+#endif

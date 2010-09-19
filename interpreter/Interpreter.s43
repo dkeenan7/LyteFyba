@@ -472,7 +472,7 @@ doneId	next
 
 
 ;
-; Link voltage measurement (cellID --)
+; Link voltage measurement (--)
 ; Measurement is in mV
 ; Circuit has 2:1 voltage divider with Vref at the bottom.
 ; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
