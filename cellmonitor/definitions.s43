@@ -338,7 +338,14 @@ realCal
 		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
 		add			&TAR,R9				; Target timer expiry time
 
-nextID
+idLoop
+		; The first part of this loop is effectively looking for a start bit
+		bit			#CAP,&TACCTLr		; Is the receiver capturing?
+		jz			idLoop				; If not, a receive is in progress, so wait for it
+		; It is important that we are ignoring the timer while a receive is in progress. Otherwise,
+		; there will be a race condition between the two 1.5 byte-time timers.
+		; The CAP bit is reset in the RX interrupt routine, so when we exit the busy loop, we will
+		; have a new tentative ID in R8 and a new target time in R9
 ; Here we need to check whether the timer register TAR has exceeded the time in TAR.
 ; We need to be careful, and use either signed or unsigned arithmetic depending on the target time value
 		cmp			#$4000,R9			; Is the target time <u $4000?
@@ -346,10 +353,12 @@ nextID
 		cmp			#$C000,R9			; Is the target time >u $C000?
 		jc			timeCmpSigned		; If so, use signed compare
 		cmp			R9,&TAR				; Compare target time with current time
-		jnc			nextID				; Branch if unsigned less to the start of this loop
+		jnc			idLoop				; Branch if unsigned less to the start of this loop
+		jmp			setIdTO				; Timed out
 timeCmpSigned
 		cmp			R9,&TAR				; Compare again
-		jl			nextID				; Branch if signed less to the start of this loop
+		jl			idLoop				; Branch if signed less to the start of this loop
+setIdTO
 		
 		;
 		; Timeout with no received ID byte. ID is now definite. Send immediately so others dont use it
@@ -363,6 +372,10 @@ timeCmpSigned
 		mov			#OnRxByte,&RxByteDest	; Restore RX callback code pointer
 		ret
 
+idRxInProg
+		bit			#CAP,&TACCTLr		; Receiver capturing?
+		jz			idRxInProg			; If not, still receiving
+
 ;
 ; This callback gets called when we receive a byte during the SetID command
 ;
@@ -371,8 +384,8 @@ OnRxID:
 		jl			jOnRxByte			; Some badness snuck in. Process it as badness, not an ID
 		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
 		add			&TAR,R9				; New target timer expiry time
-		call		#TX_Byte			; Echo downstream so they don't use this ID either
 		mov.b		&RXData,R8			; This is the ID that an upstream BMU has 
+		call		#TX_Byte			; Echo downstream so they don't use this ID either
 		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
 		reti							; Return to the loop checking for timeout
 jOnRxByte br		#OnRxByte
