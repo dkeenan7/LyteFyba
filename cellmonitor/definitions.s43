@@ -35,9 +35,12 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		
 ; aUtonomous mode badness sending (n --)
 		xCODE	'u',auton,_auton
+		and		Rtos,Rtos				; Carry set if non zero
+		subc	Rtos,Rtos				; zero if param was non zero
+		inv		Rtos					; -1 if param was non zero
 		mov.b	Rtos,&bSendBad
 ;		pop		Rtos
-		DROP
+;		DROP
 		ret
 		
 ;
@@ -327,15 +330,15 @@ realCal
 ; To change existing IDs, you need to bootstrap-load the BSL-writer to erase the IDs,
 ; then bootstrap-load this interpreter again before issuing this SetID command.
 ;
-; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 175 ms
+; The total time for N cells to set up IDs is about 1.5 * N byte times, or around 180 ms
 ; for 114 cells at 9600 baud.
 
 		xCODE		'i',SetID,_SetID
 		call		#waitTxCmpl			; Wait for the CR to echo
 		bis.b		#LED,&P1OUT			; Set the error LED
-		mov			#OnRxID,&RxByteDest	; Point received bytes to OnRxID instead of OnRxByte
+		mov			#OnRxID,&RxByteCB	; Point received bytes to OnRxID instead of OnRxByte
 		clr.b		R8					; Tentative ID starts at 0
-		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
+		mov			#Bitime*10*3/2,R9	; 1.5 byte times in timer ticks
 		add			&TAR,R9				; Target timer expiry time
 
 idLoop
@@ -347,18 +350,9 @@ idLoop
 		; The CAP bit is reset in the RX interrupt routine, so when we exit the busy loop, we will
 		; have a new tentative ID in R8 and a new target time in R9
 ; Here we need to check whether the timer register TAR has exceeded the time in TAR.
-; We need to be careful, and use either signed or unsigned arithmetic depending on the target time value
-		cmp			#$4000,R9			; Is the target time <u $4000?
-		jnc			timeCmpSigned		; If so use a signed comparison
-		cmp			#$C000,R9			; Is the target time >u $C000?
-		jc			timeCmpSigned		; If so, use signed compare
+; We need to be careful; note the jn (not jl)
 		cmp			R9,&TAR				; Compare target time with current time
-		jnc			idLoop				; Branch if unsigned less to the start of this loop
-		jmp			setIdTO				; Timed out
-timeCmpSigned
-		cmp			R9,&TAR				; Compare again
-		jl			idLoop				; Branch if signed less to the start of this loop
-setIdTO
+		jn			idLoop				; Branch if difference is negative to the start of this loop
 		
 		;
 		; Timeout with no received ID byte. ID is now definite. Send immediately so others dont use it
@@ -369,7 +363,7 @@ setIdTO
 		; Now flash-program this ID
 		mov			#ID,R9
 		call		#flashCStore
-		mov			#OnRxByte,&RxByteDest	; Restore RX callback code pointer
+		mov			#OnRxByte,&RxByteCB	; Restore RX callback code pointer
 		ret
 
 idRxInProg
