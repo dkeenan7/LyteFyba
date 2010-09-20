@@ -38,6 +38,12 @@ MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layo
 #endif
 
 
+; Interpreter Register Usage
+;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
+#define 	Rip		R5		// Virtual machine instruction pointer
+#define 	Rlit	R6		// Holds partial literals
+#define 	Rw		R8		// Working register - temporary - anyone can use
+
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
 #define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
 
@@ -85,25 +91,29 @@ NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
-IdleDest	DS		2				; Code pointer for idle loop
-RxByteDest	DS		2				; Code pointer for received byte
+RxByteCB	DS		2				; Code pointer for received byte callback
 TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
 									;	NOTE: don't write to this directly except when protected by
 									;	TX_Sem
+; NOTE: these next two are accessed as a word. Keep on an even boundary, and only ever set to 00 or FF!
+bSendBad	DS		1				; $FF if sending badness bytes at all
+bMeasureTime DS		1				; $FF if time to measure
+
+TXPrioData	DS		1				; Data for sending (if not $FF) before next TX_Byte
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
 EchoState	DS		1				; Temp: this will go away
 TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
+bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
 currBadness	DS		1				; Current badness
 lastSentBad	DS		1				; Last sent badness
-bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
-bSendBad	DS		1				; Non zero if sending badness bytes at all
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
 hexFlag		DS		1				; 1 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
+bCmdBufRdy	DS		1				; Non zero if command buffer (TIB) is ready to process
 			EVEN
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -183,6 +193,10 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 
 ;
+; Setup TX
+			mov.b	#$FF,&TXPrioData		; FF means no priority data to send
+
+;
 ; Setup the stripped-down bytecode interpreter
 ;
 			mov.b	#1,&hexFlag				; Hex mode by default
@@ -192,20 +206,59 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 ;
 ; Miscellaneous initialisation
 ;
-			mov		#IdleLoop,&IdleDest		; Initialise the idle code pointer to just loop
-			mov		#OnRxByte,&RxByteDest	; Initialise the RX byte code pointer
+			mov		#OnRxByte,&RxByteCB		; Initialise the RX byte code pointer
 			clr		&bypassVolts			; No special bypass voltage as yet
 			clr.b	&currBadness			; Current badness is none
 			clr.b	&lastSentBad			; Last badness we sent was zero
+			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
-			clr.b	&bCheckForBad
-			mov		#1,&bSendBad
+			mov.w	#-1,&bSendBad		; Initialise bSendBad and bMeasureTime
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
+			clr.b	bCmdBufRdy				; No command waiting
 
-			; Fall through to the start of the measurement loop
+			; Fall through to the idle loop
 
-startMeasure:
+idleLoop:
+			; Note: the below reads two byte addressable variables at once
+			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
+			jne		noMeasure				; If not, skip measurement and set/clear of bypass
+			clr.b	bMeasureTime
+			call	#measures
+
+noMeasure
+			; Check if processing a completed command buffer
+			tst.b	&bCmdBufRdy
+			jz		noCmdExec
+			MOV		&ToIN,R9
+#if CHECKSUM
+			TST.B	&CHKSUM
+			_IF		_Z					; If good checksum
+				DEC		R9				;	Prepare to overwrite the checksum with an EXIT bytecode
+				CMP		#TIB,R9			;	Handle case of empty packet with no checksum
+				_IF		_LO
+					MOV		#TIB,R9
+				_ENDIF
+#endif
+				MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with an EXIT bytecode
+				MOV		#TIB,Rip		; Interpret the packet as bytecode
+				CALL	#_ENTER
+#if CHECKSUM
+			_ENDIF						; Endif (good checksum)
+#endif
+			MOV		#TIB,&ToIN			; Initialise packet buffer pointer
+			CLR.B	&CHKSUM				; Clear the packet checksum
+			clr.b	&bCmdBufRdy
+
+			; It could be that there is measurement ready by now. Don't sleep if that is the case
+			cmp		#-1,bSendBad		; OK to write to TIB again
+			jeq		idleLoop
+
+noCmdExec	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
+			jmp		idleLoop
+
+
+measures:
 ;
 ; Regular measurement goes here
 ; Called about 4 times per second
@@ -359,16 +412,7 @@ sendBadnessNow		clr.b	&ticksSinceLastSend
 				_ENDIF
 			_ENDIF
 			
-
-
-IdleLoop:	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
-			tst.b	&bSendBad				; Check if sending regular badness
-			jz		IdleLoop				; If not, just idle immediately, skipping measurement and
-											;	set/clear of bypass
-			; Jump indirect on a pointer, either to go low power till the next interrupt, or start the
-			;	measurement loop
-			br		&IdleDest				; Gets reached after interrupts
-
+			ret
 
 			; Encoded badness table. The badness information is transmitted in one byte,
 			; with no checksum correction. To counter this, badness is encoded, so that only
@@ -386,7 +430,7 @@ badnessTable DB		$80			; $80 is least badness
 ;	Process badness channel, and execute commands.
 OnRxByte:
 			push	R8
-			push	R9					; We will call TX_Byte eventually, which will trash R9
+			push	R9
 			mov.b	&RXData,R8
 			tst.b	R8					; Test for badness command ($80-$F7)
 			_IF		_L					; If negative (i.e. badness)
@@ -403,7 +447,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 				_ENDIF
 				mov.b	R8,&lastSentBad		; Remember that we sent this
 			_ENDIF
-			call	#TX_Byte			; echo/send the byte
+			call	#TX_ByteNW			; echo/send the byte, no waiting
 			tst.b	R8					; Is R8
 			_IF		_L					;		a badness?
 				tst.b	&bCheckForBad		; Are we checking
@@ -434,11 +478,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
-getTxSem2	dec.b	&TX_Sem				; Attempt to get the transmit semaphore
-			jz		gotTxSem2			; If decrements to zero, we got it
-			inc.b	&TX_Sem				; Undo our decrement
-			jmp		getTxSem2			; Try again in a busy wait
-gotTxSem2
+			call	#waitTxCmpl
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
@@ -449,9 +489,12 @@ gotTxSem2
 			mov		#$280,SP			; Give the BSL maximum stack
 			br		#BSLErase			; Jump into the BSL to finish the download
 
-resetFSM		mov.b	#3,&passWordState	; No password match; reset state machine
+resetFSM	mov.b	#3,&passWordState	; No password match; reset state machine
 
 			; Process ordinary command bytes here, via the stripped down bytecode interpreter
+			; It won't execute the buffer; that's deferred to mainline
+			tst.b	&bCmdBufRdy			; Is a command buffer execution already in progress?
+			jnz		exitOnRx			;	If so, don't accept more chars (would corrupt executing buf)
 			call	#ACCEPT
 	
 exitOnRx	pop		R9
