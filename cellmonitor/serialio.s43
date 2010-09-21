@@ -52,16 +52,17 @@ Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
 
 ;-------------------------------------------------------------------------------
-TX_Byte:	; Subroutine Transmits Character from R8
+			; Subroutine Transmits Character from R8
 			; Trashes R9
 ;-------------------------------------------------------------------------------
 			; Decrement instruction is used here as an atomic test-and-set instruction:
+
+noAcqSem	inc.b	&TX_Sem					; Undo our decrement (see below; this is not entry point)
+TX_Byte:
 getTxSem	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
-			jz		gotTxSem				; If decrements to zero, we got it
-			inc.b	&TX_Sem					; Undo our decrement
-			eint							; Interrupts must be on to exit this loop!
-			jmp		getTxSem				; Try again in a busy wait
-gotTxSem
+			jnz		noAcqSem				; If decrements to zero, we got it, otherwise loop
+
+gotTxSem:									; Internal entry point; see TX_ByteNW
 			mov.b	R8,&TXData				; Now it's safe to save to TXData
 intTxBy:									; Private entry point, see Tx_Done
 			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDp) will not be held
@@ -162,13 +163,18 @@ TX_Mark
 
 TX_Done:	bic.w	#CCIE,&TACCTLt			; (5) All Bits TX; disable Int.
 			bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
-			cmp.b	#$FF,&TXPrioData		; Is there a priority byte in the 1-byte buffer?
-			jeq		TX_Done2				; Jump if not
+			cmp.w	#$FFFF,&TXPrioData		; Is there any priority byte in the 2-byte buffer?
+			jeq		TX_Done2				; Jump if none
 			push	R9						; Must preserve registers
-			mov.b	&TXPrioData,&TXData
-			mov.b	#$FF,&TXPrioData
+			mov.b	&TXPrioData+1,&TXData	; Move most recent to TXData
+			mov.b	&TXPrioData,&TXPrioData+1 ; Move oldest to most recent
+			mov.b	#$FF,&TXPrioData		; Mark oldest as being empty
 			call	#intTxBy				; Call the internal TX_Byte to send
 			pop		R9
+			; Important: don't increment the semaphore here. When the last buffered byte completes, it
+			; will get to TX_Done2 and increment the semaphore on this byte's behalf. Also, incrementing
+			; the semaphore would allow the mainline to send another byte, which would corrupt this one.
+			reti
 TX_Done2	inc.b	&TX_Sem					; (4) Release the transmit semaphore
 			reti							; (5)
 			
@@ -186,8 +192,13 @@ TX_ByteNW:	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
 			jz		gotTxSem				; If decrements to zero, we got it
 			; Instead of busy waiting for the semaphore to become available, use the priority TX buffer
 			inc.b	&TX_Sem					; Undo our decrement
-			cmp.b	#$FF,&TXPrioData
-			jnz		TXDnoJam
+			cmp.b	#$FF,&TXPrioData+1
+			jeq		TXDnoJam1
+			; If get here, at least 1 TX buffer slot is used:
+			cmp.b	#$FF,&TXPrioData		; For
+			jeq		TXDnoJam2				;	debugging
 			nop								; Place breakpoint here to prove we never get here!
-TXDnoJam	mov.b	R8,&TXPrioData
+TXDnoJam2	mov.b	R8,&TXPrioData			; Use second TX buffer slot
+			ret
+TXDnoJam1	mov.b	R8,&TXPrioData+1		; Use first TX buffer slot
 			ret
