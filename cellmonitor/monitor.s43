@@ -99,7 +99,7 @@ TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
 bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
 
-TXPrioData	DS		1				; Data for sending (if not $FF) before next TX_Byte
+TXPrioData	DS		2				; Data for sending (if not $FF) before next TX_Byte
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
@@ -194,7 +194,7 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 
 ;
 ; Setup TX
-			mov.b	#$FF,&TXPrioData		; FF means no priority data to send
+			mov.w	#$FFFF,&TXPrioData		; FF means no priority data to send
 
 ;
 ; Setup the stripped-down bytecode interpreter

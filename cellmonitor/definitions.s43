@@ -162,7 +162,7 @@ postED2
 #endif
 		call	#TX_Byte
 		mov		#'\r',R8			; Carriage return to R8
-		call	#TX_Byte			; Emit // and return
+		call	#TX_Byte			; Emit
 		call	#waitTxCmpl			; Wait for transmit complete
 		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
 									; Identifies the BMU that sent a response
@@ -429,3 +429,24 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			ret
 
 
+			xCODE		'f',fence,_fence	; "Fence" temporary debugging command
+			mov			#5,R11				; 5 lines
+fenceLp1	mov			#10,R10				; 10 sets of 3 chars
+			mov			#'|',R8				; First byte must be comment char; "fence post"
+fenceLp2	call		#TX_Byte
+			tst			R10
+			jz			fenceEol
+			mov			#'=',R8				; "fence rail"
+			call		#TX_Byte
+			mov			#'-',R8				; different "fence rail"
+			call		#TX_Byte
+			dec			R10
+			mov			R10,R8				; Get count
+			add			#'0',R8				; Make it a digit
+			jmp			fenceLp2			; Use as next "fencepost"
+fenceEol	mov			#$0D,R8				; Carriage return to end the line
+			call		#TX_Byte
+			; Not sure if need delay here
+			dec			R11
+			jnz			fenceLp1			; Repeat for more lines
+			ret
