@@ -4,6 +4,32 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 		LSTOUT+
+		
+allBitsNC	MACRO	dest
+			subc	dest,dest	; Sets all bits to not carry
+			ENDM
+			
+allBitsC	MACRO	dest
+			subc	dest,dest	; Sets all bits to not carry
+			inv		arg			; Sets all bits to carry
+			ENDM
+			
+allBitsZ	MACRO	src,dest
+			and		src,src		; Sets carry if src is not zero
+			subc	dest,dest	; Sets all bits to not carry = zero
+			ENDM
+			
+allBitsNZ	MACRO	src,dest
+			and		src,src		; Sets carry if src is not zero
+			subc	dest,dest	; Sets all bits to not carry = zero
+			inv		arg			; Sets all bits to carry = not zero
+			ENDM
+			
+bitStore	MACRO	src,mask,dest	; Trashes src
+			xor		dest,src	; Get one bits in src for bits that need to toggle
+			and		mask,src	; Mask so we only change those we want to change
+			xor		src,dest	; Toggle bits as required
+			ENDM
 
 		NAME	main					; module name
 		PUBLIC	main					; make the main label visible
@@ -71,10 +97,10 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 
 ; Serialio definitions
-#define		TACCTLr		TACCTL1		; Receive using CCI1 (P1.2)
-#define		TACCTLt		TACCTL0		; Transmit (and everything else) using TA0
-#define		TACCRt		TACCR0		; Transmit compare register
-#define		TACCRr		TACCR1		; Receive capture/compare register
+#define		TACCTLr		TACCTL1		// Receive using CCI1 (P1.2)
+#define		TACCTLt		TACCTL0		// Transmit (and everything else) using TA0
+#define		TACCRt		TACCR0		// Transmit compare register
+#define		TACCRr		TACCR1		// Receive capture/compare register
 
 ; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
@@ -276,12 +302,20 @@ measures:
 			_IF		_Z
 				mov		#3600,R8				; Default of 3.6 V
 			_ENDIF
+#if 1
+			cmp		R8,R10
+			_IF		_HS						; If the current cell voltage R10 >= R8 the bypass threshold
+				bis.b	#BYPASS,&P1OUT		;   Turn on the bypass resistors
+			_ELSE							; Else
+				bic.b	#BYPASS,&P1OUT		;   Turn off the bypass resistors
+			_ENDIF							; Endif
+#else
 			cmp		R10,R8					; Is the current cell voltage >= the bypass threshold?
 			subc	R8,R8					; If so, carry was clear and we get -1 here, else 0
 			xor.b	&P1OUT,R8				; Which bits differ
 			and		#BYPASS,R8				; Only BYPASS left on, and only if wrong
 			xor.b	R8,&P1OUT				; Change if necessary
-
+#endif
 			; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
 			mov		R10,R9					; Measurement
 			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
@@ -528,25 +562,27 @@ measAndCal:
 	
 			ret					; Finished
 
+;
+; UM*	Unsigned multiply
+; Starts with 16 bit multiplicand in R8, multiplier in R9 and
+; ends with 32 bit product in R10 (hi) and R9 (lo).
 ; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
+; 138 to 154 cycles
 
-		; Unsigned multiply
-		; Starts with 16 bit multiplicand in R8, multiplier in R9 and
-		; ends with 32 bit product in R10 (hi) and R9 (lo).
-UMStar:
-			clr		R10			; Clear hi word of product so far
-			mov		#16,R11		; Do 16 times
+UMStar:							; (4) Call
+			clr		R10			; (1) Clear hi word of product so far
+UMStarPlus:	mov		#16,R11		; (2) Do 16 times
 
-mullp		bit		#1,R9		; Test low bit of multiplier
-			jz		mulz		; If it's a 1
-			add		R8, R10		;	add multiplicand to product hi word; Endif
-mulz		rrc		R10			; Shift product hi word (incl. carry) right
-			rrc		R9			; into product lo and simul. shift multiplier right
-			dec		R11			; Decrement loop counter
-			jnz		mullp		; Loop until zero
-			ret
+mullp		bit		#1,R9		; (1) Test low bit of multiplier
+			jz		mulz		; (2) If it's a 1
+			add		R8, R10		; (1)   add multiplicand to product hi word; Endif
+mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
+			rrc		R9			; (1) into product lo and simul. shift multiplier right
+			dec		R11			; (1) Decrement loop counter
+			jnz		mullp		; (2) Loop until zero
+			ret					; (3)
 
-
+;
 ; UM/MOD ( ud u1 -- u2 u3 )
 ; R10:R9 / R8 -> R9, remainder to R10. Clears R11
 ; Divide ud by u1, giving the remainder u2 and the quotient u3.
@@ -556,37 +592,46 @@ mulz		rrc		R10			; Shift product hi word (incl. carry) right
 ; In this case we return $FFFF for both quotient and remainder.
 ; Algorithm is from eForth by Bill Muench.
 ; It is essentially the reverse of the multiplication algorithm above.
+; 172 to 204 cycles (excluding overflow or div by zero)
 
-UMSlashMod:
-			cmp		R8,R10		; Overflow?
-			jc		oflo		; Jump to error exit if divide by zero or overflow.
-			mov		#16,R11		; Do 16 times
+UMSlashMod:						; (4) Call
+			cmp		R8,R10		; (1) Overflow?
+			jc		oflo		; (2) Jump to error exit if divide by zero or overflow.
+			mov		#16,R11		; (2) Do 16 times
 	
-ummlp		rla		R9			; Shift quotient left and simul. shift dividend lo
-			rlc		R10			;	into dividend hi
-			jc		umm2		; If carry OR
-			cmp		R8,R10
-			jlo		umm1		;	no carry AND remainder-so-far >= divisor
-umm2		sub		R8,R10		;		Subtract divisor from remainder-so-far
-			bis		#1,R9		;		Set low bit of quotient-so-far
-								; Endif
-umm1		dec		R11			; Decrement loop counter
-			jnz		ummlp		; Loop until zero
-			ret
+ummlp		rla		R9			; (1) Shift quotient left and simul. shift dividend lo
+			rlc		R10			; (1)   into dividend hi
+			jc		umm2		; (2) If carry OR
+			cmp		R8,R10		; (1)
+			jlo		umm1		; (2) no carry AND remainder-so-far >= divisor
+umm2		sub		R8,R10		; (1)	Subtract divisor from remainder-so-far
+			bis		#1,R9		; (1)	Set low bit of quotient-so-far
+								;	  Endif
+umm1		dec		R11			; (1) Decrement loop counter
+			jnz		ummlp		; (2) Loop until zero
+			ret					; (3)
 	
-oflo		mov	#-1,R9
-			mov	#-1,R10
-			ret
+oflo		mov	#-1,R9			; (1)
+			mov	#-1,R10         ; (1)
+			ret					; (3)
 
 
 ;
 ; Process alarm; R8 has unencoded badness. Trashes R8
 m_alarm:
 			cmp		#2,R8			; Carry set if badness >= 2
+#if 1
+			_IF		_HS
+				MOV	#OUT,&TACCTLt
+			_ELSE
+				CLR	&TACCTLt
+			_ENDIF
+#else
 			subc	R8,R8			; -1 if badness >= 2
 			inv		R8				; 0 if badness >= 2, -1 otherwise
 			and		#OUT,R8			; Clear all but OUT bit
 			mov		R8,&TACCTLt		; Set TXn to 0 if badness >= 2
+#endif
 			ret
 
 
@@ -605,12 +650,12 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 ;-------------------------------------------------------------------------------
 ;			Interrupt Vectors
 ;-------------------------------------------------------------------------------
-			ORG		0FFF0h					; TimerA Vectors
-			DW		TACOM_ISR				; Timer A combined TAIFG (overflow) & CC1IFG (receive capture and compare)
-			DW		TX_ISR					; Timer A CC0IFG (transmit compare)
+			ORG		0FFF0h				; Timer A Vectors
+			DW		RX_TIOV_ISR			; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
 ;			There are 10 bytes here that could be used if desperate
-			ORG		0FFFEh					; MSP430 RESET Vector
-			DW		main					;
+			ORG		0FFFEh				; MSP430 RESET Vector
+			DW		main				;
 
 
 

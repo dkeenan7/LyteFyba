@@ -28,7 +28,9 @@
 ;	Texas Instruments Inc.
 ;	October 2005
 ;*******************************************************************************
+		LSTOUT-
 #include	"io430.h"		// For #define TAIV_CCIFG1
+		LSTOUT+
 
 
 
@@ -52,7 +54,7 @@ Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
 
 ;-------------------------------------------------------------------------------
-			; Subroutine Transmits Character from R8
+;TX_Byte	; Subroutine Transmits Character from R8
 			; Trashes R9
 ;-------------------------------------------------------------------------------
 			; Decrement instruction is used here as an atomic test-and-set instruction:
@@ -64,43 +66,46 @@ getTxSem	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
 
 gotTxSem:									; Internal entry point; see TX_ByteNW
 			mov.b	R8,&TXData				; Now it's safe to save to TXData
-intTxBy:									; Private entry point, see Tx_Done
+intTxBy:									; Private entry point, see Tx_Done in TX_ISR
 			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDp) will not be held
 											; This is so that P1.5 will always be an inversion of P1.1
 
 			mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 11 times,
-											; just after the start of each bit sent /*, and once just after
-											; the end of the stop bit */
+											; just after the start of each bit sent
 
-; Need to disable interrupts here; there is a critical time period between
-; reading the current timer value (TAR) and writing the capture register (TACCRt)
-; and the timer control register (TACCTLt)
+			; Need to disable interrupts here; there is a critical time period between
+			; reading the current timer value (TAR) and writing the capture register (TACCRt)
+			; and the timer control register (TACCTLt).
 			dint							; NOTE: instruction following DINT is not protected!
-			; We want the number of clock cycles till interrupts are enabled. The +MckPerTAck-1 is for rounding up.
-			; The +1 is in case the TAck increments just after we read it.
-			mov		#((3+5+1+5+MckPerTAck-1)/MckPerTAck) +1, R9
-			; If the CCIFG bit is clear, it means that the last stop bit has not yet expired, so we must
-			; not set an earlier time than that
-			bit		#CCIFG,&TACCTLt			; (5)
-			jz		keepOldStop				; (2) If zero, leave the compare value alone
+			; We want the max number of clock cycles till both TAR and TACCTLt are correctly set up.
+			; First number is sum of cycles in parentheses below. The +MckPerTAck-1 is for rounding up.
+			; The +1 is in case the TAR increments just after we read it.
+			mov		#((26+MckPerTAck-1)/MckPerTAck) +1, R9	; Not protected by dint
 			add		&TAR,R9					; (3) Where the current count will be soon
-			; Even though interrupts are enabled here, nothing can disturb TACCRt
-			mov		R9,&TACCRt				; (5) Some time till first interrupt
-			; We can't afford to have interrupts enabled here; the timer counter must not advance past TACCRt's
-			; value until compare interrupts are enabled below
-keepOldStop eint							; (1) Instruction after eint always protected
-; CM: 0 = no capture; CCIE = compare interrupt enable; OUT is the async output bit (not used)
-; OUTMOD_1 means set when the interrupt happens (to start the start bit)
-			mov.w	#CM_0 + OUTMOD_1 + CCIE, &TACCTLt	; (5)
-			; End of code protected by dint/eint. Interrupts were disabled for a maximum of
-			;	5+2+3+5+1+5 = 21 cycles (if the branch is taken, 8 cycles are removed)
-
+			; If the CCIFG bit is clear, it means that the last stop bit has not yet expired,
+			; so we must not set an earlier time than that.
+			; The CCIFG bit cannot have been cleared by its interrupt because those interrupts
+			; must be disabled if we've got here.
+			bit		#CCIFG,&TACCTLt			; (5) Test transmit compare interrupt flag
+			jnz		newStart				; (2) If not zero, set a new compare value
+			cmp		&TACCRt,R9				; (4) Test (TAR+setup) - TACCRt
+			jn		keepOldStop				; (2) If existing TACCRt is AFTER TAR+setup, keep TACCRt
+newStart	mov		R9,&TACCRt				; (4) Some time till timer-compare starts start-bit
+			; We can't afford to have interrupts enabled here; the timer counter must
+			; not advance past TACCRt's value until the compare output mode is set correctly below
+keepOldStop	eint							; (1) Instruction after eint always protected
+			; CM_0 = no capture; CCIE = compare interrupt enable; NOT CAP = compare;
+			; OUTMOD_1 means SET the output when the compare becomes equal (to start the start bit)
+			mov.w	#CM_0 + OUTMOD_1 + CCIE, &TACCTLt ; (5) Set output mode for start bit
+			; End of code protected by dint/eint.
+			; Interrupts were disabled for 20 to 26 cycles
+			
 			bis.b	#LED,&P1OUT				; Set the LED for visual feedback. We might miss the start
 											; bit, but it doesn't matter.
 			ret
 
 ;-------------------------------------------------------------------------------
-TACOM_ISR	; Combined timer capture/compare 1 (receive) and timer overflow interrupt service routine
+RX_TIOV_ISR	; Combined Receive (timer capture/compare 1) and timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
 											; (6) for interrupt accepted
 			cmp		#TAIV_CCIFG1,&TAIV		; (4) Combined interrupt: was it CC1?
@@ -137,7 +142,7 @@ RX_Test		dec.b	&BitCntRx				; (4) All bits RXed?
 
 
 ;-------------------------------------------------------------------------------
-TX_ISR:	; Timer capture/compare 0 (transmit) interrupt service routine
+TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;-------------------------------------------------------------------------------
 ; First interrupt BitCntTx is 10 (decrements to 9), start	bit just sent, LSB needs sending now
 ; 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
@@ -180,6 +185,8 @@ TX_Done2	inc.b	&TX_Sem					; (4) Release the transmit semaphore
 			
 ;
 ; Wait for the currently transmitting byte (if any) to complete.
+; Called by the BSL-password checker in OnRxByte before disabling interrupts and branching to BSLErase.
+; Was called by SetID.
 waitTxCmpl:
 			cmp.b	#1,&TX_Sem				; Don't need test and set here
 			jnz		waitTxCmpl				; Just wait for TX_Sem to become 1
@@ -188,8 +195,9 @@ waitTxCmpl:
 
 ;
 ; TX_ByteNW : No Wait version of TX_Byte for interrupt routines
+; Called from OnRxByte when sending badness or echoing non-badness
 TX_ByteNW:	dec.b	&TX_Sem					; Attempt to get the transmit semaphore
-			jz		gotTxSem				; If decrements to zero, we got it
+			jz		gotTxSem				; If decrements to zero, we got it. Jump into TX-Byte
 			; Instead of busy waiting for the semaphore to become available, use the priority TX buffer
 			inc.b	&TX_Sem					; Undo our decrement
 			cmp.b	#$FF,&TXPrioData+1
