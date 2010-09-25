@@ -60,12 +60,22 @@ justRet	ret
 ;
 		xCODE	'l',errorLed,_errorLed
 		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
+#if 1
+		tst		Rtos
+		_IF		_Z
+			bic.b	#LED,&P1OUT
+		_ELSE
+			bis.b	#LED,&P1OUT
+		_ENDIF
+#else
 		and		Rtos,Rtos			; Clears carry if was zero
 		subc	Rtos,Rtos			; -1 if was 0, 0 otherwise
 		inv		Rtos				; 0 if was 0, -1 otherwise
 		xor.b	&P1OUT,Rtos			; Rtos has all the bits that are different
 		and.b	#LED,Rtos			; Leave only LED bit standing
 		xor.b	Rtos,&P1OUT			; Toggle if necessary
+#endif
+
 ;		pop		Rtos				; Remove operand
 		ret
 
@@ -291,7 +301,6 @@ postED2
 		jmp			_prettyPrint
 
 
-;
 ; Link voltage offset caliBration (--)
 ; Assumes zero link voltage due to zero link current
 ;
@@ -376,9 +385,9 @@ idRxInProg
 OnRxID:
 		tst.b		&RXData				; Test for badness
 		jl			jOnRxByte			; Some badness snuck in. Process it as badness, not an ID
-		mov			#Bitime*8*3/2,R9	; 1.5 byte times in timer ticks
+		mov			#Bitime*10*3/2,R9	; 1.5 byte times in timer ticks
 		add			&TAR,R9				; New target timer expiry time
-		mov.b		&RXData,R8			; This is the ID that an upstream BMU has 
+		mov.b		&RXData,R8			; This is the ID that an upstream BMU has
 		call		#TX_Byte			; Echo downstream so they don't use this ID either
 		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
 		reti							; Return to the loop checking for timeout
