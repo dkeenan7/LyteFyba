@@ -319,6 +319,7 @@ realCal
 		jmp		flashCStore				; Write the calibration value and exit
 
 
+#if 0
 ; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
 ;
 ; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour.
@@ -378,6 +379,7 @@ idLoop
 idRxInProg
 		bit			#CAP,&TACCTLr		; Receiver capturing?
 		jz			idRxInProg			; If not, still receiving
+#endif
 
 ;
 ; This callback gets called when we receive a byte during the SetID command

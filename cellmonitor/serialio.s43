@@ -70,7 +70,7 @@ intTxBy:									; Private entry point, see Tx_Done in TX_ISR
 			mov.b	#8,&USICNT				; To keep USIIFG clear so SCLK (TXDp) will not be held
 											; This is so that P1.5 will always be an inversion of P1.1
 
-			mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 11 times,
+			mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits; interrupt 10 times,
 											; just after the start of each bit sent
 
 			; Need to disable interrupts here; there is a critical time period between
