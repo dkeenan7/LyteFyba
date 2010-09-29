@@ -70,7 +70,8 @@ CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
 CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
-PRESERVEIDS	EQU		0				; 1 to preserve IDs
+RESETIDS	EQU		1				; 1 to generate new IDs starting from FIRSTID
+FIRSTID		EQU		0				; ID of first BMU board in string if RESETIDS is on
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
 FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency
@@ -80,7 +81,6 @@ CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
-SLOWSAMP	EQU		1				; Use 16 us
 FD4MHz		EQU		1				; Use 4 MHz clock for $FD00 frequency check, otherwise use 1 MHz
 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
@@ -182,44 +182,89 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 ; a new interpreter or BSL-writer.
 dummyInterpretByte:
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
-			jeq		checkNull				; No, don't echo the byte, check if it's a null
-			call	#WriteByte				; Yes, echo the byte, as the BSL has not
+			jeq		checkNull				; Yes, don't echo the byte, check if it's a null
+#if RESETIDS
+			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
+			jnz		noWaitID				; If not, echo as usual
+			ret								; Yes, so return to ReadByte's caller (BSL below),
+											;	without calling WriteByte (don't echo wrong ID)
+noWaitID
+#endif
+			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
 			
 checkNull	tst.b	R8						; Is this a null, meaning initialise?
-			jz		anInit					; Yes, check if BSL is already updated
+			jz		anInit					; Branch if yes
 			bic.b	#LED,&P1OUT				; No, turn off the error LED to show successful download
 			ret								; Return to the BSL
-			
-anInit		call	#compareImage			; Is it before the BSLwriter is run?
-			jnz		BSLwriter				; Yes, start it now
-			ret								; Return, hopefully safely, to the BSL
 
+anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"?
+			jnz		main					; No, start the BSLwriter (e.g. after downloading)
+			ret								; Yes, don't infinitely loop
 ;
 ; Start of the actual BSL-writer
 ;
 main:										; For debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+#if Mfreq = 1000000
+			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
+			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+#else										; Else frequency is 4MHz
+			mov.b	&info4MHzCalB,&BCSCTL1
+			mov.b	&info4MHzCalD,&DCOCTL
+#endif
 
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4),&P1DIR		; Set LED and P1.4 bits to output
-;			bic.b	#LED+BYPASS+(1<<4),&P1OUT ; Turn off LED and bypass, and set P1.4 to 0V
-			clr.b	&P1OUT					; Turn off LED and bypass, and set P1.4 to 0V
+			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 			clr		rERR					; Clear error register
 
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			cmp.b	#$88,&BCSCTL1		; Is DCO range hi or low?
+			cmp.b	#$88,&BCSCTL1			; Is DCO range hi or low?
 			_IF		_LO
 				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
 			_ELSE
 				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
 			_ENDIF
-			MOV		#FWKEY,&FCTL3		; Clear LOCK, don't toggle LOCKA
-			MOV		#FWKEY+WRT,&FCTL1	; Enable write (can leave enabled; only write-block can't be)
+			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block can't be)
+			
+;
+; If RESETIDS is set, calculate the IDs here. We assume that the BSLwriter has been loaded by the BSL.
+; If a single BMU has the BSLwriter loaded by JTAG, we assume that no others are connected.
+; So the first BMU in the string has a ~ 1 byte time (1.04 ms) "head start" over the others.
+; Wait ~ 2 byte times for a start bit. If found, call ReadByte and this is our ID to flash.
+; On timeout, send FIRSTID+1 downstream, and use FIRSTID as our ID.
+#if RESETIDS
+			mov		#924+1,R9				; For ~2 byte times
+	mov #3000,R9	; FIXME DELETEME: try a longer delay
+chkStrt		dec		R9						; (1)
+			jz		widTimeOut				; (2) Time out with no received byte
+			bit.b	#RXD,&P1IN				; (4) Check for start bit
+			jnz		chkStrt					; (2) Keep checking for start bit
+
+			; Because we have already detected the start bit ourselves, the sampling of the first data
+			; bit, in ReadByte, will be delayed by an extra ~16 cycles (4% of a bit time) from the
+			; detection of the start bit. Can't do much about that.
+			call	#ReadByte				; Read the byte into R8 and echo it, trashes R9 R10 R11
+waitingIDAddr								; This address will be on the stack in dummyInterpretByte
+			mov		R8,R12					; Save our ID
+			inc		R8
+			call	#WriteByte				; Send downstream BMU's ID
+			mov.b	R12,&mainID				; Flash write our ID
+			jmp		doneIDs		
+
+widTimeOut	mov		#FIRSTID+1,R8
+			call	#WriteByte				; Transmit the ID to downstream BMU
+			mov.b	#FIRSTID,&mainID		; Flash write our ID
+
+doneIDs
+#endif
+
 ;
 ; If we find $FFFF (erased flash) at $10C0 (start of info-flash protected segment A),
 ; then assume it's a new chip.
@@ -256,13 +301,8 @@ unknownVersBSL
 			
 
 currVersBSL
-; We don't preserve the ID here because the user may be rewriting the BSL specifically because
-; that's the only way to erase the ID.
-; It's easy to reset the IDs with the interpreter 'i' (SetID) command.
-;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if CALONLYONE | PRESERVEIDS
-			mov.b	&infoID,&mainID				; Exception: Copy ID since this is a special case,
-												;	or if PRESERVEIDS is set
+#if CALONLYONE & !RESETIDS
+			mov.b	&infoID,&mainID				; We preserve the IDs here unless RESETIDs is on
 #endif
 #if !CALIBRATE
 #if CALONLYONE
@@ -295,12 +335,8 @@ noCopyCalNew
 
 
 vers4BSL
-; We don't preserve the ID here because the user may be updating the BSL specifically because
-; that's the only way to erase the ID.
-; It's easy to reset the IDs with the interpreter 'i' (SetID) command.
-;			mov.b	&infoID,&mainID				; Copy ID (commented out)
-#if CALONLYONE | PRESERVEIDS
-			mov.b	&inf4ID,&mainID				; Exception: Copy ID since this is a special
+#if CALONLYONE & !RESETIDS
+			mov.b	&inf4ID,&mainID				; We preserve the IDs here unless RESETIDs is on
 #endif
 #if !CALIBRATE
 #if CALONLYONE
@@ -461,6 +497,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 
 			bic.b	#WDTIFG,&IFG1			; Clear the watchdog timer interrupt flag
+			mov		#$55AA,R15				; Set R15 (= Rstate) to pattern to prevent infinite loops
 			br		#$1000					; Start the new BSL
 
 
@@ -641,7 +678,8 @@ progByte	mov.b	R8,-2(R12)		; Program it
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 )
 ; Reads a byte from serial input to R8. Trashes R9 R10 R11.
-; Also echoes the byte to serial output (by falling through to WriteByte)
+; Also echoes the byte to serial output (either by falling through to WriteByte, or calling
+;	interpretByte)
 ;
 ReadByte:
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer

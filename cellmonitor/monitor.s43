@@ -54,7 +54,7 @@ MHz4CalB	EQU		$10F7		; Unompressed 4MHz calibration value for version 5 data lay
 InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$108A		; Calling-address to receive byte in R8
 WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
-;BSLErase	EQU		$1038		; Jump-in-address for erasing flash and continuing a download
+BSLErase	EQU		$1036		; Jump-in-address for erasing flash and continuing a download
 ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
 VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
@@ -655,7 +655,7 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
 ;			There are 10 bytes here that could be used if desperate
 			ORG		0FFFEh				; MSP430 RESET Vector
-			DW		main				;
+			DW		0x1000				; Reset to BSL in case there is a crash
 
 
 
