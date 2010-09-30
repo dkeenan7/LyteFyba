@@ -60,6 +60,7 @@
 
 ; Conditional assembly parameters which may be changed for special purposes
 
+MClock4		EQU		1				; Non zero if MCLK is 4MHz
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
 CALIBRATE	EQU		0				; Set to 1 to perform volts and tempterature calibration
 									;	(all BMUs) in addition to BSL-programming
@@ -70,8 +71,7 @@ CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
 CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
-RESETIDS	EQU		1				; 1 to generate new IDs starting from FIRSTID
-FIRSTID		EQU		0				; ID of first BMU board in string if RESETIDS is on
+RESETIDS	EQU		1				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
 FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency
@@ -206,12 +206,12 @@ anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"
 main:										; For debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
-#if Mfreq = 1000000
+#if MClock4
+			mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
+			mov.b	&info4MHzCalD,&DCOCTL
+#else										; Else frequency is 1 MHz
 			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
 			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-#else										; Else frequency is 4MHz
-			mov.b	&info4MHzCalB,&BCSCTL1
-			mov.b	&info4MHzCalD,&DCOCTL
 #endif
 
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
@@ -224,45 +224,35 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			cmp.b	#$88,&BCSCTL1			; Is DCO range hi or low?
-			_IF		_LO
-				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
-			_ELSE
+#if MClock4
 				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
-			_ENDIF
+#else
+				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
+#endif
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
-			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block can't be)
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
 			
 ;
-; If RESETIDS is set, calculate the IDs here. We assume that the BSLwriter has been loaded by the BSL.
-; If a single BMU has the BSLwriter loaded by JTAG, we assume that no others are connected.
-; So the first BMU in the string has a ~ 1 byte time (1.04 ms) "head start" over the others.
-; Wait ~ 2 byte times for a start bit. If found, call ReadByte and this is our ID to flash.
-; On timeout, send FIRSTID+1 downstream, and use FIRSTID as our ID.
+; If RESETIDS is set, read the ID here.
+; It just doesn't seem to work out to use the delay between BMUs to determine the correct ID, so
+; we simply read the ID from the serial port, and echo the next ID downstream.
+; As a sanity check, expect an "I" first; this ensures that the CPU speed is about right
 #if RESETIDS
-			mov		#924+1,R9				; For ~2 byte times
-	mov #3000,R9	; FIXME DELETEME: try a longer delay
-chkStrt		dec		R9						; (1)
-			jz		widTimeOut				; (2) Time out with no received byte
-			bit.b	#RXD,&P1IN				; (4) Check for start bit
-			jnz		chkStrt					; (2) Keep checking for start bit
-
-			; Because we have already detected the start bit ourselves, the sampling of the first data
-			; bit, in ReadByte, will be delayed by an extra ~16 cycles (4% of a bit time) from the
-			; detection of the start bit. Can't do much about that.
-			call	#ReadByte				; Read the byte into R8 and echo it, trashes R9 R10 R11
+			call	#ReadByte				; This byte is echoed
+			cmp		#'I',R8					; The sanity check for serial speed
+			jeq		gotI					; Branch if correct
+			mov		#2,rERR
+			jmp		errorFlash				; Flash error LED twice
+gotI
+			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
+											; Not echoed because of logic in dummyInterpretByte
 waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
+			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
 			mov.b	R12,&mainID				; Flash write our ID
-			jmp		doneIDs		
-
-widTimeOut	mov		#FIRSTID+1,R8
-			call	#WriteByte				; Transmit the ID to downstream BMU
-			mov.b	#FIRSTID,&mainID		; Flash write our ID
-
-doneIDs
 #endif
 
 ;
@@ -502,16 +492,30 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 
 
 failCompare mov		#3,rERR
-errorFlash	mov		rERR,R11
-			add		R11,R11
+errorFlash:	mov		rERR,R11
+			add		R11,R11					; Double
+#if MClock4
+				rla		R11
+				rla		R11						; And quadruple for 4 MHz
+#endif
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
 errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
+#if	MClock4
+				bit		#3,R11
+				jnz		delay					; Extra delays for 4 MHz
+				tst		R11
+#endif
 			jnz		errFlashLp
 			;
 			; Pause between rErr flashes
-pause		mov		#5,R11
+#if	MClock4
+pause			mov		#5*4,R11
+#else
+pause			mov		#5,R11
+#endif
 pauseL		dec		R12
 			jnz		pauseL
 			dec		R11
@@ -582,7 +586,11 @@ justRet		ret
 ;
 ; This will be relocated to info-flash which starts at $1000.
 
+#if MClock4
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz
+#else
+MClock		EQU		1000000			; MCLK (CPU clock) frequency in hertz
+#endif
 BaudRate	EQU		9600			; Serial comms rate in bits per second
 BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
@@ -601,12 +609,12 @@ LED			EQU		1<<6			; LED on P1.6
 
 for1000:	; This will be relocated to info-flash at $1000.
 
-#if	MClock = 1000000
-			mov.b	&info1MHzCalB,&BCSCTL1 ; Set DCO range for 1 MHz			
-			mov.b	&info1MHzCalD,&DCOCTL ; Set DCO step + modulation for 1.00 MHz
+#if	MClock4
+			mov.b	&info4MHzCalB,&BCSCTL1	; Set DCO range for 4 MHz			
+			mov.b	&info4MHzCalD,&DCOCTL	; Set DCO step + modulation for 4.00 MHz
 #else
-			mov.b	&info4MHzCalB,&BCSCTL1 ; Set DCO range for 4 MHz			
-			mov.b	&info4MHzCalD,&DCOCTL ; Set DCO step + modulation for 4.00 MHz
+			mov.b	&info1MHzCalB,&BCSCTL1	; Set DCO range for 1 MHz			
+			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 #endif
 			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, BYPASS and LED as outputs
 			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
