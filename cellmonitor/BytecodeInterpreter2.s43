@@ -106,6 +106,15 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 		ORG		_ADDRLBL					; Point back to where the machine code will be assembled
 						LSTOUT+
 						ENDM
+#if 0
+; Variables in RAM. These are copied in monitor.s43
+hexFlag		DS		1				; 1 = hex mode (default)
+CHKSUM		DS		1				; Packet xor checksum
+bCmdBufRdy	DS		1				; Non zero if command buffer (TIB) is ready to process
+			ALIGNRAM 1
+ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
+TIB			DS		32				; Start of Text Input Buffer, grows towards stack
+#endif
 
 ;-------------------------------------------------------------------------------
 ; The inner (bytecode) interpreter
@@ -181,10 +190,23 @@ ACCEPT
 		_CASE
 		
 		_OFb	#$0D,R8			; Carriage return = end of packet
-			mov.b	#-1,&bCmdBufRdy	; Notify mainline
-			; NOTE: assumes exactly 3 words on stack: return address, and saved R8 and R9, before saved
-			;	status register from an interrupt
-			bic		#CPUOFF,6(SP)	; Wake mainline if necessary
+#if CHECKSUM
+			TST.B	&CHKSUM
+			_IF		_Z					; If good checksum
+				DEC		R9				;	Prepare to overwrite the checksum with an EXIT bytecode
+				CMP		#TIB,R9			;	Handle case of empty packet with no checksum
+				_IF		_LO
+					MOV		#TIB,R9
+				_ENDIF
+#endif
+				MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with an EXIT bytecode
+				MOV		#TIB,Rip		; Interpret the packet as bytecode
+				CALL	#_ENTER
+#if CHECKSUM
+			_ENDIF						; Endif (good checksum)
+#endif
+			MOV		#TIB,&ToIN			; Initialise packet buffer pointer
+			CLR.B	&CHKSUM				; Clear the packet checksum
 		_ENDOF					; End Of carriage return
 		
 		_OFb	#$08,R8			; Backspace editing

@@ -5,6 +5,9 @@
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 		LSTOUT+
 		
+; Macros giving hopefully meaningful names for some obscure instruction sequences we have used.
+; These macros have not yet been used to replace the sequences, as they might yet be replaced
+; with completely different and more obvious sequences.
 allBitsNC	MACRO	dest
 			subc	dest,dest	; Sets all bits to not carry
 			ENDM
@@ -102,52 +105,63 @@ NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 #define		TACCRt		TACCR0		// Transmit compare register
 #define		TACCRr		TACCR1		// Receive capture/compare register
 
+rxsz		EQU		4				; Receive queue size. Must be a power of 2 no greater than 256
+txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
+
 ; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
 ; NOTE: it depends in the assembler rounding down on division, even for negative results
 ; There is a similar simple formula for rounding towards zero
 #define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
-
 ;
 ;			Memory definitions
 ;
-			ORG		$200
+			ORG		$200			; Start of RAM. Ends at $27F
 #if	!NOBUF
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
-RxByteCB	DS		2				; Code pointer for received byte callback
-TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
-									;	NOTE: don't write to this directly except when protected by
-									;	TX_Sem
 ; NOTE: these next two are accessed as a word. Keep on an even boundary, and only ever set to 00 or FF!
+			ALIGNRAM 1
 bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
 
-TXPrioData	DS		2				; Data for sending (if not $FF) before next TX_Byte
-RXData		DS		1				; Received char
-BitCntTx	DS		1				; Bit count 10 -> 1
-BitCntRx	DS		1				; Bit count 8 -> 1
-EchoState	DS		1				; Temp: this will go away
-TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
 currBadness	DS		1				; Current badness
 lastSentBad	DS		1				; Last sent badness
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
+
+; Serialio variables
+
+			ALIGNRAM 1
+TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
+RXData		DS		1				; Received char
+BitCntTx	DS		1				; Bit count 10 -> 1
+BitCntRx	DS		1				; Bit count 8 -> 1
+
+			ALIGNRAM 1
+rxbuf		DS		rxsz				; Receive queue buffer
+rxwr		DS		1					; Receive queue write index
+rxrd		DS		1					; Receive queue read index
+txbuf		DS		txsz				; Transmit queue buffer
+txwr		DS		1					; Transmit queue write index
+txrd		DS		1					; Transmit queue read index
+
+; ByteCodeInterpreter2 variables
+
 hexFlag		DS		1				; 1 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
 bCmdBufRdy	DS		1				; Non zero if command buffer (TIB) is ready to process
-			EVEN
+			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 
 ;-------------------------------------------------------------------------------
-			ORG		0F800h					; Program Reset
+			ORG		$F800					; Reset vector points here
 ;-------------------------------------------------------------------------------
-
 
 main:		mov.w	#0280h,SP				; Initialize stackpointer
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
@@ -172,6 +186,9 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 #endif
 #endif
 
+;
+;	Initialise timer and interrupt comms
+;
 			; DIVS_0 => SMCLK = DCOCLK/1	DIVS_1 -> SMCK = DOCLK/2
 			; Other zero bits select MCLK = DCOCLK/1
 			mov.b		#LOG2(MckPerSMck)*DIVS_1, &BCSCTL2
@@ -189,41 +206,36 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			; to invert TA0 and put it out as SCLK, in SPI master mode.
 			; We don't use the shift register of the USI because there is
 			; no way to get differential outputs from that without external hardware.
+			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+			bis.b	#TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
+			clr.b	&P1OUT						; Clear LED and bypass
+
 			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
 			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			; We want to set the CCIFG so that TX_Byte won't
-			; belive that this value is the end of a previous stop bit
+			; We want to set the CCIFG so that TX_Byte won't think there's an uncompleted stop bit
+			; and wait for it to complete.
 			mov		&TAR,&TACCRt				; Make an output event
 			add		#4,&TACCRt					;	happen in a dozen or so instructions
-			; NOTE: the above has to be enough to get past clearing of TACCTLt below
-			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
-			bis.b	#TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
-			clr.b	&P1OUT						; Clear LED and bypass
-#if 1
-			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TXD=1 Space; seems necessary to "wake up" divider
-			mov.w	#OUTMOD_0, &TACCTLt			; TXD=0 Idle or Mark		(for the internal inverter)
-#endif
-			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TXD=0 =Idle or Mark
+			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
+			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
+;			mov.w	#OUTMOD_0, &TACCTLt			; TA0=0 Idle or Mark (for the internal inverter)
+			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
 
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
 												;	idle bit)
-			mov.b	#1,TX_Sem					; Initialise transmit semaphore
+			mov.b	#08,&BitCntRx				; Load Bit Counter, 8 data bits
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+
+			clr.b	&rxwr						; Initialise the TX and RX queue indexes
+			clr.b	&rxrd
+			clr.b	&txwr
+			clr.b	&txrd
 
 ;
-; Setup RX
-;
-			mov.b	#08,&BitCntRx			; Load Bit Counter, 8 data bits
-SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
-
-;
-; Setup TX
-			mov.w	#$FFFF,&TXPrioData		; FF means no priority data to send
-
-;
-; Setup the stripped-down bytecode interpreter
+; Initialise the stripped-down bytecode interpreter
 ;
 			mov.b	#1,&hexFlag				; Hex mode by default
 			clr.b	&CHKSUM
@@ -232,7 +244,6 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 ;
 ; Miscellaneous initialisation
 ;
-			mov		#OnRxByte,&RxByteCB		; Initialise the RX byte code pointer
 			clr		&bypassVolts			; No special bypass voltage as yet
 			clr.b	&currBadness			; Current badness is none
 			clr.b	&lastSentBad			; Last badness we sent was zero
@@ -248,33 +259,17 @@ SetupRX		mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync,
 idleLoop:
 			; Note: the below reads two byte addressable variables at once
 			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
-			jne		noMeasure				; If not, skip measurement and set/clear of bypass
-			clr.b	bMeasureTime
-			call	#measures
+			_IF		_EQ						; If not, skip measurement and set/clear of bypass
+				clr.b	bMeasureTime
+				call	#measures
+			_ENDIF
 
-noMeasure
-			; Check if processing a completed command buffer
-			tst.b	&bCmdBufRdy
-			jz		noCmdExec
-			MOV		&ToIN,R9
-#if CHECKSUM
-			TST.B	&CHKSUM
-			_IF		_Z					; If good checksum
-				DEC		R9				;	Prepare to overwrite the checksum with an EXIT bytecode
-				CMP		#TIB,R9			;	Handle case of empty packet with no checksum
-				_IF		_LO
-					MOV		#TIB,R9
-				_ENDIF
-#endif
-				MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with an EXIT bytecode
-				MOV		#TIB,Rip		; Interpret the packet as bytecode
-				CALL	#_ENTER
-#if CHECKSUM
-			_ENDIF						; Endif (good checksum)
-#endif
-			MOV		#TIB,&ToIN			; Initialise packet buffer pointer
-			CLR.B	&CHKSUM				; Clear the packet checksum
-			clr.b	&bCmdBufRdy
+			; Check if received data (other than badness)
+			call	#RX_ByteNW
+			_IF		_NZ
+				call	#DoPassword
+				call	#ACCEPT
+			_ENDIF
 
 			; It could be that there is measurement ready by now. Don't sleep if that is the case
 			cmp		#-1,bSendBad		; OK to write to TIB again
@@ -282,12 +277,12 @@ noMeasure
 
 noCmdExec	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 			jmp		idleLoop
+; End of main loop
 
 
 measures:
 ;
-; Regular measurement goes here
-; Called about 4 times per second
+; Regular measurement. Called about 4 times per second
 ;
 			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
@@ -347,10 +342,10 @@ measures:
 			push	R9
 			mov		#TempChan<<12, R8
 			call	#measAndCal
-; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
-; But the measurement M is 4096* V/1.5 = 2731*V.
-; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
-; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
+			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+			; But the measurement M is 4096* V/1.5 = 2731*V.
+			; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
+			; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
 			mov		R10,R8
 			mov		#6760,R9
 			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
@@ -372,7 +367,7 @@ measures:
 
 
 			; Link measurement, if appropriate
-			cmp		#$80,&LinkCal			; Special "calibration failure" code?
+			cmp.b	#$80,&LinkCal			; Special "calibration failure" code?
 			_IF		_NE						; Only measure link voltage if not this code
 				; Link voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.
@@ -447,6 +442,7 @@ sendBadnessNow		clr.b	&ticksSinceLastSend
 			_ENDIF
 			
 			ret
+; End of measurement
 
 			; Encoded badness table. The badness information is transmitted in one byte,
 			; with no checksum correction. To counter this, badness is encoded, so that only
@@ -460,41 +456,39 @@ badnessTable DB		$80			; $80 is least badness
 			DB		$F7			; $F7 is the worst badness
 
 ;
-;	Callback routine for received byte.
-;	Process badness channel, and execute commands.
-OnRxByte:
-			push	R8
+;	Callback routine for received badness byte.
+;	Process received badness byte in R8.
+;
+DoBadness:
 			push	R9
-			mov.b	&RXData,R8
-			tst.b	R8					; Test for badness command ($80-$F7)
-			_IF		_L					; If negative (i.e. badness)
-				clr		&ticksSinceLastRx	; Now no time since last received badness
-				mov.b	R8,R9				; Copy incoming badness
-				and		#7,R9				; Consider only raw badness bits
-				cmp.b	R8,badnessTable(R9); Is it valid? (Tested after 2 intervening instructions)
-				mov.b	&currBadness,R9		; Current badness
-				mov.b	badnessTable(R9),R9	; Present encoded badness
-				jne		sendMyBadness		; NO! So just send my badness instead
+			clr		&ticksSinceLastRx	; Now no time since last received badness
+			mov.b	R8,R9				; Copy incoming badness
+			and		#7,R9				; Consider only raw badness bits
+			cmp.b	R8,badnessTable(R9)	; Is it valid? (Tested after 2 intervening instructions)
+			mov.b	&currBadness,R9		; Current badness into R9
+			mov.b	badnessTable(R9),R9	; Present encoded badness
+			_IF		_EQ					; If incoming is a valid badness byte
 				cmp.b	R8,R9				; Compare incoming badness to ours
-				_IF		_C					; If incoming is less bad than us,
-sendMyBadness		mov		R9,R8				; then we are worse; send our badness
-				_ENDIF
-				mov.b	R8,&lastSentBad		; Remember that we sent this
+				_IF		_HS					; If we (R9) are worse than incoming (R8)
+			_CS_SWAP					; [ Make the next _ENDIF apply to the _IF _EQ ]
+			_ENDIF						; Endif incoming valid
+					mov		R9,R8				; Incoming not valid or we are worse; use our badness
+				_ENDIF						; Endif we are worse
+			mov.b	R8,&lastSentBad		; Remember that we sent this
+			call	#TX_ByteNW			; Echo/send the badness byte, no waiting
+			tst.b	&bCheckForBad		; Are we checking
+			_IF		_NZ					;	for badness (because we're the last BMU)?
+				call	#m_alarm			; Yes, set or clear the alarm based on R8
 			_ENDIF
-			call	#TX_ByteNW			; echo/send the byte, no waiting
-			tst.b	R8					; Is R8
-			_IF		_L					;		a badness?
-				tst.b	&bCheckForBad		; Are we checking
-				_IF		_NZ					;	for badness (because we're the last BMU)?
-					call	#m_alarm			; Yes, set or clear the alarm based on R8
-				_ENDIF
-				jmp		exitOnRx			; No further processing of badness byte
-			_ENDIF
-	;
-	; Check for a password character
-	; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
-	; 0 = waiting for ^D and erase if received. We should not receive any negative value
-	;
+			pop		R9
+			ret
+;
+; Check for a password character
+; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
+; 0 = waiting for ^D and erase if received. We should not receive any negative value
+;
+DoPassword:
+			push	R9
 			dec.b	&passWordState
 			jn		resetFSM			; This should never happen! Just reset FSM and
 										; process as an ordinary command
@@ -524,16 +518,9 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			br		#BSLErase			; Jump into the BSL to finish the download
 
 resetFSM	mov.b	#3,&passWordState	; No password match; reset state machine
-
-			; Process ordinary command bytes here, via the stripped down bytecode interpreter
-			; It won't execute the buffer; that's deferred to mainline
-			tst.b	&bCmdBufRdy			; Is a command buffer execution already in progress?
-			jnz		exitOnRx			;	If so, don't accept more chars (would corrupt executing buf)
-			call	#ACCEPT
 	
 exitOnRx	pop		R9
-			pop		R8
-			reti						; Callback functions end with reti, to preserve flags
+			ret
 
 PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order that the FSM
 												;	is looking for
@@ -559,8 +546,7 @@ measAndCal:
 												; Note: calls assembler code that ends in ret
 			inc			R10						; For correct rounding
 			rra			R10						; Shift product hi word right one bit
-	
-			ret					; Finished
+			ret									; Finished
 
 ;
 ; UM*	Unsigned multiply
