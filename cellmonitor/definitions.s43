@@ -16,7 +16,8 @@
 ;		DROP
 _Space	ret					; When _Space is called, be a no-op (for separating literals)
 
-; CLIT ( -- c ) ; Character literal. Treat the next bytecode as a literal character.
+; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
+; Treat the next bytecode as a literal character.
 
 		xCODE	'`',CLIT,_CLIT ; back-quote or tock
 ;		PUSH	Rtos
@@ -266,7 +267,7 @@ postED2
 		push		#'m'			; Units are millivolts
 #endif
 		mov.b		&LinkCal,R8		; Link offset calibration
-		cmp			#$80,R8			; $80 is a special value representing "calibration failure"
+		cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
 		_IF			_EQ				; If link calibration value is $80
 			mov		#15000,R10			; then use special value that will print as ?000
 		_ELSE
@@ -300,7 +301,7 @@ postED2
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint
 
-
+#if 0
 ; Link voltage offset caliBration (--)
 ; Assumes zero link voltage due to zero link current
 ;
@@ -367,7 +368,7 @@ idLoop
 		;
 		; Timeout with no received ID byte. ID is now definite. Send immediately so others dont use it
 		;
-		call		#TX_Byte			; Transmit this ID upstream
+		call		#TX_Byte			; Transmit this ID downstream
 
 		;
 		; Now flash-program this ID
@@ -438,7 +439,7 @@ flashCStore:
 			ret
 cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			ret
-
+#endif
 
 			xCODE		'f',fence,_fence	; "Fence" temporary debugging command
 			mov			#5,R11				; 5 lines

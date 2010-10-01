@@ -3,7 +3,7 @@
 ; Dave Keenan, 5-Feb-2010
 ; <d.keenan@bigpond.net.au>
 
-; Make a Control-flow Stack (CS) in the assembler so we can implement 
+; Make a Control-flow Stack (CS) in the assembler so we can implement
 ; Forth-like structured control-flow words for assembly.
 
 _CS_TOP	SET 0
@@ -42,8 +42,8 @@ _CS_TOP SET _CS_TOP^_CS2
 _CS2    SET _CS_TOP^_CS2
 _CS_TOP SET _CS_TOP^_CS2
         ENDM
-        
-; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL. 
+
+; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.
 ; For convenience they are defined as bits 12..10 of the machine-code for the jump instruction
 ; with the opposite condition.
 
@@ -85,19 +85,19 @@ Jxx     SET 1<<13 | (cond&7)<<10 | (offset>>1)&$03FF
 
 ; Mark the origin of a forward unconditional branch.
 ; Called by _ELSE.
-_AHEAD  MACRO      
+_AHEAD  MACRO
                         LSTOUT-
-        _CS_PUSH (_NV << 29) | ($ & $1FFFFFFF) ; Push the condition code (unconditional) and 
+        _CS_PUSH (_NV << 29) | ($ & $1FFFFFFF) ; Push the condition code (unconditional) and
                    ; the address where the jump instruction will be filled-in later
         ORG $+2    ; Skip over that location
                         LSTOUT+
                         ENDM
-        
+
 ; Mark the origin of a forward conditional branch.
 ; Called by _WHILE.
 _IF 	MACRO cond
                         LSTOUT-
-        _CS_PUSH (cond << 29) | ($ & $1FFFFFFF) ; Push the condition code and 
+        _CS_PUSH (cond << 29) | ($ & $1FFFFFFF) ; Push the condition code and
                    ; the address where the jump instruction will be filled-in later
         ORG $+2    ; Skip over that location
                         LSTOUT+
@@ -105,7 +105,7 @@ _IF 	MACRO cond
 
 ; Resolve a forward branch due to most recent _AHEAD, _IF, _ELSE or _WHILE.
 ; Called by _ELSE and _REPEAT.
-_ENDIF	MACRO                  
+_ENDIF	MACRO
                         LSTOUT-
 _destin SET $           ; Remember where we were up to in assembling
 _origin SET _CS_TOP & $1FFFFFFF ; Mask off the condition code to leave the origin address
@@ -128,7 +128,7 @@ _ELSE	MACRO
 		_ENDIF          ; Back-fill the jump and offset for previous _IF.
                         ENDM
 
-; Define macros for 
+; Define macros for
 ; _BEGIN ... _AGAIN                  (infinite)
 ; _BEGIN ... _UNTIL _CC              (post-tested
 ; _BEGIN ... _WHILE _CC ... _REPEAT  (pre or mid tested)
@@ -150,17 +150,17 @@ _offset SET _CS_TOP-$-2
         _CS_DROP        ; Drop the address off the control-flow stack
                         LSTOUT+
                         ENDM
-        
+
 ; Resolve most recent _BEGIN with a backward conditional branch
 ; The end of a post-tested loop
-_UNTIL	MACRO cond 
+_UNTIL	MACRO cond
                         LSTOUT-
 _offset SET _CS_TOP-$-2
 		_ASM_Jxx  cond,_offset ; Assemble a conditional jump back to the address on the top of the stack
 		_CS_DROP        ; Drop the address off the control-flow stack
                         LSTOUT+
                         ENDM
-        
+
 
 ; Mark the origin of a forward conditional branch out of a loop
 ; The test of a pre-tested or mid-tested loop
@@ -176,14 +176,14 @@ _WHILE	MACRO cond
 ; Resolve most recent _BEGIN with a backward unconditional branch and
 ; resolve a forward branch due to most recent _WHILE.
 ; The end of a pre-tested or mid-tested loop
-_REPEAT MACRO      
+_REPEAT MACRO
                         LSTOUT-
 		_AGAIN          ; Jump back to the corresponding _BEGIN
                         LSTOUT-
 		_ENDIF          ; Fill in the offset for the last _WHILE
-                        ENDM        
+                        ENDM
 
-; Any loop may have additional _WHILEs to exit it, but each additional one must be 
+; Any loop may have additional _WHILEs to exit it, but each additional one must be
 ; balanced by an _ENDIF (or _ELSE ... _ENDIF) after the end of the loop. Examples:
 ; _BEGIN ... _WHILE _CC ... _WHILE _CC  ... _REPEAT ... _ENDIF
 ; _BEGIN ... _WHILE _CC ... _UNTIL _CC  ... _ELSE ...  _ENDIF
@@ -191,17 +191,17 @@ _REPEAT MACRO
 ;
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
-    
+
 ; CASE statement macros
 
 ; Typical use:
 
 ;       _CASE
 ;         _OF src,dest        ; OF uses CMP (word comparison)
-;            ... 
+;            ...
 ;         _ENDOF
 ;         _OFb src,dest       ; OFb uses CMP.B (byte comparison)
-;           ... 
+;           ...
 ;         _ENDOF
 ;         ... ( default case )
 ;       _ENDCASE
@@ -212,8 +212,8 @@ _CASE   MACRO
         _CS_PUSH 0      ; Push an _OF-count of zero onto the control flow stack
                         LSTOUT+
                         ENDM
-        
-        
+
+
 _OF     MACRO src,dest  ; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
                         LSTOUT-
 _count  SET _CS_TOP+1   ; Increment the _OF-count
@@ -227,7 +227,7 @@ _count  SET _CS_TOP+1   ; Increment the _OF-count
         _CS_PUSH _count ; Put the _OF-count back on the stack
                         LSTOUT+
                         ENDM
-        
+
 _OFb    MACRO src,dest  ; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
                         LSTOUT-
 _count  SET _CS_TOP+1   ; Increment the _OF-count
@@ -254,8 +254,8 @@ _count  SET _CS_TOP     ; Take the _OF-count off the stack for now
         _CS_PUSH _count ; Put the _OF-count back on the stack
                         LSTOUT+
                         ENDM
-        
-        
+
+
 _ENDCASE MACRO
                         LSTOUT-
 _count  SET _CS_TOP     ; Take the _OF-count off the stack for good
@@ -277,13 +277,13 @@ _DO     MACRO src,dest
                         LSTOUT-
         _BEGIN
                         ENDM
-       
+
 _LOOP   MACRO dest
         DEC   dest
                         LSTOUT-
         _UNTIL _Z
                         ENDM
-       
+
 _mLOOP  MACRO src,dest
         SUB   src,dest
                         LSTOUT-
@@ -299,13 +299,13 @@ _qDO    MACRO src,dest
                         LSTOUT-
         _WHILE _NZ
                         ENDM
-       
+
 _qLOOP  MACRO dest
         DEC   dest
                         LSTOUT-
         _REPEAT
                         ENDM
-       
+
 _qmLOOP MACRO src,dest
         SUB   src,dest
                         LSTOUT-
