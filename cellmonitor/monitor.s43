@@ -255,14 +255,14 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Fall through to the main loop
 			_BEGIN
 				dint
-				nop								; First instruction after dint not protected
+				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
 				_IF		_NZ						
 					eint
 					tst.b	R8
 					_IF		_NN
 						call	#DoPassword				; Check for password bytes
-						call	#ACCEPT					; Process command bytes (could take extended time)
+						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
 						call	#DoBadness				; Process badness bytes
 					_ENDIF
@@ -274,7 +274,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 						clr.b	bMeasureTime
 						call	#measures
 					_ELSE
-						;eint							; Interrupts are enabled by following bis instruction:
+						;eint							; Interrupts are enabled by following bis instr:
 						bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 					_ENDIF
 				_ENDIF
@@ -505,6 +505,7 @@ DoPassword:
 			; May be important: it could be bad to have receive interrupts sending badness bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
+			call	#TX_Byte			; Echo the last password byte (normally done in ACCEPT)
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
 			call	#waitTxCmpl
 
