@@ -119,7 +119,7 @@ txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
 ;
 			ORG		$200			; Start of RAM. Ends at $27F
 #if	!NOBUF
-sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples	// FIXME: remove
+sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 ; NOTE: these next two are accessed as a word. Keep on an even boundary, and only ever set to 00 or FF!
@@ -143,18 +143,17 @@ BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
 
 			ALIGNRAM 1
-rxbuf		DS		rxsz				; Receive queue buffer
-rxwr		DS		1					; Receive queue write index
-rxrd		DS		1					; Receive queue read index
-txbuf		DS		txsz				; Transmit queue buffer
-txwr		DS		1					; Transmit queue write index
-txrd		DS		1					; Transmit queue read index
+rxbuf		DS		rxsz			; Receive queue buffer
+rxwr		DS		1				; Receive queue write index
+rxrd		DS		1				; Receive queue read index
+txbuf		DS		txsz			; Transmit queue buffer
+txwr		DS		1				; Transmit queue write index
+txrd		DS		1				; Transmit queue read index
 
 ; ByteCodeInterpreter2 variables
 
 hexFlag		DS		1				; 1 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
-bCmdBufRdy	DS		1				; Non zero if command buffer (TIB) is ready to process
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -250,13 +249,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
-			mov.w	#-1,&bSendBad		; Initialise bSendBad and bMeasureTime
+			mov.w	#-1,&bSendBad			; Initialise bSendBad and bMeasureTime
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
-			clr.b	bCmdBufRdy				; No command waiting
 
 			; Fall through to the idle loop
 
 idleLoop:
+			eint
 			; Note: the below reads two byte addressable variables at once
 			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
 			_IF		_EQ						; If not, skip measurement and set/clear of bypass
@@ -265,16 +264,22 @@ idleLoop:
 			_ENDIF
 
 			; Check if received data (other than badness)
+moreRX		eint							; In case came from dint section below
 			call	#RX_ByteNW
 			_IF		_NZ
-				call	#DoPassword
-				call	#ACCEPT
+				call	#DoPassword			; Check for password bytes
+				call	#ACCEPT				; Process command bytes (could take extended time)
 			_ENDIF
 
-			; It could be that there is measurement ready by now. Don't sleep if that is the case
-			cmp		#-1,bSendBad		; OK to write to TIB again
-			jeq		idleLoop
+			dint							; Need to test runability without interrupts changing it
+			nop								; First instruction following dint not protected
+			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
+			jeq		idleLoop				; Yes, more work to be done
+			mov.b 	&rxrd,R9				; Get the read index into R9
+			cmp.b 	&rxwr,R9				; Equal if queue empty
+			jne		moreRX					; Not equal means RX bytes available
 
+			; Interrupts are enabled as part of this bis instruction:
 noCmdExec	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 			jmp		idleLoop
 ; End of main loop
@@ -457,10 +462,9 @@ badnessTable DB		$80			; $80 is least badness
 
 ;
 ;	Callback routine for received badness byte.
-;	Process received badness byte in R8.
+;	Process received badness byte in R8. Trashes R9
 ;
 DoBadness:
-			push	R9
 			clr		&ticksSinceLastRx	; Now no time since last received badness
 			mov.b	R8,R9				; Copy incoming badness
 			and		#7,R9				; Consider only raw badness bits
@@ -480,15 +484,14 @@ DoBadness:
 			_IF		_NZ					;	for badness (because we're the last BMU)?
 				call	#m_alarm			; Yes, set or clear the alarm based on R8
 			_ENDIF
-			pop		R9
 			ret
 ;
 ; Check for a password character
 ; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
 ; 0 = waiting for ^D and erase if received. We should not receive any negative value
+; Trashes R9
 ;
 DoPassword:
-			push	R9
 			dec.b	&passWordState
 			jn		resetFSM			; This should never happen! Just reset FSM and
 										; process as an ordinary command
@@ -496,7 +499,7 @@ DoPassword:
 			; Check for a continuing password match
 			mov.b	&passWordState,R9
 			cmp.b	PWtable(R9),R8		; Check against table
-			jnz		resetFSM			; If mismatch, jump and reset FSM
+			jne		resetFSM			; If mismatch, jump and reset FSM
 			tst		R9					; Are we now at state 0?
 			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
 										;	Just exit this callback and wait for more
@@ -519,8 +522,7 @@ DoPassword:
 
 resetFSM	mov.b	#3,&passWordState	; No password match; reset state machine
 	
-exitOnRx	pop		R9
-			ret
+exitOnRx	ret
 
 PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order that the FSM
 												;	is looking for

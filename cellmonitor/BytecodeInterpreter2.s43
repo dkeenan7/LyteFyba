@@ -110,7 +110,6 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ; Variables in RAM. These are copied in monitor.s43
 hexFlag		DS		1				; 1 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
-bCmdBufRdy	DS		1				; Non zero if command buffer (TIB) is ready to process
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		32				; Start of Text Input Buffer, grows towards stack
@@ -181,7 +180,7 @@ DatEnd4 jmp		_NEXT		; Endif
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
 ; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
-; Trashes R8 and R9
+; Trashes R8 and R9, and more if carriage return is processed
 ; Implements backspace editing and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ACCEPT
