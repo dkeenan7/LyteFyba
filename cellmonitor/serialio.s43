@@ -57,12 +57,10 @@ RxByteCB	DS		2				; Code pointer for received byte callback
 TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
 									;	NOTE: don't write to this directly except when protected by
 									;	TX_Sem
-TXPrioData	DS		2				; Data for sending (if not $FF) before next TX_Byte
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
 EchoState	DS		1				; Temp: this will go away
-TX_Sem		DS		1				; Semaphore for TX_Byte. 1 = allowed to send.
 
 rxsz		EQU		4					; Receive queue size. Must be a power of 2 no greater than 256
 txsz		EQU		4					; Transmit queue size. Must be a power of 2 no greater than 256
@@ -262,7 +260,7 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 ;
 ; Get a non-badness character from the receive queue into R8.
 ; If necessary, wait until the queue is not empty.
-; Process any badness bytes before returning.
+; Process any badness bytes before returning. Trashes R9.
 ;
 RX_Byte:
 			_BEGIN
@@ -272,11 +270,11 @@ RX_Byte:
 ;
 ; Attempt to get a non-badness character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
-; Process any badness bytes before returning.
+; Process any badness bytes before returning. Trashes R9
 ;
 RX_ByteNW
 			_BEGIN
-				call	#RX_ByteNW
+				call	#RX_RawByteNW
 			_WHILE	_NZ
 				tst		R8
 			_WHILE	_L
@@ -287,6 +285,7 @@ RX_ByteNW
 ;
 ; Attempt to get a character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
+; Trashes R9
 ;
 RX_RawByteNW:
 			mov.b 	&rxrd,R9			; Get the read index into R9
