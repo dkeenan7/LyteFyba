@@ -264,6 +264,7 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 ; Get a non-badness character from the receive queue into R8.
 ; If necessary, wait until the queue is not empty.
 ; Process any badness bytes before returning. Trashes R9.
+; NOT USED, and probably never will be
 ;
 RX_Byte:
 			_BEGIN
@@ -279,7 +280,7 @@ RX_ByteNW
 			_BEGIN
 				call	#RX_RawByteNW
 			_WHILE	_NZ
-				tst		R8
+				tst.b	R8
 			_WHILE	_L
 				call	#DoBadness
 			_REPEAT
