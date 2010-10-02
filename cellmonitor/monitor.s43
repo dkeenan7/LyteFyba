@@ -252,36 +252,33 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			mov.w	#-1,&bSendBad			; Initialise bSendBad and bMeasureTime
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
 
-			; Fall through to the idle loop
-
-idleLoop:
-			eint
-			; Note: the below reads two byte addressable variables at once
-			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
-			_IF		_EQ						; If not, skip measurement and set/clear of bypass
-				clr.b	bMeasureTime
-				call	#measures
-			_ENDIF
-
-			; Check if received data (other than badness)
-moreRX		eint							; In case came from dint section below
-			call	#RX_ByteNW
-			_IF		_NZ
-				call	#DoPassword			; Check for password bytes
-				call	#ACCEPT				; Process command bytes (could take extended time)
-			_ENDIF
-
-			dint							; Need to test runability without interrupts changing it
-			nop								; First instruction following dint not protected
-			cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
-			jeq		idleLoop				; Yes, more work to be done
-			mov.b 	&rxrd,R9				; Get the read index into R9
-			cmp.b 	&rxwr,R9				; Equal if queue empty
-			jne		moreRX					; Not equal means RX bytes available
-
-			; Interrupts are enabled as part of this bis instruction:
-noCmdExec	bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
-			jmp		idleLoop
+; Fall through to the main loop
+			_BEGIN
+				dint
+				nop								; First instruction after dint not protected
+				call	#RX_RawByteNW			; Check if received data
+				_IF		_NZ						
+					eint
+					tst.b	R8
+					_IF		_NN
+						call	#DoPassword				; Check for password bytes
+						call	#ACCEPT					; Process command bytes (could take extended time)
+					_ELSE
+						call	#DoBadness				; Process badness bytes
+					_ENDIF
+				_ELSE
+					; Note: the below reads two byte addressable variables at once
+					cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
+					_IF		_EQ						; If not, skip measurement and set/clear of bypass
+						eint
+						clr.b	bMeasureTime
+						call	#measures
+					_ELSE
+						;eint							; Interrupts are enabled by following bis instruction:
+						bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
+					_ENDIF
+				_ENDIF
+			_AGAIN
 ; End of main loop
 
 
