@@ -175,10 +175,12 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					and.b 	#txsz-1,R9				;	modulo the queue size.
 					mov.b 	R9,&txrd				; Update the read index
 					pop		R9
+					; I think the below just wastes time and space; we never sleep (at present) because
+					; of the lack of TX buffer space - MVE
 					bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 				_ENDIF							; Endif start bit just started
 				rra.w	&TXData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
-												;	so stop and idle bits are always treated like data 1's
+												;	so stop and idle bits are always treated like data 1s
 				_IF		_NC						; (2) If bit is 0
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) then set TXDm = TA0 output high
 				_ELSE							; (2) Else bit is 1
@@ -244,7 +246,8 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 					cmp.b	&rxrd,R9				; If wr+1 mod sz = rd then it's full
 					_IF		_NE						; If queue not full
 						mov.b	R9,&rxwr				; Increment write index so char is officially in rx queue
-						bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
+						bic		#CPUOFF,2(SP)			; When return, wake CPU if needed
+														;	(note 2 bytes (saved R9) on stack)
 					_ENDIF							; Endif queue not full
 					pop		R9
 					
