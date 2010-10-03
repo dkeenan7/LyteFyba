@@ -275,16 +275,18 @@ RX_Byte:
 ; Attempt to get a non-badness character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
 ; Process any badness bytes before returning. Trashes R9
+; Currently NOT USED, except by RX_Byte above, which is currently unused
 ;
-RX_ByteNW
+RX_ByteNW:
 			_BEGIN
-				call	#RX_RawByteNW
-			_WHILE	_NZ
-				tst.b	R8
-			_WHILE	_L
-				call	#DoBadness
-			_REPEAT
-			_ENDIF						; To match the other _WHILE
+				call	#RX_RawByteNW	; This is the test for the pretested loop
+				_WHILE	_NZ				; Exit when not _NZ
+					tst.b	R8
+					_WHILE	_L			; Additional exit when not _L
+						call	#DoBadness
+			_AGAIN						; For branch back to begin
+					_ENDIF
+				_ENDIF
 			ret
 ;
 ; Attempt to get a character from the receive queue into R8.
