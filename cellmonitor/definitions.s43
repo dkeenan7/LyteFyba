@@ -8,13 +8,17 @@
 		incd	SP			; Drop the return address within the interpreter
 		ret					; Return to whoever called the interpreter (_ENTER)
 		
-; HEX ( flag -- ) ; Set the hexadecimal (vs decimal) input mode flag
+; HEX ( flag -- ) ; Set the number base to hexadecimal
 
 		xCODE	'h',HEX,_HEX
-		mov.b	Rtos,&hexFlag
-;		pop		Rtos
-;		DROP
+		mov.b	#16,&base
 _Space	ret					; When _Space is called, be a no-op (for separating literals)
+
+; DECIMAL ( flag -- ) ; Set the number base to decimal
+
+		xCODE	'd',DECIMAL,_DECIMAL
+		mov.b	#10,&base
+		ret					; When _Space is called, be a no-op (for separating literals)
 
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
 ; Treat the next bytecode as a literal character.
@@ -84,52 +88,59 @@ justRet	ret
 ; Turn on or off bypass resistors (bool -- )
 ;
 		xCODE	'y',bypass,_bypass
+#if 1
+		tst		Rtos
+		_IF		_Z
+			bic.b	#BYPASS,&P1OUT
+		_ELSE
+			bis.b	#BYPASS,&P1OUT
+		_ENDIF
+#else
 		and		Rtos,Rtos			; Clears carry if was 0
 		subc	Rtos,Rtos			; -1 if was 0, 0 otherwise
 		inv		Rtos				; 0 if was 0, -1 otherwise
 		xor.b	&P1OUT,Rtos			; Rtos has all the bits that are different
 		and.b	#BYPASS,Rtos		; Leave only BYPASS bit standing
 		xor.b	Rtos,&P1OUT			; Toggle if necessary
+#endif
 ;		pop		Rtos				; Remove operand
 		ret
 
-
-
-		
 ;
-; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
+; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
-
-		xCODE	'm',emitDec,_emitDec
+		
+		xCODE	'm',emitNum,_emitNum
 		mov		Rtos,R12			; Count to R12
-;		pop		Rtos
-		tst		Rsec				; Is n negative?
-		_IF		_L
-			mov		#'-',R8				; Emit minus sign
-			call	#TX_Byte
-			inv		Rsec
-			inc		Rsec				; Negate
+		bit.b	#2,&base			; Distinguish decimal from hex (the only bases allowed)
+		_IF		_NZ					; If decimal, treat as a signed number
+			tst		Rsec
+			_IF		_L					; If n is negative
+				mov		#'-',R8				; Emit minus sign
+				call	#TX_Byte
+				inv		Rsec				; Negate
+				inc		Rsec
+			_ENDIF
 		_ENDIF
-		mov		Rsec,R9					; R10:R9 will have n initially
-		; Leave Rtos on the machine stack for now, so we can use it as a temp
-;		mov		R12,Rtos			; Copy count
-		mov		#10,R8
-		dec		R12					; Count-1
-eDecLoop1
-		clr		R10
-		call	#UMSlashMod			; dividend/10 -> R9, remainder to R10
-		push	R10					; Push remainder
-		dec		R12
-		jnz		eDecLoop1			; R9 keeps quotient as next dividend
+		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
+		mov		&base,R8			; Divisor in R8 is number base
+		dec		R12					; Count := Count-1
+		_BEGIN
+			clr		R10
+			call	#UMSlashMod			; dividend/base -> R9, remainder to R10
+			push	R10					; Push remainder
+			dec		R12
+		_UNTIL	_Z					; R9 keeps quotient as next dividend
 		push	R9
-		; Now we have n results on the stack; print these as decimal
-eDecLoop2
-		pop		R8
-		add		#'0',R8
-		call	#TX_Byte
-		dec		Rtos
-		jnz		eDecLoop2
-;		pop		Rtos
+		; Now we have n results on the stack; print these as hex/decimal
+		_BEGIN
+			pop		R8
+			clrc						; Because dadd is always done with carry on MSP430
+			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
+			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
+			call	#TX_Byte
+			dec		Rtos
+		_UNTIL	_Z
 		ret
 
 ;
@@ -138,42 +149,28 @@ eDecLoop2
 		xCODE	'p',prettyPrint,_prettyPrint
 		mov		#'|',R8				; Initial vertical bar
 		call	#TX_Byte			; (interpreted as comment character)
-#if 0
-		push	#postED1			; Push return address
-		push	Rtos				; Push m
-		push.b	&ID					; Put ID on stack
-		mov		#3,Rtos				; 3 digits
-		jmp		_emitDec			; Call _emitDec (return address already pushed)
-postED1
-#else
+		
 		push	Rthd				; Save ch
 		push	Rsec				; Save n
 		push	Rtos				; Save m
+		
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
-		call	#_emitDec
-#endif
+		call	#_emitNum
+		
 		mov		#':',R8				; Colon separator
 		call	#TX_Byte
-#if 0
-		; ret-addr-for-prettyPrint ch n m -- (m in Rtos)
-		push	2(SP)				; Duplicate n. Note: SP is decremented before arg is read
-		mov		4(SP),2(SP)			; Copy ch over old n
-		mov		#postED2,4(SP)		; Move postED2 (return address) over old ch
-		; ret-adr-for-prettyPrint postED2 ch n m -- (m in Rtos)
-		jmp		_emitDec			; Emit the result (n and m are on the stack)
-		mov		Rtos,R8				; ch to R8
-		pop		Rtos
-postED2
-#else
+		
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
-		call	#_emitDec
+		call	#_emitNum
+		
 		pop		R8					; Restore ch
-#endif
 		call	#TX_Byte
+		
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit
+		
 		call	#waitTxCmpl			; Wait for transmit complete
 		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
 									; Identifies the BMU that sent a response
@@ -380,7 +377,6 @@ idLoop
 idRxInProg
 		bit			#CAP,&TACCTLr		; Receiver capturing?
 		jz			idRxInProg			; If not, still receiving
-#endif
 
 ;
 ; This callback gets called when we receive a byte during the SetID command
@@ -395,6 +391,7 @@ OnRxID:
 		inc.b		R8					; Add one to the byte, to obtain a new tentative ID
 		reti							; Return to the loop checking for timeout
 jOnRxByte br		#OnRxByte
+#endif
 
 ;-------------------------------------------------------------------------------
 ; Flash programming macros
