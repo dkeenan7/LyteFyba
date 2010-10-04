@@ -123,7 +123,7 @@ justRet	ret
 			_ENDIF
 		_ENDIF
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
-		mov		&base,R8			; Divisor in R8 is number base
+		mov.b	&base,R8			; Divisor in R8 is number base
 		dec		R12					; Count := Count-1
 		_BEGIN
 			clr		R10
@@ -147,6 +147,9 @@ justRet	ret
 ; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
 ;
 		xCODE	'p',prettyPrint,_prettyPrint
+		push.b	&base				; Save current base
+		mov.b	#10,&base			; Set to decimal
+		
 		mov		#'|',R8				; Initial vertical bar
 		call	#TX_Byte			; (interpreted as comment character)
 		
@@ -174,6 +177,7 @@ justRet	ret
 		call	#waitTxCmpl			; Wait for transmit complete
 		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
 									; Identifies the BMU that sent a response
+		pop.b	&base				; Restore previous base
 		ret
 		
 ;
