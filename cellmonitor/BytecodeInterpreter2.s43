@@ -108,7 +108,7 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 						ENDM
 #if 0
 ; Variables in RAM. These are copied in monitor.s43
-hexFlag		DS		1				; 1 = hex mode (default)
+base		DS		1				; Number base, 16 = hex mode (default)
 CHKSUM		DS		1				; Packet xor checksum
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
@@ -167,8 +167,8 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		mov		Rlit,R9		;	Save 2*Rlit in R9
 		rla		Rlit		;	4*Rlit
 		rla		Rlit		;	8*Rlit
-		tst.b	&hexFlag
-		_IF		_Z
+		bit.b	#2,&base
+		_IF		_NZ
 			add		R9,Rlit	;	10*Rlit
 		_ELSE
 			rla		Rlit	;	16*Rlit
