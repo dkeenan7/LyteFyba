@@ -109,12 +109,15 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		_IF		_NZ					; If decimal, treat as a signed number
 			tst		Rsec
 			_IF		_L					; If n is negative
-				mov		#'-',R8				; Emit minus sign
-				call	#TX_Byte
+				mov.b	#'-',R8				; Emit minus sign
+				call	#TX_ByteCk
 				inv		Rsec				; Negate
 				inc		Rsec
-			_ENDIF
-		_ENDIF
+			_ENDIF						; Endif negative
+		_ELSE						; Else hexadecimal
+			mov.b	#'$',R8				; Emit dollar sign
+			call	#TX_ByteCk
+		_ENDIF						; End hexadecimal
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
 		mov.b	&base,R8			; Divisor in R8 is number base
 		dec		R12					; Count := Count-1
@@ -131,7 +134,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 			clrc						; Because dadd is always done with carry on MSP430
 			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
-			call	#TX_Byte
+			call	#TX_ByteCk
 			dec		Rtos
 		_UNTIL	_Z
 		ret
@@ -144,7 +147,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		mov.b	#10,&base			; Set to decimal
 		
 		mov		#'|',R8				; Initial vertical bar
-		call	#TX_Byte			; (interpreted as comment character)
+		call	#TX_ByteCk			; (interpreted as comment character)
 		
 		push	Rthd				; Save ch
 		push	Rsec				; Save n
@@ -155,14 +158,16 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		call	#_emitNum
 		
 		mov		#':',R8				; Colon separator
-		call	#TX_Byte
+		call	#TX_ByteCk
 		
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
 		call	#_emitNum
 		
 		pop		R8					; Restore ch
-		call	#TX_Byte
+		call	#TX_ByteCk
+		
+		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
 		
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit

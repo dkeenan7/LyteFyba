@@ -81,10 +81,22 @@ txrd		DS		1					; Transmit queue read index
 ; Put the character from R8 into the transmit queue.
 ; If necessary, wait until the queue is not full.
 ;
+TX_ByteCk:
+			xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
 TX_Byte:
 			_BEGIN
 				call	#TX_ByteNW
 			_UNTIL	_NZ
+			ret
+
+; Transmit the current checksum if checksumming is on. Clear checksum.
+TX_Cksum:
+			tst.b		&Checksumming
+			_IF		_NZ
+				mov.b	&TXCksum,R8
+				call 	#TX_Byte
+			_ENDIF
+			clr.b	&TXCksum
 			ret
 			
 ;
