@@ -3,8 +3,6 @@
 ; The bytecode interpreter does not allow nested bytecode definitions,
 ; i.e. a bytecode can only be defined in machine code, not bytecode.
 
-#define		CHECKSUM	1		; 1 to require a checksum immediately before end-of-line/packet
-
 ;-------------------------------------------------------------------------------
 ;
 ; Status flag usage
@@ -129,22 +127,27 @@ FncOPCD MOV _OPCODETBL-($60*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table
 							;	the code address
 		CMP		#$FFFF,Rw	; Check for undefined bytecodes
 		JNE		FncLIT		; If undefined and >= $60
-NotDigit MOV	#_Space,Rw	;		Treat as literal-separator no-op
+NotDigit MOV	#_Space,Rw	;	Treat as literal-separator no-op
 
 FncLIT	TST		SR			; Check for an implied push-literal
 		JGE		DoOPCD		; If there's an operand-in-progress
 							;	there's an implied LIT now
-		BIC		#1<<15,SR	;	Clear the operand-in-progress flag
+		BIC		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
 ;		PUSH	Rtos		;	Push the operand now, before doing the
 ;		MOV		Rlit,Rtos	;	operation
 		DPUSH	Rlit
 
 DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
-							; It must end with an RTS
+							; It must end with an RET
 		JMP		_NEXT
 
 DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
+		CMP.B	#'$',Rw
+		_IF		_EQ			; If it's a dollar sign
+			bis		#1<<14,SR	; Set the hex flag
+			jmp		NotDigit
+		_ENDIF
 		SUB.B	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		JN		NotDigit	; Ignore undefined bytecodes below '0'
 		CMP.B	#$0A,Rw
@@ -167,12 +170,12 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		mov		Rlit,R9		;	Save 2*Rlit in R9
 		rla		Rlit		;	4*Rlit
 		rla		Rlit		;	8*Rlit
-		bit.b	#2,&base
-		_IF		_NZ
+		bit		#1<<14,SR	; Test the hex flag
+		_IF		_Z			; If decimal
 			add		R9,Rlit	;	10*Rlit
-		_ELSE
+		_ELSE				; Else hex
 			rla		Rlit	;	16*Rlit
-		_ENDIF
+		_ENDIF				; Endif
 		add		Rw,Rlit		;	Add data into operand reg
 DatEnd4 jmp		_NEXT		; Endif
 

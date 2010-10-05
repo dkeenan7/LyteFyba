@@ -148,6 +148,7 @@ TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
+TXCksum		DS		1				; Transmit checksum
 
 			ALIGNRAM 1
 rxbuf		DS		rxsz			; Receive queue buffer
@@ -235,7 +236,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 												;	idle bit)
 			mov.b	#08,&BitCntRx				; Load Bit Counter, 8 data bits
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
-
+			clr.b	TXCksum						; Clear transmit checksum
 			clr.b	&rxwr						; Initialise the TX and RX queue indexes
 			clr.b	&rxrd
 			clr.b	&txwr
