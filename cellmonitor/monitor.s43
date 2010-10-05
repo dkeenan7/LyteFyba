@@ -1,47 +1,48 @@
-		COL		132			; Wide listings
+			COL		132			; Wide listings
 
-		LSTOUT-
+			LSTOUT-
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
-		LSTOUT+
+			LSTOUT+
 		
-; Macros giving hopefully meaningful names for some obscure instruction sequences we have used.
-; These macros have not yet been used to replace the sequences, as they might yet be replaced
-; with completely different and more obvious sequences.
-allBitsNC	MACRO	dest
+			NAME	main		; Module name
+			PUBLIC	main		; Make the "main" label visible
+
+;
+; Macros giving meaningful names to some obscure instruction sequences we have used repeatedly.
+;
+NCtoAllBits	MACRO	dest
 			subc	dest,dest	; Sets all bits to not carry
 			ENDM
 			
-allBitsC	MACRO	dest
+CtoAllBits	MACRO	dest
 			subc	dest,dest	; Sets all bits to not carry
-			inv		arg			; Sets all bits to carry
+			inv		dest		; Sets all bits to carry
 			ENDM
 			
-allBitsZ	MACRO	src,dest
+allBitsIfZ	MACRO	src,dest
 			and		src,src		; Sets carry if src is not zero
 			subc	dest,dest	; Sets all bits to not carry = zero
 			ENDM
 			
-allBitsNZ	MACRO	src,dest
+allBitsIfNZ	MACRO	src,dest
 			and		src,src		; Sets carry if src is not zero
 			subc	dest,dest	; Sets all bits to not carry = zero
-			inv		arg			; Sets all bits to carry = not zero
+			inv		dest		; Sets all bits to carry = not zero
 			ENDM
 			
-bitStore	MACRO	src,mask,dest	; Trashes src
+movBits		MACRO	src,mask,dest	; Trashes src
 			xor		dest,src	; Get one bits in src for bits that need to toggle
 			and		mask,src	; Mask so we only change those we want to change
 			xor		src,dest	; Toggle bits as required
 			ENDM
 
-bitStoreB	MACRO	src,mask,dest	; Trashes src
+movBits_B	MACRO	src,mask,dest	; Trashes src
 			xor.b	dest,src	; Get one bits in src for bits that need to toggle
 			and.b	mask,src	; Mask so we only change those we want to change
 			xor.b	src,dest	; Toggle bits as required
 			ENDM
 
-		NAME	main					; module name
-		PUBLIC	main					; make the main label visible
 
 #define		Rtrash	R14			// Junked in flashCStore
 
@@ -75,9 +76,9 @@ MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layo
 
 ; Interpreter Register Usage
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
-#define 	Rip		R5		// Virtual machine instruction pointer
-#define 	Rlit	R6		// Holds partial literals
-#define 	Rw		R8		// Working register - temporary - anyone can use
+#define 	Rip		R5				// Virtual machine instruction pointer
+#define 	Rlit	R6				// Holds partial literals
+#define 	Rw		R8				// Working register - temporary - anyone can use
 
 #define		LEDWITHTX		1		; True to have LED come on with any transmit byte
 #define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
@@ -304,20 +305,10 @@ measures:
 			_IF		_Z
 				mov		#3600,R8				; Default of 3.6 V
 			_ENDIF
-#if 1
-			cmp		R8,R10
-			_IF		_HS						; If the current cell voltage R10 >= R8 the bypass threshold
-				bis.b	#BYPASS,&P1OUT		;   Turn on the bypass resistors
-			_ELSE							; Else
-				bic.b	#BYPASS,&P1OUT		;   Turn off the bypass resistors
-			_ENDIF							; Endif
-#else
-			cmp		R10,R8					; Is the current cell voltage >= the bypass threshold?
-			subc	R8,R8					; If so, carry was clear and we get -1 here, else 0
-			xor.b	&P1OUT,R8				; Which bits differ
-			and		#BYPASS,R8				; Only BYPASS left on, and only if wrong
-			xor.b	R8,&P1OUT				; Change if necessary
-#endif
+			cmp		R10,R8					; Compare current cell voltage (R10) to the bypass threshold (R8)
+			NCtoAllBits	R8					; If voltage > threshold then $FF else $00
+			movBits_B	R8,#BYPASS,&P1OUT	; Move only the #BYPASS bit from R8 to &P1OUT. Trashes R8
+
 			; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
 			mov		R10,R9					; Measurement
 			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
@@ -435,17 +426,17 @@ measures:
 
 			mov.b	badnessTable(R9),R9		; Look up the encoded badness
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
-			_IF		_C
-;			jnc		sendBadnessNow			; Jump if so to send the badness immediately
+;			_IF		_C
+			jnc		sendBadnessNow			; Jump if so to send the badness immediately
 
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
-			_CS_SWAP
+;			_CS_SWAP
 					cmp.b	#4,&ticksSinceLastSend
 					_IF		_C
-			_CS_SWAP
-			_ENDIF
-;	sendBadnessNow
+;			_CS_SWAP
+;			_ENDIF
+sendBadnessNow
 						clr.b	&ticksSinceLastSend
 						mov.b	R9,&lastSentBad			; Update remembered value
 						mov.b	R9,R8			
@@ -456,16 +447,6 @@ measures:
 			ret
 ; End of measurement
 
-			; Encoded badness table. The badness information is transmitted in one byte,
-			; with no checksum correction. To counter this, badness is encoded, so that only
-			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
-			; are treated as a corrupted attempt to send badness information; current badness
-			; for this BMU is sent instead.
-			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
-			; the encoded badness byte).
-badnessTable DB		$80			; $80 is least badness
-			DB		$91,$A2,$B3,$C4,$D5,$E6
-			DB		$F7			; $F7 is the worst badness
 
 ;
 ;	Callback routine for received badness byte.
@@ -616,18 +597,9 @@ oflo		mov	#-1,R9			; (1)
 ; Process alarm; R8 has unencoded badness. Trashes R8
 m_alarm:
 			cmp		#2,R8			; Carry set if badness >= 2
-#if 1
-			_IF		_HS
-				MOV	#OUT,&TACCTLt
-			_ELSE
-				CLR	&TACCTLt
-			_ENDIF
-#else
-			subc	R8,R8			; -1 if badness >= 2
-			inv		R8				; 0 if badness >= 2, -1 otherwise
+			CtoAllBits	R8			; $00 if badness >= 2, $FF otherwise
 			and		#OUT,R8			; Clear all but OUT bit
 			mov		R8,&TACCTLt		; Set TXn to 0 if badness >= 2
-#endif
 			ret
 
 
@@ -649,7 +621,18 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 			ORG		0FFF0h				; Timer A Vectors
 			DW		RX_TIOV_ISR			; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
-;			There are 10 bytes here that could be used if desperate
+			
+			; Encoded badness table. The badness information is transmitted in one byte,
+			; with no checksum correction. To counter this, badness is encoded, so that only
+			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
+			; are treated as a corrupted attempt to send badness information; current badness
+			; for this BMU is sent instead.
+			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
+			; the encoded badness byte).
+badnessTable DB		$80			; $80 is least badness
+			DB		$91,$A2,$B3,$C4,$D5,$E6
+			DB		$F7			; $F7 is the worst badness
+			
 			ORG		0FFFEh				; MSP430 RESET Vector
 			DW		0x1000				; Reset to BSL in case there is a crash
 
