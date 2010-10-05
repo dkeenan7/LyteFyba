@@ -1,0 +1,103 @@
+List of single-character commands implemented in either the cell-monitor or the BSL-writer or both.
+
+In ASCII order:
+
+M B
+o S
+n L Name or description
+--------------------------------------------
+` ` characterLiteral
+a   ADCValue (r(A)wVoltage) was rawV(O)ltage
+b   BadnessAutonomy was a(U)tonomous
+  c Calibrate      was cali(B)rate but that was only for link voltage
+d d Decimal
+e e ErrorLED       was error(L)ED
+  f Frequency (FourMHz) (10 second burst on errorLED)
+  g Get (fetch)
+h h Hex
+  i set(I)D
+j j jumpFence (temporary debugging command) was Fence
+k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+l   LinkVoltage     was li(N)kVoltage
+m m e(M)itCharacter was EmitCharacter
+n n emit(N)um       was e(M)itDec
+  o OneMHz              (10 second burst on errorLED)
+p p PrettyPrint
+q   QueryWorstBadness
+  r ReadCalValue
+s s Select
+t t Temperature
+  u UpdateInfoFlash
+v v cell(V)oltage
+  w WriteCalValue
+x x e(X)clusive     (singleBMU interaction mode)
+  y b(Y)pass (Yellow)
+  z Ztore (store)
+{ { resetWorstBadness :-{
+| | exit or comment
+} }
+~ ~ change-sign (postfix negate)
+<DEL>
+<ESC> ESCape from eXclusive mode
+
+In logical groupings:
+
+M B
+o S
+n L Name or description
+--------------------------------------------
+` ` characterLiteral
+m m e(M)itCharacter was EmitCharacter
+
+d d Decimal
+h h Hex
+~ ~ change-sign (postfix negate)
+n n emit(N)um       was e(M)itDec
+p p PrettyPrint
+
+e e ErrorLED        was error(L)ED
+  y b(Y)pass (Yellow)
+
+a a ADCValue (r(A)w voltage) was rawV(O)ltage
+v v cell(V)oltage
+l l LinkVoltage     was li(N)kVoltage
+t t Temperature
+  f Frequency (FourMHz) (10 second burst on errorLED)
+  o OneMHz              (10 second burst on errorLED)
+
+  i set(I)D
+s s Select
+x x e(X)clusive     (singleBMU interaction mode)
+<ESC> ESCape from eXclusive mode
+| | exit or comment
+k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+
+b   BadnessAutonomy was a(U)tonomous
+q   QueryWorstBadness
+{   resetWorstBadness :-{
+
+  g Get   (fetch)
+  z Ztore (store)
+
+  r ReadCalValue
+  w WriteCalValue
+  c Calibrate        was cali(B)rate but that was only for link voltage
+  u UpdateInfoFlash
+
+j j jumpFence (temporary debugging command) was Fence
+} }
+<DEL>
+
+In addition, the following character literals have the following meaning when used as an address
+parameter to a Read, Write or Calibrate command in the BSL-writer.
+
+`v cell(V)oltage
+`l LinkVoltage
+`t Temperature
+`f Frequency (Four MHz)
+`o OneMHz
+`i ID
+
+The last 3 currently have no meaning for the Calibrate command, as any meaning they could be given
+at present would be equivalent to either the character as a command in itself, or a Write command
+with that character as address parameter.
