@@ -29,7 +29,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		DPUSH	@Rip+
 		ret
 		
-; EMIT ( c --)	; Emit the character on top of stack
+; EMIT ( c -- )	; Emit the character on top of stack
 
 		xCODE	'm',EMIT,_EMIT
 		mov.b	Rtos,R8
@@ -38,7 +38,13 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 ;		DROP
 		ret
 		
-; autonomous mode Badness sending (n --)
+; changeSign ( n -- -n )
+		xCODE	'~',changeSign,_changeSign
+		inv.b	Rtos
+		inc.b	Rtos
+		ret
+		
+; autonomous mode Badness sending ( n -- )
 		xCODE	'b',autoBad,_autoBad
 		allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 		mov.b	Rtos,&bSendBad
@@ -46,18 +52,33 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 ;		DROP
 		ret
 		
+; checKsumming toggle ( -- )
+		xCODE	'k',checksumming,_checksumming
+		inv.b	&Checksumming
+		ret
+		
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
 ;
 		; This is actually longer in bytecode
-		xCODE		's',Select,_Select
-		cmp.b		&ID,Rtos			; Correct ID?
-;		pop			Rtos				; Pop the argument
-;		DROP							; Pop the argument
-		jz			justRet				; If so, just continue interpreting rest of packet
-		incd		SP					; Return to the outer interpreter (i.e. ignore rest of packet)
-justRet	ret								
+		xCODE	's',Select,_Select
+		cmp.b	&ID,Rtos			; Correct ID?
+;		pop		Rtos				; Pop the argument
+;		DROP						; Pop the argument
+		_IF		_NE					; If not correct ID
+			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
+		_ENDIF						; Endif
+		ret
 
+; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
+		xCODE	'x',exclusive,_exclusive
+		cmp.b	&ID,Rtos			; Correct ID?
+		_IF		_NE					; If not correct ID
+			mov.b	#-1,&dontInterpret
+			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
+		_ENDIF						; Endif
+		ret
+		
 ;
 ; Turn on or off the error LED (bool -- )
 ;
@@ -249,7 +270,7 @@ justRet	ret
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
-#if 1
+#if 0
 ; Link voltage offset Calibration (--)
 ; Assumes zero link voltage due to zero link current
 ;

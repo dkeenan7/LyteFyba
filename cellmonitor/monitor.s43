@@ -161,6 +161,8 @@ txrd		DS		1				; Transmit queue read index
 
 base		DS		1				; Number base, 10 or 16
 CHKSUM		DS		1				; Packet xor checksum
+Checksumming DS		1				; Boolean
+dontInterpret DS	1				; Boolean
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -242,8 +244,10 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ;
 ; Initialise the stripped-down bytecode interpreter
 ;
-			mov.b	#16,&base				; Hex mode by default
-			clr.b	&CHKSUM
+			mov.b	#10,&base				; Decimal output mode by default
+			clr.b	&CHKSUM					; Clear checksum
+			mov.b	#0,&Checksumming		; Checksumming of packets, off by default
+			mov.b	#0,&dontInterpret		; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
 ;
