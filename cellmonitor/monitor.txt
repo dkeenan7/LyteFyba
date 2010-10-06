@@ -16,7 +16,7 @@ e e ErrorLED       was error(L)ED
   g Get (fetch)
 h h Hex
   i set(I)D
-j j jumpFence (temporary debugging command) was Fence
+j j JumpFence (temporary debugging command) was Fence
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l   LinkVoltage     was li(N)kVoltage
 m m e(M)itCharacter was EmitCharacter
@@ -84,7 +84,7 @@ q   QueryWorstBadness
   c Calibrate        was cali(B)rate but that was only for link voltage
   u UpdateInfoFlash
 
-j j jumpFence (temporary debugging command) was Fence
+j j JumpFence (temporary debugging command) was Fence
 } }
 <DEL>
 

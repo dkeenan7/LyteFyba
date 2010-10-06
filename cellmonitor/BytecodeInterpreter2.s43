@@ -104,14 +104,6 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 		ORG		_ADDRLBL					; Point back to where the machine code will be assembled
 						LSTOUT+
 						ENDM
-#if 0
-; Variables in RAM. These are copied in monitor.s43
-base		DS		1				; Number base, 16 = hex mode (default)
-CHKSUM		DS		1				; Packet xor checksum
-			ALIGNRAM 1
-ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
-TIB			DS		32				; Start of Text Input Buffer, grows towards stack
-#endif
 
 ;-------------------------------------------------------------------------------
 ; The inner (bytecode) interpreter

@@ -50,28 +50,6 @@ TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
 Bitime		EQU		(TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
 Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
-#if 0
-; Variables in RAM. These are copied in monitor.s43
-			ALIGNRAM 1
-RxByteCB	DS		2					; Code pointer for received byte callback
-TXData		DS		2					; Byte to transmit in lower byte; always $FF in high byte
-										;	NOTE: don't write to this directly except when protected by
-										;	TX_Sem
-RXData		DS		1					; Received char
-BitCntTx	DS		1					; Bit count 10 -> 1
-BitCntRx	DS		1					; Bit count 8 -> 1
-EchoState	DS		1					; Temp: this will go away
-
-rxsz		EQU		4					; Receive queue size. Must be a power of 2 no greater than 256
-txsz		EQU		4					; Transmit queue size. Must be a power of 2 no greater than 256
-			ALIGNRAM 1
-rxbuf		DS		rxsz				; Receive queue buffer
-rxwr		DS		1					; Receive queue write index
-rxrd		DS		1					; Receive queue read index
-txbuf		DS		txsz				; Transmit queue buffer
-txwr		DS		1					; Transmit queue write index
-txrd		DS		1					; Transmit queue read index
-#endif
 
 ;-------------------------------------------------------------------------------
 ; TX_Byte	; Subroutine Transmits Character from R8
