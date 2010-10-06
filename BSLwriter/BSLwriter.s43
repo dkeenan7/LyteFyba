@@ -75,7 +75,7 @@ RESETIDS	EQU		1				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
 FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency
-FREQCAL4	EQU		$8AA6			; Value to force 4 MHz frequency calibration to
+FREQCAL4	EQU		$8ABC			; Value to force 4 MHz frequency calibration to
 
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
@@ -207,11 +207,30 @@ main:										; For debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 #if MClock4
-			mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
-			mov.b	&info4MHzCalD,&DCOCTL
+			; Temporary fix for vers 4 data
+	; !!! Needs to handle the new-chip case as well. And the case of an unknown version. !!!
+			cmp.b	#4,&infoDataVers
+			_IF		_EQ
+				mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
+				rla		R8							; Shift left
+				bis		#$8A00,R8					; OR in assumed MSbs
+				swpb	R8
+				mov.b	R8,&BCSCTL1					; Store uncompressed 4 MHz calibration
+				swpb	R8							; Least significant bit was lost by compression
+				mov.b	R8,&DCOCTL					;	and may need checking
+			_ELSE
+				mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
+				mov.b	&info4MHzCalD,&DCOCTL
+			_ENDIF
 #else										; Else frequency is 1 MHz
-			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+			cmp.b	#4,&infoDataVers
+			_IF		_EQ
+				mov.b	&inf41MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
+				mov.b	&inf41MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+			_ELSE
+				mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
+				mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+			_ENDIF
 #endif
 
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
