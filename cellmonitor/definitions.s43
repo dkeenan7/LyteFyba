@@ -2,42 +2,10 @@
 ; Bytecode definitions
 ;
 
-; EXIT ( -- ); Return from a bytecode sequence
+#include "../common/comDefinitions.s43"				; Include the definitions common to monitor and BSLW
 
-		xCODE	'|',EXIT,_EXIT ; Vertical bar
-		incd	SP			; Drop the return address within the interpreter
-		ret					; Return to whoever called the interpreter (_ENTER)
-		
-; HEX ( flag -- ) ; Set the number base to hexadecimal
-
-		xCODE	'h',HEX,_HEX
-		mov.b	#16,&base
-_Space	ret					; When _Space is called, be a no-op (for separating literals)
-
-; DECIMAL ( flag -- ) ; Set the number base to decimal
-
-		xCODE	'd',DECIMAL,_DECIMAL
-		mov.b	#10,&base
-		ret					; When _Space is called, be a no-op (for separating literals)
-
-; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
-; Treat the next bytecode as a literal character.
-
-		xCODE	'`',CLIT,_CLIT ; back-quote or tock
-;		PUSH	Rtos
-;		MOV.B	@Rip+,Rtos
-		DPUSH	@Rip+
-		ret
-		
 ; EMIT ( c -- )	; Emit the character on top of stack
 
-		xCODE	'm',EMIT,_EMIT
-		mov.b	Rtos,R8
-		call	#TX_Byte
-;		pop		Rtos
-;		DROP
-		ret
-		
 ; changeSign ( n -- -n )
 		xCODE	'~',changeSign,_changeSign
 		inv.b	Rtos
@@ -57,126 +25,6 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		inv.b	&Checksumming
 		ret
 		
-;
-; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
-;
-		; This is actually longer in bytecode
-		xCODE	's',Select,_Select
-		cmp.b	&ID,Rtos			; Correct ID?
-;		pop		Rtos				; Pop the argument
-;		DROP						; Pop the argument
-		_IF		_NE					; If not correct ID
-			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
-		_ENDIF						; Endif
-		ret
-
-; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
-		xCODE	'x',exclusive,_exclusive
-		cmp.b	&ID,Rtos			; Correct ID?
-		_IF		_NE					; If not correct ID
-			mov.b	#-1,&dontInterpret
-			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
-		_ENDIF						; Endif
-		ret
-		
-;
-; Turn on or off the error LED (bool -- )
-;
-		xCODE	'e',errorLed,_errorLed
-		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#LED,&P1OUT ; Move only the #LED bit from Rtos to &P1OUT. Trashes Rtos.
-
-;		pop		Rtos				; Remove operand
-		ret
-
-;
-; Turn on or off bypass resistors (bool -- )
-;
-		xCODE	'y',bypass,_bypass
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#BYPASS,&P1OUT ; Move only the #BYPASS bit from Rtos to &P1OUT. Trashes Rtos.
-;		pop		Rtos				; Remove operand
-		ret
-
-;
-; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
-; Trashes R8-R12
-		
-		xCODE	'n',emitNum,_emitNum
-		mov		Rtos,R12			; Count to R12
-		bit.b	#2,&base			; Distinguish decimal from hex (the only bases allowed)
-		_IF		_NZ					; If decimal, treat as a signed number
-			tst		Rsec
-			_IF		_L					; If n is negative
-				mov.b	#'-',R8				; Emit minus sign
-				call	#TX_ByteCk
-				inv		Rsec				; Negate
-				inc		Rsec
-			_ENDIF						; Endif negative
-		_ELSE						; Else hexadecimal
-			mov.b	#'$',R8				; Emit dollar sign
-			call	#TX_ByteCk
-		_ENDIF						; End hexadecimal
-		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
-		mov.b	&base,R8			; Divisor in R8 is number base
-		dec		R12					; Count := Count-1
-		_BEGIN
-			clr		R10
-			call	#UMSlashMod			; dividend/base -> R9, remainder to R10
-			push	R10					; Push remainder
-			dec		R12
-		_UNTIL	_Z					; R9 keeps quotient as next dividend
-		push	R9
-		; Now we have n results on the stack; print these as hex/decimal
-		_BEGIN
-			pop		R8
-			clrc						; Because dadd is always done with carry on MSP430
-			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
-			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
-			call	#TX_ByteCk
-			dec		Rtos
-		_UNTIL	_Z
-		ret
-
-;
-; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
-;
-		xCODE	'p',prettyPrint,_prettyPrint
-		push.b	&base				; Save current base
-		mov.b	#10,&base			; Set to decimal
-		
-		mov		#'|',R8				; Initial vertical bar
-		call	#TX_ByteCk			; (interpreted as comment character)
-		
-		push	Rthd				; Save ch
-		push	Rsec				; Save n
-		push	Rtos				; Save m
-		
-		mov.b	&ID,Rsec
-		mov		#3,Rtos
-		call	#_emitNum
-		
-		mov		#':',R8				; Colon separator
-		call	#TX_ByteCk
-		
-		pop		Rtos				; Restore m
-		pop		Rsec				; Restore n
-		call	#_emitNum
-		
-		pop		R8					; Restore ch
-		call	#TX_ByteCk
-		
-		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
-		
-		mov		#'\r',R8			; Carriage return to R8
-		call	#TX_Byte			; Emit
-		
-		call	#waitTxCmpl			; Wait for transmit complete
-		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
-									; Identifies the BMU that sent a response
-		pop.b	&base				; Restore previous base
-		ret
 		
 ;
 ; Low level voltage measurement (channel -- measurement)

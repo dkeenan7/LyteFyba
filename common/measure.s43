@@ -4,7 +4,6 @@
 ; On input, R8 must contain the measurement channel number shifted left by 12 bits,
 ; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
 ; Trashes R9-R10
-; Calls aUMStar
 ; Suitable use at appropriate part of assembly file: #include ../common/measure.s43
 ; Sensitive to these defines:
 ;	VoltCalL, VoltCalH: addresses of low and high bytes of the voltage calibration values
