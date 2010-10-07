@@ -71,7 +71,7 @@ CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
 CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
-RESETIDS	EQU		1				; 1 to generate new IDs starting from byte read serially
+RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
 FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency

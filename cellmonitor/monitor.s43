@@ -610,7 +610,7 @@ m_alarm:
 
 #include "serialio.s43"				// Comms routines
 #include "../common/measure.s43"	// Voltage measurement functions
-#include "BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No bytecodes defined in bytecode
+#include "../common/BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No defs in bytecode
 #include "definitions.s43"			// Bytecode definitions
 
 
