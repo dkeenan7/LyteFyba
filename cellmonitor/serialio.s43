@@ -67,16 +67,6 @@ TX_Byte:
 			_UNTIL	_NZ
 			ret
 
-; Transmit the current checksum if checksumming is on. Clear checksum.
-TX_Cksum:
-			tst.b		&Checksumming
-			_IF		_NZ
-				mov.b	&TXCksum,R8
-				call 	#TX_Byte
-			_ENDIF
-			clr.b	&TXCksum
-			ret
-			
 ;
 ; Attempt to put the character from R8 into the transmit queue.
 ; If the queue is full, return immediately with the Z status bit set.

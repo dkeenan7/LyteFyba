@@ -1,0 +1,14 @@
+;
+; Miscellaneous common functions
+;
+
+; Transmit the current checksum if checksumming is on. Clear checksum.
+TX_Cksum:
+			tst.b		&Checksumming
+			_IF		_NZ
+				mov.b	&TXCksum,R8
+				call 	#TX_Byte
+			_ENDIF
+			clr.b	&TXCksum
+			ret
+			
