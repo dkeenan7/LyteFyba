@@ -95,7 +95,7 @@
 		mov.b		&LinkCal,R8		; Link offset calibration
 		cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
 		_IF			_EQ				; If link calibration value is $80
-			mov		#15000,R10			; then use special value that will print as ?000
+			mov		#26000,R10			; then use special value that will print as ^000
 		_ELSE
 			mov			#LinkVChan<<12,Rtos	; Shifted ADC channel for link voltage divider
 			call		#_llVolt
