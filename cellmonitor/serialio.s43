@@ -240,6 +240,7 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 ; RX_Byte	; Subroutine Receives Character into R8
 ;			; Trashes R9
 ;--------------------------------------------------
+#if 0
 ;
 ; Get a non-badness character from the receive queue into R8.
 ; If necessary, wait until the queue is not empty.
@@ -268,6 +269,8 @@ RX_ByteNW:
 					_ENDIF
 				_ENDIF
 			ret
+#endif
+
 ;
 ; Attempt to get a character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
