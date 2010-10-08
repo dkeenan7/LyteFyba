@@ -38,10 +38,12 @@ _CS8    SET 0
         ENDM
 
 _CS_SWAP MACRO
+                        LSTOUT-
 _CS_TOP SET _CS_TOP^_CS2
 _CS2    SET _CS_TOP^_CS2
 _CS_TOP SET _CS_TOP^_CS2
-        ENDM
+                        LSTOUT+
+        				ENDM
 
 ; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.
 ; For convenience they are defined as bits 12..10 of the machine-code for the jump instruction
