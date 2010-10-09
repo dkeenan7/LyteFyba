@@ -1,0 +1,202 @@
+; ----------------------------------------------------------------------------
+; The bootstrap loader (BSL)
+;
+; This will be relocated to info-flash which starts at $1000.
+; This code is common to the debugger/BSLwriter2 and the original BSLwriter, which may still be needed
+;	occasionally if a BMU loses its frequency calibration data and it needs to be forced
+
+#if MClock4
+MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz
+#else
+MClock		EQU		1000000			; MCLK (CPU clock) frequency in hertz
+#endif
+BaudRate	EQU		9600			; Serial comms rate in bits per second
+BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
+BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
+MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
+
+; Bits in i/o port 1
+BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
+TXDm		EQU		1<<1			; Code requires TXDm bit somewhere to right of TXDp bit
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
+TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
+LED			EQU		1<<6			; LED on P1.6
+
+#define		Rstate	R15				// Register holding the state of the password checking FSM
+#define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
+
+
+for1000:	; This will be relocated to info-flash at $1000.
+
+#if	MClock4
+			mov.b	&info4MHzCalB,&BCSCTL1	; Set DCO range for 4 MHz			
+			mov.b	&info4MHzCalD,&DCOCTL	; Set DCO step + modulation for 4.00 MHz
+#else
+			mov.b	&info1MHzCalB,&BCSCTL1	; Set DCO range for 1 MHz			
+			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+#endif
+			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, BYPASS and LED as outputs
+			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
+			
+			mov		#$280,SP
+mainLoop:							; Start of the main BSL loop
+
+			; Initialise the interpreter (or BSL-writer), if possible
+			clr.b	R8				; A null to pass to interpretByte (if allowed)
+									;	to initialise the main-flash code
+			call	#testNoInterp-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
+mainInitRetAddr:	; Used by BSL-writer and interpreter to tell if the byte in R8 should be echoed
+
+			; Password-checking finite-state-machine (FSM)
+			; After decrementing Rstate below, 2 = waiting for ^B, 1 = waiting for ^A,
+			; 0 = waiting for ^D and erase if received, any negative value = program, no interpret
+			;
+resetFSM:	mov		#3,Rstate		; Initialise FSM: waiting for ^B
+FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
+
+			dec		Rstate
+			jn		progByte		; If state is negative, program, don't interpret
+
+			; Check for a continuing password match
+			cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+			jne		resetFSM
+			tst		Rstate
+			jnz		FSMloop
+
+			; Erase main flash memory
+			; Master will need to delay at least 33 ms before sending first byte to program.
+			;
+mainBSLErase:
+			dint					; Main-flash has probably turned on interrupts; can't have them now
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
+
+			mov		#$F800+2,R12	; Start of main flash +2. The +2 saves a 2-word compare at the end
+			mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
+			rra		@R12			; Dummy write: erase segments
+			
+			; Immediately replace reset vector to this boot loader
+			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
+			mov		#$1000,&$FFFE	; Write reset vector to point to start of info-flash (start of BSL)
+			clr.b	Rcksum			; Initialise the checksum to 0
+			
+			; Assume a bad checksum, clear on good checksum.
+			; Also prevents interpreting till the end of flash programming			
+			bis.b	#WDTIFG,&IFG1
+			jmp		FSMloop			; Read first byte to program
+
+			; Program (flash write) byte in R8
+			;
+progByte	mov.b	R8,-2(R12)		; Program it
+			xor.b	R8,Rcksum		; Include in check-XOR
+			inc		R12
+			jnz		FSMloop			; Repeat until R12 wraps to zero
+
+			mov		#FWKEY,&FCTL1	; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
+			tst.b	Rcksum			; Check the checksum
+			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
+			
+			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
+			jmp		mainLoop		; Back to looking for ^B, but first send a null to interpretByte
+			
+			; end FSM code
+
+; ReadByte ( regs: -- R8 R9 R10 R11 )
+; Reads a byte from serial input to R8. Trashes R9 R10 R11.
+; Also echoes the byte to serial output (either by falling through to WriteByte, or calling
+;	interpretByte)
+;
+ReadByte:
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+waitStartR							; (Number of cycles)
+			; The loop below takes 6 cycles so on average we will have missed the start bit by
+									; (3) cycles
+			bit.b	#RXD,&P1IN		; (4) Start bit?
+			jnz		waitStartR		; (2) Loop while not 0 (start bit)
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and restart Watchdog Timer
+
+			; Pad out the average delay between starting edge of start bit
+			; and sampling of first bit below to ~ 1.5 bittimes
+			mov.b	#(BitCyc1_5-17+1)/3,R11 ; (2) Loop count for waitMid delay loop
+waitMid		dec		R11				; (1) Delay loop
+			jnz		waitMid			; (2) Note: Clearing R11 here may be assumed in WriteByte below
+
+			mov		#8,R10			; (1) Bit count
+RX_Bit		bit.b	#RXD,&P1IN		; (4) Sampled bit to carry
+			rrc.b	R8				; (1) Store received bit
+			
+			mov.b	#(BitCycles-10+1)/3,R11 ; (2) Pad RX_bit loop out to one bit time
+waitNextR	dec		R11				; (1) Delay loop
+			jnz		waitNextR		; (2) Note: Clearing R11 here is assumed in WriteByte below
+			dec		R10				; (1) All bits RXed?
+			jnz		RX_Bit			; (2) Sample next bit
+			
+			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
+			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
+			; But it's not needed, since we always send something before waiting for the next byte
+			
+testNoInterp
+			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
+			jnz		WriteByte		; Jump around call, if set
+			br		#interpretByte	; tail-call interpretByte in main flash
+									; It must preserve at least R8, Rstate(=R15)
+
+; WriteByte ( R8 R11 -- R9 R10 R11 )
+; Write the low byte of R8 to serial output. R11 must be clear on entry.
+; Trashes R9 R10 R11. Preserves R8.
+;
+WriteByte:
+			mov		R8,R9			; Allow R8 to be preserved for password compare
+			
+			mov.b	#10,R10			; 8 data + 1 start and 1 stop
+			rla		R9				; Add a start bit
+			bis		#1<<9,R9		; Add a stop bit
+		
+write_next							; (Number of cycles)
+			rrc		R9				; (1) Next bit to C.
+			subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
+									; Note: R11 must be guaranteed clear in advance
+			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
+#if LEDWITHTX
+			; The below will turn the LED on for every bit sent. It's not how it was meant to be
+			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
+			and.b	#TXDp+TXDm+LED,R11 ; (2) Ensure only TXD and LED bits can be toggled below
+#else // not LEDWITHTX
+			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
+#endif // LEDWITHTX
+			xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
+
+			mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
+write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next above
+			jnz		write_dly		; (2)
+			dec		R10				; (1)
+			jnz		write_next		; (2)
+			ret
+			
+			ORG		for1000+$F2
+			; Calibration data
+mainID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+mainSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
+main1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
+main1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
+main4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
+main4MHzCalB ds		1				; 4 MHz DCO range calibration byte
+mainVoltCalL ds		1				; Voltage scale calibration lo byte; may be written by BSL writer
+mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL writer
+mainTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
+mainLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
+
+endFor1000:
+
+lengthForInfo EQU	endFor1000-for1000	; Must be <= 256-1-3 = 252 = $FC
+
+			ORG		for1000+$FC
+			; Could save space by making the password a simple function of Rstate instead of storing it
+mainPWtable	db		4,1,2			; The password backwards: ^D ^A ^B
+mainDataVers db		DATAVERS		; Data Version byte (cannot move)
+
+; The end of the bootstrap loader (BSL)
+; -----------------------------------------------------------------------------
+

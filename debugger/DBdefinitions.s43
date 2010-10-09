@@ -13,6 +13,43 @@
 		inc.b	Rtos
 		ret
 		
+;
+; setIds ( -- )
+;
+			xCODE	'i',setIDs,_setIDs
+; It just doesn't seem to work out to use the delay between BMUs to determine the correct ID, so
+; we simply read the ID from the serial port, and echo the next ID downstream.
+
+			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
+											; Not echoed because of logic in dummyInterpretByte
+waitingIDAddr								; This address will be on the stack in dummyInterpretByte
+			mov		R8,R12					; Save our ID
+			inc		R8
+			call	#WriteByte				; Send downstream BMU's ID
+			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
+			mov.b	R12,&ramID				; Save our ID to RAM
+			ret
+
+		
+; Update info-flash ( -- )
+		xCODE	'u',updateInfoFlash,_updateInfoFlash
+; Prepare to flash-program
+; Assumes ACCVIE = NMIIE = OFIE = 0.
+; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+#if MClock4
+			MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+#else
+			MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
+#endif
+			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
+
+;
+;	FIXME: NOT FINISHED!
+;
+			ret
+		
 
 #if 0
 ; Link voltage offset Calibration (--)
