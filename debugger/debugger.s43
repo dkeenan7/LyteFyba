@@ -93,10 +93,6 @@ NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-; Address imported from the interpreter
-
-interpretByte EQU	$F800			; Where to call the main flash code
-
 ; Locations in info-flash, of routines and calibration data
 ; These addresses must be manually exported to the interpreter.
 ; Assemble this file with listing-generation enabled, then look at the listing file
@@ -154,7 +150,7 @@ infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
 			LSTOUT+
 
 ; Error register. 0 means no error
-#define		rERR	r4
+#define		rERR	r14					// Overlaps with Rcksum in the BSL, but that is OK
 
 ; The LOCKA bit in FCTL3 was made a *toggle*, for backwards compatibility.
 ; Use these macros to safely clear and set it.
@@ -204,24 +200,21 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 
 
 			ORG		$FFFE			; The reset vector
-;			dw		$1000			; If this BSL-writer is bootstrap-loaded
-									; the reset vector will remain pointing to the BSL
-									; and it will be called via interpretByte.
-			dw		BSLwriter		; If this BSL-writer is JTAGged
-									; the reset vector will point to it directly.
+			dw		BSLwriter		; If this BSL-writer is JTAGged then the reset vector must point
+									;	to it directly. For example, a new chip has no BSL at all.
 ;
 ; BSL-writer code in main-flash.
 ; This code copies any existing calibration data from info-flash to the image of the new BSL
 ; in main-flash, then erases info-flash and copies the new BSL there from its main-flash image.
 			ORG		$F800
 ;
-; We need a dummy interpret-byte here; the BSL will call this when
-; any bytes are received by the serial port, including "password" bytes.
+; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
+; will call this when any bytes are received by the serial port, including "password" bytes.
 ; The BSL will also call this with a null that was not received by the serial port
-; but is intended to initialise the interpreter or BSL-writer.
+; but is intended to initialise the interpreter or other main-flash program.
 ; It will do this on any reset and after successfully bootstrap-loading
 ; a new interpreter or BSL-writer.
-dummyInterpretByte:
+interpretByte:
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			jeq		checkNull				; Yes, don't echo the byte, check if it's a null
 #if RESETIDS
@@ -246,10 +239,7 @@ anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"
 ;
 main:										; For debugger
 BSLwriter:	mov		#$280,SP
-StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 #if MClock4
-			; Temporary fix for vers 4 data
-	; !!! Needs to handle the new-chip case as well. And the case of an unknown version. !!!
 			cmp.b	#4,&infoDataVers
 			_IF		_EQ
 				mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
@@ -260,8 +250,17 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 				swpb	R8							; Least significant bit was lost by compression
 				mov.b	R8,&DCOCTL					;	and may need checking
 			_ELSE
-				mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
-				mov.b	&info4MHzCalD,&DCOCTL
+#if 0			// It turns out, I guess by design, that info4MHzCALB/D and $10F7/6 are the same addr!
+				_IF			_L							; If < 4, assume a new chip (e.g. has $86 there)
+					mov.b	&$10F7,&BCSCTL1					; 4 MHz calibration
+					mov.b	&$10F6,&DCOCTL					;	in a new chip (undocumented)
+				_ELSE
+#endif
+					mov.b	&info4MHzCalB,&BCSCTL1			; 4MHz from info-flash
+					mov.b	&info4MHzCalD,&DCOCTL
+#if 0
+				_ENDIF
+#endif
 			_ENDIF
 #else										; Else frequency is 1 MHz
 			cmp.b	#4,&infoDataVers
@@ -269,8 +268,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 				mov.b	&inf41MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
 				mov.b	&inf41MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 			_ELSE
-				mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-				mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+				_IF			_L
+					mov.b	&CALBC1_1MHZ,&BSCTL1
+					mov.b	&CALDC0_1MHZ,&DCOCTL
+				_ELSE
+					mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
+					mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+				_ENDIF
 			_ENDIF
 #endif
 
@@ -321,6 +325,12 @@ unknownVersBSL
 			
 
 currVersBSL
+			; The RAM image has the same layout as current version data, so we use a block move
+			_DO		#(10/2)-1,R15				; Prepare to move 10 bytes by 2s
+				mov		infoID(R15),ramID(R15)		; Move 2 bytes
+			_mLOOP	#2,R15
+
+
 #if CALONLYONE & !RESETIDS
 			mov.b	&infoID,&ramID				; We preserve the IDs here unless RESETIDs is on
 #endif
@@ -387,21 +397,28 @@ noCopyCalOld4
 			mov.b	&inf41MHzCalB,&ram1MHzCalB	; Copy 1 MHz calibration
 			mov.b	&inf41MHzCalD,&ram1MHzCalD
 #endif	
-			;jmp		donePrep
 
-
-			
 donePrep
 
 
 			; possibly call the 'u' (update) command here...
+			
+;
+; We need an I/O loop here, since we can't rely on the BSL even being there (e.g. new chip)
+;
 
+			bic.b	#WDTIFG,&IFG1		; Ensure that the watchdog error flag is off
+										; This ensures that ReadByte will echo via interpretByte
+dbgLoop:	call	#ReadByte			; Get a command byte
+			;call	#DoPassword			; One day this might fit
+			call	#ACCEPT
+			jmp		dbgLoop
 
 ; Some definitions so the common code will work
 #define ID	infoID
-waitTxCmpl	ret						; Empty routine: transmit is always complete
-TX_ByteCk	xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
-TX_Byte		clr		R11				; Needed for BSL's WriteByte
+waitTxCmpl	ret							; Empty routine: transmit is always complete
+TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
+TX_Byte		clr		R11					; Needed for BSL's WriteByte
 			br		#WriteByte
 
 
