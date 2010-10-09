@@ -157,7 +157,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					pop		R9
 					; I think the below just wastes time and space; we never sleep (at present) because
 					; of the lack of TX buffer space - MVE
-					bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
+;					bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 				_ENDIF							; Endif start bit just started
 				rra.w	&TXData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
 												;	so stop and idle bits are always treated like data 1s
