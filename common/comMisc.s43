@@ -11,4 +11,4 @@ TX_Cksum:
 			_ENDIF
 			clr.b	&TXCksum
 			ret
-			
+
