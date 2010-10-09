@@ -117,7 +117,7 @@ realCal
 			_ENDOF
 ;
 ; Default case
-				mov		#3,rERR					; Unknown calibration type character
+				mov		#2,rERR					; Unknown calibration type character
 				jmp		errorFlash
 
 			_ENDCASE
@@ -143,6 +143,7 @@ realCal
 #endif
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
+StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 ;
 ;	FIXME: NOT FINISHED!
