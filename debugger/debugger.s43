@@ -184,6 +184,20 @@ dontInterpret	DS	1				; Boolean; for 'x' command
 TXCksum			DS	1				; Transmit checksum
 passWordState	DS	1				; State of the password detection logic; 3 = start
 
+; RAM copies of various calibration settings
+; Same order as stored in the BSL with the latest data layout
+ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+ramSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
+ram1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
+ram1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
+ram4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
+ram4MHzCalB ds		1				; 4 MHz DCO range calibration byte
+ramVoltCalL ds		1				; Voltage scale calibration lo byte; may be written by BSL writer
+ramVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL writer
+ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
+ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
+
+
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -267,38 +281,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 			clr		rERR					; Clear error register
 
-; Prepare to flash-program over some $FFs in the BSL image in main flash
-; Assumes ACCVIE = NMIIE = OFIE = 0.
-; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-#if MClock4
-				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
-#else
-				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
-#endif
-			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
-			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
-			
 ;
-; If RESETIDS is set, read the ID here.
-; It just doesn't seem to work out to use the delay between BMUs to determine the correct ID, so
-; we simply read the ID from the serial port, and echo the next ID downstream.
+; Copy calibration data into RAM
+;
+
+			
 ; As a sanity check, expect an "I" first; this ensures that the CPU speed is about right
 #if RESETIDS
-			call	#ReadByte				; This byte is echoed
-			cmp		#'I',R8					; The sanity check for serial speed
-			jeq		gotI					; Branch if correct
-			mov		#2,rERR
-			jmp		errorFlash				; Flash error LED twice
-gotI
-			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
-											; Not echoed because of logic in dummyInterpretByte
-waitingIDAddr								; This address will be on the stack in dummyInterpretByte
-			mov		R8,R12					; Save our ID
-			inc		R8
-			call	#WriteByte				; Send downstream BMU's ID
-			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
-			mov.b	R12,&mainID				; Flash write our ID
 #endif
 
 ;
