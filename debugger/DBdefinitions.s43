@@ -31,9 +31,108 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
 
-		
+;
+; Calibrate ( n ch --- )
+; Perform a calibration whose type is ch ('v' for voltage etc) and value is n
+;
+			xCODE	'c',calibrate,_calibrate
+			_CASE
+			_OFb	#'v',Rtos			; 'v': cell Voltage
+				mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
+				call	#measure
+; The calibration scale factor will be the expected value divided by the reading.
+; The expected value is an unsigned 12 bit integer of millivolts and
+; the reading is an unsigned 12.2 bit fixed-point number of millivolts.
+; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
+; i.e. a number with 1 integer bit and 15 fractional bits.
+; So we shift the expected value 17 places left before the division.
+CalVoltDividend	SET	CALVOLTS<<17	
+				mov		#LWRD CalVoltDividend,R9	; Dividend lo word into R9
+				mov		#HWRD CalVoltDividend,R10	; Dividend hi word into R10
+				mov		R8,R11						; The divisor is the voltage reading in R8
+				rra		R11							; Add half the divisor to the dividend for rounding
+				add		R11,R9
+				adc		R10
+				call	#UMSlashMod					; Gives quotient in R9, remainder in R10
+				
+				mov.b	R9,&ramVoltCalL				; Save calibration value lo byte
+				swpb	R9
+				mov.b	R9,&ramVoltCalH				; Save calibration value hi byte
+			_ENDOF
+			
+			_OFb	#'t',Rtos			; 't': temperature
+;
+; Temperature offset calibration
+; M = 4096/1.5 * (.00355 T + typ0.986)
+;	= 9.694*T + typ2692
+; M/9.694	= T + typ277.7
+; Per the MSP430F2012 datasheet, typ277.7 aims at 273, so the reading is proportional
+; to the absolute temperature, with an offset of +- 100 mV.
+			; We use offsetByte = (M/9.694 - T) >> 1
+; So we use offsetByte = (M/9.694 - T) - 273
+; and T = M/9.694 - 273 - offsetByte
+;
+				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
+				call	#measure
+			
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor
+; in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
+; throwing away the lo word and shifting the high word one bit to the right.
+				mov.b		&ramVoltCalL,R9			; Get voltage calibration lo byte
+				mov.b		&ramVoltCalH,R10		; Get voltage calibration hi byte
+				swpb		R10						; Assemble the two bytes into a word
+				bis			R10,R9					; as multiplicand in R9
+													; Multiplier is sum-of-samples, already in R8
+				call		#UMStar					; Gives unsigned product in R10 (hi word) & R9 (lo word)
+													; Note: calls assembler code that ends in ret
+				inc			R10						; For correct rounding
+				rra			R10						; Shift product hi word right one bit
+
+; To divide by 9.694, multiply by 65536/9.694 = 6760
+				mov		R10,R8
+				mov		#6760,R9
+				call	#UMStar
+				sub		#CALTEMP+273,R10
+;				rra		R10							; Temp offset now fits in a byte
+				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
+			_ENDOF
+			
+			_OFb		'l',Rtos				; 'l': link voltage
+				// FIXME: TO BE COMPLETED
+				mov		#LinkVChan<<12,Rtos
+				call	#measure
+				sub		#2048,R8					; Zero volts for link voltage is a 2048 reading
+				cmp		#$FF81,R8					; -$7F
+				jl		nonCal						; If <s -$7F, use the $80 non-calibrated value
+				cmp		#$80,R8
+				jl		realCal						; If >s -$7F and <s $80, use as real calibration value
+nonCal			mov		#$80,R8
+realCal
+				mov.b	R8,&ramLinkCal				; Save the link calibration value
+			_ENDOF
+;
+; Default case
+				mov		#3,rERR					; Unknown calibration type character
+				jmp		errorFlash
+
+			_ENDCASE
+
+			jmp		_readCalValue			; Display the value just calibrated and return
+
+;
+; Read calibration value (ch --- )
+; Calibration type (e.g. 'v' for cell Voltage) in ch
+			xCODE	'r',readCalValue,_readCalValue
+			// FIXME: TO BE COMPLETED
+			ret
+
 ; Update info-flash ( -- )
-		xCODE	'u',updateInfoFlash,_updateInfoFlash
+			xCODE	'u',updateInfoFlash,_updateInfoFlash
 ; Prepare to flash-program
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
@@ -48,28 +147,62 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 ;
 ;	FIXME: NOT FINISHED!
 ;
-			ret
-		
+
+; Erase info flash including segment A.
+startErase
+			mov		#$1000,R12				; Start of info-flash
+eraseInfo	MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase (doesn't seem to "stick")
+			rra		@R12					; Dummy write: erase segment
+			add		#64,R12					; Next segment
+			cmp		#$10C0,R12
+			jnz		eraseInfo				; Loop until at start of segment A
+			CLRLOCKA						; Clear segment A lock (so we can erase and write it also)
+			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+			rra		@R12					; Dummy write: erase segment A
+
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+			clr		R12						; $1000 is start of info flash
+			mov		#for1000,R9				; Start of code to write there
+pifLoop		mov.w	@R9+,$1000(R12)			; Program word
+			incd	R12
+			cmp		#256,R12				; Test index
+			jnz		pifLoop					; Repeat until done
+			
+
+			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
+			MOV		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCKs
+			SETLOCKA						; Ensure segment A is locked
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareImage			; Compare the for1000 image with what's at 1000
+			jnz		failCompare
+			
+			tst		rERR
+			jnz		errorFlash
+			;
+			; Compares successfully. Point reset vector to new code.
+			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
+			; main-flash!
+			;
+			bis.b	#LED,&P1OUT				; Turn on LED briefly (BSL will revert) to indicate success
+			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+			rra.b	&$FFFF					; Dummy write: erase segment
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write
+			mov		#$1000,&$FFFE			; Re-point reset vector
+			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
+
+			bic.b	#WDTIFG,&IFG1			; Clear the watchdog timer interrupt flag
+			mov		#$55AA,R15				; Set R15 (= Rstate) to pattern to prevent infinite loops
+			; FIXME: DO WE WANT THIS?
+			br		#$1000					; Start the new BSL
+
+failCompare mov		#3,rERR
+			jmp		errorFlash
 
 #if 0
-; Link voltage offset Calibration (--)
-; Assumes zero link voltage due to zero link current
-;
-		xCODE	'c',calLink,_calLink
-		mov		#LinkVChan<<12,Rtos
-		call	#_llVolt
-		sub		#2048,Rtos				; Zero volts for link voltage is a 2048 reading
-		cmp		#$FF81,Rtos				; -$7F
-		jl		nonCal					; If <s -$7F, use the $80 non-calibrated value
-		cmp		#$80,Rtos
-		jl		realCal					; If >s -$7F and <s $80, use as real calibration value
-nonCal	mov		#$80,Rtos
-realCal
-		mov		#LinkCal,R9				; Address of byte to flash
-		mov		Rtos,R8					; Value to flash
-		jmp		flashCStore				; Write the calibration value and exit
-
-
 ;-------------------------------------------------------------------------------
 ; Flash programming macros
 
