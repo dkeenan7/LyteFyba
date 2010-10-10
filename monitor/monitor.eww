@@ -2,7 +2,7 @@
 
 <workspace>
   <project>
-    <path>$WS_DIR$\cellmonitor.ewp</path>
+    <path>$WS_DIR$\monitor.ewp</path>
   </project>
   <batchBuild/>
 </workspace>
