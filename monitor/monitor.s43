@@ -239,6 +239,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 					eint
 					tst.b	R8
 					_IF		_NN
+						call	#TX_Byte				; Echo the command or password byte
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
@@ -468,7 +469,6 @@ DoPassword:
 			; May be important: it could be bad to have receive interrupts sending badness bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
-			call	#TX_Byte			; Echo the last password byte (normally done in ACCEPT)
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
 			call	#waitTxCmpl
 

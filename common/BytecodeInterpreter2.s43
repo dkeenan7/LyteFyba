@@ -180,7 +180,6 @@ DatEnd4 jmp		_NEXT		; Endif
 ; Implements backspace editing and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ACCEPT
-		call	#TX_Byte		; Echo the command byte
 		MOV		&ToIN,R9
 		_CASE
 		
