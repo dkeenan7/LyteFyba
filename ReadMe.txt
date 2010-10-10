@@ -37,9 +37,12 @@ Common BMU source files:
 Host software:
 	BMUsend
 		Windows software. To load new programs into the BMUs via the serial port and our
-		bootstrap loader (BSL), as opposed to using the JTAG port.
+		bootstrap loader (BSL), as opposed to using the JTAG port. Requires Microsoft
+		Visual Studio.
 	sendprog
-		Linux software. To load new programs into the BMUs via the serial port and our
-		Bootstrap loader (BSL), as opposed to using the JTAG port.
+		Linux or Windows/Cygwin software. To load new programs into the BMUs via the serial
+		port and our Bootstrap loader (BSL), as opposed to using the JTAG port.
+	Only one of BMUsend or sendprog is needed; they do the same job. sendprog is command line
+		based; BMUsend is GUI.
 	web
 		A set of web pages describing the BMUs and printed-circuit artwork.
