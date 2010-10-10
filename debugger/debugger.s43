@@ -283,6 +283,15 @@ BSLwriter:	mov		#$280,SP
 			clr		rERR					; Clear error register
 
 ;
+; Initialise the stripped-down bytecode interpreter
+;
+			mov.b	#10,&base				; Decimal output mode by default
+			clr.b	&CHKSUM					; Clear checksum
+			mov.b	#0,&Checksumming		; Checksumming of packets, off by default
+			mov.b	#0,&dontInterpret		; Interpret
+			mov		#TIB,&ToIN				; Packet pointer
+
+;
 ; Copy calibration data into RAM
 ;
 
@@ -362,7 +371,11 @@ dbgLoop:	call	#ReadByte			; Get a command byte
 waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
 TX_Byte		clr		R11					; Needed for BSL's WriteByte
-			br		#WriteByte
+			call	#WriteByte
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear watchdog timer
+			_DO		#1350,R11			; Delay for approx
+			_LOOP	R11					;	1.04 ms
+			ret
 
 
 #include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TX_Cksum

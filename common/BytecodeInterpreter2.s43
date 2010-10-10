@@ -29,6 +29,12 @@ DPUSH		MACRO	arg
 			mov		arg,Rtos
 			ENDM
 			
+DPUSHb		MACRO	arg
+			mov		Rsec,Rthd
+			mov		Rtos,Rsec
+			mov.b	arg,Rtos
+			ENDM
+			
 DROP		MACRO
 			mov		Rsec,Rtos
 			mov		Rthd,Rsec
