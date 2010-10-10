@@ -102,7 +102,7 @@ CalVoltDividend	SET	CALVOLTS<<17
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
 			
-			_OFb		'l',Rtos				; 'l': link voltage
+			_OFb		#'l',Rtos				; 'l': link voltage
 				// FIXME: TO BE COMPLETED
 				mov		#LinkVChan<<12,Rtos
 				call	#measure
@@ -129,7 +129,30 @@ realCal
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue
 			// FIXME: TO BE COMPLETED
-			ret
+			_CASE
+			_OFb		#'v',Rtos				; 'v': cell Voltage
+				mov			#4,Rtos					; 4 digits
+				mov.w		&ramVoltCalL,Rsec		; Get the cal value
+				mov.b		#'V',Rthd				; Trailing char (V for Volts)
+			_ENDOF
+			_OFb		#'t',Rtos				; 't': link voltage
+				mov			#3,Rtos
+				mov.b		&ramTempCal,Rsec
+				mov.b		#'C',Rthd
+			_ENDOF
+			_OFb		#'l',Rtos				; 'l': link voltage
+				mov			#4,Rtos					; 4 digits
+				mov.b		&ramLinkCal,Rsec
+				mov.b		#'m',Rthd
+			_ENDOF
+			mov		#'?',Rtos
+			call	#_EMIT
+			mov		#$0D,Rtos				; Carriage return
+			jmp		_EMIT
+			_ENDCASE
+			call	#_prettyPrint
+			mov		#$0D,Rtos
+			jmp		_EMIT
 
 ; Update info-flash ( -- )
 			xCODE	'u',updateInfoFlash,_updateInfoFlash
