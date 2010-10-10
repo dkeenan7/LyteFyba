@@ -96,4 +96,39 @@ wires are needed between one BMU and the next.</p>
 <h3>Printed Circuit Artwork</h3>
 
 <p><img src=bms_digital41_pcb.gif></img></p>
+
+<h2>Software</h2>
+<h3>IAR Systems</h3>
+The MSP430 software is built using the free IAR Embedded Workbench (the assembler is free and unlimited).
+See <a href=http://focus.ti.com/docs/toolsw/folders/print/iar-kickstart.html>TI's IAR Embedded Workbench
+Kickstart - Free 4KB IDE</a> web page.
+<p>
+
+You will need a device with a 4-wire Spy-by-wire interface, and you will need to modify it so that
+the four wires come out on a 4-pin 0.1" header. We used the
+<a href=http://focus.ti.com/docs/toolsw/folders/print/ez430-f2013.html>TI MSP430 USB Stick Development Tool</a>,
+which we bought from
+<a href=http://au.farnell.com/texas-instruments/ez430-f2013/tool-kit-development-usb-stick/dp/1172234?in_merch=New%20Products&MER=i-e1a0-00001002>
+Farnell Australia</a>.
+<p><img src="JTAG 003 crop_sm.jpg"></img></p>
+The above is an old photo; we recommend using a header with gold plated pins, and siliconing the soldered
+wires so that flexing does not break the wires as often. Where to solder the wires should be obvious to
+anyone familiar with digital electronics; there is a circuit diagram of the JTAG board that comes with the
+EZ430 development system. (But note, as often happends, the PDFs on the web site may be more up to date than
+those on the provided CD-ROM).
+<p>
+
+When you use a project file for the first time, it seems that some of the settings are not saved.
+In particular, you should go to Project/Options (clicking in the workspace area first if necessary;
+otherwise you may not get the full options dialog box). In the Category box, choose Debugger. In the
+setup tab, under Driver, choose FET Debugger (the default seems to be simulator, which will not use the
+JTAG device). 
+<p>
+
+Next, in the category window at the left choose Fet Debugger, and in the download menu in the Flash erase box,
+choose "Erase main memory". For the debugger project only, ensure that "Allow erase/write access to locked
+flash memory" is checked.
+<p>
+
+
 </body>
