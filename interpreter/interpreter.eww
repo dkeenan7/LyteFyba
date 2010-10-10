@@ -2,15 +2,6 @@
 
 <workspace>
   <project>
-    <path>$WS_DIR$\..\BSLwriter\BSLwriter.ewp</path>
-  </project>
-  <project>
-    <path>$WS_DIR$\..\cellmonitor\cellmonitor.ewp</path>
-  </project>
-  <project>
-    <path>$WS_DIR$\..\debugger\debugger.ewp</path>
-  </project>
-  <project>
     <path>$WS_DIR$\interpreter.ewp</path>
   </project>
   <batchBuild/>
