@@ -182,6 +182,7 @@ passWordState	DS	1				; State of the password detection logic; 3 = start
 
 ; RAM copies of various calibration settings
 ; Same order as stored in the BSL with the latest data layout
+			ALIGNRAM 1				; So these can be copied with word moves
 ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
 ramSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
 ram1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
@@ -216,18 +217,14 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 ; a new interpreter or BSL-writer.
 interpretByte:
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
-			jeq		checkNull				; Yes, don't echo the byte, check if it's a null
-#if RESETIDS
+			jeq		anInit					; If yes, don't echo the byte, and treat specially
 			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
 			jnz		noWaitID				; If not, echo as usual
-			ret								; Yes, so return to ReadByte's caller (BSL below),
+			ret								; Yes, so return to ReadByte's caller (debugger below),
 											;	without calling WriteByte (don't echo wrong ID)
 noWaitID
-#endif
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
 			
-checkNull	tst.b	R8						; Is this a null, meaning initialise?
-			jz		anInit					; Branch if yes
 			bic.b	#LED,&P1OUT				; No, turn off the error LED to show successful download
 			ret								; Return to the BSL
 
@@ -235,7 +232,7 @@ anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"
 			jnz		main					; No, start the BSLwriter (e.g. after downloading)
 			ret								; Yes, don't infinitely loop
 ;
-; Start of the actual BSL-writer
+; Start of the actual debugger / BSL-writer2
 ;
 main:										; For debugger
 BSLwriter:	mov		#$280,SP
@@ -309,11 +306,12 @@ BSLwriter:	mov		#$280,SP
 newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
 
-			; Leave the voltage, temperature and link calibration as $FF
-			mov.b	&infN4MHzCalB,&ram4MHzCalB	; Copy 4 MHz calibration data
-			mov.b	&infN4MHzCalD,&ram4MHzCalD
-			mov.b	&infN1MHzCalB,&ram1MHzCalB	; Copy 1 MHz calibration data
-			mov.b	&infN1MHzCalD,&ram1MHzCalD
+			; Set the ID, voltage, temperature and link calibration to $FF
+			mov		#$FFFF,&ramID
+			mov		#$FFFF,&ramVoltCalL
+			mov		#$FFFF,&ramTempCal
+			mov.w	&infN4MHzCalD,&ram4MHzCalD	; Copy 4 MHz calibration data
+			mov.w	&infN1MHzCalD,&ram1MHzCalD	; Copy 1 MHz calibration data
 			jmp		donePrep
 			
 			
@@ -326,80 +324,25 @@ unknownVersBSL
 
 currVersBSL
 			; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#(10/2)-1,R15				; Prepare to move 10 bytes by 2s
-				mov		infoID(R15),ramID(R15)		; Move 2 bytes
-			_mLOOP	#2,R15
-
-
-#if CALONLYONE & !RESETIDS
-			mov.b	&infoID,&ramID				; We preserve the IDs here unless RESETIDs is on
-#endif
-#if !CALIBRATE
-#if CALONLYONE
-			cmp.b	#CALTHIS,&ramID				; Calibrate only one... is this the one?
-			jeq		noCopyCalNew
-#endif
-			mov.b	&infoVoltCalL,&ramVoltCalL	; Copy calibration data, since not recalibrating
-			mov.b	&infoVoltCalH,&ramVoltCalH
-			mov.b	&infoTempCal,&ramTempCal
-;			mov.b	&infoLinkCal,&ramLinkCal
-#endif
-noCopyCalNew
-#if	FORCEFCAL4
-;			mov.b	#((FREQCAL4>>1) & $FF),&ram4MHzCal	; Set compressed version of forced value
-			mov.b	#FREQCAL4 >> 8,&ram4MHzCalB
-			mov.b	#FREQCAL4 & $FF,&ram4MHzCalD
-#else
-;			mov.b	&info4MHzCal,&ram4MHzCal	; Copy compressed 4 MHz calibration
-			mov.b	&info4MHzCalB,&ram4MHzCalB	; Copy 4 MHz calibration
-			mov.b	&info4MHzCalD,&ram4MHzCalD
-#endif
-#if FORCEFCAL1
-			mov.b	#FREQCAL1 >> 8,&ram1MHzCalB
-			mov.b	#FREQCAL1 & $FF,&ram1MHzCalD
-#else
-			mov.b	&info1MHzCalB,&ram1MHzCalB	; Copy 1 MHz calibration
-			mov.b	&info1MHzCalD,&ram1MHzCalD
-#endif
+			_DO		#10,R15							; Prepare to move 10 bytes by 2s
+				mov		infoID-2(R15),ramID-2(R15)	; Move 2 bytes
+			_mLOOP	#2,R15							; Decrement loop counter by 2, loop if non zero
 			jmp		donePrep
 
-
 vers4BSL
-#if CALONLYONE & !RESETIDS
-			mov.b	&inf4ID,&ramID				; We preserve the IDs here unless RESETIDs is on
-#endif
-#if !CALIBRATE
-#if CALONLYONE
-			cmp.b	#CALTHIS,&ramID
-			jeq		noCopyCalOld4
-#endif
-			mov.b	&inf4VoltCalL,&ramVoltCalL	; Copy calibration data, since not recalibrating
-			mov.b	&inf4VoltCalH,&ramVoltCalH
-			mov.b	&inf4TempCal,&ramTempCal
-			mov.b	&inf4LinkCal,&ramLinkCal
-#endif
-noCopyCalOld4
-#if	FORCEFCAL4
-			mov.b	#FREQCAL4 >> 8,&ram4MHzCalB
-			mov.b	#FREQCAL4 & $FF,&ram4MHzCalD
-#else
+			mov.b	&inf4ID,&ramID
+			mov.b	#$FF,&ramSpare				; Most useful set to $FF
+			mov.w	&inf4VoltCalL,&ramVoltCalL
+			mov.w	&inf4TempCal,&ramTempCal	; Copy temperature and link cal data in one word move
 			mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
 			rla		R8							; Shift left
 			bis		#$8A00,R8					; OR in assumed MSbs
-			mov.b	R8,&ram4MHzCalD				; Store uncompressed 4 MHz calibration
-			swpb	R8							; Least significant bit was lost by compression
-			mov.b	R8,&ram4MHzCalB				;	and may need checking
-#endif
-#if FORCEFCAL1
-			mov.b	#FREQCAL1 >> 8,&ram1MHzCalB
-			mov.b	#FREQCAL1 & $FF,&ram1MHzCalD
-#else
-			mov.b	&inf41MHzCalB,&ram1MHzCalB	; Copy 1 MHz calibration
-			mov.b	&inf41MHzCalD,&ram1MHzCalD
-#endif	
+			mov.w	R8,&ram4MHzCalD				; Store uncompressed 4 MHz calibration
+												; Least significant bit was lost by compression
+												;	and may need checking
+			mov.w	&inf41MHzCalD,&ram1MHzCalD	; Copy 1 MHz calibration
 
 donePrep
-
 
 			; possibly call the 'u' (update) command here...
 			
