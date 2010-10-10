@@ -26,7 +26,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		xCODE	'`',CLIT,_CLIT ; back-quote or tock
 ;		PUSH	Rtos
 ;		MOV.B	@Rip+,Rtos
-		DPUSH	@Rip+
+		DPUSHb	@Rip+
 		ret
 
 ; EMIT ( c -- )	; Emit the character on top of stack
@@ -123,14 +123,19 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 ;
 ; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
 ;
+prettyPrintHex: mov #16,R8
+		jmp		pprint
+
 		xCODE	'p',prettyPrint,_prettyPrint
-		push.b	&base				; Save current base
+		mov		#10,R8				; Decimal mode for printing n
+pprint	push.b	&base				; Save current base
+		push	Rthd				; Save ch
+		push	R8					; Save base for printing n
 		mov.b	#10,&base			; Set to decimal
 		
 		mov		#'|',R8				; Initial vertical bar
 		call	#TX_ByteCk			; (interpreted as comment character)
 		
-		push	Rthd				; Save ch
 		push	Rsec				; Save n
 		push	Rtos				; Save m
 		
@@ -143,6 +148,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
+		pop.b	&base				; Get radix to print n with
 		call	#_emitNum
 		
 		pop		R8					; Restore ch
