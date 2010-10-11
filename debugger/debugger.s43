@@ -413,6 +413,27 @@ pauseL		dec		R12
 			jnz		pauseL
 			jmp		errorFlash
 
+;
+; The below is slightly different to the one in monitor.s43, so we don't share them.
+; This one uses the calibration value in RAM, and doesn't have to load them byte at a time
+measAndCal:
+			call		#measure				; Defined in ../common/measure.s43
+;
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
+; throwing away the lo word and shifting the high word one bit to the right.
+			mov.w		&ramVoltCalL,R9			; Get voltage calibration word
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+												; Note: calls assembler code that ends in ret
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+			ret									; Finished
+
 
 
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences

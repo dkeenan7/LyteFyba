@@ -29,15 +29,15 @@ measure:
 ; ADC10SHT_3 = 64 ADC10CLKs or _2 = 16 clocks 
 		mov			#SREF_1+ADC10SHT_3+USEMSC+REFON+ADC10ON,&ADC10CTL0
 		cmp			#LinkVChan<<12,R8			; ADC channel for link voltage?
-		jnz			noRefOut
-		bis.b		#1<<4,&ADC10AE0				;  If so, make P1.4 analogue, and
-		bis			#REFOUT,&ADC10CTL0			;  set REFOUT
-		jmp			p1_4_input
-noRefOut
-		mov.b		#(1<<7)+(1<<3),&ADC10AE0; Enable P1.7 and P1.3 as analogue inputs, i.e.
-											; make P1.4 digital
-		bis.b		#1<<4,&P1DIR			; Make P1.4 an output, so when testing with paralleled BMUs,
-p1_4_input									; we don't see > Vcc on P1.3 (LinkV)
+		_IF			_EQ
+			mov.b		#(1<<7)+(1<<4)+(1<<3),&ADC10AE0; Enable P1.7, P1.4, and P1.3 as analogue inputs, 
+													;	i.e. make P1.4 analogue
+			bis			#REFOUT,&ADC10CTL0			;  set REFOUT
+		_ELSE
+			mov.b		#(1<<7)+(1<<3),&ADC10AE0; Enable P1.7 and P1.3 as analogue inputs, i.e.
+												; make P1.4 digital
+			bis.b		#1<<4,&P1DIR			; Make P1.4 an output, so when testing with paralleled
+		_ENDIF									;	BMUs, we don't see > Vcc on P1.3 (LinkV)
 
 		cmp			#TempChan<<12,R8
 		_IF			_EQ
@@ -58,7 +58,7 @@ convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		add			&ADC10MEM,R8			; Add a result
 		dec			R9
 		jnz			addRes					; Continue converting
-		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
+		bic			#ADC10ON+ENC+ADC10SC+REFOUT,&ADC10CTL0	; Turn off the ADC
 		ret
 		
 #else				// Original code which read 16 samples to a buffer and added them at the end
@@ -67,7 +67,7 @@ convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 convert	bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 		jz			convert					; No, busy wait
-		bic			#ADC10ON+ENC+ADC10SC,&ADC10CTL0	; Turn off the ADC
+		bic			#ADC10ON+ENC+ADC10SC+REFOUT,&ADC10CTL0	; Turn off the ADC
 ;
 ; Sum the samples
 ;
