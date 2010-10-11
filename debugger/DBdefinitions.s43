@@ -46,18 +46,15 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 ; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
 ; i.e. a number with 1 integer bit and 15 fractional bits.
 ; So we shift the expected value 17 places left before the division.
-CalVoltDividend	SET	CALVOLTS<<17	
-				mov		#LWRD CalVoltDividend,R9	; Dividend lo word into R9
-				mov		#HWRD CalVoltDividend,R10	; Dividend hi word into R10
+				clr		R9							; 16 bits of zeroes
+				mov		Rsec,R10
+				rla		R10							; 17 zeroes; we have value << 17 in R10:R9
 				mov		R8,R11						; The divisor is the voltage reading in R8
 				rra		R11							; Add half the divisor to the dividend for rounding
 				add		R11,R9
 				adc		R10
 				call	#UMSlashMod					; Gives quotient in R9, remainder in R10
-				
-				mov.b	R9,&ramVoltCalL				; Save calibration value lo byte
-				swpb	R9
-				mov.b	R9,&ramVoltCalH				; Save calibration value hi byte
+				mov.w	R9,&ramVoltCalL				; Save calibration value
 			_ENDOF
 			
 			_OFb	#'t',Rtos			; 't': temperature
@@ -97,38 +94,40 @@ CalVoltDividend	SET	CALVOLTS<<17
 				mov		R10,R8
 				mov		#6760,R9
 				call	#UMStar
-				sub		#CALTEMP+273,R10
-;				rra		R10							; Temp offset now fits in a byte
+				sub		#273,R10
+				sub		Rsec,R10					; Subtract 273 and the calibration temperature
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
 			
 			_OFb		#'l',Rtos				; 'l': link voltage
-				// FIXME: TO BE COMPLETED
-				mov		#LinkVChan<<12,Rtos
-				call	#measure
-				sub		#2048,R8					; Zero volts for link voltage is a 2048 reading
-				cmp		#$FF81,R8					; -$7F
+				mov		#LinkVChan<<12,R8
+				call	#measAndCal
+				sub		#2048,R10					; Zero volts for link voltage is a 2048 reading
+				sub		Rsec,R10					; Subtract required reading (usually 0)
+				cmp		#$FF81,R10					; -$7F
 				jl		nonCal						; If <s -$7F, use the $80 non-calibrated value
-				cmp		#$80,R8
+				cmp		#$80,R10
 				jl		realCal						; If >s -$7F and <s $80, use as real calibration value
-nonCal			mov		#$80,R8
+nonCal			mov		#$80,R10
 realCal
-				mov.b	R8,&ramLinkCal				; Save the link calibration value
+				mov.b	R10,&ramLinkCal				; Save the link calibration value
 			_ENDOF
 ;
 ; Default case
-				mov		#2,rERR					; Unknown calibration type character
-				jmp		errorFlash
+				jmp		emitQmark					; Unknown calibration type character
 
 			_ENDCASE
 
-			jmp		_readCalValue			; Display the value just calibrated and return
-
+			;jmp		_readCalValue			; Display the value just calibrated and return
+												;	(by falling through)
+			;
+			; Keep 'c' command (above) and 'r' command (below) together
+			; That is, don't insert a new command here
+			;
 ;
 ; Read calibration value (ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue
-			// FIXME: TO BE COMPLETED
 			_CASE
 			_OFb		#'v',Rtos				; 'v': cell Voltage
 				mov			#4,Rtos					; 4 digits
@@ -160,12 +159,12 @@ realCal
 				mov.b		&ramID,Rsec
 				mov.b		#' ',Rthd
 			_ENDOF
-			mov		#'?',Rtos
+emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 			call	#_EMIT
 			mov		#$0D,Rtos				; Carriage return
 			jmp		_EMIT
 			_ENDCASE
-			br		#prettyPrintHex			; Print and return
+			jmp 	prettyPrintHex			; Print and return
 
 ; Update info-flash ( -- )
 			xCODE	'u',updateInfoFlash,_updateInfoFlash
