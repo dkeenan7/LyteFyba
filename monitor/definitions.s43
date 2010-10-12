@@ -6,17 +6,10 @@
 
 ; EMIT ( c -- )	; Emit the character on top of stack
 
-; changeSign ( n -- -n )
-		xCODE	'~',changeSign,_changeSign
-		inv.b	Rtos
-		inc.b	Rtos
-		ret
-		
 ; autonomous mode Badness sending ( n -- )
 		xCODE	'b',autoBad,_autoBad
 		allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 		mov.b	Rtos,&bSendBad
-;		pop		Rtos
 ;		DROP
 		ret
 		
@@ -26,103 +19,6 @@
 		ret
 		
 		
-;
-; Low level voltage measurement (channel -- measurement)
-; Channel has channel number shifted left 12 bits (e.g. $7000 for cell voltage)
-; Channel 7 is currently cell voltage; 10 is temperature sensor
-; Measurement is in millivolts (0 to 4095 mV)
-;
-		xCODE		'a',llVolt,_llVolt
-		mov			Rtos,R8
-		call		#measAndCal			; Measure and use calibration
-		mov			R10,Rtos
-		ret
-		
-;
-; cellVolt ( -- )
-; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
-;
-		xCODE		'v',cellVolt,_cellVolt
-		mov			#CellVChan<<12,Rtos	; ADC channel for cell voltage divider
-		call		#_llVolt
-
-		mov			#'V',Rthd			; Units are volts
-		mov			Rtos,Rsec			; Result
-		mov			#4,Rtos				; Print 4 digits
-		jmp			_prettyPrint		; Tail-call pretty-print and return
-
-;
-; Cell temperature measurement ( -- )
-; Measurement is in degrees C
-;
-		xCODE		't',cellTemp,_cellTemp
-		mov			#TempChan<<12,Rtos	; ADC channel for temperature sensor
-		call		#_llVolt
-;
-; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
-; But the measurement M is 4096* V/1.5 = 2731*V.
-; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
-; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
-
-		mov			Rtos,R9			; Don't pop; replace with number of digits to print
-		mov			#6760,R8
-		call		#UMStar
-		; Most significant half is in R10
-		; Temperature offset is now offset by 273
-		sub			#273,R10
-		mov.b		&TempCal,R8		; Temp offset calibration
-		sxt			R8				; Sign extend
-		sub			R8,R10
-		mov			#'C',Rthd			; Don't use degree symbol (0xF8, Terminal font only);
-										;	it's treated as a badness
-		mov			R10,Rsec
-		mov			#3,Rtos			; 3 digits
-		jmp			_prettyPrint	; Tail-call pretty-print and return
-
-
-;
-; Link voltage measurement ( -- )
-; Measurement is in mV
-; Circuit has 2:1 voltage divider with Vref at the bottom.
-; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
-; Reading = 2048 + (Vin/2)(4096/1.5)
-; R = 2048 + Vin * 1365.3 (Vin in volts)
-; R = 2048 + Vin * 1.3653 (Vin in mV)
-; Vin = (R - 2048)/1.3653 mV
-; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
-
-		xCODE		'l',linkVolt,_linkVolt
-		mov.b		&LinkCal,R8		; Link offset calibration
-		cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
-		_IF			_EQ				; If link calibration value is $80
-			mov		#26000,R10			; then use special value that will print as ^000
-		_ELSE
-			mov			#LinkVChan<<12,Rtos	; Shifted ADC channel for link voltage divider
-			call		#_llVolt
-			sub			#2048,Rtos
-			mov.b		&LinkCal,R8		; Link offset calibration
-			sxt			R8				; Sign extend
-			sub			R8,Rtos
-			_IF			_NN
-				mov			Rtos,R8
-				mov			#48001,R9
-				call		#UMStar
-				; Most significant half is in R10
-			_ELSE
-				inv			Rtos
-				inc			Rtos			; Negate
-				mov			Rtos,R8
-				mov			#48001,R9
-				call		#UMStar
-				inv			R10				; Only interested in top half
-				inc			R10				; Negate back
-			_ENDIF
-		_ENDIF
-		mov			#'m',Rthd			; Units are millivolts
-		mov			R10,Rsec			; Result
-		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
-		jmp			_prettyPrint		; Tail-call pretty-print and return
-
 #if 0
 ; Link voltage offset Calibration (--)
 ; Assumes zero link voltage due to zero link current
