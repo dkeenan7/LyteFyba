@@ -381,6 +381,50 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 #include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TX_Cksum
 #include "../common/measure.s43"			// ADC Measurement
 #include "../common/math.s43"				// Multiply and divide
+#include "../common/comMacros.h"			// Macros for obscure instruction sequences
+#include "../common/BytecodeInterpreter2.s43"
+
+;
+; The below is slightly different to the one in monitor.s43, so we don't share them.
+; This one uses the calibration value in RAM, and doesn't have to load them byte at a time
+measAndCal:
+			call		#measure				; Defined in ../common/measure.s43
+;
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
+; throwing away the lo word and shifting the high word one bit to the right.
+			mov.w		&ramVoltCalL,R9			; Get voltage calibration word
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+												; Note: calls assembler code that ends in ret
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+			ret									; Finished
+
+
+
+;
+; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not
+compareImage:
+			clr		R12
+cmpLoop		cmp		$1000(R12),for1000(R12)
+			jnz		justRet
+			incd	R12
+			cmp		#256,R12
+			jnz		cmpLoop
+justRet		ret
+
+
+; ----------------------------------------------------------------------------
+; The bootstrap loader (BSL)
+;
+; This will be relocated to info-flash which starts at $1000.
+#include "../common/bsl.s43"
+
 
 ; This error processing code should be near the middle of the image
 errorFlash:	mov		rERR,R11
@@ -413,97 +457,15 @@ pauseL		dec		R12
 			jnz		pauseL
 			jmp		errorFlash
 
-;
-; The below is slightly different to the one in monitor.s43, so we don't share them.
-; This one uses the calibration value in RAM, and doesn't have to load them byte at a time
-measAndCal:
-			call		#measure				; Defined in ../common/measure.s43
-;
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts.
-; That means we have to shift the product 17 bits to the right, which is equivalent to
-; throwing away the lo word and shifting the high word one bit to the right.
-			mov.w		&ramVoltCalL,R9			; Get voltage calibration word
-												; Multiplier is sum-of-samples, already in R8
-			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
-												; Note: calls assembler code that ends in ret
-			inc			R10						; For correct rounding
-			rra			R10						; Shift product hi word right one bit
-			ret									; Finished
-
-
-
-#include "../common/comMacros.h"			// Macros for obscure instruction sequences
-#include "../common/BytecodeInterpreter2.s43"
-#include "DBdefinitions.s43"				// Bytecode definitions
-
-;
-; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not
-compareImage:
-			clr		R12
-cmpLoop		cmp		$1000(R12),for1000(R12)
-			jnz		justRet
-			incd	R12
-			cmp		#256,R12
-			jnz		cmpLoop
-justRet		ret
 
 
 ; ----------------------------------------------------------------------------
-; The bootstrap loader (BSL)
-;
-; This will be relocated to info-flash which starts at $1000.
-#include "../common/bsl.s43"
-
+; Bytecode definitions
+#include "DBdefinitions.s43"
 
 ; The end of the bootstrap loader (BSL)
 ; -----------------------------------------------------------------------------
 
-
-; Short test program for processor Frequency Derivation. Handy when we lose the frequency calibration
-; values.
-//; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
-//			ORG		$FF00					; FIXME: TEMPORARY			
-			mov		#$280,SP
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
-
-			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
-			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
-#if	FD4MHz
-			mov.b	&info4MHzCalB,&BCSCTL1	; Set for 4 MHz using data layout version 5
-			mov.b	&info4MHzCalD,&DCOCTL
-#else
-			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-#endif
-
-			call	#flash20
-
-;
-; Fastest possible toggle: 7 cycles, or 1000/14 = 71.4 kHz @ 1 MHz, or 2000/14 = 142.9 kHz @ 2 MHz
-; or 4000/14 = 285.7 kHz @ 4 MHz
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
-fastFlash
-			xor.b	#LED+TXDp+TXDm,&P1OUT	; Toggle the LED and both transmit outputs at the same time
-											; This won't upset the next BMU, if in-situ, and the
-											; frequency can be tested from above the board
-;			mov		#30000,R12				; Longer delay (slower flash)
-;delay		dec		R12
-;			jnz		delay
-			jmp		fastFlash
-
-flash20		mov		#20,R11
-first		xor.b	#LED,&P1OUT
-			mov		#20000,R12				; Longer delay (slow flash)
-delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
-			dec		R12						; 7 cycle loop
-			jnz		delay1
-			dec		R11
-			jnz		first
-			ret
 
 freespace		EQU		_OPCODETBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
