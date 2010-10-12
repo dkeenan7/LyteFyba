@@ -166,6 +166,44 @@ emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 			_ENDCASE
 			jmp 	prettyPrintHex			; Print and return
 
+
+;
+; Write calibration value (n ch --- )
+; Calibration type (e.g. 'v' for cell Voltage) in ch; n has value to write
+			xCODE	'w',writeCalValue,_writeCalValue
+			_CASE
+			_OFb		#'v',Rtos				; 'v': cell Voltage
+				mov.w		Rsec,&ramVoltCalL		; Set the cal value
+			_ENDOF
+			_OFb		#'t',Rtos				; 't': link voltage
+				mov.b		Rsec,&ramTempCal
+			_ENDOF
+			_OFb		#'l',Rtos				; 'l': link voltage
+				mov.b		Rsec,&ramLinkCal
+			_ENDOF
+			_OFb		#'f',Rtos				; 'f': 4 MHz cal
+				mov.w		Rsec,&ram4MHzCalD
+				; Also set the CPU clock, if appropriate
+#if MClock4
+				mov.b	&ram4MHzCalB,&BCSCTL1
+				mov.b	Rsec,&DCOCTL
+#endif
+			_ENDOF
+			_OFb		#'o',Rtos				; 'o': 1 MHz cal
+				mov.w		Rsec,&ram1MHzCalD
+#if !MClock4
+				mov.b	&ram1MHzCalB,&BCSCTL1
+				mov.b	Rsec,&DCOCTL
+#endif
+			_ENDOF
+			_OFb		#'i',Rtos				; 'i': ID
+				mov.b		Rsec,&ramID
+			_ENDOF
+			jmp		emitQmark
+			_ENDCASE
+			ret
+
+
 ; Update info-flash ( -- )
 			xCODE	'u',updateInfoFlash,_updateInfoFlash
 ; Prepare to flash-program
@@ -236,7 +274,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			br		#$1000					; Start the new BSL
 
 failCompare mov		#3,rERR
-			br		#errorFlash
+			jmp		errorFlash
 
 #if 0
 ;-------------------------------------------------------------------------------
@@ -284,3 +322,51 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			ret
 #endif
 
+;
+; f and o commands ( -- )
+; These output a fixed frequency to the LED and two outputs (in phase, so it doesn't send the
+; downstream BMU crazy) for 5 seconds
+; NOTE: this command can only be used (in conjunction with `fw or `ow) to make small adjustments to
+;	CPU speed, since communications will be affected!
+
+			xCODE	'o',oneMhzBurst,_oneMhzBurst
+#if			MClock4
+			mov.b	&ram1MHzCalB,&BCSCTL1
+			mov.b	&ram1MHzCalD,&DCOCTL
+#endif
+			mov		#28/4,R11
+			call	#doBurst
+#if			MClock4
+			mov.b	&ram4MHzCalB,&BCSCTL1
+			mov.b	&ram4MHzCalD,&DCOCTL
+#endif
+			ret
+
+			xCODE	'f',fourMhzBurst,_fourMhzBurst
+#if			!MClock4
+			mov.b	&ram4MHzCalB,&BCSCTL1
+			mov.b	&ram4MHzCalD,&DCOCTL
+#endif
+			mov		#28,R11
+			call	#doBurst
+#if			!MClock4
+			mov.b	&ram1MHzCalB,&BCSCTL1
+			mov.b	&ram1MHzCalD,&DCOCTL
+#endif
+			ret
+
+;
+; Toggle LED, TXDm, and TXDp with an 11 cycle loop, or 4000/2/11 = 181.8 kHz (@ 4 MHz)
+; or 1000/2/11 = 45.45 kHz (@ 1 MHz)
+; or 2000/2/11 = 90.9  kHz (@ 2 MHz)
+
+doBurst		clr		R10
+			clr.b	&P1OUT					; LED off, transmit outputs at same low level
+burstLp		xor.b	#LED+TXDp+TXDm,&P1OUT	; (5) Toggle all 3 bits
+			dec		R10						; (1)
+			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
+			dec		R11						;	(alt1 1)
+			jnz		burstLp					;	(alt1 2)
+			mov.b	#TXDp,&P1OUT			; Restore TXDp
+			ret
+jBurstLp	br		#burstLp				;	(alt2 3)
