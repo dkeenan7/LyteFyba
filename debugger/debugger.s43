@@ -143,17 +143,17 @@ infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
 
 ; The LOCKA bit in FCTL3 was made a *toggle*, for backwards compatibility.
 ; Use these macros to safely clear and set it.
-CLRLOCKA	macro
+CLRLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
 			JZ		$+2+6				; Already unlocked?
 			MOV		#FWKEY+LOCKA,&FCTL3 ; No, unlock
-			endm
+			ENDM
 
-SETLOCKA	macro
+SETLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
 			JNZ		$+2+6				; Already locked?
 			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
-			endm
+			ENDM
 
 
 			ORG		$200			; Start of RAM
@@ -312,13 +312,22 @@ currVersBSL
 
 ;
 ; Start of the actual debugger / BSL-writer2, when not started from the BSL
-; This initialises, then runs a ReadByte loop
+; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
 main:										; For debugger
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash and establish a BSL
 			
+DELAY_IF_NEEDED MACRO
+#if			MClock4
+			_DO		#1390,R11			; Delay for approx ...
+#else
+			_DO		#1390*4,R11
+#endif
+			_LOOP	R11					;	... 1.04 ms
+			ENDM						; Allows downstream BMU to echo a byte
+
 
 ; Some definitions so the common code will work
 #define ID	infoID
@@ -327,8 +336,7 @@ TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
 TX_Byte		clr		R11					; Needed for BSL's WriteByte
 			call	#WriteByte
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear watchdog timer
-			_DO		#1350,R11			; Delay for approx
-			_LOOP	R11					;	1.04 ms
+			DELAY_IF_NEEDED
 			ret
 
 
