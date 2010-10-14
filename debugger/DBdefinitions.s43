@@ -222,9 +222,6 @@ emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
-;
-;	FIXME: NOT FINISHED!
-;
 
 ; Erase info flash including segment A.
 startErase
@@ -240,13 +237,23 @@ eraseInfo	MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			rra		@R12					; Dummy write: erase segment A
 
 			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
-			clr		R12						; $1000 is start of info flash
-			mov		#for1000,R9				; Start of code to write there
-pifLoop		mov.w	@R9+,$1000(R12)			; Program word
+			clr		R12						; Index register
+pifLoop1	mov.w	for1000(R12),$1000(R12)	; Program word
 			incd	R12
-			cmp		#256,R12				; Test index
-			jnz		pifLoop					; Repeat until done
-			
+			cmp		#mainID-for1000,R12		; Check for start of calibration data
+			jnz		pifLoop1				; Repeat until done this part
+
+; In the source operand of the move instruction below, R12 is larger by $F2 (mainID-for1000) than we
+; want, hence the subtraction
+pifLoop2	mov.w	ramID-(mainID-for1000)(R12),$1000(R12)
+			incd	R12
+			cmp		#mainPWtable-for1000,R12	; Check for end of calibration data
+			jnz		pifLoop2
+
+; Now move the last 4 bytes. It's the same #bytes to do two moves, but this looks more consistent
+pifLoop3	mov.w	for1000(R12),$1000(R12)
+			incd.b	R12
+			jnz		pifLoop2				; Loop till the end of info flash (8-bit index wraps to 0)
 
 			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
 			MOV		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCKs
@@ -257,14 +264,11 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			call	#compareImage			; Compare the for1000 image with what's at 1000
 			jnz		failCompare
 			
-			tst		rERR
-			jnz		errorFlash
 			;
 			; Compares successfully.
 			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 
 			bic.b	#WDTIFG,&IFG1			; Clear the watchdog timer interrupt flag
-			mov		#$55AA,R15				; Set R15 (= Rstate) to pattern to prevent infinite loops
 			; FIXME: DO WE WANT THIS?
 			br		#$1000					; Start the new BSL
 
