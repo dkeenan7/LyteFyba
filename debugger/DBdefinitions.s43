@@ -253,7 +253,7 @@ pifLoop2	mov.w	ramID-(mainID-for1000)(R12),$1000(R12)
 ; Now move the last 4 bytes. It's the same #bytes to do two moves, but this looks more consistent
 pifLoop3	mov.w	for1000(R12),$1000(R12)
 			incd.b	R12
-			jnz		pifLoop2				; Loop till the end of info flash (8-bit index wraps to 0)
+			jnz		pifLoop3				; Loop till the end of info flash (8-bit index wraps to 0)
 
 			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
 			MOV		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCKs

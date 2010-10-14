@@ -226,11 +226,17 @@ noWaitID
 ; present, so a simple ReadByte loop is used that doesn't check for password bytes.
 ;
 initialise:
+			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
+			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
+			; analogue input (trust me, you get meaningless conversions)
+			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
+
 #if MClock4
-			cmp.b	#4,&infoDataVers
-			jeq		unknownVersBSL					; Can't handle version 4 data layout; use BSLwriter
+			cmp.b	#DATAVERS,&infoDataVers
+			jnc		unknownVersBSL					; Can't handle version 4 data layout; use BSLwriter
 #if 0			// It turns out, I guess by design, that info4MHzCALB/D and $10F7/6 are the same addr!
-			_IF			_L							; If < 4, assume a new chip (e.g. has $86 there)
+			_IF			_L							; If signed < 4, assume a new chip (e.g. has $86)
 				mov.b	&$10F7,&BCSCTL1					; 4 MHz calibration
 				mov.b	&$10F6,&DCOCTL					;	in a new chip (undocumented)
 			_ELSE
@@ -242,7 +248,7 @@ initialise:
 			_ENDIF
 #endif
 #else										; Else frequency is 1 MHz
-			cmp.b	#4,&infoDataVers
+			cmp.b	#DATAVERS,&infoDataVers
 			_IF			_L
 				mov.b	&CALBC1_1MHZ,&BSCTL1
 				mov.b	&CALDC0_1MHZ,&DCOCTL
@@ -252,13 +258,6 @@ initialise:
 			_ENDIF
 #endif
 
-#if 0		// This should be set up by the BSL if present, and does not matter if it is not present
-			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
-			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
-			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
-			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
-#endif
 			clr		rERR					; Clear error register
 
 ;
@@ -317,7 +316,7 @@ currVersBSL
 ;
 main:										; For debugger
 JTAGstart:	mov		#$280,SP
-			call	initialise				; Do most of the initialisation
+			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash and establish a BSL
 			
 
@@ -376,11 +375,11 @@ cmpLoop2	cmp		$1000(R12),ramID-(mainID-for1000)(R12)
 			jnz		justRet
 			incd	R12
 			cmp		#mainPWtable-for1000,R12
-			jnz		cmpLoop1
+			jnz		cmpLoop2
 cmpLoop3	cmp		$1000(R12),for1000(R12)
 			jnz		justRet
 			incd.b	R12
-			jnz		cmpLoop1					; Branch if 8-bit increment has not overflowed to 0
+			jnz		cmpLoop3					; Branch if 8-bit increment has not overflowed to 0
 
 justRet		ret
 
