@@ -201,7 +201,7 @@ ACCEPT
 					_ENDIF
 			_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
 			_ENDIF					; Endif checksumming
-					MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with an EXIT bytecode
+					MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with EXIT bytecode
 					tst.b	&dontInterpret
 					_IF		_Z
 						MOV		#TIB,Rip		; Interpret the packet as bytecode

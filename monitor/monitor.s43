@@ -526,6 +526,10 @@ m_alarm:
 			ret
 
 
+DELAY_IF_NEEDED MACRO		
+			; No delay needed
+			ENDM
+
 #include "serialio.s43"				// Comms routines
 #include "../common/comMisc.s43"	// Miscellaneous common functions
 #include "../common/measure.s43"	// Voltage measurement functions

@@ -139,6 +139,7 @@ pprint	push.b	&base				; Save current base
 		push	R8					; Save base for printing n
 		mov.b	#10,&base			; Set to decimal
 		
+		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#'|',R8				; Initial vertical bar
 		call	#TX_ByteCk			; (interpreted as comment character)
 		
