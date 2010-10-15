@@ -129,15 +129,9 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 ;
 ; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
 ;
-prettyPrintHex: mov #16,R8
-		jmp		pprint
-
 		xCODE	'p',prettyPrint,_prettyPrint
-		mov		#10,R8				; Decimal mode for printing n
-pprint	push.b	&base				; Save current base
 		push	Rthd				; Save ch
-		push	R8					; Save base for printing n
-		mov.b	#10,&base			; Set to decimal
+		push.b	&base				; Save current base
 		
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#'|',R8				; Initial vertical bar
@@ -146,16 +140,17 @@ pprint	push.b	&base				; Save current base
 		push	Rsec				; Save n
 		push	Rtos				; Save m
 		
+		mov.b	#10,&base			; Set to decimal
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
-		call	#_emitNum
+		call	#_emitNum			; Emit the ID in decimal
 		
 		mov		#':',R8				; Colon separator
 		call	#TX_ByteCk
 		
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
-		pop.b	&base				; Get radix to print n with
+		pop.b	&base				; Restore radix to print n with
 		call	#_emitNum
 		
 		pop		R8					; Restore ch
@@ -169,7 +164,6 @@ pprint	push.b	&base				; Save current base
 		call	#waitTxCmpl			; Wait for transmit complete
 		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
 									; Identifies the BMU that sent a response
-		pop.b	&base				; Restore previous base
 		ret
 		
 
