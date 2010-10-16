@@ -144,8 +144,8 @@ DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
 		CMP.B	#'$',Rw
 		_IF		_EQ			; If it's a dollar sign
-			bis		#1<<14,SR	; Set the hex flag
-			jmp		NotDigit
+			mov.b	#$7F,Rw		; substitute <DEL> for it so it has an opcode table entry
+			jmp		_RUN
 		_ENDIF
 		SUB.B	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		JN		NotDigit	; Ignore undefined bytecodes below '0'
