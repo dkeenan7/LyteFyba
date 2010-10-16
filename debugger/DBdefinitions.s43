@@ -290,6 +290,21 @@ failCompare mov		#3,rERR
 			xCODE	'z',storeByte,_storeByte
 			mov.b	Rsec,0(Rtos)
 			ret
+;
+; Turn on or off bypass resistors (bool -- )
+;
+		xCODE	'y',bypass,_bypass
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#BYPASS,&P1OUT ; Move only the #BYPASS bit from Rtos to &P1OUT. Trashes Rtos.
+;		pop		Rtos				; Remove operand
+		ret
+
+;
+; Internal command
+;
+		xCODE	$7F,dollarHex,_dollarHex	; $ gets converted to <DEL> for starting hex number input
+		bis		#1<<14,SR					; Set the hex flag
+		ret
 
 
 #if 0		// These commands are deemed pointess, since changing the CPU frequency will almost

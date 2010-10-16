@@ -78,20 +78,10 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		ret
 
 ;
-; Turn on or off bypass resistors (bool -- )
-;
-		xCODE	'y',bypass,_bypass
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#BYPASS,&P1OUT ; Move only the #BYPASS bit from Rtos to &P1OUT. Trashes Rtos.
-;		pop		Rtos				; Remove operand
-		ret
-
-;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
 		
 		xCODE	'n',emitNum,_emitNum
-		mov		Rtos,R12			; Count to R12
 		bit.b	#2,&base			; Distinguish decimal from hex (the only bases allowed)
 		_IF		_NZ					; If decimal, treat as a signed number
 			tst		Rsec
@@ -102,9 +92,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 				inc		Rsec
 			_ENDIF						; Endif negative
 		_ELSE						; Else hexadecimal
+			dec		Rtos				; Use one less digit
 			mov.b	#'$',R8				; Emit dollar sign
 			call	#TX_ByteCk
 		_ENDIF						; End hexadecimal
+		mov		Rtos,R12			; Count to R12
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
 		mov.b	&base,R8			; Divisor in R8 is number base
 		dec		R12					; Count := Count-1
