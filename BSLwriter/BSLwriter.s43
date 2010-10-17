@@ -207,7 +207,7 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 ; a new interpreter or BSL-writer.
 dummyInterpretByte:
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
-			jeq		checkNull				; Yes, don't echo the byte, check if it's a null
+			jeq		anInit					; Yes, don't echo the byte
 #if RESETIDS
 			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
 			jnz		noWaitID				; If not, echo as usual
@@ -216,10 +216,7 @@ dummyInterpretByte:
 noWaitID
 #endif
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-			
-checkNull	tst.b	R8						; Is this a null, meaning initialise?
-			jz		anInit					; Branch if yes
-			bic.b	#LED,&P1OUT				; No, turn off the error LED to show successful download
+			bic.b	#LED,&P1OUT				; Turn off the error LED
 			ret								; Return to the BSL
 
 anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"?
