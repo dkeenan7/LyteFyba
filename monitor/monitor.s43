@@ -535,7 +535,7 @@ DELAY_IF_NEEDED MACRO
 #include "../common/measure.s43"	// Voltage measurement functions
 #include "../common/BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No defs in bytecode
 #include "../common/math.s43"		// Multiply and divide routines
-#include "definitions.s43"			// Bytecode definitions
+#include "monDefinitions.s43"		// Bytecode definitions
 
 
 
