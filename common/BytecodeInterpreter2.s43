@@ -11,7 +11,6 @@
 ; Bit 14 = hex literal (otherwise decimal)
 
 ; Macros for 3-register interpreter data stack
-; Not used yet
 ; Not sure which choice of registers is best
 #if 1
 	#define 	Rtos	R7		// Top element of data stack

@@ -4,8 +4,6 @@
 
 #include "../common/comDefinitions.s43"				; Include the definitions common to monitor and BSLW
 
-; EMIT ( c -- )	; Emit the character on top of stack
-
 ; autonomous mode Badness sending ( n -- )
 		xCODE	'b',autoBad,_autoBad
 		allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos

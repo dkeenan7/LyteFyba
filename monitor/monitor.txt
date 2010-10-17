@@ -1,27 +1,31 @@
-List of single-character commands implemented in either the cell-monitor or the debugger or both.
+List of single-character commands implemented in either the monitor or the debugger or both.
 
 In ASCII order:
 
 M D
-o B
-n G Name or description
+o e
+n b
+i u
+t g Name or description
 --------------------------------------------
+<ESC> ESCape from eXclusive mode
+$ $ dollarHex (set number input mode to hex for next literal)
 ` ` characterLiteral
 a a ADCValue (r(A)wVoltage)
 b   BadnessAutonomy
   c Calibrate
 d d Decimal output
 e e ErrorLED
-
-  g Get byte (fetch)
+f f
+  g Get byte (peek)
 h h Hex output
-  i set(I)D
-
+  i set(I)Ds
+j j
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
-
+o o
 p p PrettyPrint
 q   QueryWorstBadness
   r ReadCalValue
@@ -32,23 +36,26 @@ v v cell(V)oltage
   w WriteCalValue
 x x e(X)clusive     (singleBMU interaction mode)
   y b(Y)pass (Yellow)
-  z Ztore byte (store)
+  z Ztore byte (poke)
 {   resetWorstBadness :-{
 | | exit or comment
 } }
 ~ ~ change-sign (postfix negate)
-<DEL> (Debugger only: internal hex set)
-<ESC> ESCape from eXclusive mode
+<DEL> (not to be typed. '$' is converted to <DEL> internally)
 
 In logical groupings:
 
 M D
-o B
-n G Name or description
+o e
+n b
+i u
+t g Name or description
 --------------------------------------------
 ` ` characterLiteral
 m m e(M)itCharacter
 
+$ $ dollarHex (set number input mode to hex for next literal)
+<DEL> (not to be typed. '$' is converted to <DEL> internally)
 d d Decimal output
 h h Hex output
 ~ ~ change-sign (postfix negate)
@@ -63,10 +70,9 @@ v v cell(V)oltage
 l l LinkVoltage
 t t Temperature
 
-  i set(I)D
+  i set(I)Ds
 s s Select
 x x e(X)clusive     (singleBMU interaction mode)
-<DEL> (Debugger only: internal set hex)
 <ESC> ESCape from eXclusive mode
 | | exit or comment
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
@@ -75,18 +81,21 @@ b   BadnessAutonomy was a(U)tonomous
 q   QueryWorstBadness
 {   resetWorstBadness :-{
 
-  g Get byte  (fetch)
-  z Ztore byte (store)
+  g Get byte   (peek)
+  z Ztore byte (poke)
 
   r ReadCalValue
   w WriteCalValue
   c Calibrate
   u UpdateInfoFlash
 
-} }
+f f (unused but related to "Frequency" below)
+j j (unused)
+o o (unused but related to "OneMHz" below)
+} } (unused)
 
 In addition, the following character literals have the following meaning when used as an address
-parameter to a Read, Write or Calibrate command in the BSL-writer.
+parameter to a Read, Write or Calibrate command in the debugger.
 
 `v cell(V)oltage
 `l LinkVoltage

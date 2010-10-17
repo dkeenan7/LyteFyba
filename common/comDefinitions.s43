@@ -12,13 +12,13 @@
 
 		xCODE	'h',HEX,_HEX
 		mov.b	#16,&base
-_Space	ret					; When _Space is called, be a no-op (for separating literals)
+_Space	ret					; When _Space is called, be a no-op (for separating literal numbers)
 
 ; DECIMAL ( flag -- ) ; Set the number base to decimal
 
 		xCODE	'd',DECIMAL,_DECIMAL
 		mov.b	#10,&base
-		ret					; When _Space is called, be a no-op (for separating literals)
+		ret
 
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
 ; Treat the next bytecode as a literal character.
@@ -30,11 +30,19 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		ret
 
 ; changeSign ( n -- -n )
+;
 		xCODE	'~',changeSign,_changeSign
 		inv		Rtos
 		inc		Rtos
 		ret
 		
+; dollarHex ( -- )
+;
+		xCODE	$7F,dollarHex,_dollarHex	; $ gets converted to <DEL> for starting hex number input
+		bis		#1<<14,SR					; Set the hex flag
+		ret
+
+
 ; EMIT ( c -- )	; Emit the character on top of stack
 
 		xCODE	'm',EMIT,_EMIT
@@ -47,7 +55,6 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
 ;
-		; This is actually longer in bytecode
 		xCODE	's',Select,_Select
 		cmp.b	&ID,Rtos			; Correct ID?
 ;		pop		Rtos				; Pop the argument
@@ -58,6 +65,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literals)
 		ret
 
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
+;
 		xCODE	'x',exclusive,_exclusive
 		cmp.b	&ID,Rtos			; Correct ID?
 		_IF		_NE					; If not correct ID
