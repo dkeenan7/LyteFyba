@@ -191,7 +191,7 @@ emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 
 
 ;
-; setIds ( -- )
+; setIDs ( -- )
 ;
 			xCODE	'i',setIDs,_setIDs
 ; It just doesn't seem to work out to use the delay between BMUs to determine the correct ID, so
@@ -298,14 +298,6 @@ failCompare mov		#3,rERR
 		movBits_B	Rtos,#BYPASS,&P1OUT ; Move only the #BYPASS bit from Rtos to &P1OUT. Trashes Rtos.
 ;		pop		Rtos				; Remove operand
 		ret
-
-;
-; Internal command
-;
-		xCODE	$7F,dollarHex,_dollarHex	; $ gets converted to <DEL> for starting hex number input
-		bis		#1<<14,SR					; Set the hex flag
-		ret
-
 
 #if 0		// These commands are deemed pointess, since changing the CPU frequency will almost
 			// certainly render serial communications inoperative
