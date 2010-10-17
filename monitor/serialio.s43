@@ -44,7 +44,9 @@ MckPerSMck	EQU		1						; Number of main clocks per SMCK
 Mfreq		EQU		4000000					; Main clock in Hz
 MckPerSMck	EQU		2						; Number of main clocks per SMCK
 #endif
-SMckPerTAck	EQU		8						; Number of SMCK clocks per timer clock
+BadnessFreq	EQU		8						; Badness frequency in hertz (allowed values 4, 8, 16, 32)
+											; Only sent every fourth time if badness not increased
+SMckPerTAck	EQU		(Mfreq/MckPerSMck/BadnessFreq+(1<<15))/(1<<16) ; Number of SMCK clocks per timer clock
 MckPerTAck	EQU		MckPerSMck*SMckPerTAck	; Number of main clocks per timer clock
 TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
 Bitime		EQU		(TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods

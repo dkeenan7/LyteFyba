@@ -202,8 +202,8 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			mov.b		#DIVS_3, &BCSCTL2
 			; TASSEL_2 = SMCK clock source; ID_3 = divide SMCK by 8; MC_1 = up mode
 			; TACLR = clear clock count
-			; TAIE = Timer A Interrupt Enable, BUT NOTE that this just enables things we don't want, like
-			;	the timer overflow interrupt
+			; TAIE = Timer A Interrupt Enable, BUT NOTE that this just enables things
+			; we don't want, like the timer overflow interrupt
 			mov			#TASSEL_2 + ID_3 + MC_1 + TACLR, &TACTL
 			; CCIE = Capture/Compare Interrupt Enable
 			mov			#CCIE,&TACCTL0 ; Enable interrupts based on TACCR0
@@ -362,7 +362,7 @@ initCmd	db		INITIALCMD
 ; e.g. VOLTS TEMP SER-NO BYPASS etc.
 ;-------------------------------------------------------------------------------
 
-
+#if 0	// SetID is now a BSLwriter or debugger function
 ; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
 ;
 ; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour.
@@ -423,7 +423,7 @@ timout
 		jmp		doneId					; Finished
 
 doneId	next
-
+#endif
 
 ;
 ; cellVolt ( -- )
@@ -482,7 +482,7 @@ doneId	next
 ; Vin = (R - 2048)/1.3653 mV
 ; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
 
-		xColon		'n',linkVolt,_linkVolt
+		xColon		'l',linkVolt,_linkVolt
 		xLIT		'm'				; Units are millivolts
 		DB			Space
 		xLIT		LinkCal			; Link offset calibration
@@ -548,7 +548,7 @@ doneId	next
 ; Channel 7 is currently cell voltage; 10 is temperature sensor
 ; Measurement is in millivolts (0 to 4095 mV)
 ;
-		xCODE		'o',llVolt,_llVolt
+		xCODE		'a',llVolt,_llVolt
 		mov			Rtos,R8
 		call		#asm_llvolt				; Measure and use calibration
 		mov			R10,Rtos				; Result to TOS
@@ -714,7 +714,7 @@ oflo	PUSH    #-1
 ;
 ; emitDec  ( n count -- ) ; Emit an integer n as count decimal digits
 
-		xColon	'm',emitDec,_emitDec
+		xColon	'n',emitDec,_emitDec
 		db		ToR					; n on data stack, count on return stack
 		db		DUP
 		db		ZeroLess
@@ -759,7 +759,7 @@ oflo	PUSH    #-1
 ; Delay for n milliseconds (n --)
 ;
 		xCODE	'z',MS,_MS
-MSloop1	mov		#331,R8		; 1 ms delay, less a few overheads
+MSloop1	mov		#4*331,R8		; 1 ms delay, less a few overheads
 MSloop2	dec		R8
 		jnz		MSloop2
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL		; Clear and restart Watchdog Timer
@@ -769,7 +769,7 @@ MSloop2	dec		R8
 		next
 		
 		xCODE	'H'-64,MS1,_MS1		; 1.04 ms delay; commonly needed (--) Not from keyboard
-		mov		#345,R8
+		mov		#4*345,R8
 MS1loop2 dec	R8
 		jnz		MS1loop2
 		next
@@ -794,7 +794,7 @@ MS1loop2 dec	R8
 ; 'd' can be used for top, mid, or bottom balancing at various voltages
 ; Since 'd' relies on a value in RAM, most charging should use 'u' instead
 ;
-		xColon	'u',auton,_auton
+		xColon	'b',auton,_auton
 		xLIT	0
 		db		Space
 		; Fall through to 'd' command; 'u' is like "num_cells 0 d"
@@ -983,7 +983,7 @@ mulR10R9:		; Short assembler routine to multiply R10 by R9, result to R10:R9,
 ; Turn on or off the error LED (bool -- )
 ;
 #if	1
-		xColon	'l',errorLed,_errorLed
+		xColon	'e',errorLed,_errorLed
 		xLIT	LED
 		DB		Space
 		xLIT	P1OUT
@@ -991,7 +991,7 @@ mulR10R9:		; Short assembler routine to multiply R10 by R9, result to R10:R9,
 		DB		EXIT
 		
 #else
-		xCODE	'l',errorLed,_errorLed
+		xCODE	'e',errorLed,_errorLed
 		and		Rtos,Rtos		; Clears carry if was zero
 		subc	Rtos,Rtos		; -1 if was 0, 0 otherwise
 		inv		Rtos			; 0 if was 0, -1 otherwise
@@ -1058,7 +1058,7 @@ setAlarm bis.b	#TXDm,&P1OUT		; Set alarm!
 ; Link voltage offset caliBration (--)
 ; Assumes zero link voltage due to zero link current
 ;
-		xColon	'b',calLink,_calLink
+		xColon	'c',calLink,_calLink
 		xLIT	LinkVChan<<12
 		DB		llVolt
 		xLIT	2048				; Zero volts for link voltage is a 2048 reading
@@ -1106,13 +1106,14 @@ cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
 			
 
 ; Test of string-output-compiling macro xDotQuote (Forth ." )
-			xColon	'a',helloWorld,_helloWorld
+			xColon	'j',helloWorld,_helloWorld
 			xDotQuote	'Hi\r'
 			DB 		EXIT
 
 			EVEN
 int_ccr0	; Interrupt service routine for TACCR0
-			; Its jobs are to set the time for the next interrupt, do tick processing, and transmit the current badness.
+			; Its jobs are to set the time for the next interrupt, do tick processing,
+			; and transmit the current badness.
 			push	R8						; We trash R8
 			push	R9						; WriteByte trashes R9-R11
 			push	R10

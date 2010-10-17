@@ -1,4 +1,4 @@
-			COL		132			; Wide listings
+			COL		150			; Wide listings
 
 			LSTOUT-
 #include "msp430.h"
@@ -24,6 +24,8 @@ VoltCalL	EQU		$10F8		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$10F9		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
+MHz1CalD 	EQU		$10F4		; Frequency calibration
+MHz1CalB 	EQU		$10F5		;	for 1 MHz (NO LONGER USED)
 MHz4CalD	EQU		$10F6		; Uncompressed 4MHz calibration value for version 5 data layout
 MHz4CalB	EQU		$10F7		; Unompressed 4MHz calibration value for version 5 data layout
 #else	; Assume data layout version 4
@@ -37,6 +39,8 @@ VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
 VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
 TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
+MHz1CalB 	EQU		$1002		; Frequency calibration
+MHz1CalD 	EQU		$1008		;	for 1 MHz
 MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layout
 #endif
 
@@ -63,15 +67,13 @@ BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
 
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
 LED			EQU		1<<6			; LED on bit 6
-info1MHzCalB EQU	0x1002			; Frequency calibration
-info1MHzCalD EQU	0x1008			;	for 1 MHz (NO LONGER USED)
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
-NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
+NOBUF		EQU		1				; 1 for no ADC sample buffer; 0 for buffer
 
 ; Serialio definitions
 #define		TACCTLr		TACCTL1		// Receive using CCI1 (P1.2)
@@ -145,8 +147,8 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ;			MOV.B	&CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;			MOV.B	&CALDCO_1MHZ,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 #if Mfreq = 1000000
-			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
+			mov.b	&MHz1CalB,&BCSCTL1		; Set range for 0.54 to 1.06 MHz
+			mov.b	&MHz1CalD,&DCOCTL		; Set DCO step + modulation for 1.00 MHz
 #else										; Else frequency is 4MHz
 #if			DATAVERS5
 			mov.b	&MHz4CalB,&BCSCTL1		; Version 5: just copy
