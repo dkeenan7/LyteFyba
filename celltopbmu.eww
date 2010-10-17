@@ -5,6 +5,9 @@
     <path>$WS_DIR$\BSLwriter\BSLwriter.ewp</path>
   </project>
   <project>
+    <path>$WS_DIR$\interpreter\interpreter.ewp</path>
+  </project>
+  <project>
     <path>$WS_DIR$\monitor\monitor.ewp</path>
   </project>
   <project>

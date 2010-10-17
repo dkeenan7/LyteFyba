@@ -158,20 +158,20 @@ DEL   ?DOJump    Runtime word for start of ?DO...LOOP or ?DO...+LOOP
 
 BMU operations
 ------------------------------------------------------------------------------
-b     caliBrate link voltage; has to be done on cell top
+a     Low level voltage measurement (channel -- result)
+b     aUtonomous (masterless) operation; cell 0 sends ticK commands
+c     caliBrate link voltage; has to be done on cell top
 d     autonomous Discharge or custom bypass voltage
+e     Turn on/off error LED
 g     Turn alarm on/off (think ^g)
 h     Turn on/off hex mode (0 = decimal)
 i     Ident setup
 k     Regular check (tick) for badness
-l     Turn on/off error LED
-m     Emit n2 with n1 decimal places (n2 n1 --)
-n     liNk voltage
-o     Low level voltage measurement (channel -- result)
+l     Link voltage
+n     Emit n2 with n1 decimal places (n2 n1 --)
 p     Pretty print tos as a comment packet
 r     Reset badness timer
 t     Temperature measurement
-u     aUtonomous (masterless) operation; cell 0 sends ticK commands
 v     Cell voltage measurement
 ;w     Clear watchdog timer
 y     Turn bypass resistors on/off
@@ -280,29 +280,30 @@ Z      0=  NOT    Logical negation      ("N" rotated 90^ for "NOT")
 ^      XOR        Bitwise XOR
 _      NEGATE     Unary minus           (underscore)
 `      1-         Decrement             (grave or backquote)
-a      (temporarily) Hello World (test of string output)
-b      Link voltage offset caliBration
-c
+a      Low level voltage measurement (channel -- result)
+b      aUtonomous (masterless) operation; cell 0 sends ticK commands
+c      Link voltage offset caliBration
 d      autonomous Discharge or custom bypass voltage
 e
 f
 g      Turn alarm on/off (think ^g)
 h
 i      Ident setup
-j
+j      (temporarily) Hello World (test of string output)
 k      Regular check (tick) for badness
 l      Turn on/off error LED
 m      EMit n2 with n1 decimal places (n2 n1 --)
 n      liNk voltage
-o      Low level voltage measurement (channel -- result)
+o
 p      Pretty print tos as a comment packet
 q      is serial input Quiet?
 r      Reset badness timer
 s
 t      Temperature measurement
-u      aUtonomous (masterless) operation; cell 0 sends ticK commands
+u
 v      Cell Voltage measurement
 ;w      Clear Watchdog timer
+x
 y      Turn bypass resistors on/off
 z      Sleep n millisconds
 {      U<         Unsigned less-than comparison    (left curly brace)
@@ -315,6 +316,6 @@ z      Sleep n millisconds
 More info on specific Forth words can be found at:
 http://www.taygeta.com/forth/dpansf.htm
 
-All lowercase letters are available for use as application-specific bytecodes.
+All lowercase letters are application-specific bytecodes.
 
 -- Dave (Weber) Keenan
