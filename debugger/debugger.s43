@@ -1,84 +1,63 @@
+			COL		150				; Nice wide listings
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
-			COL		132				; Nice wide listings
-; This is a Debugger / Bootstrap-loader writer (BSL-writer version 2) for a MSP430F2012 microcontroller.
-; This version is interactive; there is still the original BSLwriter that requires reassembly to
-;	perform various actions
 ;
-; It has been developed by Mike Van Emmerik and Dave Keenan for their
+; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; This debugger should be the first program written to the 2kB of main-flash on the MSP430F2012 of a
-;	cell-top Battery Management Unit (BMU).
+; It is a debugger and bootstrap-loader writer for our cell-top Battery Monitoring Unit (BMU)
+; based on an MSP430F2012 microcontroller.
+; This version is interactive; there is still the original BSLwriter that requires reassembly
+; to perform various actions, but may be required if clock frequency calibration is lost.
+;
+; This debugger should be the first program written to the 2kB of main-flash.
 ; This must be done using a flash programmer connected to the chip's JTAG port.
 ; The debugger contains a copy of a bootstrap loader (BSL).
 ; It writes this BSL to the 256 bytes of info-flash, while preserving some of the
 ; digitally controlled oscillator (DCO) calibration bytes that are stored there
-; by the chip manufacturer.
-; It can also perform voltage and temperature calibrations
-; and store this calibration data in info-flash as well.
-; It then passes control to the BSL.
-
+; by the chip manufacturer. It can also perform voltage and temperature calibrations
+; and store this calibration data in info-flash.
+;
 ; The BSL consists of a software UART providing RS422-style serial communications,
-; and a password-recognising state-machine.
-; The state-machine normally passes incoming serial data to a command interpreter
-; in main-flash.
-; But when the password is recognised, the state-machine instead writes incoming serial data
-; to main-flash.
-; This allows it to overwrite the BSL-writer with the initial command interpreter, sent
-; via the serial input.
-; And because the BSL transmits all data received on its serial input, to its serial output,
-; a cascaded series of these MSP boards can all be updated simultaneously.
-; You only need to send a new version of the command interpreter to the first board
+; and a password-recognising state-machine. The state-machine normally passes incoming
+; serial data to a command interpreter in main-flash. But when the password is recognised,
+; the state-machine instead writes incoming serial data to main-flash.
+; This allows it to overwrite the BSL-writer with the normal command interpreter or monitor,
+; sent via the serial input. And because the BSL transmits all data received on its serial
+; input, to its serial output, a cascaded series of these MSP boards can all be updated
+; simultaneously. You only need to send a new version of the monitor to the first board
 ; in the chain.
 ;
-; But what if you want to update the BSL itself?
-; In that case, instead of sending a new interpreter, you send this debugger/BSL-writer2
-; carrying the new version of the BSL.
-; This time you send the debugger/BSL-writer2 via the serial input not the JTAG port.
+; But what if you want to update the BSL itself? In that case, instead of sending a new
+; monitor, you send this debugger carrying the new version of the BSL.
+; This time you send the debugger via the serial input not the JTAG port.
 ; That way you will update the BSLs of all the MSP boards in the chain simultaneously.
 ;
-; The existing BSL will dutifully load the BSL-writer into main flash,
+; The existing BSL will dutifully load the debugger into main flash,
 ; completely unaware that it has just loaded the instrument of its own demise.
-; When the old BSL calls the debugger/BSL-writer2, thinking it is initialising a new interpreter,
-; the BSL-writer2 will write the new BSL to info-flash and pass control to it.
-; Then the interpreter must be sent again, to replace the BSL-writer.
-; The BSL-writer2 still preserves the calibration data, which may now include
+; When the old BSL calls the debugger, thinking it is initialising a new monitor,
+; the debugger will write the new BSL to info-flash.
+; Then the monitor must be sent again, to replace the debugger.
+; The debugger still preserves the calibration data, which may now include
 ; voltage and temperature calibration data in addition to the DCO calibration data
 ; from the manufacturer.
 ;
 ; The BSL code is made to fit in the tiny 256 bytes of info-flash because
 ; this segment can be protected when the rest of the flash is erased,
 ; and all other flash segments are 512 bytes and contiguous with each other,
-; but not with info-flash.
+; but not with info-flash. For this reason, the BSL code is highly hand-optimised
+; for space and uses some tricks that may make it hard to follow and hard to modify.
 ;
-; For this reason, the BSL code is highly hand-optimised for space and
-; uses some tricks that may make it hard to follow and hard to modify.
-;
-; The following is true of this debugger/BSL-writer2, and the BSL itself
+; The following is true of this debugger, and the BSL:
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
-; The BSL serial input code no longer checks for false start bits or does majority voting on data bits.
+;   The serial input code does not check for false start bits or do majority voting on
+;   data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
 
 MClock4		EQU		1				; Non zero if MCLK is 4MHz
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
-CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
-									;	(all BMUs) in addition to BSL-programming
-CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
-									;	(NOTE: IDs must be set)
-									; CALIBRATE and CALONLYONE are mutually exclusive
-CALTHIS		EQU		4				; The cell with this ID is used when CALONLYONE is on
-CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
-CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
-DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
-RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
-FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
-FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
-FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency
-FREQCAL4	EQU		$8ABC			; Value to force 4 MHz frequency calibration to
-FD4MHz		EQU		1				; Use 4 MHz clock for $FD00 frequency check, otherwise use 1 MHz
 
 
 ; ADC channel numbers
@@ -86,7 +65,7 @@ CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$3				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
-NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
+NOBUF		EQU		1				; 1 for no ADC sample buffer; 0 for buffer
 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
 ; i.e. By adding up 4^n samples you get 2n more bits in the result,
@@ -352,7 +331,7 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 measAndCal:
 			call		#measure				; Defined in ../common/measure.s43
 ;
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
 ; is an unsigned 12.2 bit fixed-point number of millivolts.
 ; The calibration factor is an unsigned 1.15 bit fixed-point number.
@@ -361,7 +340,7 @@ measAndCal:
 ; throwing away the lo word and shifting the high word one bit to the right.
 			mov.w		&ramVoltCalL,R9			; Get voltage calibration word
 												; Multiplier is sum-of-samples, already in R8
-			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+			call		#UMStar					; Gives unsigned product in R10 (hi) and R9 (lo)
 												; Note: calls assembler code that ends in ret
 			inc			R10						; For correct rounding
 			rra			R10						; Shift product hi word right one bit
@@ -399,6 +378,7 @@ justRet		ret
 #include "../common/bsl.s43"
 
 
+; ----------------------------------------------------------------------------
 ; This error processing code should be near the middle of the image
 errorFlash:	mov		rERR,R11
 			add		R11,R11					; Double
@@ -436,9 +416,9 @@ pauseL		dec		R12
 ; Bytecode definitions
 #include "DBdefinitions.s43"
 
-; The end of the bootstrap loader (BSL)
-; -----------------------------------------------------------------------------
 
+; ----------------------------------------------------------------------------
+; End of bytecode definitions
 
 freespace		EQU		_OPCODETBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
