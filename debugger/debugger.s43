@@ -352,6 +352,7 @@ measAndCal:
 
 ;
 ; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not
+; Trashes R12
 compareImage:
 			clr		R12
 cmpLoop1	cmp		$1000(R12),for1000(R12)
@@ -385,8 +386,8 @@ justRet		ret
 errorFlash:	mov		rERR,R11
 			add		R11,R11					; Double
 #if MClock4
-				rla		R11
-				rla		R11						; And quadruple for 4 MHz
+			rla		R11
+			rla		R11						; And quadruple for 4 MHz
 #endif
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
 errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
@@ -394,17 +395,17 @@ delay		dec		R12
 			jnz		delay
 count		dec		R11
 #if	MClock4
-				bit		#3,R11
-				jnz		delay					; Extra delays for 4 MHz
-				tst		R11
+			bit		#3,R11
+			jnz		delay					; Extra delays for 4 MHz
+			tst		R11
 #endif
 			jnz		errFlashLp
 			;
 			; Pause between rErr flashes
 #if	MClock4
-pause			mov		#5*4,R11
+pause		mov		#5*4,R11
 #else
-pause			mov		#5,R11
+pause		mov		#5,R11
 #endif
 pauseL		dec		R12
 			jnz		pauseL
