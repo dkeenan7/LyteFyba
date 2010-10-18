@@ -208,7 +208,7 @@ initialise:
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+			mov.b	#LED+(1<<4)+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 
 #if MClock4
