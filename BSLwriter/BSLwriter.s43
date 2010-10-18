@@ -158,14 +158,16 @@ infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
 ; Use these macros to safely clear and set it.
 CLRLOCKA	macro
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			JZ		$+2+6				; Already unlocked?
-			MOV		#FWKEY+LOCKA,&FCTL3 ; No, unlock
+			_IF		_NZ					; Currently locked?
+				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, unlock
+			_ENDIF
 			endm
 
 SETLOCKA	macro
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			JNZ		$+2+6				; Already locked?
-			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
+			_IF		_Z					; Currently unlocked?
+				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, lock
+			_ENDIF
 			endm
 
 
