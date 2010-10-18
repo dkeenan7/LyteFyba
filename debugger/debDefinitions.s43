@@ -266,8 +266,6 @@ pifLoop3	mov.w	for1000(R12),$1000(R12)
 			
 			;
 			; Compares successfully.
-			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
-
 			bic.b	#WDTIFG,&IFG1			; Clear the watchdog timer interrupt flag
 			; FIXME: DO WE WANT THIS?
 			br		#$1000					; Start the new BSL
