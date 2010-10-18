@@ -146,11 +146,11 @@
         </option>
         <option>
           <name>PutcharBreakpointP7</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>GetcharBreakpointP7</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>derivativeP7</name>
