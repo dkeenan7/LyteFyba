@@ -10,6 +10,7 @@ t g Name or description
 --------------------------------------------
 <ESC> ESCape from eXclusive mode
 $ $ dollarHex (set number input mode to hex for next literal)
+' ' characterLiteral
 ` ` characterLiteral
 a a ADCValue (r(A)wVoltage)
 b   BadnessAutonomy
@@ -51,6 +52,7 @@ n b
 i u
 t g Name or description
 --------------------------------------------
+' ' characterLiteral
 ` ` characterLiteral
 m m e(M)itCharacter
 

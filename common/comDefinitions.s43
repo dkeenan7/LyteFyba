@@ -53,6 +53,12 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		ret
 
 ;
+; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
+;
+		xCODE	'x',eXclusive,_eXclusive
+		mov.b	#-1,&dontInterpret
+		; Fall through to _Select
+;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
 ;
 		xCODE	's',Select,_Select
@@ -61,19 +67,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ;		DROP						; Pop the argument
 		_IF		_NE					; If not correct ID
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
+		_ELSE						; Else
+			clr.b	&dontInterpret		; Needed to handle _eXclusive fall-through
 		_ENDIF						; Endif
 		ret
 
-; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
-;
-		xCODE	'x',exclusive,_exclusive
-		cmp.b	&ID,Rtos			; Correct ID?
-		_IF		_NE					; If not correct ID
-			mov.b	#-1,&dontInterpret
-			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
-		_ENDIF						; Endif
-		ret
-		
 ;
 ; Turn on or off the error LED (bool -- )
 ;
