@@ -204,7 +204,6 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
 			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
 
