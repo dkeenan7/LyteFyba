@@ -113,38 +113,33 @@ realCal
 			_OFb		#'v',Rtos				; 'v': cell Voltage
 				mov			#5,Rtos					; 5 digits
 				mov.w		&ramVoltCalL,Rsec		; Get the cal value
-				mov.b		#'V',Rthd				; Trailing char (V for Volts)
 			_ENDOF
 			_OFb		#'t',Rtos				; 't': link voltage
 				mov			#3,Rtos
 				mov.b		&ramTempCal,Rsec
-				mov.b		#'C',Rthd
 			_ENDOF
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov			#3,Rtos
 				mov.b		&ramLinkCal,Rsec
-				mov.b		#'m',Rthd
 			_ENDOF
 			_OFb		#'f',Rtos				; 'f': 4 MHz cal
 				mov			#5,Rtos
 				mov.w		&ram4MHzCalD,Rsec
-				mov.b		#'H',Rthd
 			_ENDOF
 			_OFb		#'o',Rtos				; 'o': 1 MHz cal
 				mov			#5,Rtos
 				mov.w		&ram1MHzCalD,Rsec
-				mov.b		#'m',Rthd
 			_ENDOF
 			_OFb		#'i',Rtos				; 'i': ID
 				mov			#3,Rtos
 				mov.b		&ramID,Rsec
-				mov.b		#' ',Rthd
 			_ENDOF
 emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 			call	#_EMIT
 			mov		#$0D,Rtos				; Carriage return
 			jmp		_EMIT
 			_ENDCASE
+			mov.b		#' ',Rthd			; Trailing char (space)
 			jmp 	_prettyPrint			; Print and return
 
 
