@@ -117,6 +117,14 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
 _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
+		_CASE
+			_OFb	#'$',Rw		; If it's a dollar sign
+				mov.b	#$7F,Rw		; substitute <DEL> for it so it has an opcode table entry
+			_ENDOF
+			_OFb	#'\'',Rw	; If it's a tick (single-quote)
+				mov.b	#'`',Rw		; substitute tock (back-quote) for it so it has an opcode table entry
+			_ENDOF
+		_ENDCASE
 		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
 		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
 		
@@ -141,11 +149,6 @@ DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
 
 DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
-		CMP.B	#'$',Rw
-		_IF		_EQ			; If it's a dollar sign
-			mov.b	#$7F,Rw		; substitute <DEL> for it so it has an opcode table entry
-			jmp		_RUN
-		_ENDIF
 		SUB.B	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		JN		NotDigit	; Ignore undefined bytecodes below '0'
 		CMP.B	#$0A,Rw
