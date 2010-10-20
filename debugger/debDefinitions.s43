@@ -1,5 +1,5 @@
 ;
-; Bytecode definitions for the BSLwriter
+; Bytecode definitions for the debugger
 ;
 
 ; Some definitions so the common code will work
@@ -265,20 +265,43 @@ failCompare mov		#3,rERR
 			jmp		errorFlash
 			
 ;
-; Getbyte - get a byte (NOT to stack) and display it (addr --)
+; GetByte - get a byte (NOT to stack) and display it (addr --)
 ;
-			xCODE	'g',getByte,_getByte
+			xCODE	'g',GetByte,_GetByte
 			mov.b	#' ',Rthd
 			mov.b	@Rtos,Rsec
 			mov		#3,Rtos
 			jmp		_prettyPrint
 			
 ;
-; Ztore - store a byte (a la CStore) (ch addr --)
+; ZtoreByte - store a byte (a la CStore) (ch addr --)
 ;
-			xCODE	'z',storeByte,_storeByte
+			xCODE	'z',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
+;
+; FetchWord - fetch a word (NOT to stack) and display it (addr --)
+;
+			xCODE	'f',FetchWord,_FetchWord
+			mov.b	#' ',Rthd
+			mov.w	@Rtos,Rsec
+			mov		#5,Rtos
+			jmp		_prettyPrint
+			
+;
+; stOreWord - store a byte (a la Store) (n addr --)
+;
+			xCODE	'o',stOreWord,_stOreWord
+			mov.w	Rsec,0(Rtos)
+			ret
+;
+; JumpTo - Call the code at addr (addr --)
+;
+			xCODE	'j',JumpTo,_JumpTo
+			mov		Rtos,R8		; Save the jump address in a trashable non-stack reg
+			DROP				; Drop stack in case the code at addr uses stack arguments
+			br		R8			; Tail-call the code at addr and return
+			
 ;
 ; Turn on or off bypass resistors (bool -- )
 ;
