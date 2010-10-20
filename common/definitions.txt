@@ -17,16 +17,16 @@ b   BadnessAutonomy
   c Calibrate
 d d Decimal output
 e e ErrorLED
-f f
-  g Get byte (peek)
+  f Fetch word (peek word)
+  g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
-j j
+j j Jump to (call)
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
-o o
+  o StOre wOrd (pOke wOrd)
 p p PrettyPrint
 q   QueryWorstBadness
   r ReadCalValue
@@ -37,7 +37,7 @@ v v cell(V)oltage
   w WriteCalValue
 x x e(X)clusive     (singleBMU interaction mode)
   y b(Y)pass (Yellow)
-  z Ztore byte (poke)
+  z Ztore byte (poke byte)
 {   resetWorstBadness :-{
 | | exit or comment
 } }
@@ -83,8 +83,11 @@ b   BadnessAutonomy was a(U)tonomous
 q   QueryWorstBadness
 {   resetWorstBadness :-{
 
-  g Get byte   (peek)
-  z Ztore byte (poke)
+  f Fetch word (peek word)
+  g Get byte   (peek byte)
+  o StOre wOrd (pOke wOrd)
+  z Ztore byte (poke byte)
+  j Jump to (call)
 
   r ReadCalValue
   w WriteCalValue
