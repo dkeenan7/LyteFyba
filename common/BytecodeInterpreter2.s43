@@ -39,6 +39,10 @@ DROP		MACRO
 			mov		Rthd,Rsec
 			ENDM
 			
+TwoDROP		MACRO
+			mov		Rthd,Rtos
+			ENDM
+			
 SWAP		MACRO
 			xor		Rtos,Rsec
 			xor		Rsec,Rtos
@@ -118,11 +122,14 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 _ENTER
 _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
 		_CASE
-			_OFb	#'$',Rw		; If it's a dollar sign
+			_OFb	#'$',Rw		; If it's a dollar sign (hex number literal)
 				mov.b	#$7F,Rw		; substitute <DEL> for it so it has an opcode table entry
 			_ENDOF
-			_OFb	#'\'',Rw	; If it's a tick (single-quote)
+			_OFb	#'\'',Rw	; If it's a tick (single-quote) (character literal)
 				mov.b	#'`',Rw		; substitute tock (back-quote) for it so it has an opcode table entry
+			_ENDOF
+			_OFb	#'/',Rw	; If it's a slash (comment or EXIT)
+				mov.b	#'|',Rw		; substitute vertical-bar for it so it has an opcode table entry
 			_ENDOF
 		_ENDCASE
 		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
