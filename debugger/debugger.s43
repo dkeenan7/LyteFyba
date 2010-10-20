@@ -311,7 +311,7 @@ DELAY_IF_NEEDED MACRO
 
 
 ; Some definitions so the common code will work
-#define ID	infoID
+ID			EQU		ramID				; We use the RAM copy of the ID for s, x, p commands
 waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
 TX_Byte		clr		R11					; Needed for BSL's WriteByte
