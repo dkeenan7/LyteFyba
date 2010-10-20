@@ -4,7 +4,8 @@
 
 ; EXIT ( -- ); Return from a bytecode sequence
 
-		xCODE	'|',EXIT,_EXIT ; Vertical bar
+		xCODE	'|',EXIT_,_EXIT	; Vertical bar
+EXIT	EQU		'/'				; Interpreter treats slash as synonym for vertical bar
 		incd	SP			; Drop the return address within the interpreter
 		ret					; Return to whoever called the interpreter (_ENTER)
 		
@@ -23,7 +24,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
 ; Treat the next bytecode as a literal character.
 
-		xCODE	'`',CLIT,_CLIT ; back-quote or tock
+		xCODE	'`',CLIT_,_CLIT	; back-quote or tock
+CLIT	EQU		'\''			; Interpreter treats tick (single-quote) as synonym for tock
 ;		PUSH	Rtos
 ;		MOV.B	@Rip+,Rtos
 		DPUSHb	@Rip+
@@ -38,7 +40,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		
 ; dollarHex ( -- )
 ;
-		xCODE	$7F,dollarHex,_dollarHex	; $ gets converted to <DEL> for starting hex number input
+		xCODE	$7F,dollarHex_,_dollarHex	; $ gets converted to <DEL> for starting hex number input
+dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		bis		#1<<14,SR					; Set the hex flag
 		ret
 
@@ -102,6 +105,10 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			mov.b	#'$',R8				; Emit dollar sign
 			call	#TX_ByteCk
 		_ENDIF						; End hexadecimal
+		cmp		#2,Rtos				; Enforce a minimum of 2 digits
+		_IF		_L
+			mov		#2,Rtos
+		_ENDIF
 		mov		Rtos,R12			; Count to R12
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
 		mov.b	&base,R8			; Divisor in R8 is number base
@@ -132,8 +139,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		push.b	&base				; Save current base
 		
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
-		mov		#'|',R8				; Initial vertical bar
-		call	#TX_ByteCk			; (interpreted as comment character)
+		mov		#EXIT,R8			; Initial slash (EXIT command or comment character)
+		call	#TX_ByteCk			; Stops rest of packet being interpreted
 		
 		push	Rsec				; Save n
 		push	Rtos				; Save m
@@ -151,8 +158,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		pop.b	&base				; Restore radix to print n with
 		call	#_emitNum
 		
-		pop		R8					; Restore ch
+		mov		#' ',R8				; Transmit a space
 		call	#TX_ByteCk
+		
+		pop		R8					; Restore ch (unit letter)
+		call	#TX_ByteCk			; Transmit ch
 		
 		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
 		
@@ -215,7 +225,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		mov			#'C',Rthd			; Don't use degree symbol (0xF8, Terminal font only);
 										;	it's treated as a badness
 		mov			R10,Rsec
-		mov			#3,Rtos			; 3 digits
+		mov			#2,Rtos			; 2 digits
 		jmp			_prettyPrint	; Tail-call pretty-print and return
 
 
