@@ -21,7 +21,7 @@ e e ErrorLED
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
-j j Jump to (call)
+j j JumpToSubroutine (call)
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
@@ -87,27 +87,25 @@ q   QueryWorstBadness
   g Get byte   (peek byte)
   o StOre wOrd (pOke wOrd)
   z Ztore byte (poke byte)
-  j Jump to (call)
+  j JumpToSubroutine (call)
 
   r ReadCalValue
   w WriteCalValue
   c Calibrate
   u UpdateInfoFlash
 
-f f (unused but related to "Frequency" below)
-j j (unused)
-o o (unused but related to "OneMHz" below)
 } } (unused)
 
-In addition, the following character literals have the following meaning when used as an address
-parameter to a Read, Write or Calibrate command in the debugger.
+In addition, the following character literals (character preceded by a single-quote)
+have the following meaning when used as an address parameter to a Read, Write or Calibrate
+command in the debugger.
 
-`v cell(V)oltage
-`l LinkVoltage
-`t Temperature
-`f Frequency (Four MHz)
-`o OneMHz
-`i ID
+'v cell(V)oltage
+'l LinkVoltage
+'t Temperature
+'f Frequency (Four MHz)
+'o OneMHz
+'i ID
 
 The last 3 currently have no meaning for the Calibrate command, as any meaning they could be given
 at present would be equivalent to either the character as a command in itself, or a Write command
