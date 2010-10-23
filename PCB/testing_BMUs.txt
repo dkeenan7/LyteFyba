@@ -1,0 +1,62 @@
+   Testing BMUs
+   ============
+
+First perform a shorts test. Using a beeping multimeter, check gound and Vcc (left and rightmost pins of the JTAG
+connector), and ground to Vdd (left pin of JTAG and right pin of FAN output). Fix any shorts before continuing.
+
+
+Connect up the set of boards to the test rig. If you have a set of 5 that doesn't match the orintation of the test jig
+(i.e. you have R5), it should be OK to rotate the set so that RX is at the top, and remember to rotate the RX and TX
+plugs. Otherwise, make sure that you can read that text, and that RX is at the top right. Test with resistors installed
+and downwards (component side up).
+
+Make sure that the power supply is at 3.60 V, or as close as is practical. Periodically check the temperature of the
+boards; adjust the CALTEMP value if needed and recompile (F7).
+
+Use the JTAG programmer, starting with the board nearest RX, and use ^D to download the selfprogram BSL loader. If it
+does not recognise the ID, unplug the programmer's USB connector and reinsert. If it still is bad, the processor is
+likely not connected to the JTAG data or clock pins (around pins 10 and 11). If all is well, press F5 to run the
+program; the red LED should briefly flash once. You could do further testing here, but it's best not to.
+
+Continue with the other boards in the set. Remove the JTAG programmer once the last board is done. Connect the RX (red)
+and TX (black) RS232 leads; white stripe to the square pad. Use sendprog to send the interpreter to all boards:
+
+$ cd /c/Downloads/BMS
+$ ./sendprog.exe interpExe/interpreter.hex com16
+
+It may be com17 or com23 or com24; it seems to vary depending on the USB port used. All lights should come on to half
+brightness or so. If there is a break in the chain, check the COMMs circuit near the break.
+
+When the interpreter is loaded successfully, use the vv command to check that the boards are talking. You should see
+something like
+\255:3595V
+
+This means that the last BMU actively communicating has ID 255. Use the ii command to set the IDs; you should see n-1
+ascii characters (smiley faces and the like) for n BMUs. Repeat the vv command; for a 5 BMU set, you should see
+something like
+\004:3595V
+
+This means that the last actively interpreting BMU has id 4; this is correct. If you see an ID less than 4, it means
+that one ore more of the BMUs is just repeating data, not interpreting it.
+
+Run through coommands like 0svv to read the voltage of BMU 0; repeat till the last BMU. You shold see voltages around
+3.60 V (3600V or 3592V etc). If they vary too much, investigate.
+
+Similarly run through the temperatures with 0stt.
+
+Similarly run through the link voltages with 0snn. However, after noting that the link voltage is around 1500 mV,
+short LI to ground and you should then read about -500 mV.
+
+Test the LEDs with 1ll and 0ll. Test the bypass resistors with commands like 0y1s1yy; you should see just under an amp
+with just under 3.6 V on the BMUs. Test only 1 bypass resistor at a time. Turn off the last bypass resistor with 0yy.
+
+Remember never to run sendprog when the JTAG programmer is debugging a BMU board (if you can help it). It seems to
+screw up the comms due to the high Vcc (~3.62 V).
+
+Test the link out resistor (R12) with a multimeter after removing the clips. You should see close to 75K from LO (not
+marked on our boards) to cell+.
+
+You can check for open circuit connections to the processor. For example, JD is an input; its protection diode can be
+measured with the power off by putting a multimeter on diode range with positive probe on JD (nearest ground) and 
+negative probe on Vcc. It should measure about 0.65 V. Similarly, JC is a normally low output, so with the power on,
+check for almost 2.5 V from Vcc to JC (next to each other). Because of R14, the RX input can't be measured that way.
