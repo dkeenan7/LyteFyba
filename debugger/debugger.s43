@@ -207,10 +207,10 @@ noWaitID
 ; present, so a simple ReadByte loop is used that doesn't check for password bytes.
 ;
 initialise:
-			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
-			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
+			; Set VREFp (P1.4) as an output as well as the LED. This will put 0V at the bottom of the
+			; link voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4)+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
+			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 
 #if MClock4
@@ -240,6 +240,21 @@ initialise:
 #endif
 
 			clr		rERR					; Clear error register
+
+;
+; Initialise the ADC10
+;
+			; SREF_1    = +-refs are Vref+ and AVSS
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
+			; REFOUT    = put Vref+ out on pin P1.4 when pin is set to ADC function in ADC10AE0 register
+			mov			#SREF_1+ADC10SHT_3+REFOUT,&ADC10CTL0
+			; SHS_0		= enable software start
+			; ADC10SSEL_3 = SMCLK (2 MHz)
+			; No MSC	= single sample and conversion
+			; CONSEQ_0	= single channel single conversion
+			mov			#SHS_0+ADC10SSEL_3+CONSEQ_0,&ADC10CTL1
+			 ; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
+			mov.b		#(1<<CellVChan)+(1<<LinkVChan)+(1<<4),&ADC10AE0
 
 ;
 ; Initialise the stripped-down bytecode interpreter

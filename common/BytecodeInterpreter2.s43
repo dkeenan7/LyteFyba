@@ -128,8 +128,11 @@ _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
 			_OFb	#'\'',Rw	; If it's a tick (single-quote) (character literal)
 				mov.b	#'`',Rw		; substitute tock (back-quote) for it so it has an opcode table entry
 			_ENDOF
-			_OFb	#'/',Rw	; If it's a slash (comment or EXIT)
+			_OFb	#'/',Rw		; If it's a slash (comment or EXIT)
 				mov.b	#'|',Rw		; substitute vertical-bar for it so it has an opcode table entry
+			_ENDOF
+			_OFb	#'K',Rw		; If it's an uppercase K (KillBadnessSending)
+				mov.b	#'}',Rw		; substitute right-curly-brace for it so it has an opcode table entry
 			_ENDOF
 		_ENDCASE
 		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>

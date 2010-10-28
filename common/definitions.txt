@@ -11,23 +11,25 @@ t g Name or description
 <ESC> ESCape from eXclusive mode
 $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
-` ` characterLiteral
+K   KillBadnessSending (toggle)
+` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
 a a ADCValue (r(A)wVoltage)
-b   BadnessAutonomy
-  c Calibrate
+b   Badness (local to each BMU)
+  c Calibrate (debugger only)
+c   CommsState (monitor only)
 d d Decimal output
 e e ErrorLED
   f Fetch word (peek word)
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
-j j JumpToSubroutine (call)
+  j JumpToSubroutine (call)
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
   o StOre wOrd (pOke wOrd)
-p p PrettyPrint
+p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 q   QueryWorstBadness
   r ReadCalValue
 s s Select
@@ -40,7 +42,7 @@ x x e(X)clusive     (singleBMU interaction mode)
   z Ztore byte (poke byte)
 {   resetWorstBadness :-{
 | | exit or comment
-} }
+}   KillBadnessSending (not to be typed. 'K' is converted to '}' internally)
 ~ ~ change-sign (postfix negate)
 <DEL> (not to be typed. '$' is converted to <DEL> internally)
 
@@ -53,24 +55,24 @@ i u
 t g Name or description
 --------------------------------------------
 ' ' characterLiteral
-` ` characterLiteral
 m m e(M)itCharacter
 
 $ $ dollarHex (set number input mode to hex for next literal)
-<DEL> (not to be typed. '$' is converted to <DEL> internally)
 d d Decimal output
 h h Hex output
 ~ ~ change-sign (postfix negate)
 n n emit(N)um       was e(M)itDec
-p p PrettyPrint
 
 e e ErrorLED
   y b(Y)pass (Yellow)
 
 a a ADCValue (r(A)w voltage)
+p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
 t t Temperature
+c 	CommsState (monitor only. 'c' is calibrate in debugger)
+b   Badness
 
   i set(I)Ds
 s s Select
@@ -78,8 +80,8 @@ x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
 | | exit or comment
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+K   KillBadnessSending (toggle)
 
-b   BadnessAutonomy was a(U)tonomous
 q   QueryWorstBadness
 {   resetWorstBadness :-{
 
@@ -91,14 +93,12 @@ q   QueryWorstBadness
 
   r ReadCalValue
   w WriteCalValue
-  c Calibrate
+  c Calibrate (debugger only. 'c' is commsState in monitor)
   u UpdateInfoFlash
 
-} } (unused)
-
 In addition, the following character literals (character preceded by a single-quote)
-have the following meaning when used as an address parameter to a Read, Write or Calibrate
-command in the debugger.
+have the following meaning when used as an address parameter to a ReadCalValue, WriteCalValue
+or Calibrate command in the debugger.
 
 'v cell(V)oltage
 'l LinkVoltage
