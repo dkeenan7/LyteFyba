@@ -14,7 +14,7 @@
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v' for voltage etc) and value is n
 ;
-			xCODE	'c',calibrate,_calibrate
+			xCODE	'c',calibrate,_calibrate ; Note: 'c' is commsState in monitor
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage
 				mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
@@ -289,7 +289,7 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 			
 ;
-; stOreWord - store a byte (a la Store) (n addr --)
+; stOreWord - store a word (a la Store) (n addr --)
 ;
 			xCODE	'o',stOreWord,_stOreWord
 			mov.w	Rsec,0(Rtos)

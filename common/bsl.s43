@@ -19,6 +19,7 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
 TXDm		EQU		1<<1			; Code requires TXDm bit somewhere to right of TXDp bit
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
+VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
 LED			EQU		1<<6			; LED on P1.6
 
@@ -35,8 +36,8 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	&info1MHzCalB,&BCSCTL1	; Set DCO range for 1 MHz			
 			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
 #endif
-			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, BYPASS and LED as outputs
-			mov.b	#TXDp,&P1OUT	; Set TXD to idle, bypass and error LED off
+			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
+			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
 			
 			mov		#$280,SP
 mainLoop:							; Start of the main BSL loop

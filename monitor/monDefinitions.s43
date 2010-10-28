@@ -4,103 +4,37 @@
 
 #include "../common/comDefinitions.s43"				; Include the definitions common to monitor and BSLW
 
-; autonomous mode Badness sending ( n -- )
-		xCODE	'b',autoBad,_autoBad
-		allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		mov.b	Rtos,&bSendBad
-;		DROP
+; Kill badness sending (toggle) ( -- )
+		xCODE	'}',BadnessAutonomy_,_BadnessAutonomy
+BadnessAutonomy	EQU		'K'				; Interpreter treats K as synonym for right-curly-brace
+		inv.b	&bSendBad				; Toggle badness sending
 		ret
 		
 ; checKsumming toggle ( -- )
 		xCODE	'k',checksumming,_checksumming
-		inv.b	&Checksumming
+		inv.b	&Checksumming			; Toggle checksumming
 		ret
 		
+; Comms state ( -- )
+		xCODE	'c',commsState,_commsState ; Note: 'c' is calibrate in debugger
+		mov		#' ',Rthd				; no units
+;		mov		???,Rsec		; Result
+		mov		#3,Rtos					; Print 3 digits
+		jmp		_prettyPrint			; Tail-call pretty-print and return
+
+; Badness ( -- )
+		xCODE	'b',Badness,_Badness
+		mov		#' ',Rthd				; no units
+;		mov		???,Rsec		; Result
+		mov		#3,Rtos					; Print 3 digits
+		jmp		_prettyPrint			; Tail-call pretty-print and return
+
+; Query worst badness ( -- )
+		xCODE	'q',queryWorstBadness,_queryWorstBadness
+
+		ret
 		
-#if 0
-; Link voltage offset Calibration (--)
-; Assumes zero link voltage due to zero link current
-;
-		xCODE	'c',calLink,_calLink
-		mov		#LinkVChan<<12,Rtos
-		call	#_llVolt
-		sub		#2048,Rtos				; Zero volts for link voltage is a 2048 reading
-		cmp		#$FF81,Rtos				; -$7F
-		jl		nonCal					; If <s -$7F, use the $80 non-calibrated value
-		cmp		#$80,Rtos
-		jl		realCal					; If >s -$7F and <s $80, use as real calibration value
-nonCal	mov		#$80,Rtos
-realCal
-		mov		#LinkCal,R9				; Address of byte to flash
-		mov		Rtos,R8					; Value to flash
-		jmp		flashCStore				; Write the calibration value and exit
+; Reset worst badness
+		xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
 
-
-;-------------------------------------------------------------------------------
-; Flash programming macros
-
-; The LOCKA bit in FCTL3 was made a *toggle*, for backward compatibility.
-; Use these macros to clear and set safely.
-CLRLOCKA	macro
-			BIT 	#LOCKA,&FCTL3		; Test LOCKA
-			JZ		$+2+6				; Already unlocked?
-			MOV		#FWKEY+LOCKA,&FCTL3 ; No, unlock
-			endm
-
-SETLOCKA	macro
-			BIT 	#LOCKA,&FCTL3		; Test LOCKA
-			JNZ		$+2+6				; Already locked?
-			MOV		#FWKEY+LOCKA,&FCTL3 ; No, lock
-			endm
-
-
-flashCStore:
-			; Assembly language flash writer
-			; Byte  in R8, address in R9. Trashes Rtrash
-			;
-			; Check if it is possible to flash-program this ID
-			;
-			call	#waitTxCmpl				; Wait for any byte to transmit (likely CR echo)
-			mov.b	R8,Rtrash				; Need to check for 1 bits in new ID
-			bic.b	@R9,Rtrash				;	that are already 0s in the existing byte
-			tst.b	Rtrash					; Set Z flag if result is 0; bic doesn't
-			jnz		cantFlsh				; Impossible flash-write; can't do it
-			; Assumes ACCVIE = NMIIE = OFIE = 0.
-			; FSSEL: 1=MCLK FN: 2=divide by 3
-			MOV 	#FWKEY+FSSEL_1+FN1,&FCTL2 ; MCLK/3 (FN1=2^1; divides by FN+1)
-			MOV 	#FWKEY,&FCTL3       	; Clear LOCK, don't toggle LOCKA
-			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write block that can't be)
-			CLRLOCKA
-			mov.b	R8,0(R9)				; Flash-write it
-			MOV		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
-			SETLOCKA
-			MOV		#FWKEY,&FCTL1			; Disable flash write
-			bic.b	#LED,&P1OUT				; Clear the error LED: done!
-			ret
-cantFlsh	bis.b	#LED,&P1OUT				; Set the error LED to indicate failure
-			ret
-#endif
-
-#if 0
-			xCODE		'j',jumpFence,_jumpFence	; "Jump-fence" temporary debugging command
-			mov			#5,R11				; 5 lines
-fenceLp1	mov			#10,R10				; 10 sets of 3 chars
-			mov			#'|',R8				; First byte must be comment char; "fence post"
-fenceLp2	call		#TX_Byte
-			tst			R10
-			jz			fenceEol
-			mov			#'=',R8				; "fence rail"
-			call		#TX_Byte
-			mov			#'-',R8				; different "fence rail"
-			call		#TX_Byte
-			dec			R10
-			mov			R10,R8				; Get count
-			add			#'0',R8				; Make it a digit
-			jmp			fenceLp2			; Use as next "fencepost"
-fenceEol	mov			#$0D,R8				; Carriage return to end the line
-			call		#TX_Byte
-			; Not sure if need delay here
-			dec			R11
-			jnz			fenceLp1			; Repeat for more lines
-			ret
-#endif
+		ret

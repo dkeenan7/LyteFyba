@@ -102,7 +102,6 @@ bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 			ALIGNRAM 1
 bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
-
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
 currBadness	DS		1				; Current badness
 lastSentBad	DS		1				; Last sent badness
@@ -210,6 +209,21 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr.b	&rxrd
 			clr.b	&txwr
 			clr.b	&txrd
+
+;
+; Initialise the ADC10
+;
+			; SREF_1    = +-refs are Vref+ and AVSS
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
+			; REFOUT    = put Vref+ out on pin P1.4 when pin is set to ADC function in ADC10AE0 register
+			mov			#SREF_1+ADC10SHT_3+REFOUT,&ADC10CTL0
+			; SHS_0		= enable software start
+			; ADC10SSEL_3 = SMCLK (2 MHz)
+			; No MSC	= single sample and conversion
+			; CONSEQ_0	= single channel single conversion
+			mov			#SHS_0+ADC10SSEL_3+CONSEQ_0,&ADC10CTL1
+			 ; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
+			mov.b		#(1<<CellVChan)+(1<<LinkVChan)+(1<<4),&ADC10AE0
 
 ;
 ; Initialise the stripped-down bytecode interpreter
