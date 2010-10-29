@@ -65,7 +65,7 @@ TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
 BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
 #endif
 
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words)
+RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
 LED			EQU		1<<6			; LED on bit 6
 
 ; ADC channel numbers
@@ -128,7 +128,7 @@ txrd		DS		1				; Transmit queue read index
 
 ; ByteCodeInterpreter2 variables
 
-base		DS		1				; Number base, 10 or 16
+base		DS		1				; Number base for output, 10 or 16
 CHKSUM		DS		1				; Packet xor checksum
 Checksumming DS		1				; Boolean
 dontInterpret DS	1				; Boolean
@@ -238,7 +238,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			mov.w	#-1,&bSendBad			; Initialise bSendBad and bMeasureTime
 			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
 
-; Fall through to the main loop
+; Main loop
 			_BEGIN
 				dint
 				;nop							; First instruction after dint not protected
@@ -279,8 +279,8 @@ measures:
 				mov.b	#$FF,&ticksSinceLastRx	; Yes, saturate at $FF
 			_ENDIF
 
-			mov		#CellVChan<<12,R8
-			call	#measAndCal
+			; Cell voltage measurement
+			call	#cellV					; Get cell voltage in mV in R10
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -319,21 +319,9 @@ measures:
 			
 			; Temperature measurement
 			push	R9
-			mov		#TempChan<<12, R8
-			call	#measAndCal
-			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
-			; But the measurement M is 4096* V/1.5 = 2731*V.
-			; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
-			; To divide by 9.694, multiply by 65536/9.694 = 6760, and keep the top half
-			mov		R10,R8
-			mov		#6760,R9
-			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
-			sub		#273,R10				; M/9.694 - 273
-			mov.b	&TempCal,R8
-			sxt		R8
-			sub		R8,R10					; R10 has temperature in degrees Celsius
-			; Temperature badness: 1 for every 2 degrees over 60
-			sub		#60-1,R10				; -1 for rounding
+			call	#temp					; Get cell temperature in degrees Celsius in R10
+			; Temperature badness: 1 for every 2 degrees over 50
+			sub		#50-1,R10				; -1 for rounding
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
@@ -344,33 +332,16 @@ measures:
 				mov		R10,R9					; Yes, new worst
 			_ENDIF
 
-
 			; Link measurement, if appropriate
-			cmp.b	#$80,&LinkCal			; Special "calibration failure" code?
-			_IF		_NE						; Only measure link voltage if not this code
-				; Link voltage measurement in mV
-				; Circuit has 2:1 voltage divider with Vref at the bottom.
-				; So meaure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
-				; Reading = 2048 + (Vin/2)(4096/1.5)
-				; R = 2048 + Vin * 1365.3 (Vin in volts)
-				; R = 2048 + Vin * 1.3653 (Vin in mV)
-				; Vin = (R - 2048)/1.3653 mV
-				; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
-				push	R9
-				mov		#LinkVChan<<12, R8
-				call	#measAndCal
-				sub		#2048,R10			; R10 has M-2048
-				mov.b	&LinkCal,R8
-				sxt		R8
-				sub		R8,R10				; R10 has M-2048-LinkCal
-				_IF		_L
-					inv		R10					; Get absolute value
+			push	R9
+			call	#linkV					; Get link voltage in mV in R10
+			cmp		#9999,R10				; Special "invalid" value?
+			_IF		_NE						; Only calculate link badness if not this value
+				tst		R10
+				_IF		_L					; Get absolute value
+					inv		R10
 					inc		R10
 				_ENDIF
-				mov		R10,R8				; R8 has R-2048-LinkCal
-				mov		#48001,R9
-				clr		R10					; R10:R9 has 48001
-				call	#UMStar				; R10 has absolute link voltage in mV
 				; Link badness: 1 for every 50 mV over 100 mV
 				sub		#100-49,R10
 				_IF		_L
@@ -385,6 +356,8 @@ measures:
 				_IF		_NC
 					mov		R8,R9
 				_ENDIF
+			_ELSE
+				pop		R9
 			_ENDIF
 
 			cmp		#7,R9					; Is the overall badness worse than 7?
@@ -407,10 +380,10 @@ measures:
 
 			mov.b	badnessTable(R9),R9		; Look up the encoded badness
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
-;			_IF		_C
-			; We could change the branch below to a jnc if we wanted to send out-of-cycle messages
+			; We could change the branch below to a jne if we wanted to send out-of-cycle messages
 			;	about a new low badness. However, it's possible that these messages could overwhelm
 			;	the communications system, in the situation of a sudden series of high power pulses
+;			_IF		_C
 			jnc		sendBadnessNow			; Jump if so to send the badness immediately
 
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
@@ -427,7 +400,6 @@ sendBadnessNow
 						call	#TX_Byte				; Send the encoded badness
 					_ENDIF
 				_ENDIF
-			
 			ret
 ; End of measurement
 
@@ -454,7 +426,11 @@ DoBadness:
 			call	#TX_ByteNW			; Echo/send the badness byte, no waiting
 			tst.b	&bCheckForBad		; Are we checking
 			_IF		_NZ					;	for badness (because we're the last BMU)?
-				call	#m_alarm			; Yes, set or clear the alarm based on R8
+				; Yes, set or clear the alarm based on R8
+				cmp		#2,R8				; Carry set if badness >= 2
+				CtoAllBits	R8				; $00 if badness >= 2, $FF otherwise
+				and		#OUT,R8				; Clear all but OUT bit
+				mov		R8,&TACCTLt			; Set TXn to 0 if badness >= 2
 			_ENDIF
 			ret
 ;
@@ -499,39 +475,6 @@ exitOnRx	ret
 PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order that the FSM
 												;	is looking for
 			EVEN
-
-
-measAndCal:
-			call		#measure				; Defined in ../common/measure.s43
-;
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts.
-; That means we have to shift the product 17 bits to the right, which is equivalent to
-; throwing away the lo word and shifting the high word one bit to the right.
-			mov.b		&VoltCalL,R9			; Get voltage calibration lo byte
-			mov.b		&VoltCalH,R10			; Get voltage calibration hi byte
-			swpb		R10						; Assemble the two bytes into a word
-			bis			R10,R9					; as multiplicand in R9
-												; Multiplier is sum-of-samples, already in R8
-			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
-												; Note: calls assembler code that ends in ret
-			inc			R10						; For correct rounding
-			rra			R10						; Shift product hi word right one bit
-			ret									; Finished
-
-
-
-;
-; Process alarm; R8 has unencoded badness. Trashes R8
-m_alarm:
-			cmp		#2,R8			; Carry set if badness >= 2
-			CtoAllBits	R8			; $00 if badness >= 2, $FF otherwise
-			and		#OUT,R8			; Clear all but OUT bit
-			mov		R8,&TACCTLt		; Set TXn to 0 if badness >= 2
-			ret
 
 
 DELAY_IF_NEEDED MACRO		
