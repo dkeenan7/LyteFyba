@@ -1,6 +1,7 @@
 ; Suitable use at appropriate part of assembly file: #include ../common/measure.s43
 ; Sensitive to these defines:
 ;	NumSamples
+;	NOBUF
 
 ;
 ; Routine to perform an analogue measurement and put the 12.2 bit result into R8.
@@ -8,23 +9,81 @@
 ; On input, R8 must contain the measurement channel number shifted left by 12 bits,
 ; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
 ; Trashes R9-R10
-;
-measure:
-		bis			R8,&ADC10CTL1			; Choose the desired analog input channel
-		bis			#ADC10ON+REFON,&ADC10CTL0 ; Turn on the ADC core, ref and ref buffer
-		
-		; Wait at least 30 us (= 120 cycles at 4 MHz) for the reference to settle
-		_DO			#30,R8					; 30 times around a 4 cycle dec jnz loop
-		_LOOP		R8						; Relied on to clear R8 for following
+; Caller is responsible for initialising the pins in the ADC10AE0 register.
 
-;		mov			#0,R8					; Initialise the sum. R8 cleared by above loop
-		_DO			#NumSamples,R9			; Sample counter
+measure:
+#if NOBUF
+			; This is the standard version, which doesn't use any RAM.
+
+			; Initialise ADC10
+			; SREF_1    = +-refs are Vref+ and AVSS
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
+			; REFOUT    = put Vref+ out on pin P1.4 when pin is set to ADC function in ADC10AE0 register
+			; No MSC	= single sample and conversion
+			; REFON		= turn on the voltage reference and reference buffer
+			; ADC10ON	= turn on the ADC core
+			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON+ADC10ON,&ADC10CTL0
+			; INCHx		= R8 has the channel number already in the right position
+			; SHS_0		= enable software starting via the ADC10SC bit
+			; ADC10SSEL_3 = use SMCLK (2 MHz) as ADC10CLK
+			; CONSEQ_0	= single channel single conversion
+			bis			#SHS_0+ADC10SSEL_3+CONSEQ_0,R8
+			mov			R8,&ADC10CTL1
+			
+			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
+			_DO			#30,R8					; 30 times around a 4 cycle dec jnz loop
+			_LOOP		R8						; Relied on to clear R8 for following
+	
+	;		mov			#0,R8					; Initialise the sum. R8 cleared by above loop
+			_DO			#NumSamples,R9			; Sample counter
+				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
+				_BEGIN								; Busy wait for conversion to complete
+					bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
+				_UNTIL		_NZ
+				add			&ADC10MEM,R8			; Add a result
+			_LOOP		R9
+			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
+			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
+			ret
+		
+#else
+			; Version which reads <NumSamples> samples to a RAM buffer and adds them at the end.
+			; Useful for debugging. Can see all values and compare them.
+			
+			; Initialise ADC10
+			; SREF_1    = +-refs are Vref+ and AVSS
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
+			; REFOUT    = put Vref+ out on pin P1.4 when pin is set to ADC function in ADC10AE0 register
+			; MSC		= multiple sample and conversion
+			; REFON		= turn on the voltage reference and reference buffer
+			; ADC10ON	= turn on the ADC core
+			mov			#SREF_1+ADC10SHT_3+REFOUT+MSC+REFON+ADC10ON,&ADC10CTL0
+			; INCHx		= R8 has the channel number already in the right position
+			; SHS_0		= enable software starting via the ADC10SC bit
+			; ADC10SSEL_3 = use SMCLK (2 MHz) as ADC10CLK
+			; CONSEQ_2	= repeat single channel
+			bis			#SHS_0+ADC10SSEL_3+CONSEQ_2,R8
+			mov			R8,&ADC10CTL1
+			
+			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
+			_DO			#30,R8					; 30 times around a 4 cycle dec jnz loop
+			_LOOP		R8						; Relied on to clear R8 for following
+	
+			mov.b		#NumSamples,&ADC10DTC1	; 16 conversions
+			mov			#sampleBuf,&ADC10SA		; Set start address
 			bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 			_BEGIN								; Busy wait for conversion to complete
 				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 			_UNTIL		_NZ
-			add			&ADC10MEM,R8			; Add a result
-		_LOOP		R9
-		bic			#ADC10ON+ENC+ADC10SC+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
-		ret
-		
+			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
+			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
+			
+			; Sum the samples
+			mov			#sampleBuf,R9
+			mov			#0,R8					; Initialise the sum
+			_BEGIN
+				add			@R9+,R8					; Add a sample
+				cmp			#sampleBuf+2*NumSamples,R9
+			_UNTIL		_EQ
+			ret
+#endif

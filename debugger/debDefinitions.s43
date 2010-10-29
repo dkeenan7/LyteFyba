@@ -106,7 +106,7 @@ realCal
 			; That is, don't insert a new command here
 			;
 ;
-; Read calibration value (ch --- )
+; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue
 			_CASE
@@ -144,7 +144,7 @@ emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 
 
 ;
-; Write calibration value (n ch --- )
+; Write calibration value ( n ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch; n has value to write
 			xCODE	'w',writeCalValue,_writeCalValue
 			_CASE
@@ -265,7 +265,7 @@ failCompare mov		#3,rERR
 			jmp		errorFlash
 			
 ;
-; GetByte - get a byte (NOT to stack) and display it (addr --)
+; GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
 			xCODE	'g',GetByte,_GetByte
 			mov.b	#' ',Rthd
@@ -274,13 +274,13 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 			
 ;
-; ZtoreByte - store a byte (a la CStore) (ch addr --)
+; ZtoreByte - store a byte (a la CStore) ( ch addr -- )
 ;
 			xCODE	'z',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
 ;
-; FetchWord - fetch a word (NOT to stack) and display it (addr --)
+; FetchWord - fetch a word (NOT to stack) and display it ( addr -- )
 ;
 			xCODE	'f',FetchWord,_FetchWord
 			mov.b	#' ',Rthd
@@ -289,13 +289,13 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 			
 ;
-; stOreWord - store a word (a la Store) (n addr --)
+; stOreWord - store a word (a la Store) ( n addr -- )
 ;
 			xCODE	'o',stOreWord,_stOreWord
 			mov.w	Rsec,0(Rtos)
 			ret
 ;
-; JumpTo - Call the code at addr (addr --)
+; JumpTo - Call the code at addr ( addr -- )
 ;
 			xCODE	'j',JumpTo,_JumpTo
 			mov		Rtos,R8		; Save the jump address in a trashable non-stack reg
@@ -303,7 +303,7 @@ failCompare mov		#3,rERR
 			br		R8			; Tail-call the code at addr and return
 			
 ;
-; Turn on or off bypass resistors (bool -- )
+; Turn on or off bypass resistors ( bool -- )
 ;
 		xCODE	'y',bypass,_bypass
 		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
