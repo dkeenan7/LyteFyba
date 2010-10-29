@@ -115,6 +115,7 @@ infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
 			LSTOUT-
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
+#include "../common/comMacros.h"			// Macros for obscure instruction sequences
 			LSTOUT+
 
 ; Error register. 0 means no error
@@ -138,20 +139,9 @@ SETLOCKA	MACRO
 
 
 			ORG		$200			; Start of RAM
-#if !NOBUF
-sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
-#endif
-; ByteCodeInterpreter2 variables
-
-base			DS	1				; Number base, 10 or 16
-CHKSUM			DS	1				; Packet xor checksum
-Checksumming 	DS	1				; Boolean
-dontInterpret	DS	1				; Boolean; for 'x' command
-TXCksum			DS	1				; Transmit checksum
-passWordState	DS	1				; State of the password detection logic; 3 = start
-
 ; RAM copies of various calibration settings
-; Same order as stored in the BSL with the latest data layout
+; Put these first in RAM so easy to find when debugging
+; Same order as stored in the BSL with its version 5 data layout
 			ALIGNRAM 1				; So these can be copied with word moves
 ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
 ramSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
@@ -164,10 +154,22 @@ ramVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL 
 ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
 
+; ByteCodeInterpreter2 variables
 
+base			DS		1			; Number base, 10 or 16
+CHKSUM			DS		1			; Packet xor checksum
+Checksumming 	DS		1			; Boolean
+dontInterpret	DS		1			; Boolean; for 'x' command
+TXCksum			DS		1			; Transmit checksum
+passWordState	DS		1			; State of the password detection logic; 3 = start
+				ALIGNRAM 1
+ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
+TIB				DS		1			; Start of Text Input Buffer, grows towards stack
+
+#if !NOBUF
 			ALIGNRAM 1
-ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
-TIB			DS		1				; Start of Text Input Buffer, grows towards stack
+sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
+#endif
 
 
 			ORG		$FFFE			; The reset vector
@@ -244,17 +246,9 @@ initialise:
 ;
 ; Initialise the ADC10
 ;
-			; SREF_1    = +-refs are Vref+ and AVSS
-			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
-			; REFOUT    = put Vref+ out on pin P1.4 when pin is set to ADC function in ADC10AE0 register
-			mov			#SREF_1+ADC10SHT_3+REFOUT,&ADC10CTL0
-			; SHS_0		= enable software start
-			; ADC10SSEL_3 = SMCLK (2 MHz)
-			; No MSC	= single sample and conversion
-			; CONSEQ_0	= single channel single conversion
-			mov			#SHS_0+ADC10SSEL_3+CONSEQ_0,&ADC10CTL1
 			 ; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
 			mov.b		#(1<<CellVChan)+(1<<LinkVChan)+(1<<4),&ADC10AE0
+			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
 ; Initialise the stripped-down bytecode interpreter
@@ -326,7 +320,7 @@ DELAY_IF_NEEDED MACRO
 
 
 ; Some definitions so the common code will work
-ID			EQU		ramID				; We use the RAM copy of the ID for s, x, p commands
+ID			EQU		ramID				; We use the RAM copy of the ID for s, x, prettyPrint commands
 waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
 TX_Byte		clr		R11					; Needed for BSL's WriteByte
@@ -339,7 +333,6 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 #include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TX_Cksum
 #include "../common/measure.s43"			// ADC Measurement
 #include "../common/math.s43"				// Multiply and divide
-#include "../common/comMacros.h"			// Macros for obscure instruction sequences
 #include "../common/BytecodeInterpreter2.s43"
 
 ;
