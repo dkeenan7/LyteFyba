@@ -2,19 +2,13 @@
 ; Bytecode definitions for the debugger
 ;
 
-; Some definitions so the common code will work
-#define TempCal	ramTempCal
-#define LinkCal	ramLinkCal
-
-#include "../common/comDefinitions.s43"				; Include the definitions common to monitor and
-													;	debugger
-
-
+#include "../common/comDefinitions.s43"			; Include the definitions common to monitor
+												; and debugger
 ;
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v' for voltage etc) and value is n
 ;
-			xCODE	'c',calibrate,_calibrate ; Note: 'c' is commsState in monitor
+			xCODE	'c',calibrate,_calibrate
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage
 				mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
@@ -49,25 +43,7 @@
 ; and T = M/9.694 - 273 - offsetByte
 ;
 				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
-				call	#measure
-			
-; Calibrate the value by multiplying the sum-of-samples by the voltage calibration scale factor
-; in infoFlash.
-; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
-; is an unsigned 12.2 bit fixed-point number of millivolts.
-; The calibration factor is an unsigned 1.15 bit fixed-point number.
-; We want a 12 bit integer result in millivolts.
-; That means we have to shift the product 17 bits to the right, which is equivalent to
-; throwing away the lo word and shifting the high word one bit to the right.
-				mov.b		&ramVoltCalL,R9			; Get voltage calibration lo byte
-				mov.b		&ramVoltCalH,R10		; Get voltage calibration hi byte
-				swpb		R10						; Assemble the two bytes into a word
-				bis			R10,R9					; as multiplicand in R9
-													; Multiplier is sum-of-samples, already in R8
-				call		#UMStar					; Gives unsigned product in R10 (hi word) & R9 (lo word)
-													; Note: calls assembler code that ends in ret
-				inc			R10						; For correct rounding
-				rra			R10						; Shift product hi word right one bit
+				call	#measAndScale
 
 ; To divide by 9.694, multiply by 65536/9.694 = 6760
 				mov		R10,R8
@@ -80,7 +56,7 @@
 			
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov		#LinkVChan<<12,R8
-				call	#measAndCal
+				call	#measAndScale
 				sub		#2048,R10					; Zero volts for link voltage is a 2048 reading
 				;sub		Rsec,R10				; Subtract required reading (usually 0)
 				; Actually require 1.3653*Rsec to be subtracted. Too much code. So `lc will always
@@ -108,7 +84,7 @@ realCal
 ;
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
-			xCODE	'r',readCalValue,_readCalValue
+			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
 			_CASE
 			_OFb		#'v',Rtos				; 'v': cell Voltage
 				mov			#5,Rtos					; 5 digits

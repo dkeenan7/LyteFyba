@@ -15,8 +15,7 @@ K   KillBadnessSending (toggle)
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
 a a ADCValue (r(A)wVoltage)
 b   Badness (local to each BMU)
-  c Calibrate (debugger only)
-c   CommsState (monitor only)
+  c Calibrate
 d d Decimal output
 e e ErrorLED
   f Fetch word (peek word)
@@ -31,7 +30,8 @@ n n emit(N)um
   o StOre wOrd (pOke wOrd)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 q   QueryWorstBadness
-  r ReadCalValue
+  r ReadCalValue (debugger only)
+r   RxState (monitor only)
 s s Select
 t t Temperature
   u UpdateInfoFlash
@@ -71,7 +71,7 @@ p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
 t t Temperature
-c 	CommsState (monitor only. 'c' is calibrate in debugger)
+r 	RxState (monitor only. 'r' is ReadCalValue in debugger)
 b   Badness
 
   i set(I)Ds
@@ -91,9 +91,9 @@ q   QueryWorstBadness
   z Ztore byte (poke byte)
   j JumpToSubroutine (call)
 
-  r ReadCalValue
+  r ReadCalValue (debugger only. 'r' is RxState in monitor)
   w WriteCalValue
-  c Calibrate (debugger only. 'c' is commsState in monitor)
+  c Calibrate
   u UpdateInfoFlash
 
 In addition, the following character literals (character preceded by a single-quote)
