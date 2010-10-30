@@ -104,7 +104,11 @@ bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
 localBadness DS		1				; Local badness
+			ALIGNRAM 1
+worstBadMeas DS		2				; Value of measurement that caused worst badness
+worstBadUnit DS		1				; Unit character for reason for worst badness
 worstBadness DS		1				; Worst local badness since last resetWorstBadness command
+
 lastSentBad	DS		1				; Last sent badness
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
@@ -233,6 +237,8 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		&bypassVolts			; No special bypass voltage as yet
 			clr.b	&localBadness			; Local badness is none
 			clr.b	&worstBadness			; Worst local badness is none
+			mov.b	#' ',&worstBadUnit		; Unit of reason for worst badness is space
+			clr		&worstBadMeas			; Value of reason for worstBadness is zero
 			clr.b	&lastSentBad			; Last badness we sent was zero
 			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
 			clr.b	&ticksSinceLastSend
@@ -283,6 +289,8 @@ measures:
 
 			; Cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
+			mov		R10,R15					; Tentative measurement causing worst badness
+			mov.b	#'V',R14				; Tentative unit of measurement causing worst badness
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -320,18 +328,22 @@ measures:
 			_ENDIF
 			
 			; Temperature measurement
-			push	R9
+			push	R9						; Save badness so far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
+			push	R10						; Save measurement
 			; Temperature badness: 1 for every 2 degrees over 50
 			sub		#50-1,R10				; -1 for rounding
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
 			rra		R10
-			pop		R9						; Restore current worst badness
-			cmp		R10,R9					; Is temp badness worse than current?
-			_IF		_NC
+			pop		R8						; Restore measurement
+			pop		R9						; Restore badness so far
+			cmp		R10,R9					; Is temp badness worse than badness so far?
+			_IF		_LO
 				mov		R10,R9					; Yes, new worst
+				mov		R8,R15					; Tentative measurement causing worst badness
+				mov.b	#'C',R14				; Tentative unit of measurement causing worst badness
 			_ENDIF
 
 			; Link measurement, if appropriate
@@ -339,24 +351,28 @@ measures:
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
 			_IF		_NE						; Only calculate link badness if not this value
+				push	R10
 				tst		R10
-				_IF		_L					; Get absolute value
+				_IF		_L						; Get absolute value
 					inv		R10
 					inc		R10
 				_ENDIF
 				; Link badness: 1 for every 50 mV over 100 mV
 				sub		#100-49,R10
 				_IF		_L
-					clr		R10					; Minimum of 0
+					clr		R10						; Minimum of 0
 				_ENDIF
 				mov		R10,R9
 				clr		R10
 				mov		#50,R8
 				call	#UMSlashMod
-				pop		R8					; Current worst badness
-				cmp		R8,R9
-				_IF		_NC
-					mov		R8,R9
+				pop		R10
+				pop		R8						; Restore badness so far
+				cmp		R8,R9					; Is temp badness worse than badness so far?
+				_IF		_LO
+					mov		R8,R9					; Yes, new worst
+					mov		R10,R15					; Tentative measurement causing worst badness
+					mov.b	#'m',R14				; Tentative unit of measurement causing worst bad
 				_ENDIF
 			_ELSE
 				pop		R9
@@ -374,20 +390,20 @@ measures:
 				_IF		_NZ						;	is nonzero...
 					tst		R9						; Yes, are we at badness zero?
 					_IF		_Z
-						mov		#1,R9				; Yes, make it 1 for the comms error
+						mov		#1,R9					; Yes, make it 1 for the comms error
+						mov		&ticksSinceLastRx,R15	; Tentative measurement causing worst badness
+						mov.b	#'t',R14				; Tentative unit of measurement causing worst bad
 					_ENDIF
 				_ENDIF
 			_ENDIF
 
 			mov.b	R9,&localBadness		; Record this for later use
-			cmp.b	R9,&worstBadness
-			_IF		_NE						; If worstBadness equal or lower than localBadness
-				_IF		_LO
-			_CS_SWAP
+			cmp.b	&worstBadness,R9
+			_IF		_HS						; If localBadness equal or higher than worstBadness
+				mov.b	R9,&worstBadness		; Update worstBadness
+				mov		R15,&worstBadMeas		; Update value of measurement causing worst badness
+				mov.b	R14,&worstBadUnit		; Update unit of measurement causing worst badness
 			_ENDIF
-					mov.b	R9,&worstBadness		; Update worstBadness
-	; !!! Incomplete. Also need to update reason for worst badness
-				_ENDIF
 			
 			mov.b	badnessTable(R9),R9		; Look up the encoded badness
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
