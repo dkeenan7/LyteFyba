@@ -13,7 +13,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
 K   KillBadnessSending (toggle)
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
-a a ADCValue (r(A)wVoltage)
+a a ADCScaled or r(A)wVoltage
 b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
@@ -66,7 +66,7 @@ n n emit(N)um       was e(M)itDec
 e e ErrorLED
   y b(Y)pass (Yellow)
 
-a a ADCValue (r(A)w voltage)
+a a ADCScaled or r(A)wVoltage
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage

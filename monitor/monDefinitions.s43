@@ -26,17 +26,21 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
-			mov		#' ',Rthd				; no units
-	;		mov		???,Rsec		; Result
+			mov		#'{',Rthd				; Units are frowny mouths :-{
+			mov.b	&localBadness,Rsec		; Result
 			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
 
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
-	
-			ret
+			mov		#'{',Rthd				; Units are frowny mouths :-{
+			mov.b	&worstBadness,Rsec		; Result
+			mov		#3,Rtos					; Print 3 digits
+	; !!! Incomplete. Need to also prettyPrint the reason for the worst badness
+			jmp		_prettyPrint			; Tail-call pretty-print and return
 		
-; Reset worst badness
+; Reset worst badness ( -- )
 			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
-	
+			clr.b	&worstBadness
+	; !!! Incomplete. Need to also reset the reason for the worst badness
 			ret
