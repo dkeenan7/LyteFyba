@@ -103,7 +103,8 @@ bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
 bCheckForBad DS		1				; Non zero if this is the last cell in a chain and has alarm
-currBadness	DS		1				; Current badness
+localBadness DS		1				; Local badness
+worstBadness DS		1				; Worst local badness since last resetWorstBadness command
 lastSentBad	DS		1				; Last sent badness
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
@@ -213,7 +214,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ;
 ; Initialise the ADC10
 ;
-			 ; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
+			; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
 			mov.b		#(1<<CellVChan)+(1<<LinkVChan)+(1<<4),&ADC10AE0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
@@ -230,13 +231,14 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Miscellaneous initialisation
 ;
 			clr		&bypassVolts			; No special bypass voltage as yet
-			clr.b	&currBadness			; Current badness is none
+			clr.b	&localBadness			; Local badness is none
+			clr.b	&worstBadness			; Worst local badness is none
 			clr.b	&lastSentBad			; Last badness we sent was zero
 			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
 			clr.b	&ticksSinceLastSend
 			clr.b	&ticksSinceLastRx
 			mov.w	#-1,&bSendBad			; Initialise bSendBad and bMeasureTime
-			mov.b	#3,&passWordState		; Waiting for first byte of ^b ^a ^d sequence
+			mov.b	#3,&passWordState		; Waiting for first byte of ^B ^A ^D sequence
 
 ; Main loop
 			_BEGIN
@@ -364,7 +366,6 @@ measures:
 			_IF		_GE
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
-			mov.b	R9,&currBadness
 
 			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
 			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
@@ -378,12 +379,23 @@ measures:
 				_ENDIF
 			_ENDIF
 
+			mov.b	R9,&localBadness		; Record this for later use
+			cmp.b	R9,&worstBadness
+			_IF		_NE						; If worstBadness equal or lower than localBadness
+				_IF		_LO
+			_CS_SWAP
+			_ENDIF
+					mov.b	R9,&worstBadness		; Update worstBadness
+	; !!! Incomplete. Also need to update reason for worst badness
+				_ENDIF
+			
 			mov.b	badnessTable(R9),R9		; Look up the encoded badness
 			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
 			; We could change the branch below to a jne if we wanted to send out-of-cycle messages
-			;	about a new low badness. However, it's possible that these messages could overwhelm
-			;	the communications system, in the situation of a sudden series of high power pulses
-;			_IF		_C
+			;	about a new lower badness (as well as higher).
+			;	However, it's possible that these messages could overwhelm
+			;	the communications system, in the situation of a sudden series of high power pulses.
+;			_IF		_C						; [Equiv to jnc below, when _CS_SWAPs and _ENDIF also used]
 			jnc		sendBadnessNow			; Jump if so to send the badness immediately
 
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
@@ -413,7 +425,7 @@ DoBadness:
 			mov.b	R8,R9				; Copy incoming badness
 			and		#7,R9				; Consider only raw badness bits
 			cmp.b	R8,badnessTable(R9)	; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&currBadness,R9		; Current badness into R9
+			mov.b	&localBadness,R9	; Current badness into R9
 			mov.b	badnessTable(R9),R9	; Present encoded badness
 			_IF		_EQ					; If incoming is a valid badness byte
 				cmp.b	R8,R9				; Compare incoming badness to ours

@@ -133,8 +133,8 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		ret
 
 ;
-; Pretty print n as a comment packet with m digits and follow with ch (ch n m--)
-;
+; Pretty print  ( ch n m -- ) Print n as a comment packet with m digits and follow with ch.
+; (no command letter)
 _prettyPrint:
 		push	Rthd				; Save ch
 		push.b	&base				; Save current base
@@ -176,30 +176,31 @@ _prettyPrint:
 		ret
 		
 ;
-; ParallelPullDown ( boolean -- )
+; ParallelPullDown ( boolean -- ) 0 to pull down. 1 to be Vref+ during conversions.
 ; When testing with BMUs powered up in parallel, the link input is at +3.6 V.
 ; Having any analog input above Vcc screws up all analog readings.
-; So if we find a high logic value on the link input we leave P1.4 (usually Vref+ out)
+; So we set P1.4 (usually Vref+ out during conversion)
 ; as a low digital output to keep the link input below Vcc.
-; But maybe it needs to be below Vref+. See MSP430F2012 datasheet page 39 note 2.
+; But maybe it needs to be below Vref+? See MSP430F2012 datasheet page 39 note 2.
 ;
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		tst		Rtos						; Test the parameter
-		_IF			_Z						; If parameter is false
-			bis.b		#(1<<4),&ADC10AE0		; Enable ADC function of P1.4 (Vref+ out)
-		_ELSE								; Else
+		_IF		_Z							; If parameter is false
 			bic.b		#(1<<4),&ADC10AE0		; Disable ADC function of P1.4 (Digital low out)
+		_ELSE								; Else
+			bis.b		#(1<<4),&ADC10AE0		; Enable ADC function of P1.4 (Vref+ out during conv)
 		_ENDIF								; Endif
 ;		DROP
 		ret
 
 ;
-; Low level voltage measurement ( channel -- measurement )
-; Channel has channel number shifted left 12 bits (e.g. $7000 for cell voltage)
-; Channel 7 is currently cell voltage; 10 is temperature sensor
-; Measurement is in millivolts (0 to 4095 mV)
+; ADCScaled or R(a)wVoltage ( channel -- measurement )
+; "channel" has channel number shifted left 12 bits.
+; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
+; "measurement" is 12-bit (0 to 4095) with voltage scale calibration applied,
+; which corresponds to millivolts in the case of cell voltage.
 ;
-		xCODE		'a',llVolt,_llVolt
+		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8
 		call		#measAndScale			; Measure and use voltage scale calibration
 		mov			R10,Rtos
