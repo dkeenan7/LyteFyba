@@ -74,7 +74,8 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			clr.b	&dontInterpret		; Needed to handle _eXclusive fall-through
 		_ENDIF						; Endif
 		ret
-
+		
+#if 0	// Temporarily disabled while not enough room for worstBadness stuff in monitor
 ;
 ; Turn on or off the error LED (bool -- )
 ;
@@ -85,7 +86,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 
 ;		pop		Rtos				; Remove operand
 		ret
-
+#endif
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
@@ -175,9 +176,10 @@ _prettyPrint:
 									; Identifies the BMU that sent a response
 		ret
 		
+#if 0	// Temporarily disabled while not enough room for worstBadness stuff in monitor		
 ;
-; ParallelPullDown ( boolean -- ) 0 to pull down. 1 to be Vref+ during conversions.
-; When testing with BMUs powered up in parallel, the link input is at +3.6 V.
+; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
+; When testing with BMUs powered up in parallel, link inputs are at +3.6 V.
 ; Having any analog input above Vcc screws up all analog readings.
 ; So we set P1.4 (usually Vref+ out during conversion)
 ; as a low digital output to keep the link input below Vcc.
@@ -186,13 +188,13 @@ _prettyPrint:
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		tst		Rtos						; Test the parameter
 		_IF		_Z							; If parameter is false
-			bic.b		#(1<<4),&ADC10AE0		; Disable ADC function of P1.4 (Digital low out)
-		_ELSE								; Else
 			bis.b		#(1<<4),&ADC10AE0		; Enable ADC function of P1.4 (Vref+ out during conv)
+		_ELSE								; Else
+			bic.b		#(1<<4),&ADC10AE0		; Disable ADC function of P1.4 (Digital low out)
 		_ENDIF								; Endif
 ;		DROP
 		ret
-
+		
 ;
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
 ; "channel" has channel number shifted left 12 bits.
@@ -205,6 +207,7 @@ _prettyPrint:
 		call		#measAndScale			; Measure and use voltage scale calibration
 		mov			R10,Rtos
 		ret
+#endif
 		
 ;
 ; cellVolt ( -- )
