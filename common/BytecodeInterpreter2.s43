@@ -1,7 +1,8 @@
 ; Contains both an outer (packet) interpreter with backspace editing
 ; and a cutdown inner (bytecode) interpreter.
-; The bytecode interpreter does not allow nested bytecode definitions,
-; i.e. a bytecode can only be defined in machine code, not bytecode.
+; This bytecode interpreter does not allow nested bytecode definitions,
+; i.e. a command character can only be defined in machine code,
+; not as a sequence of other command characters.
 
 ;-------------------------------------------------------------------------------
 ;

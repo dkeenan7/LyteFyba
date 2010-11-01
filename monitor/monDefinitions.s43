@@ -1,5 +1,5 @@
 ;
-; Bytecode definitions for the monitor
+; Command character definitions for the monitor
 ;
 
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
@@ -21,22 +21,22 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
 			mov		#'t',Rthd				; Units are "ticks"
 			mov.b	&ticksSinceLastRx,Rsec	; Result
-			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+;			mov		#3,Rtos					; Print 3 digits
+			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
 			mov		#'{',Rthd				; Units are frowny mouths :-{
 			mov.b	&localBadness,Rsec		; Result
-			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+;			mov		#3,Rtos					; Print 3 digits
+			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
 			mov		#'{',Rthd				; Units are frowny mouths :-{
 			mov.b	&worstBadness,Rsec		; Result
-			mov		#3,Rtos					; Print 3 digits
-			call	#_prettyPrint
+;			mov		#3,Rtos					; Print 3 digits
+			call	#_prettyPrint3			; Pretty-print of 3 digits
 			; Now prettyPrint the reason for the worst badness
 			mov.b	&worstBadUnit,Rthd		; Units
 			mov		&worstBadMeas,Rsec		; Result

@@ -84,9 +84,9 @@ NOBUF		EQU		1				; 1 for no ADC sample buffer; 0 for buffer
 rxsz		EQU		4				; Receive queue size. Must be a power of 2 no greater than 256
 txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
 
-; The following macro gem is due to David Keenan. It is based on a Taylor series expansion.
+; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
-; NOTE: it depends in the assembler rounding down on division, even for negative results
+; NOTE: it depends on the assembler rounding down on division, even for negative results
 ; There is a similar simple formula for rounding towards zero
 #define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
@@ -98,7 +98,10 @@ txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
-; NOTE: these next two are accessed as a word. Keep on an even boundary, and only ever set to 00 or FF!
+
+; NOTE: Many pairs of byte variables below are initialised as a word to save code space.
+; Don't move them or insert new variables without checking.
+
 			ALIGNRAM 1
 bSendBad	DS		1				; $FF if sending badness bytes at all
 bMeasureTime DS		1				; $FF if time to measure
@@ -109,10 +112,10 @@ worstBadMeas DS		2				; Value of measurement that caused worst badness
 worstBadUnit DS		1				; Unit character for reason for worst badness
 worstBadness DS		1				; Worst local badness since last resetWorstBadness command
 
-lastSentBad	DS		1				; Last sent badness
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
+lastSentBad	DS		1				; Last sent badness
 
 ; Serialio variables
 
@@ -133,6 +136,7 @@ txrd		DS		1				; Transmit queue read index
 
 ; ByteCodeInterpreter2 variables
 
+			ALIGNRAM 1
 base		DS		1				; Number base for output, 10 or 16
 CHKSUM		DS		1				; Packet xor checksum
 Checksumming DS		1				; Boolean
@@ -144,6 +148,11 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 ;-------------------------------------------------------------------------------
 			ORG		$F800					; Reset vector points here
 ;-------------------------------------------------------------------------------
+
+; Clear all of RAM
+			_DO		#$80,R8
+				clr		$1FE(R8)
+			_mLOOP	#2,R8
 
 main:		mov.w	#0280h,SP				; Initialize stackpointer
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
@@ -207,13 +216,13 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
 												;	idle bit)
-			mov.b	#08,&BitCntRx				; Load Bit Counter, 8 data bits
+			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits
+;			clr.b	TXCksum						; Clear transmit checksum
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
-			clr.b	TXCksum						; Clear transmit checksum
-			clr.b	&rxwr						; Initialise the TX and RX queue indexes
-			clr.b	&rxrd
-			clr.b	&txwr
-			clr.b	&txrd
+;			clr.b	&rxwr						; Initialise the TX and RX queue indexes
+;			clr.b	&rxrd
+;			clr.b	&txwr
+;			clr.b	&txrd
 
 ;
 ; Initialise the ADC10
@@ -223,28 +232,29 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
-; Initialise the stripped-down bytecode interpreter
+; Initialise the command character (bytecode) interpreter
 ;
 			mov.b	#10,&base				; Decimal output mode by default
-			clr.b	&CHKSUM					; Clear checksum
-			mov.b	#0,&Checksumming		; Checksumming of packets, off by default
-			mov.b	#0,&dontInterpret		; Interpret
+;			clr.b	&CHKSUM					; Clear checksum
+;			clr.b	&Checksumming			; Checksumming of packets, off by default
+;			clr.b	&dontInterpret			; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
 ;
 ; Miscellaneous initialisation
 ;
-			clr		&bypassVolts			; No special bypass voltage as yet
-			clr.b	&localBadness			; Local badness is none
-			clr.b	&worstBadness			; Worst local badness is none
-			mov.b	#' ',&worstBadUnit		; Unit of reason for worst badness is space
-			clr		&worstBadMeas			; Value of reason for worstBadness is zero
-			clr.b	&lastSentBad			; Last badness we sent was zero
-			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
-			clr.b	&ticksSinceLastSend
-			clr.b	&ticksSinceLastRx
-			mov.w	#-1,&bSendBad			; Initialise bSendBad and bMeasureTime
+;			clr		&bypassVolts			; No special bypass voltage as yet
+			mov.w	#$FFFF,&bSendBad		; Initialise bSendBad and bMeasureTime
+;			mov.b	#$FF,&bMeasureTime
+;			clr.b	&bCheckForBad			; Not checking for badness and last BMU in chain
+;			clr.b	&localBadness			; Local badness is none
+;			clr		&worstBadMeas			; Value of measurement causing worstBadness is zero
+			mov.b	#' ',&worstBadUnit		; Unit of measurement causing worst badness is space
+;			clr.b	&worstBadness			; Worst local badness is none
+;			clr.b	&ticksSinceLastSend
+;			clr.b	&ticksSinceLastRx
 			mov.b	#3,&passWordState		; Waiting for first byte of ^B ^A ^D sequence
+;			clr.b	&lastSentBad			; Last badness we sent was zero
 
 ; Main loop
 			_BEGIN
@@ -263,11 +273,11 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 					_ENDIF
 				_ELSE
 					; Note: the below reads two byte addressable variables at once
-					cmp.w	#-1,&bSendBad			; Check if sending regular badness, and time to send
-					_IF		_EQ						; If not, skip measurement and set/clear of bypass
+					tst.b	bMeasureTime			; Check if time to measure
+					_IF		_NZ						; If not, skip measurement and set/clear of bypass
 						eint
 						clr.b	bMeasureTime
-						call	#measures
+						call	#measures				; May send badness
 					_ELSE
 						;eint							; Interrupts are enabled by following bis instr:
 						bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
@@ -281,6 +291,9 @@ measures:
 ;
 ; Regular measurement. Called about 4 times per second
 ;
+#define Rmeas R15				// Tentative measurement causing worst badness
+#define Runit R14				// Tentative unit of measurement causing worst badness
+
 			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
 			_IF		_Z						; Wrapped around to 0?
@@ -289,8 +302,8 @@ measures:
 
 			; Cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			mov		R10,R15					; Tentative measurement causing worst badness
-			mov.b	#'V',R14				; Tentative unit of measurement causing worst badness
+			mov		R10,Rmeas				; Tentative measurement causing worst badness
+			mov.b	#'V',Runit				; Tentative unit of measurement causing worst badness
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -310,10 +323,10 @@ measures:
 			clr		R10						; R10:R9 has meas - 3.6
 			mov		#50,R8
 			call	#UMSlashMod				; (meas - 3.6) / 50 -> R9
-			mov		R9,R15					; Keep this partial badness
 
 			; Undervoltage badness: for every 100 mv below 2.5 V, we add one level of badness, to a maximum of 7 for < 1.9 V
-			pop		R10						; Original measurement
+			pop		R10						; Restore original measurement
+			push	R9						; Save badness_so_far
 			mov		#2500+99,R9
 			sub		R10,R9					; R9 has 2.5 V - meas plus 99 for rounding
 			clr		R10						; R10:R9 has this
@@ -322,13 +335,14 @@ measures:
 			_ENDIF
 			mov		#100,R8
 			call	#UMSlashMod				; (2.5 V - meas) / 100 -> R9
-			cmp		R9,R15					; Which badness is worse?
-			_IF		_GE
-				mov		R15,R9				; Worst to R9
+			pop		R8						; Restore Badness_so_far
+			cmp		R8,R9					; Which badness is worse?
+			_IF		_LO
+				mov		R8,R9				; Worst to R9
 			_ENDIF
 			
 			; Temperature measurement
-			push	R9						; Save badness so far
+			push	R9						; Save badness_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
 			; Temperature badness: 1 for every 2 degrees over 50
@@ -338,20 +352,20 @@ measures:
 			_ENDIF
 			rra		R10
 			pop		R8						; Restore measurement
-			pop		R9						; Restore badness so far
-			cmp		R10,R9					; Is temp badness worse than badness so far?
+			pop		R9						; Restore badness_so_far
+			cmp		R10,R9					; Is temp badness worse than badness_so_far?
 			_IF		_LO
-				mov		R10,R9					; Yes, new worst
-				mov		R8,R15					; Tentative measurement causing worst badness
-				mov.b	#'C',R14				; Tentative unit of measurement causing worst badness
+				mov		R10,R9					; Yes, new badness_so_far
+				mov		R8,Rmeas				; Tentative measurement causing worst badness
+				mov.b	#'C',Runit				; Tentative unit of measurement causing worst badness
 			_ENDIF
 
 			; Link measurement, if appropriate
-			push	R9
+			push	R9						; Save badness_so_far
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
 			_IF		_NE						; Only calculate link badness if not this value
-				push	R10
+				push	R10						; Save linkV measurement
 				tst		R10
 				_IF		_L						; Get absolute value
 					inv		R10
@@ -365,20 +379,20 @@ measures:
 				mov		R10,R9
 				clr		R10
 				mov		#50,R8
-				call	#UMSlashMod
-				pop		R10
-				pop		R8						; Restore badness so far
-				cmp		R8,R9					; Is temp badness worse than badness so far?
+				call	#UMSlashMod				; Link badness in R9
+				pop		R10						; Restore linkV measurement
+				pop		R8						; Restore badness_so_far
+				cmp		R8,R9					; Is temp badness worse than badness_so_far?
 				_IF		_LO
-					mov		R8,R9					; Yes, new worst
-					mov		R10,R15					; Tentative measurement causing worst badness
-					mov.b	#'m',R14				; Tentative unit of measurement causing worst bad
+					mov		R8,R9					; Yes, new badness_so_far
+					mov		R10,Rmeas				; Tentative measurement causing worst badness
+					mov.b	#'m',Runit				; Tentative unit of measurement causing worst bad
 				_ENDIF
 			_ELSE
-				pop		R9
+				pop		R9						; Restore badness_so_far
 			_ENDIF
 
-			cmp		#7,R9					; Is the overall badness worse than 7?
+			cmp		#7,R9					; Is the badness_so_far worse than 7?
 			_IF		_GE
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
@@ -391,8 +405,8 @@ measures:
 					tst		R9						; Yes, are we at badness zero?
 					_IF		_Z
 						mov		#1,R9					; Yes, make it 1 for the comms error
-						mov		&ticksSinceLastRx,R15	; Tentative measurement causing worst badness
-						mov.b	#'t',R14				; Tentative unit of measurement causing worst bad
+						mov		&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
+						mov.b	#'t',Runit				; Tentative unit of measurement causing worst bad
 					_ENDIF
 				_ENDIF
 			_ENDIF
@@ -401,33 +415,36 @@ measures:
 			cmp.b	&worstBadness,R9
 			_IF		_HS						; If localBadness equal or higher than worstBadness
 				mov.b	R9,&worstBadness		; Update worstBadness
-				mov		R15,&worstBadMeas		; Update value of measurement causing worst badness
-				mov.b	R14,&worstBadUnit		; Update unit of measurement causing worst badness
+				mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
+				mov.b	Runit,&worstBadUnit		; Update unit of measurement causing worst badness
 			_ENDIF
 			
-			mov.b	badnessTable(R9),R9		; Look up the encoded badness
-			cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
-			; We could change the branch below to a jne if we wanted to send out-of-cycle messages
-			;	about a new lower badness (as well as higher).
-			;	However, it's possible that these messages could overwhelm
-			;	the communications system, in the situation of a sudden series of high power pulses.
-;			_IF		_C						; [Equiv to jnc below, when _CS_SWAPs and _ENDIF also used]
-			jnc		sendBadnessNow			; Jump if so to send the badness immediately
-
-				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-				_IF		_C
-;			_CS_SWAP
-					cmp.b	#4,&ticksSinceLastSend
+			tst.b	&bSendBad				; If bSendBad is true
+			_IF		_NZ			
+				mov.b	badnessTable(R9),R9		; Look up the encoded badness
+				cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
+				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
+				;	about a new lower badness (as well as higher).
+				;	However, it's possible that these messages could overwhelm
+				;	the communications system, in the situation of a sudden series of high power pulses.
+;				_IF		_C						; [Equiv to jnc below, when _CS_SWAPs and _ENDIF also used]
+				jnc		sendBadnessNow			; Jump if so to send the badness immediately
+	
+					cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 					_IF		_C
-;			_CS_SWAP
-;			_ENDIF
+;				_CS_SWAP
+						cmp.b	#4,&ticksSinceLastSend
+						_IF		_C
+;				_CS_SWAP
+;				_ENDIF
 sendBadnessNow
-						clr.b	&ticksSinceLastSend
-						mov.b	R9,&lastSentBad			; Update remembered value
-						mov.b	R9,R8			
-						call	#TX_Byte				; Send the encoded badness
+							clr.b	&ticksSinceLastSend
+							mov.b	R9,&lastSentBad			; Update remembered value
+							mov.b	R9,R8			
+							call	#TX_Byte				; Send the encoded badness
+						_ENDIF
 					_ENDIF
-				_ENDIF
+			_ENDIF							; Endif bSendBad is true
 			ret
 ; End of measurement
 
