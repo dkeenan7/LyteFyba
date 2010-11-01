@@ -1,5 +1,5 @@
 ;
-; Bytecode definitions for the debugger
+; Command character definitions for the debugger
 ;
 
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
@@ -90,7 +90,7 @@ realCal
 				mov			#5,Rtos					; 5 digits
 				mov.w		&ramVoltCalL,Rsec		; Get the cal value
 			_ENDOF
-			_OFb		#'t',Rtos				; 't': link voltage
+			_OFb		#'t',Rtos				; 't': temperature
 				mov			#3,Rtos
 				mov.b		&ramTempCal,Rsec
 			_ENDOF
@@ -127,7 +127,7 @@ emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
 			_OFb		#'v',Rtos				; 'v': cell Voltage
 				mov.w		Rsec,&ramVoltCalL		; Set the cal value
 			_ENDOF
-			_OFb		#'t',Rtos				; 't': link voltage
+			_OFb		#'t',Rtos				; 't': temperature
 				mov.b		Rsec,&ramTempCal
 			_ENDOF
 			_OFb		#'l',Rtos				; 'l': link voltage
@@ -246,8 +246,8 @@ failCompare mov		#3,rERR
 			xCODE	'g',GetByte,_GetByte
 			mov.b	#' ',Rthd
 			mov.b	@Rtos,Rsec
-			mov		#3,Rtos
-			jmp		_prettyPrint
+;			mov		#3,Rtos
+			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits
 			
 ;
 ; ZtoreByte - store a byte (a la CStore) ( ch addr -- )

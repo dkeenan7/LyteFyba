@@ -5,7 +5,7 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 			LSTOUT+
-			COL		132
+			COL		150
 ; This is a reverse-polish command interpreter for an MSP430F2012 microcontroller.
 ;
 ; It was developed by Mike Van Emmerik and Dave Keenan for their
@@ -24,7 +24,7 @@
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
 #define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
 
-; Addresses manually imported from the BSL-writer. Version 5. Keep up to date!
+; Addresses manually imported from the BSL-writer or debugger. Version 5. Keep up to date!
 InitRetAddr	EQU		$1022		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$108C		; Calling-address to receive byte in R8
 WriteByte	EQU		$10C4		; Calling-address to transmit byte in R8

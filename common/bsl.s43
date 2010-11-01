@@ -2,8 +2,8 @@
 ; The bootstrap loader (BSL)
 ;
 ; This will be relocated to info-flash which starts at $1000.
-; This code is common to the debugger/BSLwriter2 and the original BSLwriter, which may still be needed
-;	occasionally if a BMU loses its frequency calibration data and it needs to be forced
+; This code is common to the debugger and the BSLwriter, which may still be needed
+;	occasionally if a BMU loses its frequency calibration data and it needs to be forced.
 
 #if MClock4
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz
@@ -180,6 +180,7 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 			; Calibration data
 mainID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
 mainSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
+									; Also allows for IDs greater than 255.
 main1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
 main1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
 main4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte

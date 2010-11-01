@@ -7,8 +7,8 @@
 ;
 ; It is a debugger and bootstrap-loader writer for our cell-top Battery Monitoring Unit (BMU)
 ; based on an MSP430F2012 microcontroller.
-; This version is interactive; there is still the original BSLwriter that requires reassembly
-; to perform various actions, but may be required if clock frequency calibration is lost.
+; This version is interactive; there is also the non-interactive BSLwriter that requires reassembly
+; to perform various actions, which may be required if clock frequency calibration is lost.
 ;
 ; This debugger should be the first program written to the 2kB of main-flash.
 ; This must be done using a flash programmer connected to the chip's JTAG port.
@@ -154,14 +154,17 @@ ramVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL 
 ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
 
+; NOTE: Many pairs of byte variables below are initialised as a word to save code space.
+; Don't move them or insert new variables without checking.
+
 ; ByteCodeInterpreter2 variables
 
 base			DS		1			; Number base, 10 or 16
 CHKSUM			DS		1			; Packet xor checksum
 Checksumming 	DS		1			; Boolean
 dontInterpret	DS		1			; Boolean; for 'x' command
-TXCksum			DS		1			; Transmit checksum
 passWordState	DS		1			; State of the password detection logic; 3 = start
+TXCksum			DS		1			; Transmit checksum
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
 TIB				DS		1			; Start of Text Input Buffer, grows towards stack
@@ -251,14 +254,16 @@ initialise:
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
-; Initialise the stripped-down bytecode interpreter
+; Initialise the command character (bytecode) interpreter
 ;
-			mov.b	#10,&base				; Decimal output mode by default
-			clr.b	&CHKSUM					; Clear checksum
-			mov.b	#0,&Checksumming		; Checksumming of packets, off by default
-			mov.b	#0,&dontInterpret		; Interpret
+			mov.w	#10,&base				; Decimal output mode by default
+;			clr.b	&CHKSUM					; Clear checksum
+			clr.w	&Checksumming			; Checksumming of packets, off by default
+;			clr.b	&dontInterpret			; Interpret
+			mov.w	#3,&passWordState
+;			clr.b	&TXCksum
 			mov		#TIB,&ToIN				; Packet pointer
-
+			
 ;
 ; Copy calibration data into RAM
 ;
@@ -407,13 +412,9 @@ pauseL		dec		R12
 
 
 
-; ----------------------------------------------------------------------------
-; Bytecode definitions
+; Command character definitions
 #include "debDefinitions.s43"
 
-
-; ----------------------------------------------------------------------------
-; End of bytecode definitions
 
 freespace		EQU		_OPCODETBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )

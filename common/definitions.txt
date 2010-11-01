@@ -27,7 +27,7 @@ k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
-  o StOre wOrd (pOke wOrd)
+  o StOre wOrd (poke wOrd)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 q   QueryWorstBadness
   r ReadCalValue (debugger only)
@@ -42,7 +42,7 @@ x x e(X)clusive     (singleBMU interaction mode)
   z Ztore byte (poke byte)
 {   resetWorstBadness :-{
 | | exit or comment
-}   KillBadnessSending (not to be typed. 'K' is converted to '}' internally)
+}   KillBadnessSending (not to be typed. Uppercase 'K' is converted to '}' internally)
 ~ ~ change-sign (postfix negate)
 <DEL> (not to be typed. '$' is converted to <DEL> internally)
 
@@ -87,7 +87,7 @@ q   QueryWorstBadness
 
   f Fetch word (peek word)
   g Get byte   (peek byte)
-  o StOre wOrd (pOke wOrd)
+  o StOre wOrd (poke wOrd)
   z Ztore byte (poke byte)
   j JumpToSubroutine (call)
 
