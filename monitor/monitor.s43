@@ -533,9 +533,27 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
+; The linker puts a checksum of the used code memory here (in the first available unused space),
+; when asked for one.
+; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
+; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:
+; Fill unused code memory
+; 	Fill pattern: 0xFF
+;	Generate checksum
+;		Size: 1 byte, Alignment: 1
+;		CRC Polynomial: 0x101
+; 		Complement: As is
+;		Bit order: MSB first, Initial value: 0x10
+; The initial value of 0x10 is required because the reset vector of $1000 at $FFFE is not transmitted
+; and so the BSL does not include it in its checksum, but the linker does.
 
+; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
+; Generate Extra Output File
+;	Override default
+;	monitor.bin
+;	Output format: raw-binary
 
-
+; Some calculations so we can see how much space we have left, by reading the listing.
 freespace	EQU		_OPCODETBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent EQU BCD( (100*freespace)/2048)
@@ -554,9 +572,9 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 			; for this BMU is sent instead.
 			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
 			; the encoded badness byte).
-badnessTable DB		$80			; $80 is least badness
+badnessTable DB		$80					; $80 is least badness
 			DB		$91,$A2,$B3,$C4,$D5,$E6
-			DB		$F7			; $F7 is the worst badness
+			DB		$F7					; $F7 is the worst badness
 			
 			ORG		0FFFEh				; MSP430 RESET Vector
 			DW		0x1000				; Reset to BSL in case there is a crash
