@@ -573,6 +573,11 @@ TX_ByteCk	xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
 TX_Byte		clr		R11				; Needed for BSL's WriteByte
 			jmp		WriteByte
 
+#define		VoltCalL	infoVoltCalL		// Needed for measure code
+#define		VoltCalH	infoVoltCalH
+#define		TempCal		infoTempCal
+#define		LinkCal		infoLinkCal
+
 
 #include "../common/measure.s43"			// ADC Measurement
 #include "../common/math.s43"				// Multiply and divide
