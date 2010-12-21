@@ -155,7 +155,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -389,6 +389,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>
@@ -662,7 +666,7 @@
         </option>
         <option>
           <name>DoFill</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>FillerByte</name>
@@ -670,20 +674,20 @@
         </option>
         <option>
           <name>DoCrc</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CrcSize</name>
           <version>0</version>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CrcAlgo</name>
-          <state>1</state>
+          <state>3</state>
         </option>
         <option>
           <name>CrcPoly</name>
-          <state>0x11021</state>
+          <state>0x101</state>
         </option>
         <option>
           <name>CrcCompl</name>
@@ -782,12 +786,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>debugger.hex</state>
+          <state>debugger.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>22</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -844,11 +848,11 @@
         </option>
         <option>
           <name>CrcAlign</name>
-          <state>2</state>
+          <state>1</state>
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x0</state>
+          <state>0x10</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>
@@ -1036,7 +1040,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -1270,6 +1274,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>
