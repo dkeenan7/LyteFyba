@@ -58,6 +58,7 @@
 
 MClock4		EQU		1				; Non zero if MCLK is 4MHz
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
+minLEDBad	EQU		1				; Minimum badness to light error LED
 
 
 ; ADC channel numbers

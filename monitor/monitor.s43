@@ -11,8 +11,6 @@
 
 
 
-#define		Rtrash	R14			// Junked in flashCStore
-
 DATAVERS5	EQU		1			; True if data layout version 5
 #if	DATAVERS5
 InitRetAddr	EQU		$1022		; Return address when interpretByte is called for initialisation
@@ -51,8 +49,9 @@ MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layo
 #define 	Rlit	R6				// Holds partial literals
 #define 	Rw		R8				// Working register - temporary - anyone can use
 
-#define		LEDWITHTX		1		; True to have LED come on with any transmit byte
-#define		ROTATE3			1		; True for later boards that have TXDp, TXDm and BYPASS rotated
+#define		LEDWITHTX	1			; True to have LED come on with any transmit byte
+#define		ROTATE3		1			; True for later boards that have TXDp, TXDm and BYPASS rotated
+minLEDBad	EQU			1			; Minimum badness to light error LED
 
 #if			ROTATE3
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -289,7 +288,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 measures:
 ;
-; Regular measurement. Called about 4 times per second
+; Regular measurement. Called BadnessFreq times per second (4-32 times per second)
 ;
 #define Rmeas R15				// Tentative measurement causing worst badness
 #define Runit R14				// Tentative unit of measurement causing worst badness
@@ -379,10 +378,11 @@ measures:
 				mov		R10,R9
 				clr		R10
 				mov		#50,R8
-				call	#UMSlashMod				; Link badness in R9
+				call	#UMSlashMod
+				mov		R9,R8					; Link badness in R8
 				pop		R10						; Restore linkV measurement
-				pop		R8						; Restore badness_so_far
-				cmp		R8,R9					; Is temp badness worse than badness_so_far?
+				pop		R9						; Restore badness_so_far
+				cmp		R8,R9					; Is badness_so_far less than link badness?
 				_IF		_LO
 					mov		R8,R9					; Yes, new badness_so_far
 					mov		R10,Rmeas				; Tentative measurement causing worst badness
@@ -398,15 +398,18 @@ measures:
 			_ENDIF
 
 			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
-			cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-			_IF		_C
-				tst.b	&ID						; Only if ID
-				_IF		_NZ						;	is nonzero...
-					tst		R9						; Yes, are we at badness zero?
-					_IF		_Z
-						mov		#1,R9					; Yes, make it 1 for the comms error
-						mov		&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
-						mov.b	#'t',Runit				; Tentative unit of measurement causing worst bad
+			tst.b	bSendBad				; Are we sending badness?
+			_IF		_NZ						; If not, there can't be a comms badness
+				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+				_IF		_C
+					tst.b	&ID						; Only if ID
+					_IF		_NZ						;	is nonzero...
+						tst		R9						; Yes, are we at badness zero?
+						_IF		_Z
+							mov		#1,R9					; Yes, make it 1 for the comms error
+							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
+							mov.b	#'t',Runit				; Tentative unit of measurement causing worst bad
+						_ENDIF
 					_ENDIF
 				_ENDIF
 			_ENDIF
@@ -419,6 +422,10 @@ measures:
 				mov.b	Runit,&worstBadUnit		; Update unit of measurement causing worst badness
 			_ENDIF
 			
+			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
+			CtoAllBits	R8
+			movBits_B	R8,#LED,&P1OUT
+			
 			tst.b	&bSendBad				; If bSendBad is true
 			_IF		_NZ			
 				mov.b	badnessTable(R9),R9		; Look up the encoded badness
@@ -430,6 +437,8 @@ measures:
 ;				_IF		_C						; [Equiv to jnc below, when _CS_SWAPs and _ENDIF also used]
 				jnc		sendBadnessNow			; Jump if so to send the badness immediately
 	
+					; We don't want to send badness unless we are a (temporary) master.
+					; We are a temporary master if there have been 10+ ticks since our last Rx
 					cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 					_IF		_C
 ;				_CS_SWAP
@@ -468,7 +477,12 @@ DoBadness:
 					mov		R9,R8				; Incoming not valid or we are worse; use our badness
 				_ENDIF						; Endif we are worse
 			mov.b	R8,&lastSentBad		; Remember that we sent this
-			call	#TX_ByteNW			; Echo/send the badness byte, no waiting
+			; FALL THROUGH to sendBadness
+			; Do not insert new code here
+			; Don't have the space to implement audible alarm:
+			
+#if 0
+sendBadness:
 			tst.b	&bCheckForBad		; Are we checking
 			_IF		_NZ					;	for badness (because we're the last BMU)?
 				; Yes, set or clear the alarm based on R8
@@ -476,8 +490,13 @@ DoBadness:
 				CtoAllBits	R8				; $00 if badness >= 2, $FF otherwise
 				and		#OUT,R8				; Clear all but OUT bit
 				mov		R8,&TACCTLt			; Set TXn to 0 if badness >= 2
-			_ENDIF
+			_ELSE
+#endif
+			call		#TX_ByteNW
+;			_ENDIF
 			ret
+			
+			
 ;
 ; Check for a password character
 ; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
