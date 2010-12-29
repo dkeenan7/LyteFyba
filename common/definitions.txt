@@ -13,7 +13,8 @@ $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
 K   KillBadnessSending (toggle)
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
-a a ADCScaled or r(A)wVoltage
+  a ADCScaled or r(A)wVoltage (debugger only)
+a   Alarm (toggle) (monitor only)
 b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
@@ -66,7 +67,7 @@ n n emit(N)um       was e(M)itDec
 e e ErrorLED
   y b(Y)pass (Yellow)
 
-a a ADCScaled or r(A)wVoltage
+  a ADCScaled or r(A)wVoltage (debugger only)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
@@ -81,6 +82,7 @@ x x e(X)clusive     (singleBMU interaction mode)
 | | exit or comment
 k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 K   KillBadnessSending (toggle)
+a	Alarm (toggle) (monitor only)
 
 q   QueryWorstBadness
 {   resetWorstBadness :-{

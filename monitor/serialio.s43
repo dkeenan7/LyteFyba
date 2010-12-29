@@ -200,7 +200,7 @@ RX_TIOV_ISR	; Combined Receive (timer capture/compare 1) and timer overflow inte
 ;	Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
 TIOV_ISR:
-			mov.b	#-1,&bMeasureTime		; Notify mainline that it's time to measure
+			clr.b	&bNotMeasureTime		; Notify mainline that it's time to measure
 			bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 			reti
 

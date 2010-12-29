@@ -5,6 +5,19 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and debugger
 ;
+; ADCScaled or R(a)wVoltage ( channel -- measurement )
+; "channel" has channel number shifted left 12 bits.
+; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
+; "measurement" is 12-bit (0 to 4095) with voltage scale calibration applied,
+; which corresponds to millivolts in the case of cell voltage.
+;
+		xCODE		'a',ADCScaled,_ADCScaled
+		mov			Rtos,R8
+		call		#measAndScale			; Measure and use voltage scale calibration
+		mov			R10,Rtos
+		ret
+		
+;
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v' for voltage etc) and value is n
 ;
