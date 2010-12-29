@@ -155,7 +155,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -389,6 +389,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>
@@ -782,12 +786,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>monitor.bin</state>
+          <state>monitor.hex</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>57</state>
+          <state>22</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -1036,7 +1040,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -1270,6 +1274,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>

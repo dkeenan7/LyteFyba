@@ -172,7 +172,10 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 				cmp.b 	&txwr,&txrd				; Test if TX queue is empty
 				_IF		_EQ						; If TX queue is empty
 					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
-					bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
+					cmp.b	#minLEDBad,&localBadness; Leave the LED on if we have badness >= minLEDBad
+					_IF		_LO						; If localBadness < 2
+						bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
+					_ENDIF
 				_ELSE							; Else TX queue is not empty
 					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK P1.5)
 													;   will continue to be an inversion of TXDm (TA0 P1.1).
