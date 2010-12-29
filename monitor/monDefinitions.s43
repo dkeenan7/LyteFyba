@@ -9,7 +9,7 @@
 ;
 			xCODE	'}',BadnessAutonomy_,_BadnessAutonomy
 BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-brace
-			inv.b	&bSendBad				; Toggle badness sending
+			inv.b	&bNotSendBad			; Toggle badness sending
 			ret
 		
 ; checKsumming toggle ( -- )
@@ -49,3 +49,9 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	#' ',&worstBadUnit
 			clr		&worstBadMeas
 			ret
+			
+; Alarm ( -- )
+			xCODE	'a',Alarm,_Alarm
+			inv.b	&bAlarmForBad
+			ret
+		
