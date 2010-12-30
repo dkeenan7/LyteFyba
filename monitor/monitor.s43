@@ -153,8 +153,8 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 				clr		$1FE(R8)
 			_mLOOP	#2,R8
 
-main:		mov.w	#0280h,SP				; Initialize stackpointer
-StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+main:		mov.w	#$280,SP				; Initialize stackpointer
+;			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 
 ;			MOV.B	&CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
 ;			MOV.B	&CALDCO_1MHZ,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
@@ -257,6 +257,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 ; Main loop
 			_BEGIN
+;				mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 				dint
 				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
@@ -277,10 +278,12 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 						mov.b	#$FF,bNotMeasureTime
 						call	#measures				; May send badness
 					_ELSE
+						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
 						;eint							; Interrupts are enabled by following bis instr:
 						bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
 					_ENDIF
 				_ENDIF
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer each time around main loop
 			_AGAIN
 ; End of main loop
 
