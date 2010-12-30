@@ -22,16 +22,16 @@
 ; and a password-recognising state-machine. The state-machine normally passes incoming
 ; serial data to a command interpreter in main-flash. But when the password is recognised,
 ; the state-machine instead writes incoming serial data to main-flash.
-; This allows it to overwrite the BSL-writer with the normal command interpreter or monitor,
+; This allows it to overwrite this debugger with the normal command interpreter or monitor,
 ; sent via the serial input. And because the BSL transmits all data received on its serial
-; input, to its serial output, a cascaded series of these MSP boards can all be updated
+; input, to its serial output, a cascaded series of these MSP430 boards can all be updated
 ; simultaneously. You only need to send a new version of the monitor to the first board
 ; in the chain.
 ;
 ; But what if you want to update the BSL itself? In that case, instead of sending a new
 ; monitor, you send this debugger carrying the new version of the BSL.
 ; This time you send the debugger via the serial input not the JTAG port.
-; That way you will update the BSLs of all the MSP boards in the chain simultaneously.
+; That way you will update the BSLs of all the boards in the chain simultaneously.
 ;
 ; The existing BSL will dutifully load the debugger into main flash,
 ; completely unaware that it has just loaded the instrument of its own demise.
@@ -76,7 +76,7 @@ NOBUF		EQU		1				; 1 for no ADC sample buffer; 0 for buffer
 ; Locations in info-flash, of routines and calibration data
 ; These addresses must be manually exported to the interpreter.
 ; Assemble this file with listing-generation enabled, then look at the listing file
-; to determine the absolute addresses to put into the interpreter.
+; to determine the absolute addresses to put into the monitor or interpreter.
 
 infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpretByte
 														; is called for initialisation
@@ -202,6 +202,7 @@ noWaitID
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
 			bic.b	#LED,&P1OUT				; Turn off the error LED to show successful download
 			call	#ACCEPT					; Process the byte
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			ret								; Return to the BSL
 
 
@@ -307,7 +308,7 @@ currVersBSL
 			ret
 
 ;
-; Start of the actual debugger / BSL-writer2, when not started from the BSL
+; Start of the actual debugger, when not started from the BSL
 ; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
 main:										; For debugger
@@ -331,7 +332,7 @@ waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
 TX_Byte		clr		R11					; Needed for BSL's WriteByte
 			call	#WriteByte
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear watchdog timer
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
 			DELAY_IF_NEEDED
 			ret
 

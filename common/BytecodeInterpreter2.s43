@@ -119,23 +119,33 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ;-------------------------------------------------------------------------------
 ; The inner (bytecode) interpreter
 
+; Some bytecodes below $60 need to be translated into the range $60 to $7F
+; so they can have an opcode table entry.
+		ALIGN	1
+translateTable
+		DB		'K' , '}'		; Shift-K (for Kill Badness Sending) becomes right curly brace
+		DB		'\'', '`'		; Tick (single-quote) (for character literal) becomes tock (back-quote)
+		DB		'$' , $7F		; Dollar sign (for hex number literal) becomes <DEL>
+		DB		'/' , '|'		; Slash (for comment or EXIT) becomes vertical bar
+sizeTranslateTable	EQU	$-translateTable
+
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
 _NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
-		_CASE
-			_OFb	#'$',Rw		; If it's a dollar sign (hex number literal)
-				mov.b	#$7F,Rw		; substitute <DEL> for it so it has an opcode table entry
-			_ENDOF
-			_OFb	#'\'',Rw	; If it's a tick (single-quote) (character literal)
-				mov.b	#'`',Rw		; substitute tock (back-quote) for it so it has an opcode table entry
-			_ENDOF
-			_OFb	#'/',Rw		; If it's a slash (comment or EXIT)
-				mov.b	#'|',Rw		; substitute vertical-bar for it so it has an opcode table entry
-			_ENDOF
-			_OFb	#'K',Rw		; If it's an uppercase K (KillBadnessSending)
-				mov.b	#'}',Rw		; substitute right-curly-brace for it so it has an opcode table entry
-			_ENDOF
-		_ENDCASE
+		
+		; Do the bytecode translations using the table above
+		MOV		#sizeTranslateTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			MOV.W	translateTable-2(R9),R10 ; Get two bytes from the table
+			CMP.B	R10,Rw		; Compare the bytecode with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				DECD	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+			_ELSE				; Else there is a match so
+				SWPB	R10			; Get the high byte from the table
+				MOV.B	R10,Rw		; Substitute it for the bytecode
+			_ENDIF				; Endif match
+
 		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
 		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
 		

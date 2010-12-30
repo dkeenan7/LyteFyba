@@ -19,7 +19,7 @@ b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
 e e ErrorLED
-  f Fetch word (peek word)
+  f FourMHzBurst (was Fetch word (peek word))
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
@@ -87,11 +87,13 @@ a	Alarm (toggle) (monitor only)
 q   QueryWorstBadness
 {   resetWorstBadness :-{
 
-  f Fetch word (peek word)
+  j JumpToSubroutine (call)
+  z Ztore byte (poke byte)
   g Get byte   (peek byte)
   o StOre wOrd (poke wOrd)
-  z Ztore byte (poke byte)
-  j JumpToSubroutine (call)
+ [f was Fetch word (peek word)]
+
+  f FourMHzBurst
 
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
   w WriteCalValue

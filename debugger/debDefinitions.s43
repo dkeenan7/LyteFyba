@@ -17,9 +17,40 @@
 		mov			R10,Rtos
 		ret
 		
+; Some characters need to be translated into RAM adresses of calibration values
+		ALIGN	1
+calAddressTable
+		DB		'i' , ramID       & $7F | $80	; High bit set to indicate byte quantity,
+		DB		'o' , ram1MHzCalD & $7F			; clear for word quantity
+		DB		'f' , ram4MHzCalD & $7F
+		DB		'v' , ramVoltCalL & $7F
+		DB		't' , ramTempCal  & $7F | $80
+		DB		'l' , ramLinkCal  & $7F | $80
+		; Zero must not appear in the table as it is used to represent "unrecognised".
+sizeCalAddressTable	EQU	$-calAddressTable
+
+;
+; TranslateToCalAddr ( ch -- addr )
+;
+TranslateToCalAddr:
+		; Do the calibration address translations using the table above
+		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				decd	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
+			_ELSE				; Else there is a match so
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rtos	; Substitute it for the address character
+			_ENDIF				; Endif match
+		ret
+		
 ;
 ; Calibrate ( n ch --- )
-; Perform a calibration whose type is ch ('v' for voltage etc) and value is n
+; Perform a calibration whose type is ch ('v for voltage etc) and value is n
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
@@ -98,81 +129,62 @@ realCal
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
-			_CASE
-			_OFb		#'v',Rtos				; 'v': cell Voltage
-				mov			#5,Rtos					; 5 digits
-				mov.w		&ramVoltCalL,Rsec		; Get the cal value
-			_ENDOF
-			_OFb		#'t',Rtos				; 't': temperature
-				mov			#3,Rtos
-				mov.b		&ramTempCal,Rsec
-			_ENDOF
-			_OFb		#'l',Rtos				; 'l': link voltage
-				mov			#3,Rtos
-				mov.b		&ramLinkCal,Rsec
-			_ENDOF
-			_OFb		#'f',Rtos				; 'f': 4 MHz cal
-				mov			#5,Rtos
-				mov.w		&ram4MHzCalD,Rsec
-			_ENDOF
-			_OFb		#'o',Rtos				; 'o': 1 MHz cal
-				mov			#5,Rtos
-				mov.w		&ram1MHzCalD,Rsec
-			_ENDOF
-			_OFb		#'i',Rtos				; 'i': ID
-				mov			#3,Rtos
-				mov.b		&ramID,Rsec
-			_ENDOF
-emitQmark:	mov		#'?',Rtos				; This should be ignored by downstream BMUs
-			call	#_EMIT
-			mov		#$0D,Rtos				; Carriage return
-			jmp		_EMIT
-			_ENDCASE
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,Rsec				; Convert to RAM address in Rsec
+			bic.b	#$80,Rsec
+			bis		#$200,Rsec
+			tst.b	Rtos
+			_IF		_NZ						; If not zero (zero means "unrecognised")
+				_IF		_L						; If high bit set
+					mov		#3,Rtos					; Display 3 digits
+					mov.b	@Rsec,Rsec				; Get byte sized cal value
+				_ELSE							; Else high bit clear so
+					mov		#5,Rtos					; Display 5 digits
+					mov.w	@Rsec,Rsec				; Get word sized cal value
+				_ENDIF							; Endif high bit
+			_ELSE 							; Else is zero for "unrecognised"
+emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BMUs
+				call	#_EMIT					; Call EMIT
+				mov		#$0D,Rtos				; Carriage return
+				jmp		_EMIT					; Tail-call EMIT and return
+			_ENDIF							; Endif unrecognised
 			mov.b		#' ',Rthd			; Trailing char (space)
-			jmp 	_prettyPrint			; Print and return
-
-
+			jmp 	_prettyPrint			; Tail-call prettyPrint and return
+			
 ;
 ; Write calibration value ( n ch --- )
-; Calibration type (e.g. 'v' for cell Voltage) in ch; n has value to write
+;
+; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
+;
+; Note: The 'fw or 'ow command can affect the CPU clock in such a way that the processor
+; is no longer capable of receiving commands, and needs physical access to recover.
+; So take great care. If the worst happens, JTAG the BSLwriter to set frequency calibration.
+
 			xCODE	'w',writeCalValue,_writeCalValue
-			_CASE
-			_OFb		#'v',Rtos				; 'v': cell Voltage
-				mov.w		Rsec,&ramVoltCalL		; Set the cal value
-			_ENDOF
-			_OFb		#'t',Rtos				; 't': temperature
-				mov.b		Rsec,&ramTempCal
-			_ENDOF
-			_OFb		#'l',Rtos				; 'l': link voltage
-				mov.b		Rsec,&ramLinkCal
-			_ENDOF
-#if 0		// These commands can affect the CPU clock, in such a way that the processor is no longer
-			// capable of receiving commands, and needs physical access to recover.
-			// So we deem them too dangerous. Use the old BSLwriter to change frequency calibration
-			_OFb		#'f',Rtos				; 'f': 4 MHz cal
-				mov.w		Rsec,&ram4MHzCalD
-				; Also set the CPU clock, if appropriate
-#if MClock4
-				mov.b	&ram4MHzCalB,&BCSCTL1
-				mov.b	Rsec,&DCOCTL
-#endif
-			_ENDOF
-			_OFb		#'o',Rtos				; 'o': 1 MHz cal
-				mov.w		Rsec,&ram1MHzCalD
-#if !MClock4
-				mov.b	&ram1MHzCalB,&BCSCTL1
-				mov.b	Rsec,&DCOCTL
-#endif
-			_ENDOF
-#endif		// #if 0
-
-			_OFb		#'i',Rtos				; 'i': ID
-				mov.b		Rsec,&ramID
-			_ENDOF
-			jmp		emitQmark
-			_ENDCASE
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,R9					; Convert to RAM address in R9
+			bic.b	#$80,R9
+			bis		#$200,R9
+			tst.b	Rtos
+			_IF		_NZ						; If not zero for "unrecognised"
+				_IF		_L						; If high bit set
+					mov.b	Rsec,0(R9)				; Set byte sized cal value
+				_ELSE							; Else high bit clear so
+					mov.w	Rsec,0(R9)				; Set word sized cal value
+				_ENDIF							; Endif high bit
+	#if MClock4
+				cmp	#ram4MHzCalD,R9
+	#else
+				cmp	#ram1MHzCalD,R9
+	#endif
+				_IF		_EQ
+					mov.b	@R9+,&DCOCTL
+					mov.b	@R9,&BCSCTL1
+				_ENDIF
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		emitQmark
+			_ENDIF							; Endif unrecognised
 			ret
-
 
 ;
 ; setIDs ( -- )
@@ -191,7 +203,9 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
 
+;
 ; Update info-flash ( -- )
+;
 			xCODE	'u',updateInfoFlash,_updateInfoFlash
 ; Prepare to flash-program
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
@@ -201,8 +215,7 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 #else
 			MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
 #endif
-StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
-
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 ; Erase info flash including segment A.
 			mov		#$1000,R12				; Start of info-flash
@@ -246,8 +259,7 @@ pifLoop3	mov.w	for1000(R12),$1000(R12)
 			
 			;
 			; Compares successfully.
-			bic.b	#WDTIFG,&IFG1			; Clear the watchdog timer interrupt flag
-			; FIXME: DO WE WANT THIS?
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
 			br		#$1000					; Start the new BSL
 
 failCompare mov		#3,rERR
@@ -268,6 +280,8 @@ failCompare mov		#3,rERR
 			xCODE	'z',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
+			
+#if 0	// Commented out in favour of fourMHzBurst
 ;
 ; FetchWord - fetch a word (NOT to stack) and display it ( addr -- )
 ;
@@ -276,13 +290,16 @@ failCompare mov		#3,rERR
 			mov.w	@Rtos,Rsec
 			mov		#5,Rtos
 			jmp		_prettyPrint
-			
+#endif
+
+#if 1	// Can be commented out in favour of oneMHzBurst
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;
 			xCODE	'o',stOreWord,_stOreWord
 			mov.w	Rsec,0(Rtos)
 			ret
+
 ;
 ; JumpTo - Call the code at addr ( addr -- )
 ;
@@ -290,6 +307,7 @@ failCompare mov		#3,rERR
 			mov		Rtos,R8		; Save the jump address in a trashable non-stack reg
 			DROP				; Drop stack in case the code at addr uses stack arguments
 			br		R8			; Tail-call the code at addr and return
+#endif
 			
 ;
 ; Turn on or off bypass resistors ( bool -- )
@@ -300,8 +318,6 @@ failCompare mov		#3,rERR
 ;		pop		Rtos				; Remove operand
 		ret
 
-#if 0		// These commands are deemed pointess, since changing the CPU frequency will almost
-			// certainly render serial communications inoperative
 ;
 ; f and o commands ( -- )
 ; These output a fixed frequency to the LED and two outputs (in phase, so it doesn't send the
@@ -309,30 +325,33 @@ failCompare mov		#3,rERR
 ; NOTE: this command can only be used (in conjunction with `fw or `ow) to make small adjustments to
 ;	CPU speed, since communications will be affected!
 
+#if 0
 			xCODE	'o',oneMhzBurst,_oneMhzBurst
-#if			MClock4
+	#if MClock4
 			mov.b	&ram1MHzCalB,&BCSCTL1
 			mov.b	&ram1MHzCalD,&DCOCTL
-#endif
+	#endif
 			mov		#28/4,R11
 			call	#doBurst
-#if			MClock4
+	#if MClock4
 			mov.b	&ram4MHzCalB,&BCSCTL1
 			mov.b	&ram4MHzCalD,&DCOCTL
-#endif
+	#endif
 			ret
+#endif
 
+#if 1
 			xCODE	'f',fourMhzBurst,_fourMhzBurst
-#if			!MClock4
+	#if !MClock4
 			mov.b	&ram4MHzCalB,&BCSCTL1
 			mov.b	&ram4MHzCalD,&DCOCTL
-#endif
+	#endif
 			mov		#28,R11
 			call	#doBurst
-#if			!MClock4
+	#if !MClock4
 			mov.b	&ram1MHzCalB,&BCSCTL1
 			mov.b	&ram1MHzCalD,&DCOCTL
-#endif
+	#endif
 			ret
 
 ;
@@ -340,7 +359,9 @@ failCompare mov		#3,rERR
 ; or 1000/2/11 = 45.45 kHz (@ 1 MHz)
 ; or 2000/2/11 = 90.9  kHz (@ 2 MHz)
 
-doBurst		clr		R10
+doBurst		
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+			clr		R10
 			clr.b	&P1OUT					; LED off, transmit outputs at same low level
 burstLp		xor.b	#LED+TXDp+TXDm,&P1OUT	; (5) Toggle all 3 bits
 			dec		R10						; (1)
@@ -348,6 +369,7 @@ burstLp		xor.b	#LED+TXDp+TXDm,&P1OUT	; (5) Toggle all 3 bits
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
 			mov.b	#TXDp,&P1OUT			; Restore TXDp
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			ret
 jBurstLp	br		#burstLp				;	(alt2 3)
 #endif
