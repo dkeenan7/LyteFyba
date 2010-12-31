@@ -331,7 +331,7 @@ failCompare mov		#3,rERR
 			mov.b	&ram1MHzCalB,&BCSCTL1
 			mov.b	&ram1MHzCalD,&DCOCTL
 	#endif
-			mov		#28/4,R11
+			mov		#28/4,R11				; To give 5 seconds with 1 MHz clock
 			call	#doBurst
 	#if MClock4
 			mov.b	&ram4MHzCalB,&BCSCTL1
@@ -346,7 +346,7 @@ failCompare mov		#3,rERR
 			mov.b	&ram4MHzCalB,&BCSCTL1
 			mov.b	&ram4MHzCalD,&DCOCTL
 	#endif
-			mov		#28,R11
+			mov		#28,R11					; To give 5 seconds with 4 Mhz clock
 			call	#doBurst
 	#if !MClock4
 			mov.b	&ram1MHzCalB,&BCSCTL1
@@ -355,9 +355,12 @@ failCompare mov		#3,rERR
 			ret
 
 ;
-; Toggle LED, TXDm, and TXDp with an 11 cycle loop, or 4000/2/11 = 181.8 kHz (@ 4 MHz)
-; or 1000/2/11 = 45.45 kHz (@ 1 MHz)
-; or 2000/2/11 = 90.9  kHz (@ 2 MHz)
+; Toggle LED, TXDm, and TXDp with an 11 cycle loop,
+; or 4000/2/11 = 181.8 kHz (@ 4 MHz) or 181.5 kHz (@ 9600*416 Hz)
+; or 1000/2/11 = 45.45 kHz (@ 1 MHz) or 45.38 kHz (@ 9600*104 Hz).
+; When changing the cal value with e.g. $8AB0'fw, a change of one lsbit changes the
+; output frequency by about 0.5 kHz in the same direction.
+;
 
 doBurst		
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
