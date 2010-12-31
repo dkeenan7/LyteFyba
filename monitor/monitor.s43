@@ -257,7 +257,6 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 
 ; Main loop
 			_BEGIN
-;				mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 				dint
 				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
@@ -447,6 +446,11 @@ measures:
 						cmp.b	#4,&ticksSinceLastSend
 						_IF		_C
 ;				_CS_SWAP
+							; If we don't have ID zero, report that we haven't heard from anyone
+							tst.b	&ID
+							_IF		_NZ
+								call	#_RxState
+							_ENDIF
 ;				_ENDIF
 sendBadnessNow
 							clr.b	&ticksSinceLastSend

@@ -131,7 +131,8 @@ sizeTranslateTable	EQU	$-translateTable
 
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
-_NEXT	MOV.B	@Rip+,Rw	; Fetch the next bytecode
+_NEXT	MOV.W	#WDTPW+WDTCNTCL,&WDTCTL	; Clear Watchdog Timer before each bytecode is interpreted
+		MOV.B	@Rip+,Rw	; Fetch the next bytecode
 		
 		; Do the bytecode translations using the table above
 		MOV		#sizeTranslateTable,R9 ; Initialise the loop counter and table index
