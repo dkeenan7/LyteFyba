@@ -176,9 +176,6 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 #endif
 
 
-			ORG		$FFFE			; The reset vector
-			dw		JTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
-									;	to it directly. For example, a new chip has no BSL at all.
 ;
 ; BSL-writer code in main-flash.
 ; This code copies any existing calibration data from info-flash to the image of the new BSL
@@ -417,10 +414,36 @@ pauseL		dec		R12
 ; Command character definitions
 #include "debDefinitions.s43"
 
+; The linker puts a checksum of the used code memory in the first available unused space,
+; when asked for one.
+; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
+; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:
+; Fill unused code memory
+; 	Fill pattern: 0xFF
+;	Generate checksum
+;		Size: 1 byte, Alignment: 1
+;		CRC Polynomial: 0x101
+; 		Complement: As is
+;		Bit order: MSB first, Initial value: 0x4A
+; The initial value of 0x5A is required because the reset vector of $F8A2 at $FFFE is not transmitted
+; and so the BSL does not include it in its checksum, but the linker does.
+; If the reset vector changes, this initial value will need to be changed to keep it as
+; the XOR of its two bytes.
 
+; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
+; Generate Extra Output File
+;	Override default
+;	debugger.bin
+;	Output format: raw-binary
+
+; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_OPCODETBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent	EQU		BCD( (100*freespace)/2048)
 
+
+			ORG		$FFFE			; The reset vector
+			dw		JTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
+									;	to it directly. For example, a new chip has no BSL at all.
 
 			END
