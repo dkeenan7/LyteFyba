@@ -95,6 +95,8 @@
 #define COMMS_SPEED			10					// Number of ticks per event: 10 ticks = 100ms = 10 Hz
 #define CHARGE_FLASH_SPEED	20					// LED flash rate in charge mode: 20 ticks = 200ms = 5 Hz
 #define ACTIVITY_SPEED		2					// LED flash period for CAN activity: 2 ticks = 20ms
+#define FAULT_SPEED			200					// LED sustain period for FAULT led: 200 ticks = 2 seconds
+#define CHARGER_SPEED		100					// Charger update speed: 1 per second
 
 // Event definitions
 #define EVENT_TIMER			0x0001				// Timer went off
@@ -107,6 +109,8 @@
 #define EVENT_CONNECTED		0x0080				// CAN bus is present and communicating
 #define EVENT_CAN_ACTIVITY	0x0100				// CAN controller just transmitted a packet
 #define EVENT_REQ_SLEEP		0x0200				// Request sleep mode
+#define EVENT_FAULT			0x0400				// MVE: turn on fault light
+#define EVENT_CHARGER		0x800				// MVE: talk to CAN charger
 #define EVENT_GAUGE1		0x1000				// Signal that gauge 1 has been recalculated and requires update
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update

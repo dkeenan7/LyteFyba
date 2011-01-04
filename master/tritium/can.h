@@ -38,8 +38,10 @@ extern void 			can_wake( void );
 // Public variables
 typedef struct _can_variables {
 	unsigned int		status;
-	unsigned int 		address;
+	unsigned int 		address;			// 11 bits of address. MVE: or 13 MSB of address
 	group_64			data;
+	unsigned int		address_ext;		// MVE: 16 bits of extended address. NB: another 2 bits are in address
+											// address_ext must be 0 for non-extended addresses
 } can_variables;
 
 extern can_variables	can;
@@ -82,6 +84,12 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define DC_POWER		0x02
 #define DC_RESET		0x03
 #define DC_SWITCH		0x05
+
+// Elcon charger CAN base (and only) address
+#define EL_CAN_ID_H		0x18FF		// MSBits of the Elcon charger CAN address
+#define EL_CAN_ID_L		0x50E5		// LSBits of the Elcon charger CAN address
+#define BM_CAN_ID_H		0x1806		// MSBits of the Elcon expected BMS address
+#define BM_CAN_ID_L		0xE5F4		// LSBits of the Elcon expected BMS address
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_MODE_R		0x0001
