@@ -557,7 +557,7 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
-; The linker puts a checksum of the used code memory here (in the first available unused space),
+; The linker puts a checksum of the used code memory in the first available unused space,
 ; when asked for one.
 ; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
 ; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:

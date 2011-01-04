@@ -13,8 +13,8 @@ $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
 K   KillBadnessSending (toggle)
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
-  a ADCScaled or r(A)wVoltage (debugger only)
-a   Alarm (toggle) (monitor only)
+  a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
+a	Alarm (toggle) (monitor only. 'a' is ADCScaled in debugger)
 b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
@@ -24,15 +24,15 @@ e e ErrorLED
 h h Hex output
   i set(I)Ds
   j JumpToSubroutine (call)
-k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
   o StOre wOrd (poke wOrd)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 q   QueryWorstBadness
-  r ReadCalValue (debugger only)
-r   RxState (monitor only)
+  r ReadCalValue (debugger only. 'r' is RxState in monitor)
+r 	RxState (monitor only. 'r' is ReadCalValue in debugger)
 s s Select
 t t Temperature
   u UpdateInfoFlash
@@ -67,7 +67,7 @@ n n emit(N)um       was e(M)itDec
 e e ErrorLED
   y b(Y)pass (Yellow)
 
-  a ADCScaled or r(A)wVoltage (debugger only)
+  a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
@@ -80,9 +80,9 @@ s s Select
 x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
 | | exit or comment
-k k chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 K   KillBadnessSending (toggle)
-a	Alarm (toggle) (monitor only)
+a	Alarm (toggle) (monitor only. 'a' is ADCScaled in debugger)
 
 q   QueryWorstBadness
 {   resetWorstBadness :-{
