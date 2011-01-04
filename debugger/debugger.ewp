@@ -155,7 +155,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>30</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -265,7 +265,7 @@
         </option>
         <option>
           <name>CCCompilerRuntimeInfo</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>IDoubleSize</name>
@@ -273,7 +273,11 @@
         </option>
         <option>
           <name>OutputFile</name>
-          <state>$FILE_BNAME$.r43</state>
+          <state></state>
+        </option>
+        <option>
+          <name>CCLibConfigHeader</name>
+          <state>1</state>
         </option>
         <option>
           <name>OCCR4Utilize</name>
@@ -282,10 +286,6 @@
         <option>
           <name>OCCR5Utilize</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCLibConfigHeader</name>
-          <state>1</state>
         </option>
         <option>
           <name>CPIC</name>
@@ -321,7 +321,7 @@
         </option>
         <option>
           <name>CCStdIncCheck</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -389,10 +389,6 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCPUTAG</name>
-          <state>1</state>
         </option>
       </data>
     </settings>
@@ -786,12 +782,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>debugger.hex</state>
+          <state>debugger.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>22</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -852,7 +848,7 @@
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x10</state>
+          <state>0x5A</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>
@@ -1040,12 +1036,12 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>30</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
           <name>CCDefines</name>
-          <state></state>
+          <state>NDEBUG</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1150,7 +1146,7 @@
         </option>
         <option>
           <name>CCCompilerRuntimeInfo</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>IDoubleSize</name>
@@ -1161,16 +1157,16 @@
           <state></state>
         </option>
         <option>
+          <name>CCLibConfigHeader</name>
+          <state>1</state>
+        </option>
+        <option>
           <name>OCCR4Utilize</name>
           <state>0</state>
         </option>
         <option>
           <name>OCCR5Utilize</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCLibConfigHeader</name>
-          <state>1</state>
         </option>
         <option>
           <name>CPIC</name>
@@ -1206,7 +1202,7 @@
         </option>
         <option>
           <name>CCStdIncCheck</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -1235,11 +1231,11 @@
         <option>
           <name>CCOptStrategy</name>
           <version>0</version>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCOptLevelSlave</name>
-          <state>3</state>
+          <state>1</state>
         </option>
         <option>
           <name>CInput</name>
@@ -1274,10 +1270,6 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCPUTAG</name>
-          <state>1</state>
         </option>
       </data>
     </settings>
