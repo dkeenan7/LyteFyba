@@ -29,6 +29,11 @@
 #include "pedal.h"
 #include "gauge.h"
 
+#define CHARGER_NEEDS_CAN 1					// MVE: set if charger needs the CAN bus
+
+// Macro needed to swap from little to big endian for 16-bit charger quantities:
+#define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
+
 // Function prototypes
 void clock_init( void );
 void io_init( void );
@@ -47,6 +52,9 @@ float motor_temp = 0;
 float controller_temp = 0;
 float battery_voltage = 0;
 float battery_current = 0;
+unsigned int charger_volt = 0;		// MVE: charger voltage in tenths of a volt
+unsigned int charger_curr = 0;		// MVE: charger current in tenths of an ampere
+unsigned char charger_status = 0;	// MVE: charger status (e.g. bit 1 on = overtemp)
 
 // Main routine
 int main( void )
@@ -83,6 +91,9 @@ int main( void )
 	// This also changes the clock output from the MCP2515, but we're not using it in this software
 	can_init();
 	events |= EVENT_CONNECTED;
+#if CHARGER_NEEDS_CAN				// MVE: if charger needs CAN,
+	P1OUT |= CAN_PWR_OUT;			//	then power it up now, and
+#endif								//	don't disconnect with ignition key off
 
 	// Initialise Timer A (10ms timing ticks)
 	timerA_init();
@@ -206,11 +217,15 @@ int main( void )
 			
 			// Control CAN bus and pedal sense power
 			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)){
-				P1OUT |= CAN_PWR_OUT;
+#if !CHARGER_NEEDS_CAN					// MVE: if charger needs can,
+				P1OUT |= CAN_PWR_OUT;	//	then don't connect/disconnect it here
+#endif
 				P6OUT |= ANLG_V_ENABLE;
 			}
 			else{
-				P1OUT &= ~CAN_PWR_OUT;
+#if !CHARGER_NEEDS_CAN
+				P1OUT &= ~CAN_PWR_OUT;	// MVE: don't disconnect CAN power if charger needs it
+#endif
 				P6OUT &= ~ANLG_V_ENABLE;
 				events &= ~EVENT_CONNECTED;
 				events |= EVENT_REQ_SLEEP;
@@ -221,16 +236,15 @@ int main( void )
 			else P5OUT &= ~LED_GEAR_BL;
 			
 			// Control front panel fault indicator
-			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT)) P3OUT &= ~LED_REDn;
-			else P3OUT |= LED_REDn;
+			// MVE: this is handled with EVENT_FAULT now
+//			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT)) P3OUT &= ~LED_REDn;
+//			else P3OUT |= LED_REDn;
 			
 		}
 
 		// Handle outgoing communications events
 		if(events & EVENT_COMMS){
 			events &= ~EVENT_COMMS;
-			// Blink CAN activity LED
-			events |= EVENT_CAN_ACTIVITY;			
 
 			// Update command state and override pedal commands if necessary
 			if(switches & SW_IGN_ON){
@@ -261,20 +275,26 @@ int main( void )
 
 			// Transmit commands and telemetry
 			if(events & EVENT_CONNECTED){
+				// Blink CAN activity LED
+				events |= EVENT_CAN_ACTIVITY;
+
 				// Transmit drive command frame
 				can.address = DC_CAN_BASE + DC_DRIVE;
+				can.address_ext = 0;
 				can.data.data_fp[1] = command.current;
 				can.data.data_fp[0] = command.rpm;
 				can_transmit();		
 	
 				// Transmit bus command frame
 				can.address = DC_CAN_BASE + DC_POWER;
+				can.address_ext = 0;
 				can.data.data_fp[1] = command.bus_current;
 				can.data.data_fp[0] = 0.0;
 				can_transmit();
 				
 				// Transmit switch position/activity frame and clear switch differences variables
 				can.address = DC_CAN_BASE + DC_SWITCH;
+				can.address_ext = 0;
 				can.data.data_u8[7] = command.state;
 				can.data.data_u8[6] = command.flags;
 				can.data.data_u16[2] = 0;
@@ -287,6 +307,7 @@ int main( void )
 				if(comms_event_count == 10){
 					comms_event_count = 0;
 					can.address = DC_CAN_BASE;
+					can.address_ext = 0;
 					can.data.data_u8[7] = 'T';
 					can.data.data_u8[6] = '0';
 					can.data.data_u8[5] = '8';
@@ -296,6 +317,19 @@ int main( void )
 				}
 			}
 		}
+
+		// MVE: send packets to charger
+		if (events & EVENT_CHARGER) {
+			events &= ~EVENT_CHARGER;
+			events |= EVENT_CAN_ACTIVITY;
+			can.address = 0x1806;					// Charger is expecting 1806E5F4
+			can.address_ext = 0xE5F4;
+			can.data.data_u16[0] = SWAP16(4104);	// Request 410.4 V
+			can.data.data_u16[1] = SWAP16(10);		// Request 1.0 A
+			can.data.data_u32[1] = 0;				// Clear the rest of the data
+			can_transmit();
+		}
+
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -336,7 +370,12 @@ int main( void )
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
-						
+					case EL_CAN_ID_H:
+						// MVE: update some globals with charger info
+						charger_volt = can.data.data_u16[0];
+						charger_curr = can.data.data_u16[1];
+						charger_status = can.data.data_u8[4];
+						break;
 				}
 			}
 			if(can.status == CAN_RTR){
@@ -375,6 +414,7 @@ int main( void )
 					// Wake up CAN controller
 					can_wake();
 				}
+				events |= EVENT_FAULT;		// MVE: see the CAN error in fault light
 			}
 		}
 		
@@ -564,7 +604,9 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
+	static unsigned char charger_count = CHARGER_SPEED;		// MVE
 	static unsigned char activity_count;
+	static unsigned char fault_count;
 	
 	// Trigger timer based events
 	events |= EVENT_TIMER;	
@@ -576,6 +618,11 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		events |= EVENT_COMMS;
 	}
 	
+	// MVE: Trigger charger events (command packet transmission)
+	if( --charger_count == 0 ){
+		charger_count = CHARGER_SPEED;
+		events |= EVENT_CHARGER;
+	}
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_CAN_ACTIVITY){
 		events &= ~EVENT_CAN_ACTIVITY;
@@ -588,6 +635,17 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	else{
 		activity_count--;
 	}
+
+	// MVE: similarly for FAULT LED
+	if (events & EVENT_FAULT) {
+		events &= !EVENT_FAULT;
+		fault_count = FAULT_SPEED;
+		P3OUT &= !LED_REDn;
+	}
+	if ( fault_count == 0)
+		P3OUT |= LED_REDn;
+	else
+		--fault_count;
 }
 
 /*
