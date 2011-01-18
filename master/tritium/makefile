@@ -4,7 +4,8 @@ OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o
 CPU             = msp430x247
 
 ASFLAGS         = -mmcu=${CPU} -x assembler-with-cpp -D_GNU_ASSEMBLER_ -c
-CFLAGS          = -mmcu=${CPU} -O2 -Wall -g
+CFLAGS         = -mmcu=${CPU} -Wall -g -O2
+#CFLAGS          = -mmcu=${CPU} -Wall -g -O0
 
 #switch the compiler (for the internal make rules)
 CC              = msp430-gcc
@@ -25,6 +26,9 @@ ${NAME}.hex: ${NAME}.elf
 
 ${NAME}.lst: ${NAME}.elf
 	msp430-objdump -dSt $^ >$@
+
+%.s43: %.c
+	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
 
 clean:
 	rm -f ${NAME}.elf ${NAME}.hex ${NAME}.lst ${OBJECTS}

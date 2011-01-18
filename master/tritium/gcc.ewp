@@ -12,7 +12,7 @@
       <name>General</name>
       <archiveVersion>7</archiveVersion>
       <data>
-        <version>26</version>
+        <version>27</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -145,13 +145,17 @@
           <version>0</version>
           <state>111101110010111111111000110111111111111111111111111110010111101111010101111111111111111111111111101111111011111001111011111011111111111111111</state>
         </option>
+        <option>
+          <name>RadioL092ModelType</name>
+          <state>0</state>
+        </option>
       </data>
     </settings>
     <settings>
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>28</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -280,10 +284,6 @@
           <state>0</state>
         </option>
         <option>
-          <name>CCLangSelect</name>
-          <state>0</state>
-        </option>
-        <option>
           <name>CCLibConfigHeader</name>
           <state>1</state>
         </option>
@@ -322,11 +322,6 @@
         <option>
           <name>CCStdIncCheck</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCStdIncludePaths</name>
-          <state>$TOOLKIT_DIR$\INC\</state>
-          <state>$TOOLKIT_DIR$\INC\DLIB\</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -374,6 +369,26 @@
           <name>CompilerMisraRules04</name>
           <version>0</version>
           <state>111101110010111111111000110111111111111111111111111110010111101111010101111111111111111111111111101111111011111001111011111011111111111111111</state>
+        </option>
+        <option>
+          <name>IccLang</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>IccCDialect</name>
+          <state>1</state>
+        </option>
+        <option>
+          <name>IccAllowVLA</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>IccCppDialect</name>
+          <state>1</state>
+        </option>
+        <option>
+          <name>IccRelaxedFpPrecision</name>
+          <state>0</state>
         </option>
       </data>
     </settings>
@@ -878,7 +893,7 @@
       <name>General</name>
       <archiveVersion>7</archiveVersion>
       <data>
-        <version>26</version>
+        <version>27</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -1011,13 +1026,17 @@
           <version>0</version>
           <state>111101110010111111111000110111111111111111111111111110010111101111010101111111111111111111111111101111111011111001111011111011111111111111111</state>
         </option>
+        <option>
+          <name>RadioL092ModelType</name>
+          <state>0</state>
+        </option>
       </data>
     </settings>
     <settings>
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>28</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -1146,10 +1165,6 @@
           <state>0</state>
         </option>
         <option>
-          <name>CCLangSelect</name>
-          <state>0</state>
-        </option>
-        <option>
           <name>CCLibConfigHeader</name>
           <state>1</state>
         </option>
@@ -1188,10 +1203,6 @@
         <option>
           <name>CCStdIncCheck</name>
           <state>0</state>
-        </option>
-        <option>
-          <name>CCStdIncludePaths</name>
-          <state>###Uninitialized###</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -1239,6 +1250,26 @@
           <name>CompilerMisraRules04</name>
           <version>0</version>
           <state>111101110010111111111000110111111111111111111111111110010111101111010101111111111111111111111111101111111011111001111011111011111111111111111</state>
+        </option>
+        <option>
+          <name>IccLang</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>IccCDialect</name>
+          <state>1</state>
+        </option>
+        <option>
+          <name>IccAllowVLA</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>IccCppDialect</name>
+          <state>1</state>
+        </option>
+        <option>
+          <name>IccRelaxedFpPrecision</name>
+          <state>0</state>
         </option>
       </data>
     </settings>
@@ -1734,10 +1765,22 @@
     </settings>
   </configuration>
   <file>
-    <name>$PROJ_DIR$\..\src\main.c</name>
+    <name>$PROJ_DIR$\can.c</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\gauge.c</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\pedal.c</name>
   </file>
   <file>
     <name>$PROJ_DIR$\readme.txt</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\tri86.c</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\usci.c</name>
   </file>
 </project>
 

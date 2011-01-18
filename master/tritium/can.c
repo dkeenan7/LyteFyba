@@ -78,8 +78,8 @@ void can_init( void )
 	buffer[1] = 0xF8;						// CNF2 register: set PHSEG2 in CNF3, Triple sample, PHSEG1= 8Tq, PROP = 1Tq
 // Bits 7-6 are SJW (less 1); sets the Synchronisation Jump Width (can safely be set to 0 for crystal oscillators)
 // Bits 5-0 are BRP, which is 1 less than the prescaler from oscillator clock to Tq. Set to 0 for 500k bps, to 1 for 250k pbs
-//	buffer[2] = 0x00;						// CNF1 register: SJW = 1Tq, BRP = 0 (500k bps)
-	buffer[2] = 0x01;						// CNF1 register: SJW = 1Tq, BRP = 1 (250k bps)
+	buffer[2] = 0x00;						// CNF1 register: SJW = 1Tq, BRP = 0 (500k bps)
+//	buffer[2] = 0x01;						// CNF1 register: SJW = 1Tq, BRP = 1 (250k bps)
 
 	buffer[3] = 0x63;						// CANINTE register: enable WAKE, ERROR, RX0 & RX1 interrupts on IRQ pin
 	buffer[4] = 0x00;						// CANINTF register: clear all IRQ flags
