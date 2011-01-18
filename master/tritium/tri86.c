@@ -29,7 +29,8 @@
 #include "pedal.h"
 #include "gauge.h"
 
-#define CHARGER_NEEDS_CAN 1					// MVE: set if charger needs the CAN bus
+#define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
+#define ASSUME_IGN_ON		1					// MVE: if on, assumes ignition key is on
 
 // Macro needed to swap from little to big endian for 16-bit charger quantities:
 #define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
@@ -42,6 +43,7 @@ void timerB_init( void );
 void adc_init( void );
 static void __inline__ brief_pause(register unsigned int n);
 void update_switches( unsigned int *state, unsigned int *difference);
+void chgr_transmit(const unsigned char* ptr);		// In usci.c
 
 // Global variables
 // Status and event flags
@@ -232,8 +234,9 @@ int main( void )
 			}
 
 			// Control gear switch backlighting
-			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) P5OUT |= LED_GEAR_BL;
-			else P5OUT &= ~LED_GEAR_BL;
+//			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
+				P5OUT |= LED_GEAR_BL;
+//			else P5OUT &= ~LED_GEAR_BL;
 			
 			// Control front panel fault indicator
 			// MVE: this is handled with EVENT_FAULT now
@@ -324,8 +327,8 @@ int main( void )
 			events |= EVENT_CAN_ACTIVITY;
 			can.address = 0x1806;					// Charger is expecting 1806E5F4
 			can.address_ext = 0xE5F4;
-			can.data.data_u16[0] = SWAP16(4104);	// Request 410.4 V
-			can.data.data_u16[1] = SWAP16(10);		// Request 1.0 A
+			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
+			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
 			can_transmit();
 		}
@@ -460,6 +463,8 @@ void clock_init( void )
 {
 	BCSCTL1 = CALBC1_16MHZ;
 	DCOCTL = CALDCO_16MHZ;
+//	BCSCTL1 = 0x8F;			// FIXME!
+//	DCOCTL = 0x83;
 }
 
 /*
@@ -474,9 +479,12 @@ void io_init( void )
 	
 	P2OUT = 0x00;
 	P2DIR = P2_UNUSED;
+
+//	P3OUT = CAN_CSn | EXPANSION_TXD | LED_REDn | LED_GREENn;
+	P3OUT = CAN_CSn | EXPANSION_TXD;
 	
-	P3OUT = CAN_CSn | EXPANSION_TXD | LED_REDn | LED_GREENn;
-	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD | LED_REDn | LED_GREENn | P3_UNUSED;
+//	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD | LED_REDn | LED_GREENn | P3_UNUSED;
+	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD	 					  | P3_UNUSED;
 	
 	P4OUT = LED_PWM;
 	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | P4_UNUSED;
@@ -486,6 +494,23 @@ void io_init( void )
 	
 	P6OUT = 0x00;
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
+	
+	// Initialise UART
+	P3SEL = 0x30 + 0xC0;					// P3.4,5 = USCI_A0 TXD/RXD, P3.6,7 = USCI_A1 TXD/RXD
+	UCA0CTL1 |= UCSSEL_2;					// SMCLK
+	// From a baudrate calulator at http://mspgcc.sourceforge.net/cgi-bin/msp-uart.pl?clock=16000000&baud=2400&submit=calculate :
+	// (note: had to translate IO names):
+	// WRONG: this seems to be for OLDER MSP430 chips, without the oversampling capability
+//	UCA0BR0=0x0A; UCA0BR1=0x1A; UCA0MCTL=0x5B; /* uart0 16000000Hz 2399bps */
+//	UCA1BR0=0x0A; UCA1BR1=0x1A; UCA1MCTL=0x5B; /* uart1 16000000Hz 2399bps */
+											// 16,000 / 2.4 = 6666.67; with 16x oversampling -> 416.667
+	UCA0BR0=0xA0; UCA0BR1=0x01;				// Oversampling divider = 416 = 1*256 + $A0
+	UCA0MCTL=0xB1; 							// Takes care of the 0.667 part
+	UCA1BR0=0xA0; UCA1BR1=0x1; UCA1MCTL=0xB1;	// UCA1
+
+	UCA0CTL1 &= ~UCSWRST;					// **Initialize USCI state machine**
+	//IE2 |= UCA0RXIE;						// Enable USCI_A0 RX interrupt
+	
 }
 
 
@@ -601,15 +626,24 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
  *	- Interrupts on Timer A CCR0 match at 100Hz
  *	- Sets Time_Flag variable
  */
+
+unsigned int counter_hello = 0;			// TODO: DELETEME!
+
 interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
 	static unsigned char charger_count = CHARGER_SPEED;		// MVE
-	static unsigned char activity_count;
-	static unsigned char fault_count;
+//	static unsigned char activity_count;
+//	static unsigned char fault_count;
 	
 	// Trigger timer based events
 	events |= EVENT_TIMER;	
+	
+	if (++counter_hello >= 100) {					// TODO: DELETEME!
+		counter_hello = 0;
+		chgr_transmit("Hello world!\r");
+	}
+		
 	
 	// Trigger comms events (command packet transmission)
 	comms_count--;
@@ -623,6 +657,8 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
+
+#if 0	
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_CAN_ACTIVITY){
 		events &= ~EVENT_CAN_ACTIVITY;
@@ -646,6 +682,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		P3OUT |= LED_REDn;
 	else
 		--fault_count;
+#endif
 }
 
 /*
@@ -660,8 +697,14 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	old_switches = *state;
 
 	// Import switches into register
-	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
-	else *state &= ~SW_MODE_R;
+#if !ASSUME_IGN_ON
+	if(P2IN & IN_GEAR_4)
+#endif
+		*state |= SW_MODE_R;
+#if !ASSUME_IGN_ON
+	else
+		*state &= ~SW_MODE_R;
+#endif
 
 	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;
 	else *state &= ~SW_MODE_N;

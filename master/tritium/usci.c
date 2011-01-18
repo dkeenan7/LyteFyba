@@ -29,6 +29,7 @@
 #include <msp430x24x.h>
 #include "tri86.h"
 #include "usci.h"
+#include <signal.h>			// For interrupt() macro
 
 /*
  * Initialise SPI port
@@ -73,4 +74,49 @@ unsigned char usci_exchange( unsigned char data )
 	UCB0TXBUF = data;
 	while(( IFG2 & UCB0RXIFG ) == 0x00 );			// Wait for Rx completion (implies Tx is also complete)
 	return( UCB0RXBUF );
+}
+
+unsigned char chgr_txbuf[16];				// Buffer for a transmitted charger "CAN" packet
+unsigned char chgr_rxbuf[16];				// Buffer for a received charger "CAN" packet
+unsigned char chgr_txidx = 0;				// Index into the charger transmit buffer
+unsigned char chgr_rxidx = 0;				// Index into the charger receive buffer
+
+// USCI A0/B0 Transmit ISR.
+// For use with A1/B1, need separate ISR, using UC1IFG instead of IFG2, and IC1IE for IE2.
+
+// #pragma vector=USCIAB0TX_VECTOR
+interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
+{
+	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
+	{
+		UCA0TXBUF = chgr_txbuf[chgr_txidx++];	// TX next character
+//		UCA0TXBUF = 0x55;		// DELETEME!
+
+		if (chgr_txidx == 13)					// TX over?
+			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
+			chgr_txidx = 0;
+	}
+}
+
+// USCI A0/B0 Receive ISR
+//  #pragma vector=USCIAB0RX_VECTOR
+interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
+{
+	if (IFG2 & UCA0RXIFG)					// Make sure it's UCA0 causing the interrupt
+	{
+		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
+		if (chgr_rxidx > 13)
+		{
+			chgr_rxidx = 0;
+//			IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+		}
+	}
+}
+
+void chgr_transmit(const unsigned char* ptr)
+{
+    IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
+	chgr_txidx = 0;
+    UCA0TXBUF = chgr_txbuf[chgr_txidx++];			// Send the first char to kick things off
+//	UCA0TXBUF = 0x55;			// DELETEME! Alternating 1s and 0s
 }
