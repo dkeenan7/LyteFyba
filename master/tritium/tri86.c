@@ -31,6 +31,8 @@
 
 #define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
 #define ASSUME_IGN_ON		1					// MVE: if on, assumes ignition key is on
+#define LED_PORT			P5OUT				// MVE: modified DCU; uses port 3 for UART, port 5 for
+												// green abd red LEDs
 
 // Macro needed to swap from little to big endian for 16-bit charger quantities:
 #define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
@@ -48,15 +50,17 @@ void chgr_transmit(const unsigned char* ptr);		// In usci.c
 // Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
+volatile unsigned int chgr_events = 0;
+
 // Data from controller
 float motor_rpm = 0;
 float motor_temp = 0;
 float controller_temp = 0;
 float battery_voltage = 0;
 float battery_current = 0;
-unsigned int charger_volt = 0;		// MVE: charger voltage in tenths of a volt
-unsigned int charger_curr = 0;		// MVE: charger current in tenths of an ampere
-unsigned char charger_status = 0;	// MVE: charger status (e.g. bit 1 on = overtemp)
+unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
+unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
+unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 
 // Main routine
 int main( void )
@@ -245,7 +249,7 @@ int main( void )
 			
 		}
 
-		// Handle outgoing communications events
+		// Handle outgoing communications events (to motor controller)
 		if(events & EVENT_COMMS){
 			events &= ~EVENT_COMMS;
 
@@ -278,8 +282,8 @@ int main( void )
 
 			// Transmit commands and telemetry
 			if(events & EVENT_CONNECTED){
-				// Blink CAN activity LED
-				events |= EVENT_CAN_ACTIVITY;
+				// Blink activity LED
+				events |= EVENT_ACTIVITY;
 
 				// Transmit drive command frame
 				can.address = DC_CAN_BASE + DC_DRIVE;
@@ -324,13 +328,18 @@ int main( void )
 		// MVE: send packets to charger
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
-			events |= EVENT_CAN_ACTIVITY;
+			events |= EVENT_ACTIVITY;
 			can.address = 0x1806;					// Charger is expecting 1806E5F4
 			can.address_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
 			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
 			can_transmit();
+		}
+		
+		if (chgr_events & CHGR_REC) {
+			chgr_events &= ~CHGR_REC;
+			// Do something with the packet
 		}
 
 
@@ -341,6 +350,7 @@ int main( void )
 			// Check the status
 			if(can.status == CAN_OK){
 				// We've received a packet, so must be connected to something
+					// MVE TODO: Distinguish between connecting to other DCU and to motor controller?
 				events |= EVENT_CONNECTED;
 				// Process the packet
 				switch(can.address){
@@ -633,8 +643,8 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
 	static unsigned char charger_count = CHARGER_SPEED;		// MVE
-//	static unsigned char activity_count;
-//	static unsigned char fault_count;
+	static unsigned char activity_count;
+	static unsigned char fault_count;
 	
 	// Trigger timer based events
 	events |= EVENT_TIMER;	
@@ -657,16 +667,24 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
+	
+	if (chgr_events & CHGR_SENT) {
+		if (--chgr_sent_timeout < 0)
+		{
+			events |= EVENT_FAULT;
+			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
+		}
+	}
+	
 
-#if 0	
 	// Check for CAN activity events and blink LED
-	if(events & EVENT_CAN_ACTIVITY){
-		events &= ~EVENT_CAN_ACTIVITY;
+	if(events & EVENT_ACTIVITY){
+		events &= ~EVENT_ACTIVITY;
 		activity_count = ACTIVITY_SPEED;
-		P3OUT &= ~LED_GREENn;
+		LED_PORT &= ~LED_GREENn;
 	}
 	if( activity_count == 0 ){
-		P3OUT |= LED_GREENn;
+		LED_PORT |= LED_GREENn;
 	}
 	else{
 		activity_count--;
@@ -676,13 +694,13 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if (events & EVENT_FAULT) {
 		events &= !EVENT_FAULT;
 		fault_count = FAULT_SPEED;
-		P3OUT &= !LED_REDn;
+		LED_PORT &= !LED_REDn;
 	}
 	if ( fault_count == 0)
-		P3OUT |= LED_REDn;
+		LED_PORT |= LED_REDn;
 	else
 		--fault_count;
-#endif
+
 }
 
 /*

@@ -23,6 +23,9 @@
  *	- transmit
  *	- exchange
  *
+ *	Also now UART functions
+ *	- chgr_transmit
+ *
  */
 
 // Include files
@@ -30,6 +33,7 @@
 #include "tri86.h"
 #include "usci.h"
 #include <signal.h>			// For interrupt() macro
+#include <string.h>			// For memcpy()
 
 /*
  * Initialise SPI port
@@ -90,11 +94,14 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
 		UCA0TXBUF = chgr_txbuf[chgr_txidx++];	// TX next character
+		events |= EVENT_ACTIVITY;				// Turn on activity light
 //		UCA0TXBUF = 0x55;		// DELETEME!
 
-		if (chgr_txidx == 13)					// TX over?
+		if (chgr_txidx == 13) {					// TX over?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 			chgr_txidx = 0;
+			chgr_events &= ~CHGR_SENT;
+		}
 	}
 }
 
@@ -105,18 +112,30 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 	if (IFG2 & UCA0RXIFG)					// Make sure it's UCA0 causing the interrupt
 	{
 		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
+		events |= EVENT_ACTIVITY;					// Turn on activity light
 		if (chgr_rxidx > 13)
 		{
 			chgr_rxidx = 0;
 //			IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+			chgr_events |= CHGR_REC;				// Tell main line we've received a charger packet
 		}
 	}
 }
 
 void chgr_transmit(const unsigned char* ptr)
 {
+	memcpy(chgr_txbuf, ptr, 13);					// Copy the data to the transmit buffer
+	chgr_transmit_buf();							// Tail call the main transmit function
+}
+
+// chgr_transmit_buf sends the transmit buffer. Used for resending after a timeout.
+void chgr_transmit_buf(void)
+{
     IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 	chgr_txidx = 0;
     UCA0TXBUF = chgr_txbuf[chgr_txidx++];			// Send the first char to kick things off
+	chgr_events |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
+	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
+	events |= EVENT_ACTIVITY;						// Turn on activity light
 //	UCA0TXBUF = 0x55;			// DELETEME! Alternating 1s and 0s
 }
