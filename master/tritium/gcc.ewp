@@ -1768,10 +1768,19 @@
     <name>$PROJ_DIR$\can.c</name>
   </file>
   <file>
+    <name>$PROJ_DIR$\can.h</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\gauge.c</name>
   </file>
   <file>
+    <name>$PROJ_DIR$\gauge.h</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\pedal.c</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\pedal.h</name>
   </file>
   <file>
     <name>$PROJ_DIR$\readme.txt</name>
@@ -1780,7 +1789,13 @@
     <name>$PROJ_DIR$\tri86.c</name>
   </file>
   <file>
+    <name>$PROJ_DIR$\tri86.h</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\usci.c</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\usci.h</name>
   </file>
 </project>
 
