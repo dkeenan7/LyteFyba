@@ -80,10 +80,8 @@ unsigned char usci_exchange( unsigned char data )
 	return( UCB0RXBUF );
 }
 
-unsigned char chgr_txbuf[16];				// Buffer for a transmitted charger "CAN" packet
-unsigned char chgr_rxbuf[16];				// Buffer for a received charger "CAN" packet
-unsigned char chgr_txidx = 0;				// Index into the charger transmit buffer
-unsigned char chgr_rxidx = 0;				// Index into the charger receive buffer
+volatile unsigned char chgr_txidx = 0;				// Index into the charger transmit buffer
+volatile unsigned char chgr_rxidx = 0;				// Index into the charger receive buffer
 
 // USCI A0/B0 Transmit ISR.
 // For use with A1/B1, need separate ISR, using UC1IFG instead of IFG2, and IC1IE for IE2.
@@ -97,7 +95,7 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 //		UCA0TXBUF = 0x55;		// DELETEME!
 
-		if (chgr_txidx == 13) {					// TX over?
+		if (chgr_txidx == 12) {					// TX over?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 			chgr_txidx = 0;
 			chgr_events &= ~CHGR_SENT;
@@ -113,7 +111,7 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 	{
 		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
 		events |= EVENT_ACTIVITY;					// Turn on activity light
-		if (chgr_rxidx > 13)
+		if (chgr_rxidx > 12)
 		{
 			chgr_rxidx = 0;
 //			IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
@@ -124,18 +122,18 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 
 void chgr_transmit(const unsigned char* ptr)
 {
-	memcpy(chgr_txbuf, ptr, 13);					// Copy the data to the transmit buffer
+	memcpy(chgr_txbuf, ptr, 12);					// Copy the data to the transmit buffer
 	chgr_transmit_buf();							// Tail call the main transmit function
 }
 
 // chgr_transmit_buf sends the transmit buffer. Used for resending after a timeout.
 void chgr_transmit_buf(void)
 {
-    IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 	chgr_txidx = 0;
     UCA0TXBUF = chgr_txbuf[chgr_txidx++];			// Send the first char to kick things off
 	chgr_events |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
 	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
+    IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
 //	UCA0TXBUF = 0x55;			// DELETEME! Alternating 1s and 0s
 }

@@ -122,6 +122,10 @@
 #define CHGR_SENT			0x0001				// We have sent the harger a packet, not replied to yet
 #define	CHGR_REC			0x0002				// We have received a packet from the charger
 
+// Charger constants
+#define CHGR_VOLT_LIMIT		288					// Charger voltage limit in tenths of a volt
+#define CHGR_CURR_LIMIT		20					// Charger current limit in tenths of an amp
+
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
 #define ENGAGE_VEL_R		-50					// Don't allow drive direction change above this speed, rpm
@@ -131,8 +135,10 @@
 #define DEVICE_SERIAL		5197
 
 // Public variables
-volatile unsigned int events;
-volatile unsigned int chgr_events;				// Charger events
+extern volatile unsigned int events;
+extern volatile unsigned int chgr_events;		// Charger events
+extern 		 unsigned char chgr_txbuf[16];		// Buffer for a transmitted charger "CAN" packet
+extern volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
 
 // Typedefs for quickly joining multiple bytes/ints/etc into larger values
 // These rely on byte ordering in CPU & memory - i.e. they're not portable across architectures
