@@ -277,6 +277,7 @@ void can_receive( void )
  */
 char can_transmit( void )
 {
+			return 1;
 	// MVE: these operate on only the 11 bits of a standard address, or the 13 MSBs of an extended address
 	// The chances of collision are miniscule (i.e. the upper 11 bits of an extended address colliding with
 	// some standard 11-bit address)

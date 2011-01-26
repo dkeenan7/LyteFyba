@@ -62,6 +62,11 @@ unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 
+// Charger buffers
+		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
+volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
+
+
 // Main routine
 int main( void )
 { 
@@ -222,7 +227,7 @@ int main( void )
 			else P1OUT &= ~REVERSE_OUT;
 			
 			// Control CAN bus and pedal sense power
-			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)){
+			if(1){	//(switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
 #if !CHARGER_NEEDS_CAN					// MVE: if charger needs can,
 				P1OUT |= CAN_PWR_OUT;	//	then don't connect/disconnect it here
 #endif
@@ -329,12 +334,25 @@ int main( void )
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
+#if 0
 			can.address = 0x1806;					// Charger is expecting 1806E5F4
 			can.address_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
 			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
 			can_transmit();
+#else
+			chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
+			chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
+			chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
+			chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
+			chgr_txbuf[4] = CHGR_VOLT_LIMIT >> 8;
+			chgr_txbuf[5] = CHGR_VOLT_LIMIT & 0xFF;
+			chgr_txbuf[6] = 0;
+			chgr_txbuf[7] = CHGR_CURR_LIMIT;
+			chgr_txbuf[8] = 0; chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
+			chgr_transmit_buf();
+#endif
 		}
 		
 		if (chgr_events & CHGR_REC) {
@@ -550,7 +568,7 @@ void timerB_init( void )
 	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
 	TBCCR3 = 0;									// Gauge 3
 	TBCCTL3 = OUTMOD_7;
-	TBCCR4 = 0;									// Gauge 4
+		TBCCR4 = GAUGE_PWM_PERIOD/2;									// Gauge 4 // 50% duty cycle for testing
 	TBCCTL4 = OUTMOD_7;
 	P4SEL |= GAUGE_3_OUT | GAUGE_4_OUT;			// PWM -> output pins for fuel and temp gauges (tacho and power are software freq outputs)
 	TBCCTL0 = CCIE;								// Enable CCR0 interrupt
@@ -637,8 +655,6 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
  *	- Sets Time_Flag variable
  */
 
-unsigned int counter_hello = 0;			// TODO: DELETEME!
-
 interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
@@ -648,20 +664,15 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	
 	// Trigger timer based events
 	events |= EVENT_TIMER;	
-	
-	if (++counter_hello >= 100) {					// TODO: DELETEME!
-		counter_hello = 0;
-		chgr_transmit("Hello world!\r");
-	}
-		
-	
+
+
 	// Trigger comms events (command packet transmission)
 	comms_count--;
 	if( comms_count == 0 ){
 		comms_count = COMMS_SPEED;
 		events |= EVENT_COMMS;
 	}
-	
+
 	// MVE: Trigger charger events (command packet transmission)
 	if( --charger_count == 0 ){
 		charger_count = CHARGER_SPEED;
@@ -692,9 +703,9 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 
 	// MVE: similarly for FAULT LED
 	if (events & EVENT_FAULT) {
-		events &= !EVENT_FAULT;
+		events &= ~EVENT_FAULT;
 		fault_count = FAULT_SPEED;
-		LED_PORT &= !LED_REDn;
+		LED_PORT &= ~LED_REDn;
 	}
 	if ( fault_count == 0)
 		LED_PORT |= LED_REDn;
