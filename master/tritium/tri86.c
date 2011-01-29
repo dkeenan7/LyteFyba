@@ -61,6 +61,9 @@ float battery_current = 0;
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
+unsigned int chgr_current = 8;			// Charger present current; initially 0.9 A (incremented before
+										//	first use)
+unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
 
 // Charger buffers
 		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
@@ -349,7 +352,9 @@ int main( void )
 			chgr_txbuf[4] = CHGR_VOLT_LIMIT >> 8;
 			chgr_txbuf[5] = CHGR_VOLT_LIMIT & 0xFF;
 			chgr_txbuf[6] = 0;
-			chgr_txbuf[7] = CHGR_CURR_LIMIT;
+			(if ++chgr_current > CHGR_CURR_LIMIT)
+				chgr_current = CHGR_CURR_LIMIT;
+			chgr_txbuf[7] = chgr_current;
 			chgr_txbuf[8] = 0; chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
 			chgr_transmit_buf();
 #endif
@@ -661,6 +666,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	static unsigned char charger_count = CHARGER_SPEED;		// MVE
 	static unsigned char activity_count;
 	static unsigned char fault_count;
+
 	
 	// Trigger timer based events
 	events |= EVENT_TIMER;	
