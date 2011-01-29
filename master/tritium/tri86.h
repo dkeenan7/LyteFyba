@@ -124,7 +124,7 @@
 
 // Charger constants
 #define CHGR_VOLT_LIMIT		288					// Charger voltage limit in tenths of a volt
-#define CHGR_CURR_LIMIT		20					// Charger current limit in tenths of an amp
+#define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
@@ -139,6 +139,10 @@ extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
 extern 		 unsigned char chgr_txbuf[16];		// Buffer for a transmitted charger "CAN" packet
 extern volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
+extern unsigned int chgr_current;				// Charger present current
+extern unsigned int chgr_report_volt;			// Charger reported voltage
+
+
 
 // Typedefs for quickly joining multiple bytes/ints/etc into larger values
 // These rely on byte ordering in CPU & memory - i.e. they're not portable across architectures
