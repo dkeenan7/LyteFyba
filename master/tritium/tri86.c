@@ -28,6 +28,7 @@
 #include "usci.h"
 #include "pedal.h"
 #include "gauge.h"
+#include <stdio.h>			// For sprintf
 
 #define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
 #define ASSUME_IGN_ON		1					// MVE: if on, assumes ignition key is on
@@ -52,7 +53,7 @@ void chgr_transmit(const unsigned char* ptr);		// In usci.c
 volatile unsigned int events = 0x0000;
 volatile unsigned int chgr_events = 0;
 volatile unsigned int bmu_events = 0;
-volatile unsigned char bmu_badness = 0x80;
+volatile unsigned char bmu_badness = 0;		// Zero says we have received no badness so far
 
 // Data from controller
 float motor_rpm = 0;
@@ -90,6 +91,12 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
+	// Cherger end-of-charge test
+	unsigned int chgr_eoc_count = 0;
+	unsigned int chgr_eoc_count1 = 0;
+	unsigned int chgr_eoc_settle = 0;
+	// Current cell in the current end-of-charge test
+	unsigned int chgr_curr_cell = 0;
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -143,7 +150,7 @@ int main( void )
 	// Check switch inputs and generate command packets to motor controller
 	while(TRUE){
 		// Monitor switch positions & analog inputs
-		if( events & EVENT_TIMER ){
+		if( events & EVENT_TIMER ) {
 			events &= ~EVENT_TIMER;
 			
 			// Convert potentiometer and current monitoring inputs
@@ -337,6 +344,16 @@ int main( void )
 					can_transmit();		
 				}
 			}
+			
+			if (bmu_badness) {
+				// Once a badness has been received, start the countdown to the end of charge test
+				if (++chgr_eoc_count >= CHGR_EOC_TIME)
+				{
+					chgr_eoc_count = 0;
+					chgr_curr_cell = 0;
+					chgr_events |= CHGR_EOC_CHECK;
+				}
+			}
 		}
 
 		// Process badness events before sending charger packets
@@ -367,11 +384,17 @@ int main( void )
 			chgr_txbuf[4] = CHGR_VOLT_LIMIT >> 8;
 			chgr_txbuf[5] = CHGR_VOLT_LIMIT & 0xFF;
 			chgr_txbuf[6] = 0;
-			chgr_current += CHGR_CURR_DELTA;		// Increase charger current by a fixed amount
-			if (chgr_current > CHGR_CURR_LIMIT)
-				chgr_current = CHGR_CURR_LIMIT;
-			chgr_txbuf[7] = chgr_current;
-			chgr_txbuf[8] = 0; chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
+			if (chgr_events & CHGR_END_CHARGE) {
+				chgr_txbuf[7] = 0;					// Request no current now
+				chgr_txbuf[8] = 1;					// Turn off charger
+			} else {
+				chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
+				if (chgr_current > CHGR_CURR_LIMIT)
+					chgr_current = CHGR_CURR_LIMIT;
+				chgr_txbuf[7] = chgr_current;
+				chgr_txbuf[8] = 0;
+			}
+			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
 			chgr_transmit_buf();
 #endif
 		}
@@ -381,6 +404,22 @@ int main( void )
 			// Do something with the packet
 		}
 		
+		if (bmu_events & BMU_REC) {
+			bmu_events &= ~BMU_REC;
+			// Check for a voltage response
+			// Expecting \123:1234Vret
+			//           0   45   9
+			if (bmu_rxbuf[0] == '\\' &&
+				bmu_rxbuf[4] == ':' &&
+				bmu_rxbuf[9] == 'V') {
+					int rxvolts = (bmu_rxbuf[5] - '0') * 10 + (bmu_rxbuf[6] - '0');
+					if (rxvolts < 36) {
+						// The end of charge test has failed. No point doing any more voltage checks
+						chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
+						chgr_curr_cell = 0;
+					}
+			}
+		}
 
 
 		// Check for CAN packet reception
@@ -468,6 +507,31 @@ int main( void )
 					can_wake();
 				}
 				events |= EVENT_FAULT;		// MVE: see the CAN error in fault light
+			}
+		}
+		
+		// End of charge event
+		if (chgr_events & CHGR_EOC_CHECK) {
+			if (++chgr_eoc_count1 >= CHGR_EOC_DLY) {
+			  chgr_eoc_count1 = 0;
+			  chgr_events |= CHGR_EOC_CHECK1;
+			}
+		}
+		
+		if (chgr_curr_cell > NUMBER_OF_CELLS) {
+			// We are waiting for the end of charge settle time count to expire
+		if (++chgr_eoc_settle >= CHGR_EOC_SETTLE) {
+			// End of charge
+			chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
+			chgr_events |= CHGR_END_CHARGE;
+		}
+		} else {
+			if (chgr_events & CHGR_EOC_CHECK1) {
+				// Send a voltage check for the current cell
+				char cmd[8];
+				sprintf(cmd, "%dV\r", chgr_curr_cell);		// FIXME: send checksum
+				bmu_transmit(cmd);
+				++chgr_curr_cell;
 			}
 		}
 		
