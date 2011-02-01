@@ -119,12 +119,18 @@
 #define EVENT_GAUGE4		0x8000				// Signal that gauge 4 has been recalculated and requires update
 
 // Charger events
-#define CHGR_SENT			0x0001				// We have sent the harger a packet, not replied to yet
+#define CHGR_SENT			0x0001				// We have sent the charger a packet, not replied to yet
 #define	CHGR_REC			0x0002				// We have received a packet from the charger
 
+// BMU events
+#define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
+#define	BMU_REC				0x0002				// We have received a response from the BMU string
+#define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
+
 // Charger constants
-#define CHGR_VOLT_LIMIT		288					// Charger voltage limit in tenths of a volt
+#define CHGR_VOLT_LIMIT		(60 * 36)			// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
+#define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
@@ -137,8 +143,12 @@
 // Public variables
 extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
+extern volatile unsigned int bmu_events;		// BMU events
+extern volatile unsigned char bmu_badness;		// BMU badness
 extern 		 unsigned char chgr_txbuf[16];		// Buffer for a transmitted charger "CAN" packet
 extern volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
+extern 		 unsigned char bmu_txbuf[64];		// Buffer for a transmitted BMU command
+extern volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
