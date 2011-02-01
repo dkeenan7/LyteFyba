@@ -82,10 +82,10 @@ unsigned char usci_exchange( unsigned char data )
 
 volatile unsigned char chgr_txidx = 0;				// Index into the charger transmit buffer
 volatile unsigned char chgr_rxidx = 0;				// Index into the charger receive buffer
+volatile unsigned char bmu_txidx = 0;				// Index into the BMU transmit buffer
+volatile unsigned char bmu_rxidx = 0;				// Index into the BMU  receive buffer
 
-// USCI A0/B0 Transmit ISR.
-// For use with A1/B1, need separate ISR, using UC1IFG instead of IFG2, and IC1IE for IE2.
-
+// USCI0 A0/B0 Transmit ISR.
 // #pragma vector=USCIAB0TX_VECTOR
 interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 {
@@ -93,7 +93,6 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	{
 		UCA0TXBUF = chgr_txbuf[chgr_txidx++];	// TX next character
 		events |= EVENT_ACTIVITY;				// Turn on activity light
-//		UCA0TXBUF = 0x55;		// DELETEME!
 
 		if (chgr_txidx == 12) {					// TX over?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
@@ -103,7 +102,24 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	}
 }
 
-// USCI A0/B0 Receive ISR
+// For use with A1/B1, need separate ISR, using UC1IFG instead of IFG2, and UC1IE for IE2.
+// #pragma vector=USCIAB1TX_VECTOR
+interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
+{
+	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
+	{
+		UCA1TXBUF = bmu_txbuf[bmu_txidx++];		// TX next character
+		events |= EVENT_ACTIVITY;				// Turn on activity light
+
+		if (UCA1TXBUF == '\r') {				// TX over? All commands terminated with return
+			UC1IE &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
+			bmu_txidx = 0;
+			bmu_events &= ~BMU_SENT;
+		}
+	}
+}
+
+// USCI0 A0/B0 Receive ISR
 //  #pragma vector=USCIAB0RX_VECTOR
 interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 {
@@ -114,8 +130,29 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 		if (chgr_rxidx > 12)
 		{
 			chgr_rxidx = 0;
-//			IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
 			chgr_events |= CHGR_REC;				// Tell main line we've received a charger packet
+		}
+	}
+}
+
+// USCI1 A0/B0 Receive ISR
+//  #pragma vector=USCIAB1RX_VECTOR
+interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
+{
+	if (UC1IFG & UCA1RXIFG)					// Make sure it's UCA1 causing the interrupt
+	{
+		unsigned char ch = UCA1RXBUF;
+		events |= EVENT_ACTIVITY;				// Turn on activity light
+		if (ch >= 0x80) {
+			bmu_events |= BMU_BADNESS;
+			bmu_badness = ch;
+		} else {
+			bmu_rxbuf[bmu_rxidx++] = ch;
+			if (UCA1RXBUF == '\r')				// All BMU responses terminate with a return
+			{
+				bmu_rxidx = 0;
+				bmu_events |= BMU_REC;			// Tell main line we've received a BMU response
+			}
 		}
 	}
 }
@@ -135,5 +172,25 @@ void chgr_transmit_buf(void)
 	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
     IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
-//	UCA0TXBUF = 0x55;			// DELETEME! Alternating 1s and 0s
+}
+
+
+void bmu_transmit(const unsigned char* ptr)
+{
+	unsigned char ch, i = 0;
+	do {
+		ch = *ptr++;
+		bmu_txbuf[i++] = ch;						// Copy the data to the transmit buffer
+	} while (ch != '\r');
+	bmu_transmit_buf();							// Tail call the main transmit function
+}
+
+// bmu_transmit_buf sends the transmit buffer. Used for resending after a timeout.
+void bmu_transmit_buf(void)
+{
+	bmu_txidx = 0;
+    UCA1TXBUF = bmu_txbuf[bmu_txidx++];				// Send the first char to kick things off
+	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
+    UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
+	events |= EVENT_ACTIVITY;						// Turn on activity light
 }

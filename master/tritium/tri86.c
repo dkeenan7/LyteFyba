@@ -51,6 +51,8 @@ void chgr_transmit(const unsigned char* ptr);		// In usci.c
 // Status and event flags
 volatile unsigned int events = 0x0000;
 volatile unsigned int chgr_events = 0;
+volatile unsigned int bmu_events = 0;
+volatile unsigned char bmu_badness = 0x80;
 
 // Data from controller
 float motor_rpm = 0;
@@ -68,6 +70,10 @@ unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a v
 // Charger buffers
 		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
 volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
+
+// BMU buffers
+		 unsigned char bmu_txbuf[64];	// Buffer for a transmitted BMU command
+volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
 
 
 // Main routine
@@ -333,11 +339,19 @@ int main( void )
 			}
 		}
 
+		// Process badness events before sending charger packets
+		if (bmu_events & BMU_BADNESS) {
+			bmu_events &= ~BMU_BADNESS;
+			if (bmu_badness > 0x80)					// Simple algorithm:
+				chgr_current = 9 - CHGR_CURR_DELTA;	// On any badness, cut back to 0.9 A
+		}
+
 		// MVE: send packets to charger
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
 #if 0
+			// Charger is on the CAN bus
 			can.address = 0x1806;					// Charger is expecting 1806E5F4
 			can.address_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
@@ -345,6 +359,7 @@ int main( void )
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
 			can_transmit();
 #else
+			// Charger is on the UART in UCI0
 			chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 			chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
 			chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
@@ -352,7 +367,8 @@ int main( void )
 			chgr_txbuf[4] = CHGR_VOLT_LIMIT >> 8;
 			chgr_txbuf[5] = CHGR_VOLT_LIMIT & 0xFF;
 			chgr_txbuf[6] = 0;
-			(if ++chgr_current > CHGR_CURR_LIMIT)
+			chgr_current += CHGR_CURR_DELTA;		// Increase charger current by a fixed amount
+			if (chgr_current > CHGR_CURR_LIMIT)
 				chgr_current = CHGR_CURR_LIMIT;
 			chgr_txbuf[7] = chgr_current;
 			chgr_txbuf[8] = 0; chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
@@ -364,6 +380,7 @@ int main( void )
 			chgr_events &= ~CHGR_REC;
 			// Do something with the packet
 		}
+		
 
 
 		// Check for CAN packet reception
