@@ -136,7 +136,7 @@
 #define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_TIME		(5 * 60 * TICK_RATE)// Delay from first badness or last EOC check to next
-#define CHGR_EOC_DLY		2					// Number of timer ticks delay between EOC voltage commands
+#define CHGR_EOC_DLY		5					// Number of timer ticks delay between EOC voltage commands
 #define CHGR_EOC_SETTLE		25					// Number of timer ticks to wait for last voltage result
 
 // Control parameters

@@ -407,16 +407,17 @@ int main( void )
 		if (bmu_events & BMU_REC) {
 			bmu_events &= ~BMU_REC;
 			// Check for a voltage response
-			// Expecting \123:1234Vret
-			//           0   45   9
+			// Expecting \123:1234 V  ret
+			//           0   45    10 11  (note space before the 'V'
 			if (bmu_rxbuf[0] == '\\' &&
 				bmu_rxbuf[4] == ':' &&
-				bmu_rxbuf[9] == 'V') {
-					int rxvolts = (bmu_rxbuf[5] - '0') * 10 + (bmu_rxbuf[6] - '0');
-					if (rxvolts < 36) {
-						// The end of charge test has failed. No point doing any more voltage checks
+				bmu_rxbuf[10] == 'V') {
+					unsigned int rxvolts = (bmu_rxbuf[5] - '0') * 100 + (bmu_rxbuf[6] - '0') * 10 +
+						(bmu_rxbuf[7] - '0');
+					if (rxvolts < 359) {
+						// At least one cell has voltage < 3.590 V, so the end of charge test has
+						// failed. No point doing any more voltage checks
 						chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
-						chgr_curr_cell = 0;
 					}
 			}
 		}
@@ -513,8 +514,9 @@ int main( void )
 		// End of charge event
 		if (chgr_events & CHGR_EOC_CHECK) {
 			if (++chgr_eoc_count1 >= CHGR_EOC_DLY) {
-			  chgr_eoc_count1 = 0;
-			  chgr_events |= CHGR_EOC_CHECK1;
+				chgr_eoc_count1 = 0;
+				chgr_events |= CHGR_EOC_CHECK1;
+				chgr_curr_cell = 0;
 			}
 		}
 		
@@ -529,7 +531,7 @@ int main( void )
 			if (chgr_events & CHGR_EOC_CHECK1) {
 				// Send a voltage check for the current cell
 				char cmd[8];
-				sprintf(cmd, "%dV\r", chgr_curr_cell);		// FIXME: send checksum
+				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
 				bmu_transmit(cmd);
 				++chgr_curr_cell;
 			}
@@ -609,9 +611,10 @@ void io_init( void )
 	P6OUT = 0x00;
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
 	
-	// Initialise UART
+	// Initialise charger and BMU UARTs
 	P3SEL = 0x30 + 0xC0;					// P3.4,5 = USCI_A0 TXD/RXD, P3.6,7 = USCI_A1 TXD/RXD
 	UCA0CTL1 |= UCSSEL_2;					// SMCLK
+	UCA1CTL1 |= UCSSEL_2;
 	// From a baudrate calulator at http://mspgcc.sourceforge.net/cgi-bin/msp-uart.pl?clock=16000000&baud=2400&submit=calculate :
 	// (note: had to translate IO names):
 	// WRONG: this seems to be for OLDER MSP430 chips, without the oversampling capability
@@ -620,10 +623,14 @@ void io_init( void )
 											// 16,000 / 2.4 = 6666.67; with 16x oversampling -> 416.667
 	UCA0BR0=0xA0; UCA0BR1=0x01;				// Oversampling divider = 416 = 1*256 + $A0
 	UCA0MCTL=0xB1; 							// Takes care of the 0.667 part
-	UCA1BR0=0xA0; UCA1BR1=0x1; UCA1MCTL=0xB1;	// UCA1
+	// UCA1 9600 BPS 16,000 / 9.6 / 16 = 104.167 = 0x0068 and 0x31 takes care of the 0.167 part
+	UCA1BR0=0x68; UCA1BR1=0x00; UCA1MCTL=0x31;	// UCA1
 
 	UCA0CTL1 &= ~UCSWRST;					// **Initialize USCI state machine**
-	//IE2 |= UCA0RXIE;						// Enable USCI_A0 RX interrupt
+	UCA1CTL1 &= ~UCSWRST;
+	IE2 |= UCA0RXIE;						// Enable USCI_A0 RX interrupt
+	UC1IE |= UCA1RXIE;						// Also UCSI_A1
+	
 	
 }
 
