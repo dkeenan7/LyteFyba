@@ -46,7 +46,7 @@ void usci_init( unsigned char clock )
 
 	P3SEL |= CAN_MOSI | CAN_MISO | CAN_SCLK;			// Set pins to peripheral function, not GPIO
 	UCB0CTL0 |= UCMST | UCSYNC | UCCKPL | UCMSB;		// 3-pin, 8-bit SPI master
-	if( clock == 0 ) UCB0CTL1 = UCSSEL_2 | UCSWRST;	// BRCLK = SMCLK
+	if( clock == 0 ) UCB0CTL1 = UCSSEL_2 | UCSWRST;		// BRCLK = SMCLK
 	else UCB0CTL1 = UCSSEL_1 | UCSWRST;					// BRCLK = ACLK
 	UCB0BR0 = 0x02;										// /2
 	UCB0BR1 = 0;										//
@@ -112,7 +112,7 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 
 		if (UCA1TXBUF == '\r') {				// TX over? All commands terminated with return
-			UC1IE &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
+			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 			bmu_txidx = 0;
 			bmu_events &= ~BMU_SENT;
 		}
@@ -148,7 +148,7 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 			bmu_badness = ch;
 		} else {
 			bmu_rxbuf[bmu_rxidx++] = ch;
-			if (UCA1RXBUF == '\r')				// All BMU responses terminate with a return
+			if (ch == '\r')				// All BMU responses terminate with a return
 			{
 				bmu_rxidx = 0;
 				bmu_events |= BMU_REC;			// Tell main line we've received a BMU response
@@ -182,7 +182,7 @@ void bmu_transmit(const unsigned char* ptr)
 		ch = *ptr++;
 		bmu_txbuf[i++] = ch;						// Copy the data to the transmit buffer
 	} while (ch != '\r');
-	bmu_transmit_buf();							// Tail call the main transmit function
+	bmu_transmit_buf();								// Tail call the main transmit function
 }
 
 // bmu_transmit_buf sends the transmit buffer. Used for resending after a timeout.
