@@ -126,7 +126,7 @@ translateTable
 		DB		'K' , '}'		; Shift-K (for Kill Badness Sending) becomes right curly brace
 		DB		'\'', '`'		; Tick (single-quote) (for character literal) becomes tock (back-quote)
 		DB		'$' , $7F		; Dollar sign (for hex number literal) becomes <DEL>
-		DB		'/' , '|'		; Slash (for comment or EXIT) becomes vertical bar
+		DB		'\\', '|'		; Slosh (backslash) (for comment or EXIT) becomes vertical bar
 sizeTranslateTable	EQU	$-translateTable
 
 ; Bytecode interpreter for 7 bit bytecodes
