@@ -4,10 +4,10 @@
 ;
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
-; Causes any characters following to be treated as comments only (Forth "/").
+; Causes any characters following to be treated as comments only (Forth "\").
 
 		xCODE	'|',EXIT_,_EXIT
-EXIT	EQU		'/'			; Interpreter treats slash as synonym for vertical bar
+EXIT	EQU		'\\'		; Interpreter treats slosh (backslash) as synonym for vertical bar
 		incd	SP			; Drop the return address within the interpreter
 		ret					; Return to whoever called the interpreter (_ENTER)
 		
@@ -146,7 +146,7 @@ _prettyPrint:
 		push.b	&base				; Save current base
 		
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
-		mov		#EXIT,R8			; Initial slash (EXIT command or comment character)
+		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 		call	#TX_ByteCk			; Stops rest of packet being interpreted
 		
 		push	Rsec				; Save n
