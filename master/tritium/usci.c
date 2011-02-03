@@ -91,14 +91,14 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 {
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		UCA0TXBUF = chgr_txbuf[chgr_txidx++];	// TX next character
+		unsigned char ch = chgr_txbuf[chgr_txidx++];
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 
 		if (chgr_txidx == 12) {					// TX over?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 			chgr_txidx = 0;
-			chgr_events &= ~CHGR_SENT;
 		}
+		UCA0TXBUF = ch;							// TX next character
 	}
 }
 
@@ -108,14 +108,14 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 {
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		UCA1TXBUF = bmu_txbuf[bmu_txidx++];		// TX next character
+		unsigned char ch = bmu_txbuf[bmu_txidx++];// Next character
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 
-		if (UCA1TXBUF == '\r') {				// TX over? All commands terminated with return
+		if (ch == '\r') {						// TX over? All commands terminated with return
 			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 			bmu_txidx = 0;
-			bmu_events &= ~BMU_SENT;
 		}
+		UCA1TXBUF = ch;							// Transmit this byte
 	}
 }
 
@@ -123,14 +123,15 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 //  #pragma vector=USCIAB0RX_VECTOR
 interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 {
-	if (IFG2 & UCA0RXIFG)					// Make sure it's UCA0 causing the interrupt
+	if (IFG2 & UCA0RXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
 		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
-		events |= EVENT_ACTIVITY;					// Turn on activity light
+		events |= EVENT_ACTIVITY;				// Turn on activity light
 		if (chgr_rxidx > 12)
 		{
 			chgr_rxidx = 0;
-			chgr_events |= CHGR_REC;				// Tell main line we've received a charger packet
+			chgr_events |= CHGR_REC;			// Tell main line we've received a charger packet
+			chgr_events &= ~CHGR_SENT;			// No longer unacknowledged
 		}
 	}
 }
@@ -139,7 +140,7 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 //  #pragma vector=USCIAB1RX_VECTOR
 interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 {
-	if (UC1IFG & UCA1RXIFG)					// Make sure it's UCA1 causing the interrupt
+	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
 		unsigned char ch = UCA1RXBUF;
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -148,10 +149,11 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 			bmu_badness = ch;
 		} else {
 			bmu_rxbuf[bmu_rxidx++] = ch;
-			if (ch == '\r')				// All BMU responses terminate with a return
+			if (ch == '\r')						// All BMU responses terminate with a return
 			{
 				bmu_rxidx = 0;
 				bmu_events |= BMU_REC;			// Tell main line we've received a BMU response
+				bmu_events &= ~BMU_SENT;		// No longer unacknowledged (not used yet)
 			}
 		}
 	}

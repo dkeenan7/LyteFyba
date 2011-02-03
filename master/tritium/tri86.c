@@ -152,10 +152,12 @@ int main( void )
 		// Monitor switch positions & analog inputs
 		if( events & EVENT_TIMER ) {
 			events &= ~EVENT_TIMER;
-			
+
+#if 0	// FIXME: getting endless loop here! FIXME
 			// Convert potentiometer and current monitoring inputs
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions
 			while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
+#endif
 			// Check for 5V pedal supply errors
 			// TODO
 			// Check for overcurrent errors on 12V outputs
@@ -522,16 +524,33 @@ int main( void )
 		
 		if (chgr_curr_cell > NUMBER_OF_CELLS) {
 			// We are waiting for the end of charge settle time count to expire
-		if (++chgr_eoc_settle >= CHGR_EOC_SETTLE) {
-			// End of charge
-			chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
-			chgr_events |= CHGR_END_CHARGE;
-		}
+			if (++chgr_eoc_settle >= CHGR_EOC_SETTLE) {
+				// End of charge
+				chgr_eoc_settle = 0;
+				chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
+				chgr_events |= CHGR_END_CHARGE;
+			}
 		} else {
 			if (chgr_events & CHGR_EOC_CHECK1) {
+				chgr_events &= ~CHGR_EOC_CHECK1;
 				// Send a voltage check for the current cell
-				char cmd[8];
-				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
+				char cmd[8]; char* p; p = cmd;
+//				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
+				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
+				int n = chgr_curr_cell;
+				int h = n / 100;
+				if (h) {
+					*p++ = h + '0';
+					n -= h * 100;
+				}
+				int t = n / 10;
+				if (t) {
+					*p++ = t + '0';
+					n -= t * 10;
+				}
+				*p++ = n + '0';
+				*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
+					
 				bmu_transmit(cmd);
 				++chgr_curr_cell;
 			}
