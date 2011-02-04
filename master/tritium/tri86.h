@@ -121,9 +121,8 @@
 // Charger events
 #define CHGR_SENT			0x0001				// We have sent the charger a packet, not replied to yet
 #define	CHGR_REC			0x0002				// We have received a packet from the charger
-#define CHGR_EOC_CHECK		0x0004				// We need to do an end of charge check
-#define CHGR_EOC_CHECK1		0x0008				// Check one voltage (set by timer interrupt if EOC_CHECK is on)
-#define CHGR_END_CHARGE		0x0010				// End charge event
+#define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
+#define CHGR_END_CHARGE		0x0008				// The charger is turned off; end of charge
 
 // BMU events
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
@@ -135,9 +134,8 @@
 #define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
-#define CHGR_EOC_TIME		(5 * 60 * TICK_RATE)// Delay from first badness or last EOC check to next
-#define CHGR_EOC_DLY		5					// Number of timer ticks delay between EOC voltage commands
-#define CHGR_EOC_SETTLE		25					// Number of timer ticks to wait for last voltage result
+#define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
+												//	turning off the charger
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
