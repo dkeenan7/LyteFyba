@@ -64,9 +64,10 @@ float battery_current = 0;
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
-unsigned int chgr_current = 8;			// Charger present current; initially 0.9 A (incremented before
-										//	first use)
+unsigned int chgr_current = 9 - CHGR_CURR_DELTA;	// Charger present current; initially 0.9 A
+										// (incremented before first use)
 unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
+unsigned int chgr_soaking = 0;			// Counter for soak phase
 
 // Charger buffers
 		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
@@ -91,12 +92,10 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
-	// Cherger end-of-charge test
-	unsigned int chgr_eoc_count = 0;
-	unsigned int chgr_eoc_count1 = 0;
-	unsigned int chgr_eoc_settle = 0;
-	// Current cell in the current end-of-charge test
-	unsigned int chgr_curr_cell = 0;
+	// Charger end-of-charge test
+	signed	 int first_bmu_in_bypass = -1;
+	// Current cell in the current end-of-charge test (send voltage request to this cell next)
+	unsigned int chgr_curr_cell = 0;			// FIXME: origin will be 1 eventually
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -306,7 +305,7 @@ int main( void )
 			// Transmit commands and telemetry
 			if(events & EVENT_CONNECTED){
 				// Blink activity LED
-				events |= EVENT_ACTIVITY;
+				// events |= EVENT_ACTIVITY;
 
 				// Transmit drive command frame
 				can.address = DC_CAN_BASE + DC_DRIVE;
@@ -346,26 +345,48 @@ int main( void )
 					can_transmit();		
 				}
 			}
-			
-			if (bmu_badness) {
-				// Once a badness has been received, start the countdown to the end of charge test
-				if (++chgr_eoc_count >= CHGR_EOC_TIME)
-				{
-					chgr_eoc_count = 0;
-					chgr_curr_cell = 0;
-					chgr_events |= CHGR_EOC_CHECK;
-				}
-			}
 		}
+			
 
 		// Process badness events before sending charger packets
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
 			if (bmu_badness > 0x80)					// Simple algorithm:
 				chgr_current = 9 - CHGR_CURR_DELTA;	// On any badness, cut back to 0.9 A
+			if ((chgr_events & CHGR_SOAKING) == 0) {
+				// Send a voltage check for the current cell
+				char cmd[8]; char* p; p = cmd;
+//				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
+				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
+				int n = chgr_curr_cell;
+				int h = n / 100;
+				if (h) {
+					*p++ = h + '0';
+					n -= h * 100;
+				}
+				int t = n / 10;
+				if (t) {
+					*p++ = t + '0';
+					n -= t * 10;
+				}
+				*p++ = n + '0';
+				*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
+					
+				bmu_transmit(cmd);
+				++chgr_curr_cell;
+				if (chgr_curr_cell >= NUMBER_OF_CELLS)
+					chgr_curr_cell = 0;
+			}
 		}
 
 		// MVE: send packets to charger
+		if (chgr_events & CHGR_SOAKING) {
+			if (++ chgr_soaking >= CHGR_EOC_SOAKT) {
+				chgr_events &= ~CHGR_SOAKING;
+				chgr_events |= CHGR_END_CHARGE;
+			}
+		}
+		
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
@@ -389,7 +410,9 @@ int main( void )
 			if (chgr_events & CHGR_END_CHARGE) {
 				chgr_txbuf[7] = 0;					// Request no current now
 				chgr_txbuf[8] = 1;					// Turn off charger
-			} else {
+			} else if (chgr_events & CHGR_SOAKING)
+				chgr_txbuf[7] = 5;					// Soak at 0.5 amps (half the bypass capacity)
+			else {
 				chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
 				if (chgr_current > CHGR_CURR_LIMIT)
 					chgr_current = CHGR_CURR_LIMIT;
@@ -408,19 +431,47 @@ int main( void )
 		
 		if (bmu_events & BMU_REC) {
 			bmu_events &= ~BMU_REC;
-			// Check for a voltage response
-			// Expecting \123:1234 V  ret
-			//           0   45    10 11  (note space before the 'V'
-			if (bmu_rxbuf[0] == '\\' &&
-				bmu_rxbuf[4] == ':' &&
-				bmu_rxbuf[10] == 'V') {
-					unsigned int rxvolts = (bmu_rxbuf[5] - '0') * 100 + (bmu_rxbuf[6] - '0') * 10 +
-						(bmu_rxbuf[7] - '0');
-					if (rxvolts < 359) {
-						// At least one cell has voltage < 3.590 V, so the end of charge test has
-						// failed. No point doing any more voltage checks
-						chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
-					}
+			if ((chgr_events & CHGR_SOAKING) == 0) {
+				// Check for a voltage response
+				// Expecting \123:1234 V  ret
+				//           0   45    10 11  (note space before the 'V'
+				if (bmu_rxbuf[0] == '\\' &&
+					bmu_rxbuf[4] == ':' &&
+					bmu_rxbuf[10] == 'V') {
+						int bmu_id = 100 * (bmu_rxbuf[1] - '0') + (bmu_rxbuf[2] - '0') * 10 +
+							bmu_rxbuf[3] - '0';
+						unsigned int rxvolts = 
+#if 0
+							(bmu_rxbuf[5] - '0') * 100 +
+#else
+							// The *50 and << 1 below are to work around a mspgcc bug! See
+							// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
+							(((bmu_rxbuf[5] - '0') * 50) << 1) +
+#endif
+							(bmu_rxbuf[6] - '0') * 10 +
+							(bmu_rxbuf[7] - '0');
+						if (rxvolts < 359)
+							// This cell is not bypassing. So the string of cells known to be in bypass
+							// is zero length. Flag this
+							first_bmu_in_bypass = -1;
+						else {
+							// This cell is in bypass. Check if the first bmu in bypass is the next one
+							int next_bmu_id = bmu_id+1;
+							if (next_bmu_id >= NUMBER_OF_CELLS)
+								next_bmu_id = 0;
+							if (next_bmu_id == first_bmu_in_bypass) {
+								// We have detected all cells in bypass. Now we enter the soak phase
+								// The idea is to allow the last cell to have gone into bypass some
+								// time to stay at that level and balance with the others
+								chgr_events |= CHGR_SOAKING;
+							}
+							else {
+								if (first_bmu_in_bypass == -1)
+								// This cell is in bypass; we must be starting a new string of bypassed BMUs
+								first_bmu_in_bypass = bmu_id;
+							}
+						}
+				}
 			}
 		}
 
@@ -509,50 +560,8 @@ int main( void )
 					// Wake up CAN controller
 					can_wake();
 				}
-				events |= EVENT_FAULT;		// MVE: see the CAN error in fault light
-			}
-		}
-		
-		// End of charge event
-		if (chgr_events & CHGR_EOC_CHECK) {
-			if (++chgr_eoc_count1 >= CHGR_EOC_DLY) {
-				chgr_eoc_count1 = 0;
-				chgr_events |= CHGR_EOC_CHECK1;
-				chgr_curr_cell = 0;
-			}
-		}
-		
-		if (chgr_curr_cell > NUMBER_OF_CELLS) {
-			// We are waiting for the end of charge settle time count to expire
-			if (++chgr_eoc_settle >= CHGR_EOC_SETTLE) {
-				// End of charge
-				chgr_eoc_settle = 0;
-				chgr_events &= ~(CHGR_EOC_CHECK | CHGR_EOC_CHECK1);
-				chgr_events |= CHGR_END_CHARGE;
-			}
-		} else {
-			if (chgr_events & CHGR_EOC_CHECK1) {
-				chgr_events &= ~CHGR_EOC_CHECK1;
-				// Send a voltage check for the current cell
-				char cmd[8]; char* p; p = cmd;
-//				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
-				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
-				int n = chgr_curr_cell;
-				int h = n / 100;
-				if (h) {
-					*p++ = h + '0';
-					n -= h * 100;
-				}
-				int t = n / 10;
-				if (t) {
-					*p++ = t + '0';
-					n -= t * 10;
-				}
-				*p++ = n + '0';
-				*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
-					
-				bmu_transmit(cmd);
-				++chgr_curr_cell;
+				// Comment out for now: will always get CAN errors
+				//events |= EVENT_FAULT;		// MVE: see the CAN error in fault light
 			}
 		}
 		
