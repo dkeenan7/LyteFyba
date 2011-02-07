@@ -269,8 +269,16 @@ int main( void )
 //			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT)) P3OUT &= ~LED_REDn;
 //			else P3OUT |= LED_REDn;
 			
-		}
 
+            if (chgr_events & CHGR_SOAKING) {
+                if (++ chgr_soaking >= CHGR_EOC_SOAKT) {
+                    chgr_events &= ~CHGR_SOAKING;
+                    chgr_soaking = 0;
+                    chgr_events |= CHGR_END_CHARGE;
+                }
+            }
+		}
+		
 		// Handle outgoing communications events (to motor controller)
 		if(events & EVENT_COMMS){
 			events &= ~EVENT_COMMS;
@@ -353,7 +361,7 @@ int main( void )
 			bmu_events &= ~BMU_BADNESS;
 			if (bmu_badness > 0x80)					// Simple algorithm:
 				chgr_current = 9 - CHGR_CURR_DELTA;	// On any badness, cut back to 0.9 A
-			if ((chgr_events & CHGR_SOAKING) == 0) {
+			if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
 				// Send a voltage check for the current cell
 				char cmd[8]; char* p; p = cmd;
 //				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
@@ -380,13 +388,6 @@ int main( void )
 		}
 
 		// MVE: send packets to charger
-		if (chgr_events & CHGR_SOAKING) {
-			if (++ chgr_soaking >= CHGR_EOC_SOAKT) {
-				chgr_events &= ~CHGR_SOAKING;
-				chgr_events |= CHGR_END_CHARGE;
-			}
-		}
-		
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
