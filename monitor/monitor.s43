@@ -398,13 +398,13 @@ measures:
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
 
-			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 0
+			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 1
 			tst.b	bNotSendBad				; Are we sending badness?
 			_IF		_Z						; If not, there can't be a comms badness
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
-					tst.b	&ID						; Only if ID
-					_IF		_NZ						;	is nonzero...
+					cmp.b	#1,&ID					; Only if ID
+					_IF		_NE						;	is not 1 ...
 						tst		R9						; Yes, are we at badness zero?
 						_IF		_Z
 							mov		#1,R9					; Yes, make it 1 for the comms error
@@ -446,9 +446,9 @@ measures:
 						cmp.b	#4,&ticksSinceLastSend
 						_IF		_C
 ;				_CS_SWAP
-							; If we don't have ID zero, report that we haven't heard from anyone
-							tst.b	&ID
-							_IF		_NZ
+							; If we don't have ID one, report that we haven't heard from anyone
+							cmp.b	#1,&ID
+							_IF		_NE
 								call	#_RxState
 							_ENDIF
 ;				_ENDIF
