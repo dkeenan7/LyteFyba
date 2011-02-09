@@ -328,9 +328,8 @@ newChip
 			
 unknownVersBSL
 ; Version number is higher or lower than this BSL-writer knows about,
-; so we should leave it alone and raise an error.
+; so we program it anyway (as if current version) but alert the user afterwards
 			mov		#4,rERR
-			jmp		errorFlash
 			
 
 currVersBSL
@@ -535,8 +534,14 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 
 
 failCompare mov		#3,rERR
-errorFlash:	mov		rERR,R11
-			add		R11,R11					; Double
+errorFlash:
+; We could end up here after the 4 MHz calibration has been set to FFFF. so the processor is
+;	running very fast
+			mov.b	#$8A,&BCSCTL1			; "Average" 4 MHz calibration
+			mov.b	#$BC,&DCOCTL			;	value so we can read the flashes
+
+			mov		rERR,R11
+			add		R11,R11					; Double (two transitions for one "flash")
 #if MClock4
 				rla		R11
 				rla		R11						; And quadruple for 4 MHz
