@@ -7,8 +7,15 @@ TX_Cksum:
 			tst.b		&Checksumming
 			_IF		_NZ
 				mov.b	&TXCksum,R8
-				call 	#TX_Byte
+#if 0		; NOT ENOUGH SPACE!!
+				cmp.b	#'\r',R8			; If the checksum would be a carriage return
+				_IF		_EQ					;	and therefore confused with the real end of
+					mov.b	#'\\',R8			; line, then pad with a comment char, which will
+					call 	#TX_ByteCk			; change the checksum to 0x51 (xor of slosh and
+					mov.b	#'\\'^'\r',R8		; carriage return)
+				_ENDIF
+#endif
+				call 	#TX_ByteCk			; Also updates TXCksum to 0
 			_ENDIF
-			clr.b	&TXCksum
 			ret
 

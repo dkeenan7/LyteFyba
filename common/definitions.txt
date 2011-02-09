@@ -14,7 +14,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 K   KillBadnessSending (toggle)
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
   a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
-a	Alarm (toggle) (monitor only. 'a' is ADCScaled in debugger)
+a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
@@ -82,7 +82,7 @@ x x e(X)clusive     (singleBMU interaction mode)
 | | exit or comment
 k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 K   KillBadnessSending (toggle)
-a	Alarm (toggle) (monitor only. 'a' is ADCScaled in debugger)
+a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 
 q   QueryWorstBadness
 {   resetWorstBadness :-{

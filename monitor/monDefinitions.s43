@@ -50,8 +50,8 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			clr		&worstBadMeas
 			ret
 			
-; Alarm ( -- )
+; Alarm ( boolean -- )
 			xCODE	'a',Alarm,_Alarm
-			inv.b	&bAlarmForBad
+			mov.b	Rtos,&bAlarmForBad
 			ret
 		
