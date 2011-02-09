@@ -95,7 +95,7 @@ int main( void )
 	// Charger end-of-charge test
 	signed	 int first_bmu_in_bypass = -1;
 	// Current cell in the current end-of-charge test (send voltage request to this cell next)
-	unsigned int chgr_curr_cell = 0;			// FIXME: origin will be 1 eventually
+	unsigned int chgr_curr_cell = 1;			// ID of BMU to send to next
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -382,8 +382,8 @@ int main( void )
 					
 				bmu_transmit(cmd);
 				++chgr_curr_cell;
-				if (chgr_curr_cell >= NUMBER_OF_CELLS)
-					chgr_curr_cell = 0;
+				if (chgr_curr_cell > NUMBER_OF_CELLS)
+					chgr_curr_cell = 1;
 			}
 		}
 
@@ -458,8 +458,8 @@ int main( void )
 						else {
 							// This cell is in bypass. Check if the first bmu in bypass is the next one
 							int next_bmu_id = bmu_id+1;
-							if (next_bmu_id >= NUMBER_OF_CELLS)
-								next_bmu_id = 0;
+							if (next_bmu_id > NUMBER_OF_CELLS)
+								next_bmu_id = 1;
 							if (next_bmu_id == first_bmu_in_bypass) {
 								// We have detected all cells in bypass. Now we enter the soak phase
 								// The idea is to allow the last cell to have gone into bypass some
