@@ -264,7 +264,7 @@ pifLoop3	mov.w	for1000(R12),$1000(R12)
 
 failCompare mov		#3,rERR
 			jmp		errorFlash
-			
+
 ;
 ; GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
@@ -281,11 +281,11 @@ failCompare mov		#3,rERR
 			mov.b	Rsec,0(Rtos)
 			ret
 			
-#if 0	// Commented out in favour of fourMHzBurst
+#if 0	// Commented out to save space
 ;
-; FetchWord - fetch a word (NOT to stack) and display it ( addr -- )
+; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
 ;
-			xCODE	'f',FetchWord,_FetchWord
+			xCODE	'q',PeeQWord,_PeeQWord
 			mov.b	#' ',Rthd
 			mov.w	@Rtos,Rsec
 			mov		#5,Rtos

@@ -94,6 +94,7 @@ txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
 ;
 			ORG		$200			; Start of RAM. Ends at $27F
 #if	!NOBUF
+			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
@@ -143,6 +144,7 @@ dontInterpret DS	1				; Boolean
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
+; Don't put anything else in RAM after TIB
 
 ;-------------------------------------------------------------------------------
 			ORG		$F800					; Reset vector points here

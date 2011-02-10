@@ -30,7 +30,8 @@ m m e(M)itCharacter
 n n emit(N)um
   o StOre wOrd (poke wOrd)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
-q   QueryWorstBadness
+  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
+q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
 r 	RxState (monitor only. 'r' is ReadCalValue in debugger)
 s s Select
@@ -84,14 +85,14 @@ k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 K   KillBadnessSending (toggle)
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 
-q   QueryWorstBadness
+q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
 {   resetWorstBadness :-{
 
   j JumpToSubroutine (call)
   z Ztore byte (poke byte)
   g Get byte   (peek byte)
-  o StOre wOrd (poke wOrd)
- [f was Fetch word (peek word)]
+  o St(O)re word (poke word)
+  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 
   f FourMHzBurst
 

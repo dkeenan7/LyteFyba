@@ -19,7 +19,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 		
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
-			mov		#'t',Rthd				; Units are "ticks"
+			mov		#'x',Rthd				; Units are "rX/tX tiX" (communication ticks)
 			mov.b	&ticksSinceLastRx,Rsec	; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return

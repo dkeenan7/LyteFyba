@@ -44,6 +44,7 @@ measure:
 					bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 				_UNTIL		_NZ
 				add			&ADC10MEM,R8			; Add a result
+				bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
 			_LOOP		R9
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
@@ -83,12 +84,12 @@ measure:
 			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
 			
 			; Sum the samples
-			mov			#sampleBuf,R9
-			mov			#0,R8					; Initialise the sum
+;			mov			#0,R8					; Initialise the sum. R8 cleared by above loop
+			mov			#NumSamples*2,R9
 			_BEGIN
-				add			@R9+,R8					; Add a sample
-				cmp			#sampleBuf+2*NumSamples,R9
-			_UNTIL		_EQ
+				add			sampleBuf-2(R9),R8		; Add a sample
+				decd		R9
+			_UNTIL		_Z
 			ret
 #endif
 
