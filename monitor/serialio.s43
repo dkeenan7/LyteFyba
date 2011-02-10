@@ -60,6 +60,7 @@ Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 ;
 ; Put the character from R8 into the transmit queue.
 ; If necessary, wait until the queue is not full.
+; Preserves R8, trashes R9.
 ;
 TX_ByteCk:
 			xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
@@ -72,6 +73,7 @@ TX_Byte:
 ;
 ; Attempt to put the character from R8 into the transmit queue.
 ; If the queue is full, return immediately with the Z status bit set.
+; Preserves R8, trashes R9.
 ;
 TX_ByteNW:
 			mov.b	&txwr,R9			; Get the write index (not changed by TX_ISR)
@@ -92,6 +94,7 @@ TX_ByteNW:
 ; If transmit interrupts are disabled, set up the timer for a new start bit
 ; and enable transmit compare interrupts.
 ; Should only be called by TX_ByteNW above.
+; Preserves R8, trashes R9.
 ;
 EnableTxInts:
 			bit		#CCIE,&TACCTLt		; Test transmit interrupts enabled bit
