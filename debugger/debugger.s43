@@ -155,6 +155,11 @@ ramVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL 
 ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
 
+#if	!NOBUF
+			ALIGNRAM 1
+sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
+#endif
+
 ; NOTE: Many pairs of byte variables below are initialised as a word to save code space.
 ; Don't move them or insert new variables without checking.
 
@@ -169,12 +174,7 @@ TXCksum			DS		1			; Transmit checksum
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
 TIB				DS		1			; Start of Text Input Buffer, grows towards stack
-
-#if !NOBUF
-			ALIGNRAM 1
-sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
-#endif
-
+; Don't put anything else in RAM after TIB
 
 ;
 ; BSL-writer code in main-flash.
