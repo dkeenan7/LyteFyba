@@ -344,7 +344,7 @@ currVersBSL
 			mov.b	&infoVoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
 			mov.b	&infoVoltCalH,&mainVoltCalH
 			mov.b	&infoTempCal,&mainTempCal
-;			mov.b	&infoLinkCal,&mainLinkCal
+			mov.b	&infoLinkCal,&mainLinkCal
 #endif
 noCopyCalNew
 #if	FORCEFCAL4
