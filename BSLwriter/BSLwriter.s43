@@ -233,6 +233,10 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 #if MClock4
 			; Temporary fix for vers 4 data
 	; !!! Needs to handle the new-chip case as well. And the case of an unknown version. !!!
+	#if FORCEFCAL4
+			mov.b	#FREQCAL4 >> 8,&BCSCTL1
+			mov.b	#FREQCAL4 & $FF,&DCOCTL
+	#else
 			cmp.b	#4,&infoDataVers
 			_IF		_EQ
 				mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
@@ -246,6 +250,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 				mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
 				mov.b	&info4MHzCalD,&DCOCTL
 			_ENDIF
+	#endif
 #else										; Else frequency is 1 MHz
 			cmp.b	#4,&infoDataVers
 			_IF		_EQ
