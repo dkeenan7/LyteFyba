@@ -311,7 +311,9 @@ currVersBSL
 main:										; For debugger
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
-			br		#_updateInfoFlash		; Update info flash and establish a BSL
+;			br		#_updateInfoFlash		; Update info flash and establish a BSL
+			br		#$1000					; Branch to the start of the BSL for the readline loop
+											; We need an explicit u command to write a new BSL
 			
 DELAY_IF_NEEDED MACRO
 #if			MClock4
