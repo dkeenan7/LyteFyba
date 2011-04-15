@@ -266,6 +266,28 @@ failCompare mov		#3,rERR
 			jmp		errorFlash
 
 ;
+; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
+; When testing with BMUs powered up in parallel, link inputs are at +3.6 V.
+; Having any analog input above Vcc screws up all analog readings.
+; So we set P1.4 (usually Vref+ out during conversion)
+; as a low digital output to keep the link input below Vcc.
+; But maybe it needs to be below Vref+? See MSP430F2012 datasheet page 39 note 2.
+; So use 1p for parallel testing, and 0p (default)) for operation on cells
+;
+		xCODE	'p',ParallelPullDown,_ParallelPullDown
+		tst			Rtos
+		_IF			_Z
+			bis.b	#1<<4,&ADC10AE0		; Set bit 4 in analog enable register. Trashes R8
+			bis		#REFOUT,&ADC10CTL0	; Set the REFOUT bit in analog ctl0 reg
+		_ELSE
+			bic.b	#1<<4,&ADC10AE0		; Clear bit 4 in analog enable register. Trashes R8
+			bic		#REFOUT,&ADC10CTL0	; Clear the REFOUT bit in analog ctl0 reg
+		_ENDIF
+;		DROP
+		ret
+		
+#if 0	// Commented out to save space
+;
 ; GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
 			xCODE	'g',GetByte,_GetByte
@@ -280,7 +302,8 @@ failCompare mov		#3,rERR
 			xCODE	'z',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
-			
+#endif
+
 #if 0	// Commented out to save space
 ;
 ; PeeQWord - get a word (NOT to stack) and display it ( addr -- )

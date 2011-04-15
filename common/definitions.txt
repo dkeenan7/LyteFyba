@@ -29,7 +29,7 @@ l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
   o StOre wOrd (poke wOrd) [disabled to save space]
-p p ParallelPullDown (when testing with BMUs paralleled on power supply)
+  p ParallelPullDown (when testing with BMUs paralleled on power supply)
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
@@ -69,7 +69,7 @@ e e ErrorLED
   y b(Y)pass (Yellow)
 
   a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
-p p ParallelPullDown (when testing with BMUs paralleled on power supply)
+  p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
 t t Temperature
