@@ -130,8 +130,10 @@
 #define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
 
 // Charger constants
+//#define NUMBER_OF_CELLS	60
 #define NUMBER_OF_CELLS		8
-#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
+//#define CHGR_VOLT_LIMIT	((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
+#define CHGR_VOLT_LIMIT		((int)(60 * 34.5))	// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
@@ -156,6 +158,11 @@ extern 		 unsigned char bmu_txbuf[64];		// Buffer for a transmitted BMU command
 extern volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
+extern volatile unsigned char chgr_txidx;		// Index into the charger transmit buffer
+extern volatile unsigned char chgr_rxidx;		// Index into the charger receive buffer
+extern volatile unsigned char bmu_txidx;		// Index into the BMU transmit buffer
+extern volatile unsigned char bmu_rxidx;		// Index into the BMU  receive buffer
+
 
 
 

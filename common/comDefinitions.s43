@@ -188,6 +188,10 @@ _prettyPrint:
 ; So we set P1.4 (usually Vref+ out during conversion)
 ; as a low digital output to keep the link input below Vcc.
 ; But maybe it needs to be below Vref+? See MSP430F2012 datasheet page 39 note 2.
+; So use 1p for parallel testing, and 0p (default)) for operation on cells
+; NOTE: 1p DOES NOT WORK currently, because we turn on REFOUT with all the other bits every time
+;	that measure is called, so using 1p actually shorts out the buffered Vref!
+;	When we have more space, we can clear REFOUT with the 1p command, and don't set REFOUT every measure
 ;
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		allBitsIfZ	Rtos,Rtos				; Set all bits of Rtos if Rtos is zero, otherwise clear

@@ -80,11 +80,6 @@ unsigned char usci_exchange( unsigned char data )
 	return( UCB0RXBUF );
 }
 
-volatile unsigned char chgr_txidx = 0;				// Index into the charger transmit buffer
-volatile unsigned char chgr_rxidx = 0;				// Index into the charger receive buffer
-volatile unsigned char bmu_txidx = 0;				// Index into the BMU transmit buffer
-volatile unsigned char bmu_rxidx = 0;				// Index into the BMU  receive buffer
-
 // USCI0 A0/B0 Transmit ISR.
 // #pragma vector=USCIAB0TX_VECTOR
 interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
@@ -127,7 +122,7 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 	{
 		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
 		events |= EVENT_ACTIVITY;				// Turn on activity light
-		if (chgr_rxidx > 12)
+		if (chgr_rxidx >= 12)
 		{
 			chgr_rxidx = 0;
 			chgr_events |= CHGR_REC;			// Tell main line we've received a charger packet

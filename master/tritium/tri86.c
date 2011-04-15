@@ -54,6 +54,9 @@ volatile unsigned int events = 0x0000;
 volatile unsigned int chgr_events = 0;
 volatile unsigned int bmu_events = 0;
 volatile unsigned char bmu_badness = 0;		// Zero says we have received no badness so far
+// \ C H G _ n n n V _ n . n A \r
+// 0 1 2 3 4 5 6 7 8 9 a b c d e
+unsigned char szChgrVolt[16] = "\\CHG nnnV n.nA\r";// Packet to announce the charger's meas of total voltage
 
 // Data from controller
 float motor_rpm = 0;
@@ -72,10 +75,14 @@ unsigned int chgr_soaking = 0;			// Counter for soak phase
 // Charger buffers
 		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
 volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
+volatile unsigned char chgr_txidx = 0;	// Index into the charger transmit buffer
+volatile unsigned char chgr_rxidx = 0;	// Index into the charger receive buffer
 
 // BMU buffers
 		 unsigned char bmu_txbuf[64];	// Buffer for a transmitted BMU command
 volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
+volatile unsigned char bmu_txidx = 0;	// Index into the BMU transmit buffer
+volatile unsigned char bmu_rxidx = 0;	// Index into the BMU  receive buffer
 
 
 // Main routine
@@ -363,7 +370,7 @@ int main( void )
 				chgr_current = 9 - CHGR_CURR_DELTA;	// On any badness, cut back to 0.9 A
 			if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
 				// Send a voltage check for the current cell
-				char cmd[8]; char* p; p = cmd;
+				unsigned char cmd[8]; unsigned char* p; p = cmd;
 //				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
 				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
 				int n = chgr_curr_cell;
@@ -422,12 +429,24 @@ int main( void )
 			}
 			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
 			chgr_transmit_buf();
+			chgr_rxidx = 0;			// Expect receive packet in response
 #endif
 		}
 		
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
 			// Do something with the packet
+#if 1
+			{
+				int nVolt = (chgr_rxbuf[4] << 8) + chgr_rxbuf[5];
+				szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
+				szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
+				szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
+				szChgrVolt[10] = (chgr_rxbuf[7] / 10) + '0';	// Current units
+				szChgrVolt[12] = (chgr_rxbuf[7] % 10) + '0';	//	tenths
+				bmu_transmit(szChgrVolt);
+			}
+#endif
 		}
 		
 		if (bmu_events & BMU_REC) {

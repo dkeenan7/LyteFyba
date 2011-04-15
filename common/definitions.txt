@@ -30,6 +30,7 @@ m m e(M)itCharacter
 n n emit(N)um
   o StOre wOrd (poke wOrd)
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
+    NOTE: 1p is not working until we can clear REFOUT; needs more flash space
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
