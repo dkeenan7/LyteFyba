@@ -292,7 +292,7 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 #endif
 
-#if 1	// Can be commented out in favour of oneMHzBurst
+#if 0	// Can be commented out in favour of oneMHzBurst
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;

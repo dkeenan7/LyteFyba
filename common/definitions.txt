@@ -23,14 +23,13 @@ e e ErrorLED
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
-  j JumpToSubroutine (call)
+  j JumpToSubroutine (call) [disabled to save space]
 k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
-  o StOre wOrd (poke wOrd)
+  o StOre wOrd (poke wOrd) [disabled to save space]
 p p ParallelPullDown (when testing with BMUs paralleled on power supply)
-    NOTE: 1p is not working until we can clear REFOUT; needs more flash space
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
@@ -89,10 +88,10 @@ a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
 {   resetWorstBadness :-{
 
-  j JumpToSubroutine (call)
+  j JumpToSubroutine (call) [disabled to save space]
   z Ztore byte (poke byte)
   g Get byte   (peek byte)
-  o St(O)re word (poke word)
+  o St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 
   f FourMHzBurst
