@@ -99,7 +99,7 @@ DATAVERS		EQU		5						; This is version 5 of the BMU info-flash data structure
 ; Locations in info-flash, of calibration data in previous versions of the BSL
 ; to allow us to update them to the current version without losing their calibration data.
 
-; New chip (has $FFFF at $10C0)
+; New chip (has $FFFF at $10C4)
 infN4MHzCalD	EQU		$10F6		; Address of 4 MHz DCO frequency calibration
 									; (presumed to be for 4 MHz, not documented by manufacturer)
 infN4MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
@@ -254,8 +254,9 @@ initialise:
 			; SREF_1    = +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT    = connect Vref+ to pin P1.4
+			; REFON		= turn on the voltage reference and reference buffer
 			; No MSC	= single sample and conversion
-			mov			#SREF_1+ADC10SHT_3+REFOUT,&ADC10CTL0
+			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
@@ -274,9 +275,9 @@ initialise:
 ;
 
 ;
-; If we find $FFFF (erased flash) at $10C0 (start of info-flash protected segment A),
+; If we find $FFFF (erased flash) at $10C4 (near start of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$10C0	; Don't look at $1000 in case JTAG debugger is set to erase it
+			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG debugger is set to erase it
 			jeq		newChip			;	before downloading
 			
 ; It's not a new chip so check the data version number at the end of info-flash.

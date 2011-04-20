@@ -101,7 +101,7 @@
         </option>
         <option>
           <name>OGChipSelectMenu</name>
-          <state>MSP430F2012	MSP430F2012</state>
+          <state>MSP430G2452	MSP430G2452</state>
         </option>
         <option>
           <name>GStackHeapOverride</name>
@@ -109,11 +109,11 @@
         </option>
         <option>
           <name>GStackSize2</name>
-          <state>50</state>
+          <state>80</state>
         </option>
         <option>
           <name>GHeapSize2</name>
-          <state>0</state>
+          <state>80</state>
         </option>
         <option>
           <name>RadioDataModelType</name>
@@ -155,7 +155,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -389,6 +389,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>
@@ -654,7 +658,7 @@
         </option>
         <option>
           <name>XclFile</name>
-          <state>$TOOLKIT_DIR$\CONFIG\lnk430F2012.xcl</state>
+          <state>$TOOLKIT_DIR$\CONFIG\lnk430G2432.xcl</state>
         </option>
         <option>
           <name>XclFileSlave</name>
@@ -1036,7 +1040,7 @@
       <name>ICC430</name>
       <archiveVersion>4</archiveVersion>
       <data>
-        <version>29</version>
+        <version>30</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -1270,6 +1274,10 @@
         <option>
           <name>IccRelaxedFpPrecision</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCPUTAG</name>
+          <state>1</state>
         </option>
       </data>
     </settings>

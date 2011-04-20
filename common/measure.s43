@@ -20,7 +20,7 @@ measure:
 			; Turn on ADC10
 			; REFON		= turn on the voltage reference and reference buffer
 			; ADC10ON	= turn on the ADC core
-			bis			#REFON+ADC10ON,&ADC10CTL0
+			bis			#ADC10ON,&ADC10CTL0
 			; INCH		= R8 has the input channel number already in the right position
 			; SHS_0		= enable software starting via the ADC10SC bit
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
@@ -43,7 +43,7 @@ measure:
 				bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
 			_LOOP		R9
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
-			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
+			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
 			ret
 		
 #else
@@ -51,9 +51,8 @@ measure:
 			; Useful for debugging. Can see all values and compare them.
 			
 			; Turn on ADC10
-			; REFON		= turn on the voltage reference and reference buffer
 			; ADC10ON	= turn on the ADC core
-			bis			#REFON+ADC10ON,&ADC10CTL0
+			bis			#ADC10ON,&ADC10CTL0
 			; INCHx		= R8 has the channel number already in the right position
 			; SHS_0		= enable software starting via the ADC10SC bit
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
@@ -73,8 +72,7 @@ measure:
 				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
 			_UNTIL		_NZ
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
-			bic			#ADC10ON+REFON,&ADC10CTL0 ; Turn off ADC core, ref and ref buffer
-			
+			bic			#ADC10ON,&ADC10CTL0		; Turn off ADC core
 			; Sum the samples
 ;			mov			#0,R8					; Initialise the sum. R8 cleared by above loop
 			mov			#NumSamples*2,R9
