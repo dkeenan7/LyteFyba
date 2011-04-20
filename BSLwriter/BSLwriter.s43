@@ -74,8 +74,8 @@ DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
-FORCEFCAL4	EQU		0				; 1 to force 4 MHz calibration frequency
-FREQCAL4	EQU		$8ABC			; Value to force 4 MHz frequency calibration to
+FORCEFCAL4	EQU		1				; 1 to force 4 MHz calibration frequency
+FREQCAL4	EQU		$8AE0			; Value to force 4 MHz frequency calibration to
 FD4MHz		EQU		1				; Use 4 MHz clock for $FD00 frequency check, otherwise use 1 MHz
 
 
@@ -132,7 +132,7 @@ inf4LinkCal		EQU		$10BF		; Address of link voltage offset calibration byte
 inf44MHzCal		EQU		$10D7		; Address of compressed 4 MHz DCO calibration
 inf4PWtable		EQU		$10FC		; Address of BSL password in reverse-order
 
-; New chip (has $FFFF at $10C0)
+; New chip (has $FFFF at $10C4)
 infN4MHzCalD	EQU		$10F6		; Address of 4 MHz DCO frequency calibration
 									; (presumed to be for 4 MHz, not documented by manufacturer)
 infN4MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
@@ -304,9 +304,9 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 #endif
 
 ;
-; If we find $FFFF (erased flash) at $10C0 (start of info-flash protected segment A),
+; If we find $FFFF (erased flash) at $10C4 (near start of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$10C0	; Don't look at $1000 in case JTAG debugger is set to erase it
+			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG debugger is set to erase it
 			jeq		newChip			;	before downloading
 			
 ; It's not a new chip so check the data version number at the end of info-flash.

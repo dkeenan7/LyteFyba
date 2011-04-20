@@ -234,8 +234,9 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 			; SREF_1    = +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT    = connect Vref+ to pin P1.4
+			; REFON		= turn on the voltage reference and reference buffer
 			; No MSC	= single sample and conversion
-			mov			#SREF_1+ADC10SHT_3+REFOUT,&ADC10CTL0
+			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
