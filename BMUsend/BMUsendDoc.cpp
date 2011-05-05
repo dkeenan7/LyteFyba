@@ -439,8 +439,15 @@ void CBMUsendDoc::OnSend()
     unsigned int i, u;
 
     /* Write the prefix */
+#define PASSWORD4 1							// Non zero for the 4 byte password ^C ^B ^A ^@
+#if PASSWORD4
+#define PASSLEN (2+4)
+	unsigned char* pfx = (unsigned char*) "\x01\x01\x03\x02\x01\x00";	/* ^a^a ^C ^B ^A ^@ */
+#else
+#define PASSLEN (2+3)
     unsigned char* pfx = (unsigned char*) "\x01\x01\x02\x01\x04";		/* ^a^a ^B ^A ^D */
-    for (i=0; i < 5; ++i) {
+#endif
+    for (i=0; i < PASSLEN; ++i) {
         writeByte(pfx+i);                   /* Write 2nd to 5th byte of prefix */
 		Sleep(2+1);
     }
