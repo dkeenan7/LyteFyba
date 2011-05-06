@@ -37,6 +37,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	&worstBadness,Rsec		; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 			; Now prettyPrint the reason for the worst badness
 			mov.b	&worstBadUnit,Rthd		; Units
 			mov		&worstBadMeas,Rsec		; Result

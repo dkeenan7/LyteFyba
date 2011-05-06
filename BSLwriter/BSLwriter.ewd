@@ -57,7 +57,7 @@
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$TOOLKIT_DIR$\config\MSP430G2452.ddf</state>
+          <state>$TOOLKIT_DIR$\config\MSP430F2012.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>
@@ -158,7 +158,7 @@
         </option>
         <option>
           <name>EMUVerifyDownloadP7</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>EraseOptionSlaveP7</name>
@@ -586,7 +586,7 @@
         </option>
         <option>
           <name>RadioSoftwareBreakpointType</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>TargetSettlingtime</name>
