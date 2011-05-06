@@ -11,36 +11,17 @@
 
 
 
-DATAVERS5	EQU		1			; True if data layout version 5
-#if	DATAVERS5
-InitRetAddr	EQU		$1022		; Return address when interpretByte is called for initialisation
-ReadByte	EQU		$108C		; Calling-address to receive byte in R8
-WriteByte	EQU		$10C4		; Calling-address to transmit byte in R8
-BSLErase	EQU		$1038		; Jump-in-address for erasing flash and continuing a download
-ID			EQU		$10F2		; Address of this Cell's/BMU's identification byte
-VoltCalL	EQU		$10F8		; Address of Voltage scale calibration lo byte
-VoltCalH	EQU		$10F9		; Address of Voltage scale calibration hi byte
+; Addresses manually imported from the BSL-writer or debugger. Version 6. Keep up to date!
+InitRetAddr	EQU		$1028		; Return address when interpretByte is called for initialisation
+ReadByte	EQU		$108E		; Calling-address to receive byte in R8
+WriteByte	EQU		$10C6		; Calling-address to transmit byte in R8
+BSLErase	EQU		$103A		; Jump-in-address for erasing flash and continuing a download
+VoltCal		EQU		$10F8		; Address of Voltage scale calibration word
 TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
-MHz1CalD 	EQU		$10F4		; Frequency calibration
-MHz1CalB 	EQU		$10F5		;	for 1 MHz (NO LONGER USED)
-MHz4CalD	EQU		$10F6		; Uncompressed 4MHz calibration value for version 5 data layout
-MHz4CalB	EQU		$10F7		; Unompressed 4MHz calibration value for version 5 data layout
-#else	; Assume data layout version 4
-; Addresses manually imported from the BSL-writer. Version 4. Keep up to date!
-InitRetAddr	EQU		$1020		; Return address when interpretByte is called for initialisation
-ReadByte	EQU		$108A		; Calling-address to receive byte in R8
-WriteByte	EQU		$10D2		; Calling-address to transmit byte in R8
-BSLErase	EQU		$1036		; Jump-in-address for erasing flash and continuing a download
-ID			EQU		$1003		; Address of this Cell's/BMU's identification byte
-VoltCalL	EQU		$1009		; Address of Voltage scale calibration lo byte
-VoltCalH	EQU		$100F		; Address of Voltage scale calibration hi byte
-TempCal		EQU		$10A1		; Address of Temperature offset calibration byte
-LinkCal		EQU		$10BF		; Address of Link Voltage offset calibration byte
-MHz1CalB 	EQU		$1002		; Frequency calibration
-MHz1CalD 	EQU		$1008		;	for 1 MHz
-MHz4Cal		EQU		$10D7		; Compressed 4MHz calibration value for version 4 data layout
-#endif
+MHz8CalD 	EQU		$10FC		; Frequency calibration
+MHz8CalB 	EQU		$10FD		;	for 8 MHz
+ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 
 
 ; Interpreter Register Usage
@@ -158,33 +139,16 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 main:		mov.w	#$280,SP				; Initialize stackpointer
 ;			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 
-;			MOV.B	&CALBC1_1MHZ, &BCSCTL1 ; Set range for 0.54 to 1.06 MHz
-;			MOV.B	&CALDCO_1MHZ,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-#if Mfreq = 1000000
-			mov.b	&MHz1CalB,&BCSCTL1		; Set range for 0.54 to 1.06 MHz
-			mov.b	&MHz1CalD,&DCOCTL		; Set DCO step + modulation for 1.00 MHz
-#else										; Else frequency is 4MHz
-#if			DATAVERS5
-			mov.b	&MHz4CalB,&BCSCTL1		; Version 5: just copy
-			mov.b	&MHz4CalD,&DCOCTL		;	the two bytes
-#else
-			mov.b	&MHz4Cal,R8				; Compressed 4MHz calibration data
-			rla		R8						; Uncompress
-			bis		#$8A00,R8				; OR in most significant bits
-			swpb	R8						; Get MSB (might be important to write first)
-			mov.b	R8,&BCSCTL1				; Write MSB
-			swpb	R8
-			mov.b	R8,&DCOCTL				; and LSB
-#endif
-#endif
+			; Initialise clocks. SMCLK is only used by timer.
+			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
+			; DIVM_1 => MCLK = DCOCLK/2
+			mov.b	#DIVM_1+(LOG2(MckPerSMck)+1)*DIVS_1, &BCSCTL2
+			mov.b	&MHz8CalB,&BCSCTL1		; 8 MHz DCO cal data
+			mov.b	&MHz8CalD,&DCOCTL
 
 ;
 ;	Initialise timer and interrupt comms
 ;
-			; DIVS_0 => SMCLK = DCOCLK/1	DIVS_1 -> SMCK = DOCLK/2
-			; Other zero bits select MCLK = DCOCLK/1
-			mov.b		#LOG2(MckPerSMck)*DIVS_1, &BCSCTL2
-
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
 			; MC: 2 = continuous mode 1 = up mode

@@ -56,7 +56,6 @@
 
 ; Conditional assembly parameters which may be changed for special purposes
 
-MClock4		EQU		1				; Non zero if MCLK is 4MHz
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
 minLEDBad	EQU		1				; Minimum badness to light error LED
 
@@ -74,7 +73,7 @@ NOBUF		EQU		1				; 1 for no ADC sample buffer; 0 for buffer
 ; leaving us with n bits of additional information.
 
 ; Locations in info-flash, of routines and calibration data
-; These addresses must be manually exported to the interpreter.
+; These addresses must be manually exported to the monitor or interpreter.
 ; Assemble this file with listing-generation enabled, then look at the listing file
 ; to determine the absolute addresses to put into the monitor or interpreter.
 
@@ -83,29 +82,25 @@ infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpr
 infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
 infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
-infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
-info1MHzCalD	EQU		main1MHzCalD-for1000+$1000		; Address of 1 MHz DCO frequency calibration
-info1MHzCalB	EQU		main1MHzCalB-for1000+$1000		; Address of 1 MHz DCO range calibration
-info4MHzCalD	EQU		main4MHzCalD-for1000+$1000		; Address of 4 MHz DCO frequency calibration
-info4MHzCalB	EQU		main4MHzCalB-for1000+$1000		; Address of 4 MHz DCO range calibration
-infoVoltCalL	EQU		mainVoltCalL-for1000+$1000		; Address of voltage scale calibration lo byte
-infoVoltCalH	EQU		mainVoltCalH-for1000+$1000		; Address of voltage scale calibration hi byte
+
+; infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
+infoDataStart	EQU		mainDataStart-for1000+$1000		; Used when copying between ram and info-flash
+infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
 infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset calibration byte
 infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset cal byte
-infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
+info8MHzCalD	EQU		main8MHzCalD-for1000+$1000		; Address of 8 MHz DCO frequency calibration
+info8MHzCalB	EQU		main8MHzCalB-for1000+$1000		; Address of 8 MHz DCO range calibration
+infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
 infoDataVers	EQU		mainDataVers-for1000+$1000		; Address of Data Version byte
-DATAVERS		EQU		5						; This is version 5 of the BMU info-flash data structure
+infoDataEnd		EQU		mainDataEnd	-for1000+$1000		; Used when copying between ram and info-flash
+DATAVERS		EQU		6						; This is version 6 of the BMU info-flash data structure
 
 ; Locations in info-flash, of calibration data in previous versions of the BSL
 ; to allow us to update them to the current version without losing their calibration data.
 
 ; New chip (has $FFFF at $10C4)
-infN4MHzCalD	EQU		$10F6		; Address of 4 MHz DCO frequency calibration
-									; (presumed to be for 4 MHz, not documented by manufacturer)
-infN4MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
-									; (presumed to be for 4 MHz, not documented by manufacturer)
-infN1MHzCalD	EQU		$10FE		; Address of 1 MHz DCO frequency calibration
-infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
+infN8MHzCalD	EQU		$10FC		; Address of 8 MHz DCO frequency calibration
+infN8MHzCalB	EQU		$10FD		; Address of 8 MHz DCO range calibration
 
 ; Interpreter Register Usage
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
@@ -144,16 +139,15 @@ SETLOCKA	MACRO
 ; Put these first in RAM so easy to find when debugging
 ; Same order as stored in the BSL with its version 5 data layout
 			ALIGNRAM 1				; So these can be copied with word moves
-ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
-ramSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
-ram1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
-ram1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
-ram4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
-ram4MHzCalB ds		1				; 4 MHz DCO range calibration byte
-ramVoltCalL ds		1				; Voltage scale calibration lo byte; may be written by BSL writer
-ramVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL writer
+ramDataStart
+ramVoltCal	dw		1				; Voltage scale calibration word; may be written by BSL writer
 ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
+ram8MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
+ram8MHzCalB ds		1				; 4 MHz DCO range calibration byte
+ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+ramDataVers	ds		1				; Data version
+ramDataEnd
 
 #if	!NOBUF
 			ALIGNRAM 1
@@ -217,31 +211,12 @@ initialise:
 			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 
-#if MClock4
 			cmp.b	#DATAVERS,&infoDataVers
-			jnc		unknownVersBSL					; Can't handle version 4 data layout; use BSLwriter
-#if 0			// It turns out, I guess by design, that info4MHzCALB/D and $10F7/6 are the same addr!
-			_IF			_L							; If signed < 4, assume a new chip (e.g. has $86)
-				mov.b	&$10F7,&BCSCTL1					; 4 MHz calibration
-				mov.b	&$10F6,&DCOCTL					;	in a new chip (undocumented)
-			_ELSE
-#endif
-				// Assume version 5 layout
-				mov.b	&info4MHzCalB,&BCSCTL1			; 4MHz from info-flash
-				mov.b	&info4MHzCalD,&DCOCTL
-#if 0
-			_ENDIF
-#endif
-#else										; Else frequency is 1 MHz
-			cmp.b	#DATAVERS,&infoDataVers
-			_IF			_L
-				mov.b	&CALBC1_1MHZ,&BSCTL1
-				mov.b	&CALDC0_1MHZ,&DCOCTL
-			_ELSE
-				mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-				mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-			_ENDIF
-#endif
+			jnc		unknownVersBSL					; Can't handle version 5 data layout; use BSLwriter
+			mov.b	#DIVM_1,&BCSCTL2				; Set MCLK = DCOCLK/2
+			; Works for version 6 data or new chip, not other versions
+			mov.b	&info8MHzCalB,&BCSCTL1			; 8 MHz cal data from info-flash
+			mov.b	&info8MHzCalD,&DCOCTL
 
 			clr		rERR					; Clear error register
 
@@ -296,18 +271,17 @@ newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
 
 			; Set the ID, voltage, temperature and link calibration to $FF
-			mov		#$FFFF,&ramID
-			mov		#$FFFF,&ramVoltCalL
-			mov		#$FFFF,&ramTempCal
-			mov.w	&infN4MHzCalD,&ram4MHzCalD	; Copy 4 MHz calibration data
-			mov.w	&infN1MHzCalD,&ram1MHzCalD	; Copy 1 MHz calibration data
+			mov.w	#$FFFF,&ramVoltCal
+			mov.w	#$FFFF,&ramTempCal			; Includes ramLinkCal
+			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
+			mov.b	#$FF,&ramID					; ID 255 (erased)
 			ret
 			
 			
 currVersBSL
 			; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#10,R15							; Prepare to move 10 bytes by 2s
-				mov		infoID-2(R15),ramID-2(R15)	; Move 2 bytes
+			_DO		#infoDataEnd-infoDataStart,R15	; Prepare to move ~8 bytes by 2s
+				mov.w		infoDataStart-2(R15),ramDataStart-2(R15)	; Move 2 bytes
 			_mLOOP	#2,R15							; Decrement loop counter by 2, loop if non zero
 			ret
 
@@ -323,11 +297,7 @@ JTAGstart:	mov		#$280,SP
 											; We need an explicit u command to write a new BSL
 			
 DELAY_IF_NEEDED MACRO
-#if			MClock4
 			_DO		#1390,R11			; Delay for approx ...
-#else
-			_DO		#1390*4,R11
-#endif
 			_LOOP	R11					;	... 1.04 ms
 			ENDM						; Allows downstream BMU to echo a byte
 
@@ -344,8 +314,7 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 
 
 ; Some definitions so the common code will work
-#define DATAVERS5 1
-#define VoltCalL ramVoltCalL
+#define VoltCal ramVoltCal
 #define TempCal	ramTempCal
 #define LinkCal	ramLinkCal
 
@@ -357,25 +326,29 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 
 ;
 ; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not
+; Assumes that there are three "zones": 1) Program zone, to be compared with the image in the middle of
+; main flash; 2) Calibration zone, to be compared with RAM; 3) Version zone (used to also have the
+; password table) which is compared with the image in main flash as well.
+; Relies on definitions like infoDataStart and mainDataEnd to sort out the boundaries
 ; Trashes R12
 compareImage:
 			clr		R12
-cmpLoop1	cmp		$1000(R12),for1000(R12)
-			jnz		justRet
-			incd	R12
-			cmp		#mainID-for1000,R12
+cmpLoop1	cmp.b	$1000(R12),for1000(R12)		; Use byte compares, in case there is odd sized data at
+			jnz		justRet						;	the end
+			inc		R12
+			cmp		#mainDataStart,R12			; End of zone 1?
 			jnz		cmpLoop1
-			; Just as with flash writing from RAM, R12 is too big by $F2 (mainID-for1000):
-cmpLoop2	cmp		$1000(R12),ramID-(mainID-for1000)(R12)
+			; R12 is too big by about $F8 (doesn't start at zero to save an instruction to clear R12)
+cmpLoop2	cmp.b	$1000(R12),infoDataStart-(mainDataStart-for1000)(R12)
 			jnz		justRet
-			incd	R12
-			cmp		#mainPWtable-for1000,R12
+			inc		R12
+			cmp		#mainDataEnd-for1000,R12
 			jnz		cmpLoop2
-cmpLoop3	cmp		$1000(R12),for1000(R12)
+cmpLoop3	cmp.b	$1000(R12),for1000(R12)
 			jnz		justRet
-			incd.b	R12
+			inc.b	R12
 			jnz		cmpLoop3					; Branch if 8-bit increment has not overflowed to 0
-
+			; The increment will have set Z if all compares well
 justRet		ret
 
 
@@ -388,30 +361,24 @@ justRet		ret
 
 ; ----------------------------------------------------------------------------
 ; This error processing code should be near the middle of the image
+; !!! Needs cleaning up after removing 1 MHz option -- DCK
 errorFlash:	mov		rERR,R11
 			add		R11,R11					; Double
-#if MClock4
 			rla		R11
 			rla		R11						; And quadruple for 4 MHz
-#endif
+			; ??? Should we clear R12 here? -- DCK
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
 errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
-#if	MClock4
 			bit		#3,R11
 			jnz		delay					; Extra delays for 4 MHz
 			tst		R11
-#endif
 			jnz		errFlashLp
 			;
 			; Pause between rErr flashes
-#if	MClock4
-pause		mov		#5*4,R11
-#else
-pause		mov		#5,R11
-#endif
+pause		mov		#20,R11
 pauseL		dec		R12
 			jnz		pauseL
 			dec		R11

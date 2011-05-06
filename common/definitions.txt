@@ -19,7 +19,7 @@ b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
 e e ErrorLED
-  f FourMHzBurst (was Fetch word (peek word))
+  f FrequencyBurst (was Fetch word (peek word))
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
@@ -94,7 +94,7 @@ q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   o St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 
-  f FourMHzBurst
+  f FrequencyBurst
 
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
   w WriteCalValue
@@ -108,10 +108,9 @@ or Calibrate command in the debugger.
 'v cell(V)oltage
 'l LinkVoltage
 't Temperature
-'f Frequency (Four MHz)
-'o OneMHz
+'f Frequency (DCO 8 MHz)
 'i ID
 
-The last 3 currently have no meaning for the Calibrate command, as any meaning they could be given
+The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given
 at present would be equivalent to either the character as a command in itself, or a Write command
 with that character as address parameter.

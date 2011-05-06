@@ -5,11 +5,7 @@
 ; This code is common to the debugger and the BSLwriter, which may still be needed
 ;	occasionally if a BMU loses its frequency calibration data and it needs to be forced.
 
-#if MClock4
-MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz
-#else
-MClock		EQU		1000000			; MCLK (CPU clock) frequency in hertz
-#endif
+MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
 BaudRate	EQU		9600			; Serial comms rate in bits per second
 BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
@@ -29,13 +25,9 @@ LED			EQU		1<<6			; LED on P1.6
 
 for1000:	; This will be relocated to info-flash at $1000.
 
-#if	MClock4
-			mov.b	&info4MHzCalB,&BCSCTL1	; Set DCO range for 4 MHz			
-			mov.b	&info4MHzCalD,&DCOCTL	; Set DCO step + modulation for 4.00 MHz
-#else
-			mov.b	&info1MHzCalB,&BCSCTL1	; Set DCO range for 1 MHz			
-			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-#endif
+			mov.b	#DIVM_1,&BCSCTL2		; Set MCLK = DCOCLK/2
+			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz			
+			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
 			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
 			
@@ -49,17 +41,19 @@ mainLoop:							; Start of the main BSL loop
 mainInitRetAddr:	; Used by BSL-writer and interpreter to tell if the byte in R8 should be echoed
 
 			; Password-checking finite-state-machine (FSM)
-			; After decrementing Rstate below, 2 = waiting for ^B, 1 = waiting for ^A,
-			; 0 = waiting for ^D and erase if received, any negative value = program, no interpret
+			; After decrementing Rstate below, 3 = waiting for 1st pwd char,
+			; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
+			; 0 = waiting for last pwd char and erase if received, any negative value = program, no interpret
 			;
-resetFSM:	mov		#3,Rstate		; Initialise FSM: waiting for ^B
+resetFSM:	mov		#4,Rstate		; Initialise FSM: waiting for first password character
 FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
 
 			dec		Rstate
 			jn		progByte		; If state is negative, program, don't interpret
 
 			; Check for a continuing password match
-			cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+;			cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+			cmp.b	Rstate,R8		; Made expected password character equal to Rstate to save space
 			jne		resetFSM
 			tst		Rstate
 			jnz		FSMloop
@@ -176,27 +170,21 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 			jnz		write_next		; (2)
 			ret
 			
-			ORG		for1000+$F2
+;			ORG		for1000+$F4
+; Saved space by making the password a simple function of (equal to) Rstate instead of storing it
+; mainPWtable	db		0,1,2,3			; The password backwards: ^@ ^A ^B ^C
+			ORG		for1000+$F8
 			; Calibration data
-mainID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
-mainSpare	ds		1				; Padding so 4MHz cal data ends up at same address as in new chip
-									; Also allows for IDs greater than 255.
-main1MHzCalD ds		1				; 1 MHz DCO frequency calibration byte; written by BSL writer
-main1MHzCalB ds		1				; 1 MHz DCO range calibration byte; written by BSL writer
-main4MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
-main4MHzCalB ds		1				; 4 MHz DCO range calibration byte
-mainVoltCalL ds		1				; Voltage scale calibration lo byte; may be written by BSL writer
-mainVoltCalH ds		1				; Voltage scale calibration hi byte; may be written by BSL writer
-mainTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
-mainLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
-
-endFor1000:
-
-lengthForInfo EQU	endFor1000-for1000	; Must be <= 256-1-3 = 252 = $FC
-
-			ORG		for1000+$FC
-			; Could save space by making the password a simple function of Rstate instead of storing it
-mainPWtable	db		4,1,2			; The password backwards: ^D ^A ^B
+mainDataStart	EQU		mainVoltCal	; Used when copying between ram and info-flash
+mainVoltCal		dw		1			; Voltage scale calibration word; may be written by BSL writer
+mainTempCal		ds		1			; Temperature offset calibration; may be written by BSL writer
+mainLinkCal		ds		1			; Link voltage offset calibration data; may be written by BSL writer
+main8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte (same address as in new chip)
+main8MHzCalB	ds		1			; 8 MHz DCO range calibration byte (same address as in new chip)
+mainID			ds		1			; Cell/BMU identifier byte; first cell is 1; written by 'i' cmd
+; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
+;	comes after the calibration bytes
+mainDataEnd		EQU		mainDataVers					; Used when copying between ram and info-flash
 mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 
 ; The end of the bootstrap loader (BSL)
