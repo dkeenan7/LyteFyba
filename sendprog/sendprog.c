@@ -242,13 +242,13 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	fclose(f);
 
-	/* Calculate the checksum, and place at 0xFFFB (first unused interrupt vector, starting at highest address,
-		after reset and NMI/oscillator fault/flash access violation vector */
+	/* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
+		after reset */
 	sum = 0;
 	for (u=0; u < 2048-2; ++u)			/* -2 because reset vector (last 2 bytes) is not sent */
 		sum ^= progBuf[u];
-	sum ^= progBuf[0xFFFB-0xF800];		/* Remove the existing checksum */
-	progBuf[0xFFFB-0xF800] = sum;		/* Now it will checksum to zero */
+	sum ^= progBuf[0xFFFD-0xF800];		/* Remove the existing checksum */
+	progBuf[0xFFFD-0xF800] = sum;		/* Now it will checksum to zero */
 
 	/* Now send this image to the BMUs */
 	{
