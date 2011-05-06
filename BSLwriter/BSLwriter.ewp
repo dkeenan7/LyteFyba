@@ -109,11 +109,11 @@
         </option>
         <option>
           <name>GStackSize2</name>
-          <state>80</state>
+          <state>50</state>
         </option>
         <option>
           <name>GHeapSize2</name>
-          <state>80</state>
+          <state>0</state>
         </option>
         <option>
           <name>RadioDataModelType</name>
@@ -666,7 +666,7 @@
         </option>
         <option>
           <name>DoFill</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>FillerByte</name>
@@ -674,20 +674,20 @@
         </option>
         <option>
           <name>DoCrc</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CrcSize</name>
           <version>0</version>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CrcAlgo</name>
-          <state>1</state>
+          <state>3</state>
         </option>
         <option>
           <name>CrcPoly</name>
-          <state>0x11021</state>
+          <state>0x101</state>
         </option>
         <option>
           <name>CrcCompl</name>
@@ -848,11 +848,11 @@
         </option>
         <option>
           <name>CrcAlign</name>
-          <state>2</state>
+          <state>1</state>
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x0</state>
+          <state>0x10</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>

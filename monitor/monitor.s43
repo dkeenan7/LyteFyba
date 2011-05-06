@@ -382,7 +382,7 @@ measures:
 						_IF		_Z
 							mov		#1,R9					; Yes, make it 1 for the comms error
 							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
-							mov.b	#'t',Runit				; Tentative unit of measurement causing worst bad
+							mov.b	#'x',Runit				; Tentative unit of measurement causing worst bad
 						_ENDIF
 					_ENDIF
 				_ENDIF

@@ -336,8 +336,8 @@ unknownVersBSL
 			
 
 currVersBSL
-#if CALONLYONE & !RESETIDS
-			mov.b	&infoID,&mainID				; We preserve the IDs here unless RESETIDs is on
+#if !RESETIDS
+			mov.b	&infoID,&mainID				; We preserve the IDs unless RESETIDs is on
 #endif
 #if !CALIBRATE
 #if CALONLYONE
@@ -360,8 +360,8 @@ noCopyCalNew
 
 
 vers5BSL
-#if CALONLYONE & !RESETIDS
-			mov.b	&inf5ID,&mainID				; We preserve the IDs here unless RESETIDs is on
+#if !RESETIDS
+			mov.b	&inf5ID,&mainID				; We preserve the IDs unless RESETIDs is on
 #endif
 #if !CALIBRATE
 #if CALONLYONE

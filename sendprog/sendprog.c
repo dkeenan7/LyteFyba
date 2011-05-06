@@ -255,9 +255,16 @@ int main(int argc, char* argv[]) {
 	int i, j, k;
 
 	/* Write the prefix */
-	char*pfx = "\x01\x01\x02\x01\x04";	/* ^a^a ^B ^A ^D */
-	for (i=0; i < 5; ++i) {
-		writeByte(pfx+i);					/* Write 2nd to 5th byte of prefix */
+#define PASSWORD4 1
+#if PASSWORD4
+#define PASSLEN (2+4)
+	char* pfx = "\x01\x01\x03\x02\x01\x00";	/* ^a^a ^C ^B ^A ^@ */
+#else
+#define PASSLEN (2+3)
+	char* pfx = "\x01\x01\x02\x01\x04";	/* ^a^a ^B ^A ^D */
+#endif
+	for (i=0; i < PASSLEN; ++i) {
+		writeByte(pfx+i);					/* Write prefix */
     	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
 	}
 	
