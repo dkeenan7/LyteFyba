@@ -60,7 +60,6 @@
 
 ; Conditional assembly parameters which may be changed for special purposes
 
-MClock4		EQU		1				; Non zero if MCLK is 4MHz
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
 CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
 									;	(all BMUs) in addition to BSL-programming
@@ -74,9 +73,9 @@ DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
 FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
-FORCEFCAL4	EQU		1				; 1 to force 4 MHz calibration frequency
-FREQCAL4	EQU		$8AE0			; Value to force 4 MHz frequency calibration to
-FD4MHz		EQU		1				; Use 4 MHz clock for $FD00 frequency check, otherwise use 1 MHz
+FORCEFCAL	EQU		0				; 1 to force 8 MHz calibration frequency
+FREQCAL		EQU		$8D8B			; Value to force 8 MHz frequency calibration to
+FREQ4TO8	EQU		$3B				; Subtract from low byte of 4 MHz DCO cal to estimate 8 MHz cal
 
 
 ; ADC channel numbers
@@ -91,7 +90,7 @@ NOBUF		EQU		1				; 1 for no buffer; 0 for buffer
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-; Address imported from the interpreter
+; Address imported from the interpreter (monitor or debugger)
 
 interpretByte EQU	$F800			; Where to call the main flash code
 
@@ -105,40 +104,37 @@ infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpr
 infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
 infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
-infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
-info1MHzCalD	EQU		main1MHzCalD-for1000+$1000		; Address of 1 MHz DCO frequency calibration
-info1MHzCalB	EQU		main1MHzCalB-for1000+$1000		; Address of 1 MHz DCO range calibration
-info4MHzCalD	EQU		main4MHzCalD-for1000+$1000		; Address of 4 MHz DCO frequency calibration
-info4MHzCalB	EQU		main4MHzCalB-for1000+$1000		; Address of 4 MHz DCO range calibration
-infoVoltCalL	EQU		mainVoltCalL-for1000+$1000		; Address of voltage scale calibration lo byte
-infoVoltCalH	EQU		mainVoltCalH-for1000+$1000		; Address of voltage scale calibration hi byte
+; infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
+infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
 infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset calibration byte
 infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset cal byte
-infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
+info8MHzCalD	EQU		main8MHzCalD-for1000+$1000		; Address of 8 MHz DCO frequency calibration
+info8MHzCalB	EQU		main8MHzCalB-for1000+$1000		; Address of 8 MHz DCO range calibration
+infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
 infoDataVers	EQU		mainDataVers-for1000+$1000		; Address of Data Version byte
-DATAVERS		EQU		5						; This is version 5 of the BMU info-flash data structure
+DATAVERS		EQU		6						; This is version 6 of the BMU info-flash data structure
 
 ; Locations in info-flash, of calibration data in previous versions of the BSL
 ; to allow us to update them to the current version without losing their calibration data.
 
-; Version 4 (has $04 at infoDataVers ($10FF))
-inf41MHzCalB	EQU		$1002		; Address of 1 MHz DCO range calibration
-inf4ID			EQU		$1003		; Address of BMU ID byte
-inf41MHzCalD	EQU		$1008		; Address of 1 MHz DCO frequency calibration
-inf4VoltCalL	EQU		$1009		; Address of voltage scale calibration lo byte
-inf4VoltCalH	EQU		$100F		; Address of voltage scale calibration hi byte
-inf4TempCal		EQU		$10A1		; Address of temperature offset calibration byte
-inf4LinkCal		EQU		$10BF		; Address of link voltage offset calibration byte
-inf44MHzCal		EQU		$10D7		; Address of compressed 4 MHz DCO calibration
-inf4PWtable		EQU		$10FC		; Address of BSL password in reverse-order
+; Version 5 (has $05 at infoDataVers ($10FF))
+inf5ID			EQU		$10F2		; Address of BMU ID byte
+inf5Spare		EQU		$10F3		; Address of BMU ID byte
+inf51MHzCalD	EQU		$10F4		; Address of 1 MHz DCO frequency calibration
+inf51MHzCalB	EQU		$10F5		; Address of 1 MHz DCO range calibration
+inf54MHzCalD	EQU		$10F6		; Address of 4 MHz DCO frequency calibration
+inf54MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
+inf5VoltCal		EQU		$10F8		; Address of voltage scale calibration word
+inf5TempCal		EQU		$10FA		; Address of temperature offset calibration byte
+inf5LinkCal		EQU		$10FB		; Address of link voltage offset calibration byte
+inf5PWtable		EQU		$10FC		; Address of BSL password in reverse-order
+inf5DataVers	EQU		$10FF		; Address of Data Version byte
 
 ; New chip (has $FFFF at $10C4)
-infN4MHzCalD	EQU		$10F6		; Address of 4 MHz DCO frequency calibration
-									; (presumed to be for 4 MHz, not documented by manufacturer)
-infN4MHzCalB	EQU		$10F7		; Address of 4 MHz DCO range calibration
-									; (presumed to be for 4 MHz, not documented by manufacturer)
-infN1MHzCalD	EQU		$10FE		; Address of 1 MHz DCO frequency calibration
-infN1MHzCalB	EQU		$10FF		; Address of 1 MHz DCO range calibration
+infNVoltCal		EQU		$10E0		; Address of 1.5 V internal ref scale calibration
+infNTemp30Cal	EQU		$10E2		; Address of 1.5 V internal ref 30°C temp reading calibration
+infN8MHzCalD	EQU		$10FC		; Address of 8 MHz DCO frequency calibration
+infN8MHzCalB	EQU		$10FD		; Address of 8 MHz DCO range calibration
 
 ; Interpreter Register Usage
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
@@ -230,37 +226,27 @@ anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"
 main:										; For debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
-#if MClock4
-			; Temporary fix for vers 4 data
+
+			; Initialise MCLK (4 MHz)
+			mov.b	#DIVM_1,&BCSCTL2				; MCLK = DCOCLK/2
+			
+			; Temporary fix for vers 5 data
 	; !!! Needs to handle the new-chip case as well. And the case of an unknown version. !!!
-	#if FORCEFCAL4
-			mov.b	#FREQCAL4 >> 8,&BCSCTL1
-			mov.b	#FREQCAL4 & $FF,&DCOCTL
+	#if FORCEFCAL
+			mov.b	#FREQCAL >> 8,&BCSCTL1			; Set 8 MHz DCOCLK value
+			mov.b	#FREQCAL & $FF,&DCOCTL
 	#else
-			cmp.b	#4,&infoDataVers
+			cmp.b	#5,&infoDataVers
 			_IF		_EQ
-				mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
-				rla		R8							; Shift left
-				bis		#$8A00,R8					; OR in assumed MSbs
-				swpb	R8
-				mov.b	R8,&BCSCTL1					; Store uncompressed 4 MHz calibration
-				swpb	R8							; Least significant bit was lost by compression
-				mov.b	R8,&DCOCTL					;	and may need checking
+				mov.b	#$8D,&BCSCTL1				; Set RSELx = 13 for 8 MHz range
+				mov.b	&inf54MHzCalD,R8			; Load low byte of vers5 4MHz calibration
+				sub.b	#FREQ4TO8,R8				; Try to estimate the 8MHz low byte
+				mov.b	R8,&DCOCTL					; Set DCOx and MODx
 			_ELSE
-				mov.b	&info4MHzCalB,&BCSCTL1	; 4MHz
-				mov.b	&info4MHzCalD,&DCOCTL
+				mov.b	&info8MHzCalB,&BCSCTL1		; Works for new chip or vers 6 data
+				mov.b	&info8MHzCalD,&DCOCTL		;  but not other data versions (use FORCEFCAL)
 			_ENDIF
 	#endif
-#else										; Else frequency is 1 MHz
-			cmp.b	#4,&infoDataVers
-			_IF		_EQ
-				mov.b	&inf41MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-				mov.b	&inf41MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-			_ELSE
-				mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-				mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-			_ENDIF
-#endif
 
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
@@ -272,11 +258,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-#if MClock4
-				MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
-#else
-				MOV		#FWKEY+FSSEL_1+FN0*(3-1),&FCTL2 ; For 1 MHz MCLK
-#endif
+			MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave enabled; only write-block cant be)
 			
@@ -313,21 +295,36 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			cmp.b	#DATAVERS,&infoDataVers
 			jeq		currVersBSL
 			jge		unknownVersBSL
-			cmp.b	#4,&infoDataVers
-			jeq		vers4BSL
-;			cmp.b	#3,&infoDataVers
-;			jeq		vers3BSL
+			cmp.b	#5,&infoDataVers
+			jeq		vers5BSL
+;			cmp.b	#4,&infoDataVers
+;			jeq		vers4BSL
 			jl		unknownVersBSL
 
 
 newChip
-; A new chip. We want to preserve some of the existing DCO calibration data
+; A new chip. We want to preserve some of the existing DCO and ADC10 calibration data
 
-			; Leave the voltage, temperature and link calibration as $FF
-			mov.b	&infN4MHzCalB,&main4MHzCalB	; Copy 4 MHz calibration data
-			mov.b	&infN4MHzCalD,&main4MHzCalD
-			mov.b	&infN1MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration data
-			mov.b	&infN1MHzCalD,&main1MHzCalD
+			mov.w	&infNVoltCal,&mainVoltCal	; Copy ADC10 voltage scale calibration data
+
+			mov.w	&infNTemp30Cal,R8			; Get 10 bit 30°C result as multiplier in R8
+			rla		R8							; Shift it 4 bits left
+			rla		R8
+			rla		R8
+			rla		R8
+			mov.w	&mainVoltCal,R9				; Get voltage calibration word as multiplicand in R9
+			call	#UMStar						; Gives unsigned product in R10 (hi word) & R9 (lo word)
+			mov		R10,R8
+			mov		#6760,R9					; To divide by 9.694 counts/°C, multiply by 65536/9.694 = 6760
+			call	#UMStar
+			inc		R10							; For correct rounding add one and
+			rra		R10							;   shift product hi word right one bit
+			sub		#30+273,R10					; Temp offset should now fit in a byte
+			mov.b	R10,&mainTempCal			; Flash write temperature offset calibration value
+
+			mov.b	#0,&mainLinkCal				; Set link offset cal to zero
+			mov.b	&infN8MHzCalB,&main8MHzCalB	; Copy DCO 8 MHz calibration data
+			mov.b	&infN8MHzCalD,&main8MHzCalD
 			jmp		donePrep
 			
 			
@@ -346,64 +343,44 @@ currVersBSL
 			cmp.b	#CALTHIS,&mainID			; Calibrate only one... is this the one?
 			jeq		noCopyCalNew
 #endif
-			mov.b	&infoVoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
-			mov.b	&infoVoltCalH,&mainVoltCalH
+			mov.w	&infoVoltCal,&mainVoltCal	; Copy calibration data, since not recalibrating
 			mov.b	&infoTempCal,&mainTempCal
 			mov.b	&infoLinkCal,&mainLinkCal
 #endif
 noCopyCalNew
-#if	FORCEFCAL4
-;			mov.b	#((FREQCAL4>>1) & $FF),&main4MHzCal	; Set compressed version of forced value
-			mov.b	#FREQCAL4 >> 8,&main4MHzCalB
-			mov.b	#FREQCAL4 & $FF,&main4MHzCalD
+#if	FORCEFCAL
+			mov.b	#FREQCAL >> 8,&main8MHzCalB
+			mov.b	#FREQCAL & $FF,&main8MHzCalD
 #else
-;			mov.b	&info4MHzCal,&main4MHzCal	; Copy compressed 4 MHz calibration
-			mov.b	&info4MHzCalB,&main4MHzCalB	; Copy 4 MHz calibration
-			mov.b	&info4MHzCalD,&main4MHzCalD
-#endif
-#if FORCEFCAL1
-			mov.b	#FREQCAL1 >> 8,&main1MHzCalB
-			mov.b	#FREQCAL1 & $FF,&main1MHzCalD
-#else
-			mov.b	&info1MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
-			mov.b	&info1MHzCalD,&main1MHzCalD
+			mov.b	&info8MHzCalB,&main8MHzCalB	; Copy 8 MHz calibration
+			mov.b	&info8MHzCalD,&main8MHzCalD
 #endif
 			jmp		donePrep
 
 
-vers4BSL
+vers5BSL
 #if CALONLYONE & !RESETIDS
-			mov.b	&inf4ID,&mainID				; We preserve the IDs here unless RESETIDs is on
+			mov.b	&inf5ID,&mainID				; We preserve the IDs here unless RESETIDs is on
 #endif
 #if !CALIBRATE
 #if CALONLYONE
 			cmp.b	#CALTHIS,&mainID
-			jeq		noCopyCalOld4
+			jeq		noCopyCalOld5
 #endif
-			mov.b	&inf4VoltCalL,&mainVoltCalL	; Copy calibration data, since not recalibrating
-			mov.b	&inf4VoltCalH,&mainVoltCalH
-			mov.b	&inf4TempCal,&mainTempCal
-			mov.b	&inf4LinkCal,&mainLinkCal
+			mov.w	&inf5VoltCal,&mainVoltCal	; Copy calibration data, since not recalibrating
+			mov.b	&inf5TempCal,&mainTempCal
+			mov.b	&inf5LinkCal,&mainLinkCal
 #endif
-noCopyCalOld4
-#if	FORCEFCAL4
-			mov.b	#FREQCAL4 >> 8,&main4MHzCalB
-			mov.b	#FREQCAL4 & $FF,&main4MHzCalD
+noCopyCalOld5
+#if	FORCEFCAL
+			mov.b	#FREQCAL >> 8,&main8MHzCalB
+			mov.b	#FREQCAL & $FF,&main8MHzCalD
 #else
-			mov.b	&inf44MHzCal,R8				; Load compressed 4 MHz calibration
-			rla		R8							; Shift left
-			bis		#$8A00,R8					; OR in assumed MSbs
-			mov.b	R8,&main4MHzCalD			; Store uncompressed 4 MHz calibration
-			swpb	R8							; Least significant bit was lost by compression
-			mov.b	R8,&main4MHzCalB			;	and may need checking
+			mov.b	#$8D,&BCSCTL1				; Set RSELx = 13 for 8 MHz range
+			mov.b	&inf54MHzCalD,R8			; Load low byte of vers5 4MHz calibration
+			sub.b	#FREQ4TO8,R8				; Try to estimate the 8MHz low byte
+			mov.b	R8,&DCOCTL					; Set DCOx and MODx
 #endif
-#if FORCEFCAL1
-			mov.b	#FREQCAL1 >> 8,&main1MHzCalB
-			mov.b	#FREQCAL1 & $FF,&main1MHzCalD
-#else
-			mov.b	&inf41MHzCalB,&main1MHzCalB	; Copy 1 MHz calibration
-			mov.b	&inf41MHzCalD,&main1MHzCalD
-#endif	
 			;jmp		donePrep
 
 
@@ -437,9 +414,7 @@ CalVoltDividend	SET	CALVOLTS<<17
 			adc		R10
 			call	#UMSlashMOD				; Gives quotient in R9, remainder in R10
 			
-			mov.b	R9,&mainVoltCalL		; Flash write calibration value lo byte
-			swpb	R9
-			mov.b	R9,&mainVoltCalH		; Flash write calibration value hi byte
+			mov.w	R9,&mainVoltCal			; Flash write calibration value
 
 ;
 ; Temperature offset calibration
@@ -463,22 +438,17 @@ CalVoltDividend	SET	CALVOLTS<<17
 ; We want a 12 bit integer result in millivolts.
 ; That means we have to shift the product 17 bits to the right, which is equivalent to
 ; throwing away the lo word and shifting the high word one bit to the right.
-			mov.b		&mainVoltCalL,R9		; Get voltage calibration lo byte
-			mov.b		&mainVoltCalH,R10		; Get voltage calibration hi byte
-			swpb		R10						; Assemble the two bytes into a word
-			bis			R10,R9					; as multiplicand in R9
+			mov.w	&mainVoltCal,R9				; Get voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
-			call		#UMStar				; Gives unsigned product in R10 (hi word) & R9 (lo word)
-												; Note: calls assembler code that ends in ret
-			inc			R10						; For correct rounding
-			rra			R10						; Shift product hi word right one bit
+			call	#UMStar						; Gives unsigned product in R10 (hi word) & R9 (lo word)
 
 ; To divide by 9.694, multiply by 65536/9.694 = 6760
 			mov		R10,R8
 			mov		#6760,R9
 			call	#UMStar
-			sub		#CALTEMP+273,R10
-;			rra		R10							; Temp offset now fits in a byte
+			inc		R10							; For correct rounding add one and
+			rra		R10							;   shift product hi word right one bit
+			sub		#CALTEMP+273,R10			; Temp offset should now fit in a byte
 			mov.b	R10,&mainTempCal			; Flash write temperature offset calibration value
 			
 #endif		/* #if CALIBRATE */
@@ -539,36 +509,31 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 
 
 failCompare mov		#3,rERR
-errorFlash:
-; We could end up here after the 4 MHz calibration has been set to FFFF. so the processor is
+errorFlash: ; !!! needs cleanup after removing 1 MHz option. -- DCK
+; We could end up here after the DCO calibration has been set to $FFFF. so the processor is
 ;	running very fast
-			mov.b	#$8A,&BCSCTL1			; "Average" 4 MHz calibration
-			mov.b	#$BC,&DCOCTL			;	value so we can read the flashes
+			mov.b	#$8D,&BCSCTL1			; "Average" 8 MHz DCO calibration
+			mov.b	#$81,&DCOCTL			;	value so we can read the flashes
 
 			mov		rERR,R11
 			add		R11,R11					; Double (two transitions for one "flash")
-#if MClock4
 				rla		R11
-				rla		R11						; And quadruple for 4 MHz
-#endif
+				rla		R11						; And quadruple for 4 MHz MCLK
+
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
+			; ??? Should R12 be cleared here? -- DCK
 errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
-#if	MClock4
+
 				bit		#3,R11
 				jnz		delay					; Extra delays for 4 MHz
 				tst		R11
-#endif
 			jnz		errFlashLp
 			;
 			; Pause between rErr flashes
-#if	MClock4
-pause			mov		#5*4,R11
-#else
-pause			mov		#5,R11
-#endif
+pause			mov		#20,R11
 pauseL		dec		R12
 			jnz		pauseL
 			dec		R11
@@ -583,8 +548,7 @@ TX_ByteCk	xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
 TX_Byte		clr		R11				; Needed for BSL's WriteByte
 			jmp		WriteByte
 
-#define		VoltCalL	infoVoltCalL		// Needed for measure code
-#define		VoltCalH	infoVoltCalH
+#define		VoltCal		infoVoltCal		// Needed for measure code
 #define		TempCal		infoTempCal
 #define		LinkCal		infoLinkCal
 
@@ -629,13 +593,9 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 
 			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
 			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
-#if	FD4MHz
-			mov.b	&info4MHzCalB,&BCSCTL1	; Set for 4 MHz using data layout version 5
-			mov.b	&info4MHzCalD,&DCOCTL
-#else
-			mov.b	&info1MHzCalB,&BCSCTL1	; Set range for 0.54 to 1.06 MHz
-			mov.b	&info1MHzCalD,&DCOCTL	; Set DCO step + modulation for 1.00 MHz
-#endif
+			mov.b	#DIVM_1,&BCSCTL2		; Set for MCLK = DCOCLK/2
+			mov.b	&info8MHzCalB,&BCSCTL1	; Set for 8 MHz DCOCLK
+			mov.b	&info8MHzCalD,&DCOCTL
 
 			call	#flash20
 
