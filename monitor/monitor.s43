@@ -225,7 +225,7 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 ;			clr.b	&worstBadness			; Worst local badness is none
 ;			clr.b	&ticksSinceLastSend
 ;			clr.b	&ticksSinceLastRx
-			mov.b	#3,&passWordState		; Waiting for first byte of ^B ^A ^D sequence
+			mov.b	#4,&passWordState		; Waiting for first byte of ^C ^B ^A ^@ sequence
 ;			clr.b	&lastSentBad			; Last badness we sent was zero
 
 ; Main loop
@@ -477,8 +477,8 @@ SendBadness:
 			
 ;
 ; Check for a password character
-; After decrementing passWordState below, 2 = waiting for ^B, 1 = waiting for ^A,
-; 0 = waiting for ^D and erase if received. We should not receive any negative value
+; After decrementing passWordState below, 3 = waiting for ^C, 2 = waiting for ^B, 1 = waiting for ^A,
+; 0 = waiting for ^@ and erase if received. We should not receive any negative value
 ; Trashes R9
 ;
 DoPassword:
@@ -487,8 +487,8 @@ DoPassword:
 										; process as an ordinary command
 
 			; Check for a continuing password match
-			mov.b	&passWordState,R9
-			cmp.b	PWtable(R9),R8		; Check against table
+			mov.b	&passWordState,R9	; Password is ^C ^B ^A ^@
+			cmp.b	R9,R8				; Check for a match
 			jne		resetFSM			; If mismatch, jump and reset FSM
 			tst		R9					; Are we now at state 0?
 			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
@@ -510,12 +510,10 @@ DoPassword:
 			mov		#$280,SP			; Give the BSL maximum stack
 			br		#BSLErase			; Jump into the BSL to finish the download
 
-resetFSM	mov.b	#3,&passWordState	; No password match; reset state machine
+resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
 	
 exitOnRx	ret
 
-PWtable:	db		'd'-$60, 'a'-$60, 'b'-$60	; This is the password in reverse order that the FSM
-												;	is looking for
 			EVEN
 
 
