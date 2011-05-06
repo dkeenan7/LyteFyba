@@ -135,20 +135,6 @@ SETLOCKA	MACRO
 
 
 			ORG		$200			; Start of RAM
-; RAM copies of various calibration settings
-; Put these first in RAM so easy to find when debugging
-; Same order as stored in the BSL with its version 5 data layout
-			ALIGNRAM 1				; So these can be copied with word moves
-ramDataStart
-ramVoltCal	dw		1				; Voltage scale calibration word; may be written by BSL writer
-ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
-ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
-ram8MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
-ram8MHzCalB ds		1				; 4 MHz DCO range calibration byte
-ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
-ramDataVers	ds		1				; Data version
-ramDataEnd
-
 #if	!NOBUF
 			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
@@ -165,6 +151,20 @@ Checksumming 	DS		1			; Boolean
 dontInterpret	DS		1			; Boolean; for 'x' command
 passWordState	DS		1			; State of the password detection logic; 3 = start
 TXCksum			DS		1			; Transmit checksum
+
+; RAM copies of various calibration settings
+; Same order as stored in the BSL 
+			ALIGNRAM 1				; So these can be copied with word moves
+ramDataStart
+ramVoltCal	dw		1				; Voltage scale calibration word; may be written by BSL writer
+ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
+ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
+ram8MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
+ram8MHzCalB ds		1				; 4 MHz DCO range calibration byte
+ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+ramDataVers	ds		1				; Data version
+ramDataEnd
+
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
 TIB				DS		1			; Start of Text Input Buffer, grows towards stack
@@ -217,6 +217,9 @@ initialise:
 			; Works for version 6 data or new chip, not other versions
 			mov.b	&info8MHzCalB,&BCSCTL1			; 8 MHz cal data from info-flash
 			mov.b	&info8MHzCalD,&DCOCTL
+;			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
+;			bis.b	#DIVA_2,&BCSCTL1		; Set ACLK = VLOCLK/4
+;			bis.b	#BYPASS,&P1SEL			; Select special function ACLK for P1.0
 
 			clr		rERR					; Clear error register
 
@@ -281,8 +284,8 @@ newChip
 currVersBSL
 			; The RAM image has the same layout as current version data, so we use a block move
 			_DO		#infoDataEnd-infoDataStart,R15	; Prepare to move ~8 bytes by 2s
-				mov.w		infoDataStart-2(R15),ramDataStart-2(R15)	; Move 2 bytes
-			_mLOOP	#2,R15							; Decrement loop counter by 2, loop if non zero
+				mov.b		infoDataStart-1(R15),ramDataStart-1(R15)	; Move 1 byte
+			_mLOOP	#1,R15							; Decrement loop counter by 1, loop if non zero
 			ret
 
 ;
@@ -336,10 +339,10 @@ compareImage:
 cmpLoop1	cmp.b	$1000(R12),for1000(R12)		; Use byte compares, in case there is odd sized data at
 			jnz		justRet						;	the end
 			inc		R12
-			cmp		#mainDataStart,R12			; End of zone 1?
+			cmp		#mainDataStart-for1000,R12	; End of zone 1?
 			jnz		cmpLoop1
 			; R12 is too big by about $F8 (doesn't start at zero to save an instruction to clear R12)
-cmpLoop2	cmp.b	$1000(R12),infoDataStart-(mainDataStart-for1000)(R12)
+cmpLoop2	cmp.b	$1000(R12),ramDataStart-(mainDataStart-for1000)(R12)
 			jnz		justRet
 			inc		R12
 			cmp		#mainDataEnd-for1000,R12
