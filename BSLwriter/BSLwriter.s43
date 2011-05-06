@@ -71,8 +71,6 @@ CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
-FORCEFCAL1	EQU		0				; 1 to force 1 MHz calibration frequency
-FREQCAL1	EQU		$86C0			; Value to force 1 MHz frequency calibration to
 FORCEFCAL	EQU		0				; 1 to force 8 MHz calibration frequency
 FREQCAL		EQU		$8D8B			; Value to force 8 MHz frequency calibration to
 FREQ4TO8	EQU		$3B				; Subtract from low byte of 4 MHz DCO cal to estimate 8 MHz cal
@@ -171,6 +169,9 @@ SETLOCKA	macro
 #if !NOBUF
 sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 #endif
+
+
+#if 0
 ; ByteCodeInterpreter2 variables
 
 base			DS	1				; Number base, 10 or 16
@@ -183,7 +184,7 @@ passWordState	DS	1				; State of the password detection logic; 3 = start
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
-
+#endif
 
 			ORG		$FFFE			; The reset vector
 ;			dw		$1000			; If this BSL-writer is bootstrap-loaded
@@ -376,10 +377,10 @@ noCopyCalOld5
 			mov.b	#FREQCAL >> 8,&main8MHzCalB
 			mov.b	#FREQCAL & $FF,&main8MHzCalD
 #else
-			mov.b	#$8D,&BCSCTL1				; Set RSELx = 13 for 8 MHz range
+			mov.b	#$8D,&main8MHzCalB			; Set RSELx = 13 for 8 MHz range
 			mov.b	&inf54MHzCalD,R8			; Load low byte of vers5 4MHz calibration
 			sub.b	#FREQ4TO8,R8				; Try to estimate the 8MHz low byte
-			mov.b	R8,&DCOCTL					; Set DCOx and MODx
+			mov.b	R8,&main8MHzCalD			; Set DCOx and MODx
 #endif
 			;jmp		donePrep
 
@@ -542,11 +543,11 @@ pauseL		dec		R12
 
 
 ; Some definitions so the common code will work
-#define ID	infoID
-waitTxCmpl	ret						; Empty routine: transmit is always complete
-TX_ByteCk	xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
-TX_Byte		clr		R11				; Needed for BSL's WriteByte
-			jmp		WriteByte
+;#define ID	infoID
+;waitTxCmpl	ret						; Empty routine: transmit is always complete
+;TX_ByteCk	xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
+;TX_Byte		clr		R11				; Needed for BSL's WriteByte
+;			jmp		WriteByte
 
 #define		VoltCal		infoVoltCal		// Needed for measure code
 #define		TempCal		infoTempCal
