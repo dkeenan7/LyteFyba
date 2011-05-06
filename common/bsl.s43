@@ -175,8 +175,8 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 ; mainPWtable	db		0,1,2,3			; The password backwards: ^@ ^A ^B ^C
 			ORG		for1000+$F8
 			; Calibration data
-mainDataStart	EQU		mainVoltCal	; Used when copying between ram and info-flash
-mainVoltCal		dw		1			; Voltage scale calibration word; may be written by BSL writer
+mainDataStart						; Used when copying between ram and info-flash
+mainVoltCal		ds		2			; Voltage scale calibration word; may be written by BSL writer
 mainTempCal		ds		1			; Temperature offset calibration; may be written by BSL writer
 mainLinkCal		ds		1			; Link voltage offset calibration data; may be written by BSL writer
 main8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte (same address as in new chip)
@@ -184,7 +184,7 @@ main8MHzCalB	ds		1			; 8 MHz DCO range calibration byte (same address as in new 
 mainID			ds		1			; Cell/BMU identifier byte; first cell is 1; written by 'i' cmd
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration bytes
-mainDataEnd		EQU		mainDataVers					; Used when copying between ram and info-flash
+mainDataEnd							; Used when copying between ram and info-flash
 mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 
 ; The end of the bootstrap loader (BSL)
