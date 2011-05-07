@@ -541,6 +541,8 @@ DELAY_IF_NEEDED MACRO
 ;		Bit order: MSB first, Initial value: 0x10
 ; The initial value of 0x10 is required because the reset vector of $1000 at $FFFE is not transmitted
 ; and so the BSL does not include it in its checksum, but the linker does.
+; If the reset vector changes, this initial value will need to be changed to keep it as
+; the XOR of its two bytes.
 
 ; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File

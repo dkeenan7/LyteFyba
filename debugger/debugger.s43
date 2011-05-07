@@ -153,7 +153,7 @@ passWordState	DS		1			; State of the password detection logic; 3 = start
 TXCksum			DS		1			; Transmit checksum
 
 ; RAM copies of various calibration settings
-; Same order as stored in the BSL 
+; Same order as stored in the BSL
 			ALIGNRAM 1				; So these can be copied with word moves
 ramDataStart
 ramVoltCal	dw		1				; Voltage scale calibration word; may be written by BSL writer
@@ -403,8 +403,8 @@ pauseL		dec		R12
 ;		Size: 1 byte, Alignment: 1
 ;		CRC Polynomial: 0x101
 ; 		Complement: As is
-;		Bit order: MSB first, Initial value: 0x4A
-; The initial value of 0x5A is required because the reset vector of $F8A2 at $FFFE is not transmitted
+;		Bit order: MSB first, Initial value: 0x50
+; The initial value of 0x50 is required because the reset vector of $F8A8 at $FFFE is not transmitted
 ; and so the BSL does not include it in its checksum, but the linker does.
 ; If the reset vector changes, this initial value will need to be changed to keep it as
 ; the XOR of its two bytes.
