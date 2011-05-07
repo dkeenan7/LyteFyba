@@ -786,12 +786,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>monitor.hex</state>
+          <state>monitor.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>22</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>

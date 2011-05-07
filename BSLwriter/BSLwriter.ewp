@@ -786,12 +786,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>BSLwriter.hex</state>
+          <state>BSLwriter.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>22</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -852,7 +852,7 @@
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x10</state>
+          <state>0xE4</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>

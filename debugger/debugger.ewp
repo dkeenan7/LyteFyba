@@ -852,7 +852,7 @@
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x5A</state>
+          <state>0x50</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>
