@@ -265,7 +265,7 @@
         </option>
         <option>
           <name>CCCompilerRuntimeInfo</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IDoubleSize</name>
@@ -273,11 +273,7 @@
         </option>
         <option>
           <name>OutputFile</name>
-          <state></state>
-        </option>
-        <option>
-          <name>CCLibConfigHeader</name>
-          <state>1</state>
+          <state>$FILE_BNAME$.r43</state>
         </option>
         <option>
           <name>OCCR4Utilize</name>
@@ -286,6 +282,10 @@
         <option>
           <name>OCCR5Utilize</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCLibConfigHeader</name>
+          <state>1</state>
         </option>
         <option>
           <name>CPIC</name>
@@ -321,7 +321,7 @@
         </option>
         <option>
           <name>CCStdIncCheck</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -786,12 +786,12 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>debugger.hex</state>
+          <state>debugger.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>22</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -1045,7 +1045,7 @@
         <debug>0</debug>
         <option>
           <name>CCDefines</name>
-          <state>NDEBUG</state>
+          <state></state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1150,7 +1150,7 @@
         </option>
         <option>
           <name>CCCompilerRuntimeInfo</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IDoubleSize</name>
@@ -1161,16 +1161,16 @@
           <state></state>
         </option>
         <option>
-          <name>CCLibConfigHeader</name>
-          <state>1</state>
-        </option>
-        <option>
           <name>OCCR4Utilize</name>
           <state>0</state>
         </option>
         <option>
           <name>OCCR5Utilize</name>
           <state>0</state>
+        </option>
+        <option>
+          <name>CCLibConfigHeader</name>
+          <state>1</state>
         </option>
         <option>
           <name>CPIC</name>
@@ -1206,7 +1206,7 @@
         </option>
         <option>
           <name>CCStdIncCheck</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CompilerMisraOverride</name>
@@ -1235,11 +1235,11 @@
         <option>
           <name>CCOptStrategy</name>
           <version>0</version>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CCOptLevelSlave</name>
-          <state>1</state>
+          <state>3</state>
         </option>
         <option>
           <name>CInput</name>

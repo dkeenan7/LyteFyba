@@ -635,7 +635,7 @@ delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 ; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File
 ;	Override default
-;	debugger.bin
+;	BSLWriter.bin
 ;	Output format: raw-binary
 
 
