@@ -156,7 +156,7 @@ TXCksum			DS		1			; Transmit checksum
 ; Same order as stored in the BSL
 			ALIGNRAM 1				; So these can be copied with word moves
 ramDataStart
-ramVoltCal	dw		1				; Voltage scale calibration word; may be written by BSL writer
+ramVoltCal	ds		2				; Voltage scale calibration word; may be written by BSL writer
 ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
 ram8MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
@@ -165,9 +165,9 @@ ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
 ramDataVers	ds		1				; Data version
 ramDataEnd
 
-				ALIGNRAM 1
-ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
-TIB				DS		1			; Start of Text Input Buffer, grows towards stack
+			ALIGNRAM 1
+ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
+TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 ; Don't put anything else in RAM after TIB
 
 ;
