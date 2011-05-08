@@ -31,21 +31,13 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define 	Rw		R8				// Working register - temporary - anyone can use
 
 #define		LEDWITHTX	1			; True to have LED come on with any transmit byte
-#define		ROTATE3		1			; True for later boards that have TXDp, TXDm and BYPASS rotated
 minLEDBad	EQU			1			; Minimum badness to light error LED
 
-#if			ROTATE3
-TXDm		EQU		1<<1			; TA0/P1.1
-TXDp		EQU		1<<5			; SCLK/P1.5
 BYPASS		EQU		1<<0			; P1.0
-#else
-; The below are how things used to be; can't really run this software on that old hardware
-TXDm		EQU		1<<0			; Normally 1<<n with n < 4 for compactness (costs 1 word if not)
-TXDp		EQU		1<<1			; Code requires TXD+ bit somewhere to left of TXD- bit
-BYPASS		EQU		1<<5			; Bypass transistor on pin P1.5
-#endif
-
+TXDm		EQU		1<<1			; TA0/P1.1
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
+VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
+TXDp		EQU		1<<5			; SCLK/P1.5
 LED			EQU		1<<6			; LED on bit 6
 
 ; ADC channel numbers
@@ -163,7 +155,7 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 			; We don't use the shift register of the USI because there is
 			; no way to get differential outputs from that without external hardware.
 			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
-			bis.b	#TXDp+TXDm+LED+BYPASS,&P1DIR ; TXD, LED and BYPASS are outputs
+			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
 			clr.b	&P1OUT						; Clear LED and bypass
 
 			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
