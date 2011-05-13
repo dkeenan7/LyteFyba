@@ -1,36 +1,42 @@
 ; Suitable usage at appropriate part of assembly file: #include ../common/measure.s43
 ; Sensitive to these defines:
 ;	NumSamples
-;	NOBUF
+;	ADCBUF
 
 ; measure
 ; Input:  R8 = analog channel number shifted left 12 bits.
 ; 			   e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
 ; Output: R8 = uncalibrated 12.2-bit fixed-point result.
 ; Trashes R9-R10.
-; Assumes 4 MHz MCLK.
+; Formerly assumed 4 MHz MCLK.
 ; Caller is responsible for initialising the pins in the ADC10AE0 register.
 ;
 ; Perform an analogue measurement without calibration.
 
 measure:
-#if NOBUF
+#if !ADCBUF
 			; This is the standard version, which doesn't use any RAM.
 
 			; Turn on ADC10
-			; REFON		= turn on the voltage reference and reference buffer
+			; no MSC	= single sample and conversion
 			; ADC10ON	= turn on the ADC core
 			bis			#ADC10ON,&ADC10CTL0
 			; INCH		= R8 has the input channel number already in the right position
 			; SHS_0		= enable software starting via the ADC10SC bit
+
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
+			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
+			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
 			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
 			; CONSEQ_0	= single channel single conversion
-			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8
+;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/2
+			; We find that the below distributes noise particularly from SMCLK better, for more consistent
+			; ADC readings
+			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-			_DO			#30,R8					; 30 times around a 4 cycle dec jnz loop
+			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
 			_LOOP		R8						; Relied on to clear R8 for following
 	
 	;		mov			#0,R8					; Initialise the sum. R8 cleared by above loop
@@ -44,28 +50,33 @@ measure:
 			_LOOP		R9
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
-			ret
 		
 #else
 			; Version which reads <NumSamples> samples to a RAM buffer and adds them at the end.
 			; Useful for debugging. Can see all values and compare them.
 			
 			; Turn on ADC10
+			; MSC	= multiple sample and conversion
 			; ADC10ON	= turn on the ADC core
-			bis			#ADC10ON,&ADC10CTL0
+			bis			#MSC+ADC10ON,&ADC10CTL0
 			; INCHx		= R8 has the channel number already in the right position
 			; SHS_0		= enable software starting via the ADC10SC bit
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
+			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
+			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
 			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
 			; CONSEQ_2	= repeat single channel
-			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_2,R8
+;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_2,R8	;ADC10CLK = MCLK/2
+			; We find that the below distributes noise particularly from SMCLK better, for more consistent
+			; ADC readings
+			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_2,R8	;ADC10CLK = ADC10OSC/3
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-			_DO			#30,R8					; 30 times around a 4 cycle dec jnz loop
+			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
 			_LOOP		R8						; Relied on to clear R8 for following
 	
-			mov.b		#NumSamples,&ADC10DTC1	; 16 conversions
+			mov.b		#NumSamples,&ADC10DTC1	; Typically 16 conversions
 			mov			#sampleBuf,&ADC10SA		; Set start address
 			bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 			_BEGIN								; Busy wait for conversion to complete
@@ -80,8 +91,30 @@ measure:
 				add			sampleBuf-2(R9),R8		; Add a sample
 				decd		R9
 			_UNTIL		_Z
-			ret
+	#if 0					; Debug code for measuring deviations
+			mov		R8,R10						; Sum of samples into R10. Treat as mean in 12.4 fixed point
+			clr		R8
+			mov		#NumSamples*2,R9
+			_BEGIN
+				mov		sampleBuf-2(R9),R11		; Retrieve a sample
+				rla		R11						; Convert to 12.4 fixed point
+				rla		R11
+				rla		R11
+				rla		R11
+				sub		R10,R11					; Subtract the mean to get deviation (as 12.4)
+				_IF		_L						; Get absolute value of deviation (as 12.4)
+					inv		R11
+					inc		R11
+				_ENDIF
+				cmp		R11,R8					; Record the max abs deviation (as 12.4)
+				_IF		_LO
+					mov		R11,R8
+				_ENDIF
+				decd	R9
+			_UNTIL	_Z
+	#endif
 #endif
+			ret
 
 
 ; measAndScale
