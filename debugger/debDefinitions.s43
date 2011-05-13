@@ -269,10 +269,10 @@ failCompare mov		#3,rERR
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		tst			Rtos
 		_IF			_Z
-			bis.b	#1<<4,&ADC10AE0		; Set bit 4 in analog enable register. Trashes R8
+			bis.b	#1<<4,&ADC10AE0		; Set bit 4 in analog enable register.
 			bis		#REFOUT,&ADC10CTL0	; Set the REFOUT bit in analog ctl0 reg
 		_ELSE
-			bic.b	#1<<4,&ADC10AE0		; Clear bit 4 in analog enable register. Trashes R8
+			bic.b	#1<<4,&ADC10AE0		; Clear bit 4 in analog enable register.
 			bic		#REFOUT,&ADC10CTL0	; Clear the REFOUT bit in analog ctl0 reg
 		_ENDIF
 ;		DROP

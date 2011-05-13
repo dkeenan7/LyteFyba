@@ -30,14 +30,16 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	&localBadness,Rsec		; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
-
+#if 1
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
 			mov		#'{',Rthd				; Units are frowny mouths :-{
 			mov.b	&worstBadness,Rsec		; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
+#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+#endif
 			; Now prettyPrint the reason for the worst badness
 			mov.b	&worstBadUnit,Rthd		; Units
 			mov		&worstBadMeas,Rsec		; Result
@@ -55,4 +57,4 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			xCODE	'a',Alarm,_Alarm
 			mov.b	Rtos,&bAlarmForBad
 			ret
-		
+#endif

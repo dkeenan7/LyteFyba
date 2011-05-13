@@ -2,9 +2,17 @@ This is the source code for the cell-top Battery Monitoring Unit (BMU)
 of Mike Van Emmerik and Dave Keenan ("Coulomb" and "Weber" in the Australian Electric Vehicle
 Association forum). See http://http://www.aeva.asn.au/forums/forum_posts.asp?TID=980
 
-These BMUs use a Texas Instruments MSP430F2012 microcontroller
-(16-bit Ultra-Low-Power, 2kB Flash, 128B RAM, 10-Bit SAR A/D).
+These BMUs use Texas Instruments MSP430 microcontrollers which are 16-bit and Ultra-Low-Power.
+It specifically requires a model of MSP430 that comes in a 16QFN package and has a 10-bit ADC,
+at least 128 bytes of RAM and 2K bytes of flash, e.g.
 http://focus.ti.com/docs/prod/folders/print/msp430f2012.html
+
+In future it will require at least 256 bytes of RAM and 4K of flash, e.g.
+http://focus.ti.com/docs/prod/folders/print/msp430g2332.html
+http://focus.ti.com/docs/prod/folders/print/msp430g2352.html
+or 8K of flash
+http://focus.ti.com/docs/prod/folders/print/msp430g2432.html
+http://focus.ti.com/docs/prod/folders/print/msp430g2452.html
 
 To build them you will need to install the free IAR Embedded Workbench Kickstart.
 See http://focus.ti.com/docs/toolsw/folders/print/iar-kickstart.html

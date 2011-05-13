@@ -37,19 +37,16 @@
 ;
 ;
 ;	Conditions for 9600 Baud SW UART
-#if 0
-Mfreq		EQU		1000000					; Main clock in Hz
-MckPerSMck	EQU		1						; Number of main clocks per SMCK
-#else
-Mfreq		EQU		4000000					; Main clock in Hz
-MckPerSMck	EQU		2						; Number of main clocks per SMCK
-#endif
-BadnessFreq	EQU		8						; Badness frequency in hertz (allowed values 4, 8, 16, 32)
+DCOfreq		EQU		8000000					; DCO clock in Hz
+DCOckPerMck	EQU		2						; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
+DCOckPerSMck EQU	8						; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
+BadnessFreq	EQU		16						; Badness frequency in hertz
 											; Only sent every fourth time if badness not increased
-SMckPerTAck	EQU		(Mfreq/MckPerSMck/BadnessFreq+(1<<15))/(1<<16) ; Number of SMCK clocks per timer clock
-MckPerTAck	EQU		MckPerSMck*SMckPerTAck	; Number of main clocks per timer clock
-TAfrfeq		EQU		Mfreq/MckPerTAck		; Timer frequency in Hertz
-Bitime		EQU		(TAfrfeq+4800)/9600		; 104.17 us bit length in timer clock periods
+SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/BadnessFreq+(1<<15))/(1<<16) 
+											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
+MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
+TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
+Bitime		EQU		(TAfreq+4800)/9600		; 104.17 us bit length in timer clock periods
 Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
 
 
