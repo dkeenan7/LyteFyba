@@ -116,6 +116,8 @@ DATAVERS		EQU		6						; This is version 6 of the BMU info-flash data structure
 ; to allow us to update them to the current version without losing their calibration data.
 
 ; Version 5 (has $05 at infoDataVers ($10FF))
+inf5InitRetAddr	EQU		$1022		; Return address when interpretByte
+									; is called for initialisation
 inf5ID			EQU		$10F2		; Address of BMU ID byte
 inf5Spare		EQU		$10F3		; Address of BMU ID byte
 inf51MHzCalD	EQU		$10F4		; Address of 1 MHz DCO frequency calibration
@@ -198,7 +200,12 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 ; It will do this on any reset and after successfully bootstrap-loading
 ; a new interpreter or BSL-writer.
 dummyInterpretByte:
-			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
+			cmp.b	#DATAVERS,&infoDataVers
+			_IF		_EQ
+				cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
+			_ELSE
+				cmp		#inf5InitRetAddr,0(SP)	; Is the call merely for initialisation?
+			_ENDIF
 			jeq		anInit					; Yes, don't echo the byte
 #if RESETIDS
 			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
