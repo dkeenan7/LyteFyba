@@ -33,9 +33,10 @@ public:
 #endif
 
 protected:
-	unsigned char	m_HexBuf[2048];			// The 2K image for F800-FFFF
+	unsigned char	m_fileBuf[8192];		// Binary file image
 public:
 	unsigned int	m_total_len;			// Number of bytes read into the image
+	unsigned int	m_first_addr;
 
 // Generated message map functions
 protected:

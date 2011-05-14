@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/stat.h>
 #if !LINUX
 #include "windows.h"
 #endif
@@ -19,7 +20,7 @@
 /* Do NOT enable optimisation; delay loops required! */
 #define DELAY 300000		/* Approx one char delay */
 
-unsigned int address = 0xF800;
+unsigned int address = 0;
 unsigned int sum;
 
 unsigned int readHexNibble(FILE* f) {
@@ -82,7 +83,7 @@ void writeByte(const char* p) {
 	// Issue write.
 	if (!WriteFile(hComm, p, 1, NULL, &osWrite)) {
  		if (GetLastError() != ERROR_IO_PENDING) { 
-        	fprintf(stderr, "WriteFile failed, but isn't delayed.\n");
+        	fprintf(stderr, "WriteFile to comm port failed, but isn't delayed.\n");
 		 	exit(1);
     	}
 	}
@@ -97,12 +98,13 @@ int main(int argc, char* argv[]) {
 	unsigned int add;
 	unsigned int typ;
 	unsigned int u;
-	char progBuf[2048];
+	char progBuf[8192];
 	char* p = progBuf;
-	unsigned int sum, checksum;
+	unsigned int sum, checksum, total_len;
 
 	if (argc != 3) {
-		fprintf(stderr, "Usage: sendprog <file.hex> <comm port name/path>\n");
+		fprintf(stderr, "Usage: sendprog <file.hex or file.bin> <comm port name/path>\n");
+		fprintf(stderr, "File extension .hex is case sensitive\n");
 		exit(1);
 	}
 
@@ -204,51 +206,61 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
-	memset(progBuf, '\xFF', 2048);
+	memset(progBuf, '\xFF', 8192);
 
-	do {
-		readColon(f);
-		sum = 0;
-		len = readHexByte(f);
-		add = readHexWord(f);
-		typ = readHexByte(f);
-		if (typ == 1)
-			break;
-		if (typ > 0) {
-			fprintf(stderr, "Unexpected record type %X at address %X\n", typ, address);
-			exit(1);
-		}
-		if (add < 0xF800)
-			continue;			/* Repeat the loop, looking for the colon on the next line */
-		if (add < address) {
-			fprintf(stderr, "Unordered address %X; expected %X\n", add, address);
-			exit(1);
-		}
-		address = add;
-		p = progBuf + add - 0xF800;
-		for (u=0; u < len; ++u) {
-			*p++ = readHexByte(f);
-		}
-		checksum = readHexByte(f);
-		if (sum & 0xFF) {
-			fprintf(stderr, "Bad checksum %X expected %X\n", checksum, 0-(sum-checksum) & 0xFF);
-			exit(1);
-		}
-		address += len;
-	} while (!feof(f));
-	
-	printf("Read %d bytes\n", p - progBuf);
-	if (p - progBuf != 2048)
-		exit(1);
+	if (strcmp(argv[1] + strlen(argv[1]) - 4, ".hex") == 0) {
+
+		unsigned int first_addr = (unsigned int) -1;
+		total_len = 0;
+		do {
+			readColon(f);
+			sum = 0;
+			len = readHexByte(f);
+			add = readHexWord(f);
+			typ = readHexByte(f);
+			if (typ == 1)
+				break;
+			if (typ > 0) {
+				fprintf(stderr, "Unexpected record type %X at address %X\n", typ, address);
+				exit(1);
+			}
+			if (add < 0xE000)
+				continue;			/* Repeat the loop, looking for the colon on the next line */
+			if (first_addr == (unsigned int) -1)
+				/* Assume that the first address past E000 is the start of the image */
+				first_addr = add;
+			address = add;
+			p = progBuf + add - first_addr;
+			for (u=0; u < len; ++u) {
+				*p++ = readHexByte(f);
+			}
+			total_len += len;
+			checksum = readHexByte(f);
+			if (sum & 0xFF) {
+				fprintf(stderr, "Bad checksum %X expected %X\n", checksum, 0-(sum-checksum) & 0xFF);
+				exit(1);
+			}
+			address += len;
+		} while (!feof(f));
+	}
+
+	else /* Assume a binary file */
+	{
+		struct stat st;
+		stat(argv[1], &st);
+		total_len = st.st_size;
+		fread(progBuf, 1, total_len, f);
+	}	
+	printf("Read %d bytes\n", total_len);
 	fclose(f);
 
 	/* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
 		after reset */
 	sum = 0;
-	for (u=0; u < 2048-2; ++u)			/* -2 because reset vector (last 2 bytes) is not sent */
+	for (u=0; u < total_len-2; ++u)		/* -2 because reset vector (last 2 bytes) is not sent */
 		sum ^= progBuf[u];
-	sum ^= progBuf[0xFFFD-0xF800];		/* Remove the existing checksum */
-	progBuf[0xFFFD-0xF800] = sum;		/* Now it will checksum to zero */
+	sum ^= progBuf[total_len-3];		/* Remove the existing checksum */
+	progBuf[total_len-3] = sum;		/* Now it will checksum to zero */
 
 	/* Now send this image to the BMUs */
 	{

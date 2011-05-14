@@ -119,8 +119,7 @@ BOOL CProgDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
-	m_Bar.SetRange(0, 2048);
-m_Bar.SetPos(75);
+	//m_Bar.SetRange(0, 2048);
 	return TRUE;
 }
 
@@ -214,7 +213,7 @@ void CBMUsendDoc::OnFileOpen()
 	OPENFILENAME ofn;
 	ZeroMemory( &ofn , sizeof( ofn));
 	ofn.lStructSize = sizeof ( ofn );
-	ofn.lpstrFilter = _T("Hex\0*.hex\0All\0*.*");
+	ofn.lpstrFilter = _T("Binary\0*.bin\0Hex\0*.hex\0All\0*.*");
 	ofn.lpstrFile = theApp.m_szFileName;
 	ofn.nMaxFile = sizeof( theApp.m_szFileName );
 	theApp.m_szFileName[0] = '\0';
@@ -298,60 +297,70 @@ void CBMUsendDoc::ReadFile()
 	theApp.UpdateTitle();
 	CFile f(theApp.m_szFileName, CFile::modeRead);
 	unsigned int len, typ, checksum;
-	theApp.m_bFileValid = false;
-	m_total_len = 0;
-	unsigned int u;
+	if (_tcscmp(theApp.m_szShortName + _tcslen(theApp.m_szShortName)-4, _T(".hex")) == 0) {
+		theApp.m_bFileValid = false;
+		m_total_len = 0;
+		m_first_addr = (unsigned int) -1;
+		unsigned int u;
 
-	memset(m_HexBuf, '\xFF', 2048);
+		memset(m_fileBuf, '\xFF', 8192);
 
-    do {
-        if (!readColon(f))
-			break;
-        sum = 0;
-        len = readHexByte(f);
-		m_total_len += len;
-        add = readHexWord(f);
-        typ = readHexByte(f);
-        if (typ == 1)
-            break;
-		if (typ > 0) {
-			TCHAR msg[40];
-			_stprintf_s(msg, _T("Unexpected record type %X at address %X"), typ, add);
-			MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
-		    f.Close();
-			return;
-        }
-        if (add < 0xF800)
-            continue;           /* Repeat the loop, looking for the colon on the next line */
-        unsigned char* p = m_HexBuf + add - 0xF800;
-        for (u=0; u < len; ++u) {
-            *p++ = readHexByte(f);
-        }
-        checksum = readHexByte(f);
-        if (sum & 0xFF) {
-			TCHAR msg[40];
-			_stprintf_s(msg, _T("Bad checksum %X expected %X"), checksum, 0-(sum-checksum) & 0xFF);
-			MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
-		    f.Close();
-            return;
-        }
-        add += len;
-    } while (1);
+		do {
+			if (!readColon(f))
+				break;
+			sum = 0;
+			len = readHexByte(f);
+			m_total_len += len;
+			add = readHexWord(f);
+			typ = readHexByte(f);
+			if (typ == 1)
+				break;
+			if (typ > 0) {
+				TCHAR msg[40];
+				_stprintf_s(msg, _T("Unexpected record type %X at address %X"), typ, add);
+				MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
+				f.Close();
+				return;
+			}
+			if (add < 0xE000)		/* Could be initialisation in RAM, for example */
+				continue;           /* Repeat the loop, looking for the colon on the next line */
+			if (m_first_addr == (unsigned int) -1)
+				/* Assume that the first address read is the start of the image */
+				m_first_addr = add;
+			unsigned char* p = m_fileBuf + add - m_first_addr;
+			for (u=0; u < len; ++u) {
+				*p++ = readHexByte(f);
+			}
+			checksum = readHexByte(f);
+			if (sum & 0xFF) {
+				TCHAR msg[40];
+				_stprintf_s(msg, _T("Bad checksum %X expected %X"), checksum, 0-(sum-checksum) & 0xFF);
+				MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
+				f.Close();
+				return;
+			}
+			add += len;
+		} while (1);
 
-	// printf("Read %d bytes\n", total_len);
-    f.Close();
-	if (m_total_len)
-		theApp.m_bFileValid = true;
+		// printf("Read %d bytes\n", total_len);
+		f.Close();
+		if (m_total_len)
+			theApp.m_bFileValid = true;
 
-    /* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
-        after reset */
-    sum = 0;
-    for (u=0; u < 2048-2; ++u)          /* -2 because reset vector (last 2 bytes) is not sent */
-        sum ^= m_HexBuf[u];
-    sum ^= m_HexBuf[0xFFFD-0xF800];      /* Remove the existing checksum */
-    m_HexBuf[0xFFFD-0xF800] = sum;       /* Now it will checksum to zero */
-
+		/* Calculate the checksum, and place at third last byte (first unused interrupt vector, starting at highest address,
+			after reset */
+		sum = 0;
+		for (u=0; u < m_total_len-2; ++u)          /* -2 because reset vector (last 2 bytes) is not sent */
+			sum ^= m_fileBuf[u];
+		sum ^= m_fileBuf[m_total_len-3];      /* Remove the existing checksum */
+		m_fileBuf[m_total_len-3] = sum;       /* Now it will checksum to zero */
+	} else
+	{	// Not a hex file; assume binary
+		m_total_len = (unsigned int) f.GetLength();
+		f.Read(m_fileBuf, m_total_len);
+	}
 }
+
 
 static void writeByte(unsigned char* p) {
 	OVERLAPPED osWrite = {0};
@@ -434,6 +443,8 @@ void CBMUsendDoc::OnSend()
 	CProgDlg* pProg = new CProgDlg();
 	pProg->Create(CProgDlg::IDD);
 	pProg->ShowWindow(SW_SHOW);
+	pProg->m_Bar.SetRange(0, m_total_len);
+
 
     /* Now send this image to the BMUs */
     unsigned int i, u;
@@ -456,19 +467,19 @@ void CBMUsendDoc::OnSend()
 	/* NOTE: There are two delays now, since we have two versions of the BSL at present.
 		Soon the second delay can go away */
 	Sleep(35+1);
-    /* Send the 2048-2 bytes of the binary image */
-    writeByte(m_HexBuf);                     /* Write first byte */
+    /* Send the length-2 bytes of the binary image */
+    writeByte(m_fileBuf);                     /* Write first byte */
     /* Allow time for bulk erase (approximately 32 ms) as well as a send, echo, and flash write */
 	Sleep(35+1);
-    for (u=1; u < 2048-2; ++u) {
-        writeByte(m_HexBuf+u);               /* Write byte */
+    for (u=1; u < m_total_len-2; ++u) {
+        writeByte(m_fileBuf+u);               /* Write byte */
         Sleep(3+1);        /* Time to transmit, echo, and flash write */
 		if ((u & 0x3F) == 0x3F) {
 			theApp.m_nProgress = u;
 			pProg->SetFocus();			// Use the focus message to update the progress bar
 		}
     }
-	theApp.m_nProgress = 2048;
+	theApp.m_nProgress = m_total_len;
 	pProg->SetFocus();
 
 	CloseHandle(hComm);
@@ -516,8 +527,8 @@ void CBMUsendDoc::OnFileSaveas()
 	if (GetSaveFileName(&ofn))
 	{
 		CFile f(ofn.lpstrFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-		f.Write("\x01""\x01""\x02""\x01""\x04", 5);		// ^a^a ^B^A^D
-		f.Write(m_HexBuf, 2048-2);
+//		f.Write("\x01""\x01""\x02""\x01""\x04", 5);		// ^a^a ^B^A^D
+		f.Write(m_fileBuf, m_total_len);
 		f.Close();
 	}
 	
