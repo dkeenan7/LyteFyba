@@ -27,7 +27,7 @@ ${NAME}.hex: ${NAME}.elf
 ${NAME}.lst: ${NAME}.elf
 	msp430-objdump -dSt $^ >$@
 
-%.s43: %.c
+%.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
 
 clean:
