@@ -297,11 +297,11 @@ void CBMUsendDoc::ReadFile()
 	theApp.UpdateTitle();
 	CFile f(theApp.m_szFileName, CFile::modeRead);
 	unsigned int len, typ, checksum;
+	unsigned int u;
 	if (_tcscmp(theApp.m_szShortName + _tcslen(theApp.m_szShortName)-4, _T(".hex")) == 0) {
 		theApp.m_bFileValid = false;
 		m_total_len = 0;
 		m_first_addr = (unsigned int) -1;
-		unsigned int u;
 
 		memset(m_fileBuf, '\xFF', 8192);
 
@@ -342,23 +342,27 @@ void CBMUsendDoc::ReadFile()
 			add += len;
 		} while (1);
 
-		// printf("Read %d bytes\n", total_len);
-		f.Close();
-		if (m_total_len)
-			theApp.m_bFileValid = true;
-
-		/* Calculate the checksum, and place at third last byte (first unused interrupt vector, starting at highest address,
-			after reset */
-		sum = 0;
-		for (u=0; u < m_total_len-2; ++u)          /* -2 because reset vector (last 2 bytes) is not sent */
-			sum ^= m_fileBuf[u];
-		sum ^= m_fileBuf[m_total_len-3];      /* Remove the existing checksum */
-		m_fileBuf[m_total_len-3] = sum;       /* Now it will checksum to zero */
 	} else
 	{	// Not a hex file; assume binary
+		// Close it and open it again in binary mode
+		f.Close();
+		f.Open(theApp.m_szFileName, CFile::modeRead | CFile::typeBinary);
 		m_total_len = (unsigned int) f.GetLength();
 		f.Read(m_fileBuf, m_total_len);
 	}
+	f.Close();
+	if (m_total_len)
+		theApp.m_bFileValid = true;		// Enables the ID_SEND green arrow
+	// printf("Read %d bytes\n", m_total_len);
+	theApp.m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
+
+	/* Calculate the checksum, and place at third last byte (first unused interrupt vector, starting at highest address,
+		after reset */
+	sum = 0;
+	for (u=0; u < m_total_len-2; ++u)          /* -2 because reset vector (last 2 bytes) is not sent */
+		sum ^= m_fileBuf[u];
+	sum ^= m_fileBuf[m_total_len-3];      /* Remove the existing checksum */
+	m_fileBuf[m_total_len-3] = sum;       /* Now it will checksum to zero */
 }
 
 
