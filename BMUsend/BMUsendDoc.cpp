@@ -310,7 +310,7 @@ void CBMUsendDoc::ReadFile()
 				break;
 			sum = 0;
 			len = readHexByte(f);
-			m_total_len += len;
+			// m_total_len += len;		// No! This doesn't work when there are overlaps or gaps
 			add = readHexWord(f);
 			typ = readHexByte(f);
 			if (typ == 1)
@@ -341,7 +341,7 @@ void CBMUsendDoc::ReadFile()
 			}
 			add += len;
 		} while (1);
-
+		m_total_len = 0xFFFF+1 - m_first_addr;		// Assume last byte will load at 0xFFFF (MSB of reset vector)
 	} else
 	{	// Not a hex file; assume binary
 		// Close it and open it again in binary mode
