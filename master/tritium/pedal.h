@@ -24,7 +24,7 @@
  */
 
 // Public function prototypes
-extern void process_pedal( unsigned int a, unsigned int b, unsigned int c );
+extern void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm);
 
 // Public variables
 typedef struct _command_variables {

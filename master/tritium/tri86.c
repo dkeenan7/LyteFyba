@@ -169,7 +169,8 @@ int main( void )
 			// Check for overcurrent errors on 12V outputs
 			// TODO
 			// Update motor commands based on pedal and slider positions
-			process_pedal( ADC12MEM0, ADC12MEM1, ADC12MEM2 );
+			//process_pedal( ADC12MEM0, ADC12MEM1, ADC12MEM2 );
+			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX * 0.25, motor_rpm );	/* For now, pass constant regen as 3rd arg */
 			
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
