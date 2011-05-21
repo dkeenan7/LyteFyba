@@ -45,10 +45,11 @@ command_variables	command;
 
 /*
  * Process analog pedal inputs
- * Basic stuff only at this point: map channel A to 0-100% current, no regen or redundancy
+ * //Basic stuff only at this point: map channel A to 0-100% current, no regen or redundancy
+ * Implement Dave's square law algorithm; channel C is ready for a regen pot
  *
  */
-void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c )
+void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c , float motor_rpm)
 {
 	float pedal, regen;
 	
@@ -92,14 +93,27 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		// Choose target motor velocity
 		switch(command.state){
 			case MODE_R:
-				command.current = pedal;
-				command.rpm = RPM_REV_MAX;
-				break;
 			case MODE_D:
 			case MODE_B:
+			{
+				/*
 				command.current = pedal;
 				command.rpm = RPM_FWD_MAX;
+				*/
+				// Pedal algorithm; see http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
+				float k = ADC_MAX / analog_c;
+				float p = pedal;
+				float s = motor_rpm / -RPM_FWD_MAX;
+				if (command.state == MODE_R)
+					s = motor_rpm / RPM_REV_MAX;
+				else
+					s = motor_rpm / RPM_FWD_MAX;
+				command.current = p*p + (p*p-1)*k*s;
+				command.rpm = RPM_FWD_MAX * MIN(1.0, p*p/((1-p*p)*k));
+				if (command.state == MODE_R)
+					command.rpm = -command.rpm;
 				break;
+			}
 			case MODE_CHARGE:
 			case MODE_N:
 			case MODE_START:

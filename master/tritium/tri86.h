@@ -132,8 +132,9 @@
 // Charger constants
 //#define NUMBER_OF_CELLS	60
 #define NUMBER_OF_CELLS		8
-//#define CHGR_VOLT_LIMIT	((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
-#define CHGR_VOLT_LIMIT		((int)(60 * 34.5))	// Charger voltage limit in tenths of a volt
+//#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
+//#define   CHGR_VOLT_LIMIT		((int)(  60            * 36.5))	// Charger voltage limit in tenths of a volt
+#define   CHGR_VOLT_LIMIT		1995	// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
@@ -194,3 +195,5 @@ typedef union _group_16 {
 	unsigned int data_u16;
 	int data_16;
 } group_16;
+
+#define MIN(a, b) ((a < b) ? a : b)
