@@ -92,7 +92,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		
 		// Choose target motor velocity
 		switch(command.state){
-			case MODE_R:
+			// case MODE_R:
 			case MODE_D:
 			case MODE_B:
 			{
@@ -103,15 +103,9 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// Pedal algorithm; see http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				float k = ADC_MAX / analog_c;
 				float p = pedal;
-				float s = motor_rpm / -RPM_FWD_MAX;
-				if (command.state == MODE_R)
-					s = motor_rpm / RPM_REV_MAX;
-				else
-					s = motor_rpm / RPM_FWD_MAX;
+				float s = motor_rpm / RPM_FWD_MAX;
 				command.current = p*p + (p*p-1)*k*s;
 				command.rpm = RPM_FWD_MAX * MIN(1.0, p*p/((1-p*p)*k));
-				if (command.state == MODE_R)
-					command.rpm = -command.rpm;
 				break;
 			}
 			case MODE_CHARGE:
