@@ -105,7 +105,12 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				float p = pedal;
 				float s = motor_rpm / RPM_FWD_MAX;
 				command.current = p*p + (p*p-1)*k*s;
-				command.rpm = RPM_FWD_MAX * MIN(1.0, p*p/((1-p*p)*k));
+				// Note that the literal implementation of Dave's pedal formulae lead to divide by zero hazards
+				// The following, suggested by Dave, avoids both the MIN() macro and the hazards
+				if (p*p >= ((1-p*p)*k))
+					command.rpm = RPM_FWD_MAX;
+				else
+					command.rpm = RPM_FWD_MAX * p*p/((1-p*p)*k);
 				break;
 			}
 			case MODE_CHARGE:
