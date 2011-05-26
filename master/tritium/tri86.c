@@ -145,7 +145,8 @@ int main( void )
 	command.current = 0.0;
 	command.bus_current = 1.0;
 	command.flags = 0x00;
-	command.state = MODE_OFF;
+//	command.state = MODE_OFF;
+	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
 	
 	// Init gauges
 	gauge_init();
@@ -241,7 +242,9 @@ int main( void )
 					next_state = MODE_OFF;
 					break;
 			}
+	/* FOR NOW: ignore all the above logic, and leave the state alone (in drive)
 			command.state = next_state;
+	*/
 			
 			// Control brake lights
 			if((switches & SW_BRAKE) || (events & EVENT_REGEN)) P1OUT |= BRAKE_OUT;
