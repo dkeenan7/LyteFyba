@@ -160,11 +160,12 @@ int main( void )
 		if( events & EVENT_TIMER ) {
 			events &= ~EVENT_TIMER;
 
-#if 0	// FIXME: getting endless loop here! FIXME
+			ADC12IFG &= ~((1<<7)-1); 				// Reset the 7 interrupt flags
+													// so the while loop below will work
 			// Convert potentiometer and current monitoring inputs
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions
 			while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
-#endif
+
 			// Check for 5V pedal supply errors
 			// TODO
 			// Check for overcurrent errors on 12V outputs
