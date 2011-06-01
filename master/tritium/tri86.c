@@ -2,21 +2,21 @@
  * Tritium TRI86 EV Driver Controls, version 2 hardware
  * Copyright (c) 2010, Tritium Pty Ltd.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without modification, 
+ * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
  *  - Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
+ *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
  *	  in the documentation and/or other materials provided with the distribution.
- *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products 
+ *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products
  *	  derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
- * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
- * OF SUCH DAMAGE. 
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
  *
  */
 
@@ -87,7 +87,7 @@ volatile unsigned char bmu_rxidx = 0;	// Index into the BMU  receive buffer
 
 // Main routine
 int main( void )
-{ 
+{
 	// Local variables
 	// Switch inputs - same bitfield positions as CAN packet spec
 	unsigned int switches = 0x0000;
@@ -133,7 +133,7 @@ int main( void )
 
 	// Initialise Timer B (gauge outputs PWM / pulses)
 	timerB_init();
-  
+
 	// Initialise A/D converter for potentiometer and current sense inputs
 	adc_init();
 
@@ -160,19 +160,19 @@ int main( void )
 		if( events & EVENT_TIMER ) {
 			events &= ~EVENT_TIMER;
 
-			ADC12IFG &= ~((1<<7)-1); 				// Reset the 7 interrupt flags
-													// so the while loop below will work
 			// Convert potentiometer and current monitoring inputs
+		//	ADC12IFG = 0x0000; 	// DCK: MVE: Reset the ADC interrupt flags so the while loop below will work
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions
-			while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
+		//	while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
+			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
 			// Check for 5V pedal supply errors
 			// TODO
 			// Check for overcurrent errors on 12V outputs
 			// TODO
 			// Update motor commands based on pedal and slider positions
-			//process_pedal( ADC12MEM0, ADC12MEM1, ADC12MEM2 );
-			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX * 0.25, motor_rpm );	/* For now, pass constant regen as 3rd arg */
+		//	process_pedal( ADC12MEM0, ADC12MEM1, ADC12MEM2 );
+			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	// MVE: For now, pass constant regen as 3rd arg
 			
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
@@ -432,7 +432,7 @@ int main( void )
 				chgr_txbuf[7] = chgr_current;
 				chgr_txbuf[8] = 0;
 			}
-			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0; 
+			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
 			chgr_transmit_buf();
 			chgr_rxidx = 0;			// Expect receive packet in response
 #endif
@@ -465,7 +465,7 @@ int main( void )
 					bmu_rxbuf[10] == 'V') {
 						int bmu_id = 100 * (bmu_rxbuf[1] - '0') + (bmu_rxbuf[2] - '0') * 10 +
 							bmu_rxbuf[3] - '0';
-						unsigned int rxvolts = 
+						unsigned int rxvolts =
 #if 0
 							(bmu_rxbuf[5] - '0') * 100 +
 #else

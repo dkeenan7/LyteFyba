@@ -229,14 +229,14 @@ initialise:
 			; Experiment with piezo on P1.0 driven by 3 kHz square wave
 ;			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 ;			bis.b	#DIVA_2,&BCSCTL1		; Set ACLK = VLOCLK/4
-;			bis.b	#BYPASS,&P1SEL			; Select special function ACLK for P1.0
+;			bis.b	#1,&P1SEL			; Select special function ACLK for P1.0
 
 			clr		rERR					; Clear error register
 
 ;
 ; Initialise the ADC10
 ;
-			 ; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
+			; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
 			mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			; Initialise ADC10
 			; SREF_1    = +-refs are Vref+ and AVSS
