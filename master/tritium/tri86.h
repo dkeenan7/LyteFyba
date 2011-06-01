@@ -195,5 +195,3 @@ typedef union _group_16 {
 	unsigned int data_u16;
 	int data_16;
 } group_16;
-
-#define MIN(a, b) ((a < b) ? a : b)

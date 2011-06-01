@@ -36,17 +36,19 @@ measure:
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-			_LOOP		R8						; Relied on to clear R8 for following
+;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
+;			_LOOP		R8						; Relied on to clear R8 for following
 	
 	;		mov			#0,R8					; Initialise the sum. R8 cleared by above loop
 			_DO			#NumSamples,R9			; Sample counter
 				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
 				_BEGIN								; Busy wait for conversion to complete
-					bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
-				_UNTIL		_NZ
+	;				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
+	;			_UNTIL		_NZ
+					bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
+				_UNTIL		_Z
 				add			&ADC10MEM,R8			; Add a result
-				bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
+	;			bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
 			_LOOP		R9
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
@@ -73,15 +75,18 @@ measure:
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-			_LOOP		R8						; Relied on to clear R8 for following
+;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
+;			_LOOP		R8						; Relied on to clear R8 for following
 	
 			mov.b		#NumSamples,&ADC10DTC1	; Typically 16 conversions
 			mov			#sampleBuf,&ADC10SA		; Set start address
 			bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
 			_BEGIN								; Busy wait for conversion to complete
-				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
-			_UNTIL		_NZ
+;				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
+;			_UNTIL		_NZ
+				bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
+			_UNTIL		_Z
+;			bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0		; Turn off ADC core
 			; Sum the samples
