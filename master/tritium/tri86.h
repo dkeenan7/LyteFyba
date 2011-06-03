@@ -32,10 +32,10 @@
 #define CAN_MOSI			0x02
 #define CAN_MISO			0x04
 #define CAN_SCLK			0x08
-#define EXPANSION_TXD		0x10
-#define EXPANSION_RXD		0x20
-#define LED_REDn			0x40
-#define LED_GREENn			0x80
+#define CHARGER_TXD			0x10
+#define CHARGER_RXD			0x20
+#define BMS_TXD				0x40
+#define BMS_RXD				0x80
 #define P3_UNUSED			0x00
 
 // Port 4
@@ -54,11 +54,11 @@
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10
 #define LED_GEAR_3			0x20
-#define LED_GEAR_2			0x40
-#define LED_GEAR_1			0x80
+#define LED_REDn			0x40
+#define LED_GREENn			0x80
 #define P5_UNUSED			0x00
 
-#define LED_GEAR_ALL		(LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1)
+#define LED_GEAR_ALL		(LED_GEAR_4 | LED_GEAR_3)
 
 // Port 6
 #define ANLG_V_ENABLE		0x01
