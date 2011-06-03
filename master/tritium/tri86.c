@@ -33,7 +33,7 @@
 #define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
 #define ASSUME_IGN_ON		1					// MVE: if on, assumes ignition key is on
 #define LED_PORT			P5OUT				// MVE: modified DCU; uses port 3 for UART, port 5 for
-												// green abd red LEDs
+												// GREENn and REDn LEDs
 
 // Macro needed to swap from little to big endian for 16-bit charger quantities:
 #define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
@@ -162,7 +162,7 @@ int main( void )
 
 			// Convert potentiometer and current monitoring inputs
 		//	ADC12IFG = 0x0000; 	// DCK: MVE: Reset the ADC interrupt flags so the while loop below will work
-			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions
+			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
 		//	while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
 			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
@@ -212,7 +212,7 @@ int main( void )
 					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_2;
+					// P5OUT |= LED_GEAR_2;
 					break;
 				case MODE_D:
 					if(switches & SW_MODE_N) next_state = MODE_N;
@@ -222,7 +222,7 @@ int main( void )
 					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_1;
+					// P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
 					if(!(switches & SW_FUEL)) next_state = MODE_N;
@@ -230,7 +230,7 @@ int main( void )
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
 					charge_flash_count--;
-					P5OUT &= ~(LED_GEAR_4 | LED_GEAR_2 | LED_GEAR_1);
+					P5OUT &= ~(LED_GEAR_4);
 					if(charge_flash_count == 0){
 						charge_flash_count = (CHARGE_FLASH_SPEED * 2);
 						P5OUT |= LED_GEAR_3;
@@ -273,13 +273,14 @@ int main( void )
 
 			// Control gear switch backlighting
 //			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
-				P5OUT |= LED_GEAR_BL;
+			P5OUT |= LED_GEAR_BL;	// DCK: Supplies power to charger and BMS isolated TX
 //			else P5OUT &= ~LED_GEAR_BL;
 			
 			// Control front panel fault indicator
 			// MVE: this is handled with EVENT_FAULT now
-//			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT)) P3OUT &= ~LED_REDn;
-//			else P3OUT |= LED_REDn;
+//			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT))
+//				LED_PORT &= ~LED_REDn;
+//			else LED_PORT |= LED_REDn;
 			
 
             if (chgr_events & CHGR_SOAKING) {
@@ -650,41 +651,33 @@ void io_init( void )
 	P2DIR = P2_UNUSED;
 
 //	P3OUT = CAN_CSn | EXPANSION_TXD | LED_REDn | LED_GREENn;
-	P3OUT = CAN_CSn | EXPANSION_TXD;
-	
+	P3OUT = CAN_CSn | CHARGER_TXD | BMS_TXD;
 //	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD | LED_REDn | LED_GREENn | P3_UNUSED;
-	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD	 					  | P3_UNUSED;
+	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | CHARGER_TXD | BMS_TXD | P3_UNUSED;
 	
 	P4OUT = LED_PWM;
 	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | P4_UNUSED;
 	
-	P5OUT = 0x00;
-	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
+//	P5OUT = 0x00;
+	P5OUT = LED_REDn | LED_GREENn;
+//	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
+	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_REDn | LED_GREENn | P5_UNUSED;
 	
 	P6OUT = 0x00;
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
 	
-	// Initialise charger and BMU UARTs
-	P3SEL = 0x30 + 0xC0;					// P3.4,5 = USCI_A0 TXD/RXD, P3.6,7 = USCI_A1 TXD/RXD
+	// Initialise charger and BMS UARTs
+	P3SEL |= CHARGER_TXD | CHARGER_RXD | BMS_TXD | BMS_RXD;// Set pins to peripheral function, not GPIO
 	UCA0CTL1 |= UCSSEL_2;					// SMCLK
-	UCA1CTL1 |= UCSSEL_2;
-	// From a baudrate calulator at http://mspgcc.sourceforge.net/cgi-bin/msp-uart.pl?clock=16000000&baud=2400&submit=calculate :
-	// (note: had to translate IO names):
-	// WRONG: this seems to be for OLDER MSP430 chips, without the oversampling capability
-//	UCA0BR0=0x0A; UCA0BR1=0x1A; UCA0MCTL=0x5B; /* uart0 16000000Hz 2399bps */
-//	UCA1BR0=0x0A; UCA1BR1=0x1A; UCA1MCTL=0x5B; /* uart1 16000000Hz 2399bps */
-											// 16,000 / 2.4 = 6666.67; with 16x oversampling -> 416.667
-	UCA0BR0=0xA0; UCA0BR1=0x01;				// Oversampling divider = 416 = 1*256 + $A0
-	UCA0MCTL=0xB1; 							// Takes care of the 0.667 part
-	// UCA1 9600 BPS 16,000 / 9.6 / 16 = 104.167 = 0x0068 and 0x31 takes care of the 0.167 part
-	UCA1BR0=0x68; UCA1BR1=0x00; UCA1MCTL=0x31;	// UCA1
-
+	UCA1CTL1 |= UCSSEL_2;					// SMCLK
+	// Baud rate charger 2400 b/s, 16000 / 2.4 / 16 = 416.667 = 0x01A0 with 0xB1 for the fractional part
+	UCA0BR1=0x01; UCA0BR0=0xA0; UCA0MCTL=0xB1;
+	// Baud rate BMS     9600 b/s, 16000 / 9.6 / 16 = 104.167 = 0x0068 with 0x31 for the fractional part
+	UCA1BR1=0x00; UCA1BR0=0x68; UCA1MCTL=0x31;
 	UCA0CTL1 &= ~UCSWRST;					// **Initialize USCI state machine**
 	UCA1CTL1 &= ~UCSWRST;
-	IE2 |= UCA0RXIE;						// Enable USCI_A0 RX interrupt
-	UC1IE |= UCA1RXIE;						// Also UCSI_A1
-	
-	
+	IE2 |= UCA0RXIE;						// Enable charger RX interrupt
+	UC1IE |= UCA1RXIE;						// Enable BMS RX interrupt
 }
 
 
@@ -712,10 +705,10 @@ void timerB_init( void )
 {
 	TBCTL = TBSSEL_2 | ID_3 | TBCLR;			// MCLK/8, clear TBR
 	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
-	TBCCR3 = 0;									// Gauge 3
-	TBCCTL3 = OUTMOD_7;
-		TBCCR4 = GAUGE_PWM_PERIOD/2;									// Gauge 4 // 50% duty cycle for testing
-	TBCCTL4 = OUTMOD_7;
+	TBCCR2 = 0;									// Gauge 3
+	TBCCTL2 = OUTMOD_7;
+	TBCCR1 = 0;									// Gauge 4
+	TBCCTL1 = OUTMOD_7;
 	P4SEL |= GAUGE_3_OUT | GAUGE_4_OUT;			// PWM -> output pins for fuel and temp gauges (tacho and power are software freq outputs)
 	TBCCTL0 = CCIE;								// Enable CCR0 interrupt
 	TBCTL |= MC_1;								// Set timer to 'up' count mode
@@ -787,11 +780,11 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 	}
 	if(events & EVENT_GAUGE3){
 		events &= ~EVENT_GAUGE3;
-		TBCCR3 = gauge.g3_duty;		
+		TBCCR2 = gauge.g3_duty;		
 	}
 	if(events & EVENT_GAUGE4){
 		events &= ~EVENT_GAUGE4;
-		TBCCR4 = gauge.g4_duty;		
+		TBCCR1 = gauge.g4_duty;		
 	}	
 }
 
