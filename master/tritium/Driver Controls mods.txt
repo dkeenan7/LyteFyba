@@ -1,4 +1,4 @@
-Here is the procedure for modifying Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins.
+Here is the procedure for modifying a Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins.
 
 Pin  Description
 ------------------------------
@@ -18,7 +18,7 @@ At the RXD inputs we change the existing 10k pullups to 1k5, to be pulled down b
 
 At the TXD outputs we change the existing 10k pullups to be 150R resistors in series with the outputs, for driving the LEDs of optocouplers or fibre-optic emitters.
 
-To change U13's (hex inverter's) power supply, and the power supply to its input pullups, from 13.8 V to 3.3 V:
+To change U13's (hex inverter's) power supply, and the power supply for its input pullups, from 13.8 V to 3.3 V:
 
 On the underside
 * Cut the 13.8 V track between the C25 via and the R32 via.
@@ -32,7 +32,7 @@ To switch the front-panel LEDS from port 3 to port 4:
 
 On the component side
 * Cut the two tracks from processor pins 34 & 35 to J3 (the front panel header). Cut them just on the front-panel side of the pin 33 via.
-* Grid some solder mask off the tracks on both sides of the cuts, but do it in a staggered manner so that no two bare copper patches are side by side.
+* Grind some solder mask off the tracks on both sides of the cuts, but do it in a staggered manner so that no two bare copper patches are side by side.
 * Wire from processor pin 42 to the track to the front-panel header pin 2 (was from proc pin 34.
 * Wire from processor pin 43 to the track to the front-panel header pin 3 (was from proc pin 35.
 
@@ -47,12 +47,12 @@ To connect the TXD outputs:
 * Cut the four tracks between the other ends of R36,R40,R55,R57 and their adjacent vias.
 * Remove R32,R36,R40,R44,R55,R57.
 * Replace R32,R44 with 1k5. These are (imperial) 0603 resistors but there is enough room to replace them with 0805s if care is taken.
-* Replace R36,R40,R55,R57 with 150R.
+* Replace R36,R40,R55,R57 with 150R. These are (imperial) 0603 resistors but there is enough room to replace them with 0805s if care is taken.
 * Wire from the proc pin 32 via to U13 pin 5.
 * Wire from the proc pin 34 track to U13 pin 13.
 * Wire from U13 pin 4 to the near end of R36.
-* Wire from U13 pin 3 to pin 6 and to the near end of R40.
+* Wire from U13 pin 6 to pin 3 and then to the near end of R40.
 * Wire from U13 pin 10 to the near end of R55.
-* Wire from U13 pin 11 to pin 12 and to the near end of R57.
+* Wire from U13 pin 11 to pin 12 and then to the near end of R57.
 
 -- Dave Keenan, 12-Jun-2011
