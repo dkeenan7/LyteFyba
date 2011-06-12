@@ -1,0 +1,58 @@
+Here is the procedure for modifying Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins.
+
+Pin  Description
+------------------------------
+  27 RXD0  (was Gear Switch 1)
+9    TXD0+ (was Gear Switch 2)
+  28 TXD0- (was Gear Switch 3)
+10   RXD1  (was Gear Switch 4)
+  29 TXD1+ (was Gear Switch 5)
+11   TXD1- (was Gear Switch 6)
+------------------------------
+
+The MSP430F247 processor pins for UART0 have already been reserved (pins 32 & 33), but to access UART1 (pins 34 & 35) we need to reassign the front-panel red and green LEDs to the unused pins 42 & 43.
+
+We make use of the inverters in the hex inverter U13 which are already connected to these DB37 pins, but we reverse the direction of four of them to become differential TXD output drivers.
+
+At the RXD inputs we change the existing 10k pullups to 1k5, to be pulled down by the phototransistors of optocouplers or fibre-optic receivers.
+
+At the TXD outputs we change the existing 10k pullups to be 150R resistors in series with the outputs, for driving the LEDs of optocouplers or fibre-optic emitters.
+
+To change U13's (hex inverter's) power supply, and the power supply to its input pullups, from 13.8 V to 3.3 V:
+
+On the underside
+* Cut the 13.8 V track between the C25 via and the R32 via.
+* Solder a wire-wrap wire from the R36 via to pin 2 (3.3 V) of J4 (the programming header). 
+
+To hold reverse gear inactive (so we can run the standard software):
+
+* Wire from the processor-pin-23-via nearest R46 to the nearby GND via. The GND via is difficult to solder due to the surrounding ground plane. Turn the temperature up on the soldering iron temporarily.
+
+To switch the front-panel LEDS from port 3 to port 4:
+
+On the component side
+* Cut the two tracks from processor pins 34 & 35 to J3 (the front panel header). Cut them just on the front-panel side of the pin 33 via.
+* Grid some solder mask off the tracks on both sides of the cuts, but do it in a staggered manner so that no two bare copper patches are side by side.
+* Wire from processor pin 42 to the track to the front-panel header pin 2 (was from proc pin 34.
+* Wire from processor pin 43 to the track to the front-panel header pin 3 (was from proc pin 35.
+
+To connect the RXD inputs:
+
+* Wire from the proc pin 33 via to the far end of R34 (or to U13 pin 2).
+* Wire from the proc pin 35 track to the far end of R46 (or to U13 pin 8).
+
+To connect the TXD outputs:
+
+* Cut the four tracks between U13 pins 3,5,11,13 and R36,R40,R55,R57.
+* Cut the four tracks between the other ends of R36,R40,R55,R57 and their adjacent vias.
+* Remove R32,R36,R40,R44,R55,R57.
+* Replace R32,R44 with 1k5. These are (imperial) 0603 resistors but there is enough room to replace them with 0805s if care is taken.
+* Replace R36,R40,R55,R57 with 150R.
+* Wire from the proc pin 32 via to U13 pin 5.
+* Wire from the proc pin 34 track to U13 pin 13.
+* Wire from U13 pin 4 to the near end of R36.
+* Wire from U13 pin 3 to pin 6 and to the near end of R40.
+* Wire from U13 pin 10 to the near end of R55.
+* Wire from U13 pin 11 to pin 12 and to the near end of R57.
+
+-- Dave Keenan, 12-Jun-2011
