@@ -45,7 +45,9 @@
 #define GAUGE_2_OUT			0x08
 #define GAUGE_1_OUT			0x10
 #define LED_PWM				0x20
-#define P4_UNUSED			0x40 | 0x80
+#define LED_REDn			0x40
+#define LED_GREENn			0x80
+//#define P4_UNUSED			0x40 | 0x80		// MVE: no longer unused
 
 // Port 5
 #define LED_FAULT_3			0x01
@@ -54,11 +56,11 @@
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10
 #define LED_GEAR_3			0x20
-#define LED_REDn			0x40
-#define LED_GREENn			0x80
+#define LED_GEAR_2			0x40
+#define LED_GEAR_1			0x80
 #define P5_UNUSED			0x00
 
-#define LED_GEAR_ALL		(LED_GEAR_4 | LED_GEAR_3)
+#define LED_GEAR_ALL		(LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1)
 
 // Port 6
 #define ANLG_V_ENABLE		0x01
@@ -81,7 +83,8 @@
 
 // Drive states
 #define MODE_OFF			0
-#define MODE_ON				1
+#define MODE_ON				1					// There currently is no MODE_ON: if get ignition from
+												//	MODE_OFF, go to MODE_N
 #define MODE_START			2
 #define MODE_R				3
 #define MODE_N				4
@@ -112,7 +115,7 @@
 #define EVENT_ACTIVITY		0x0100				// CAN controller or UART just transmitted a packet
 #define EVENT_REQ_SLEEP		0x0200				// Request sleep mode
 #define EVENT_FAULT			0x0400				// MVE: turn on fault light
-#define EVENT_CHARGER		0x0800				// MVE: talk to CAN charger
+#define EVENT_CHARGER		0x0800				// MVE: time to send voltage and current command to CAN charger
 #define EVENT_GAUGE1		0x1000				// Signal that gauge 1 has been recalculated and requires update
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update
@@ -128,6 +131,7 @@
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
 #define	BMU_REC				0x0002				// We have received a response from the BMU string
 #define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
+#define BMU_MINMAX			0x0008				// Time to send a voltage reading to get cell min and max
 
 // Charger constants
 //#define NUMBER_OF_CELLS	60
@@ -139,6 +143,9 @@
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger
+
+// BMU constants
+#define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm

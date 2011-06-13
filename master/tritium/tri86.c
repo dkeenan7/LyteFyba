@@ -28,12 +28,18 @@
 #include "usci.h"
 #include "pedal.h"
 #include "gauge.h"
-#include <stdio.h>			// For sprintf
+
+#ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
+#define __inline__								//	press F7, and so that "go to definition of X" works better
+#define __volatile__
+#define interrupt(x) void
+void eint();
+void dint();
+#endif
 
 #define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
-#define ASSUME_IGN_ON		1					// MVE: if on, assumes ignition key is on
-#define LED_PORT			P5OUT				// MVE: modified DCU; uses port 3 for UART, port 5 for
-												// GREENn and REDn LEDs
+#define LED_PORT			P4OUT				// MVE: modified DCU; uses port 3 for UART, port 4 for
+												//	GREENn and REDn LEDs
 
 // Macro needed to swap from little to big endian for 16-bit charger quantities:
 #define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
@@ -78,12 +84,37 @@ volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" pa
 volatile unsigned char chgr_txidx = 0;	// Index into the charger transmit buffer
 volatile unsigned char chgr_rxidx = 0;	// Index into the charger receive buffer
 
-// BMU buffers
+// BMU buffers and variables
 		 unsigned char bmu_txbuf[64];	// Buffer for a transmitted BMU command
 volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
 volatile unsigned char bmu_txidx = 0;	// Index into the BMU transmit buffer
 volatile unsigned char bmu_rxidx = 0;	// Index into the BMU  receive buffer
+volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
+volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
+volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
+volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 
+void fault() {
+	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
+}
+
+void makeVoltCmd(unsigned char* cmd, int bmu_curr_cell)
+{
+	unsigned char* p; p = cmd;
+	int n = bmu_curr_cell;
+	int h = n / 100;
+	if (h) {
+		*p++ = h + '0';
+		n -= h * 100;
+	}
+	int t = n / 10;
+	if (t) {
+		*p++ = t + '0';
+		n -= t * 10;
+	}
+	*p++ = n + '0';
+	*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
+}
 
 // Main routine
 int main( void )
@@ -102,7 +133,7 @@ int main( void )
 	// Charger end-of-charge test
 	signed	 int first_bmu_in_bypass = -1;
 	// Current cell in the current end-of-charge test (send voltage request to this cell next)
-	unsigned int chgr_curr_cell = 1;			// ID of BMU to send to next
+	unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -177,6 +208,12 @@ int main( void )
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
 			
+			// Handle transitions
+			if ((switches_diff & SW_FUEL) && (switches & SW_FUEL)) {
+				// The fuel door has come on since last time we looked. Kick off a voltage request
+				bmu_events |= BMU_MINMAX;
+			}
+			
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
@@ -184,17 +221,22 @@ int main( void )
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
 					break;
-				case MODE_N:
+				case MODE_N:						// MVE: we get here briefly when the fuel door closes, and a few other cases
+													// With the 
+#if 0
 					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
+					else
+#endif
+						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
-					else next_state = MODE_N;
+//					else next_state = MODE_N;
+					else next_state = MODE_D;			// Always proceed to MODE_D unless ignition is off or fuel door is open
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_3;
 					break;
-				case MODE_R:
+				case MODE_R:							// MVE: we never get here now
 					if(switches & SW_MODE_N) next_state = MODE_N;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
@@ -212,17 +254,20 @@ int main( void )
 					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
-					// P5OUT |= LED_GEAR_2;
+					P5OUT |= LED_GEAR_2;
 					break;
 				case MODE_D:
+#if 0
 					if(switches & SW_MODE_N) next_state = MODE_N;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
+					else
+#endif
+						if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
-					// P5OUT |= LED_GEAR_1;
+					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
 					if(!(switches & SW_FUEL)) next_state = MODE_N;
@@ -373,34 +418,31 @@ int main( void )
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
 			if (bmu_badness > 0x80)					// Simple algorithm:
-				chgr_current = 9 - CHGR_CURR_DELTA;	// On any badness, cut back to 0.9 A
+				chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
+																	// what the BMUs can bypass
 			if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
 				// Send a voltage check for the current cell
-				unsigned char cmd[8]; unsigned char* p; p = cmd;
-//				sprintf(cmd, "%dsv\r", chgr_curr_cell);		// FIXME: send checksum
+//				sprintf(cmd, "%dsv\r", bmu_curr_cell);		// FIXME: send checksum
 				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
-				int n = chgr_curr_cell;
-				int h = n / 100;
-				if (h) {
-					*p++ = h + '0';
-					n -= h * 100;
-				}
-				int t = n / 10;
-				if (t) {
-					*p++ = t + '0';
-					n -= t * 10;
-				}
-				*p++ = n + '0';
-				*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
-					
+				unsigned char cmd[8]; 
+				makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
 				bmu_transmit(cmd);
-				++chgr_curr_cell;
-				if (chgr_curr_cell > NUMBER_OF_CELLS)
-					chgr_curr_cell = 1;
+				++bmu_curr_cell;
+				if (bmu_curr_cell > NUMBER_OF_CELLS)
+					bmu_curr_cell = 1;
 			}
+		}
+		
+		// Send voltage request if required for min/max while driving
+		if (bmu_events & BMU_MINMAX) {
+			bmu_events &= ~BMU_MINMAX;
+			unsigned char cmd[8]; 
+			makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
+			bmu_transmit(cmd);
 		}
 
 		// MVE: send packets to charger
+		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
@@ -476,26 +518,58 @@ int main( void )
 #endif
 							(bmu_rxbuf[6] - '0') * 10 +
 							(bmu_rxbuf[7] - '0');
-						if (rxvolts < 359)
-							// This cell is not bypassing. So the string of cells known to be in bypass
-							// is zero length. Flag this
-							first_bmu_in_bypass = -1;
-						else {
-							// This cell is in bypass. Check if the first bmu in bypass is the next one
-							int next_bmu_id = bmu_id+1;
-							if (next_bmu_id > NUMBER_OF_CELLS)
-								next_bmu_id = 1;
-							if (next_bmu_id == first_bmu_in_bypass) {
-								// We have detected all cells in bypass. Now we enter the soak phase
-								// The idea is to allow the last cell to have gone into bypass some
-								// time to stay at that level and balance with the others
-								chgr_events |= CHGR_SOAKING;
-							}
+						// We expect voltage responses during charging and driving; split the logic here
+						if (command.state & MODE_CHARGE) {
+							if (rxvolts < 359)
+								// This cell is not bypassing. So the string of cells known to be in bypass
+								// is zero length. Flag this
+								first_bmu_in_bypass = -1;
 							else {
-								if (first_bmu_in_bypass == -1)
-								// This cell is in bypass; we must be starting a new string of bypassed BMUs
-								first_bmu_in_bypass = bmu_id;
+								// This cell is in bypass. Check if the first bmu in bypass is the next one
+								int next_bmu_id = bmu_id+1;
+								if (next_bmu_id > NUMBER_OF_CELLS)
+									next_bmu_id = 1;
+								if (next_bmu_id == first_bmu_in_bypass) {
+									// We have detected all cells in bypass. Now we enter the soak phase
+									// The idea is to allow the last cell to have gone into bypass some
+									// time to stay at that level and balance with the others
+									chgr_events |= CHGR_SOAKING;
+								}
+								else {
+									if (first_bmu_in_bypass == -1)
+									// This cell is in bypass; we must be starting a new string of bypassed BMUs
+									first_bmu_in_bypass = bmu_id;
+								}
 							}
+						} else {
+							// Not charging: driving. We use the voltage measurements to find the min and
+							//	max cell voltages
+							if (rxvolts < bmu_min_mV) {
+								bmu_min_mV = rxvolts;
+								bmu_min_id = bmu_id;
+							}
+							if (rxvolts > bmu_max_mV) {
+								bmu_max_mV = rxvolts;
+								bmu_max_id = bmu_id;
+							}
+							if (bmu_id >= NUMBER_OF_CELLS) {
+								// We have the min and max information. Send a CAN packet so the telemetry
+								//	software can display them. Use CAN id 0x266, as the IQcell BMS would
+								can.address = 0x266;
+								can.data.data_u16[0] = bmu_min_mV;
+								can.data.data_u16[1] = bmu_max_mV;
+								can.data.data_u16[2] = bmu_min_id;
+								can.data.data_u16[3] = bmu_max_id;
+								can_transmit();
+
+								// Reset the min/max data
+								bmu_min_mV = 9999;	bmu_max_mV = 0;
+								bmu_min_id = 0;		bmu_max_id = 0;
+							}
+							// Move to the next BMU
+							if (++bmu_curr_cell >= NUMBER_OF_CELLS)
+								bmu_curr_cell = 1;
+							bmu_events |= BMU_MINMAX;			// Schedule another voltage request
 						}
 				}
 			}
@@ -581,13 +655,13 @@ int main( void )
 						break;
 				}
 			}
-			if(can.status == CAN_ERROR){
-				if(can.address == 0x0002){
+			if (can.status == CAN_ERROR) {
+				if (can.address == 0x0002) {
 					// Wake up CAN controller
 					can_wake();
 				}
 				// Comment out for now: will always get CAN errors
-				//events |= EVENT_FAULT;		// MVE: see the CAN error in fault light
+				// fault();		// MVE: see the CAN error in fault light
 			}
 		}
 		
@@ -611,11 +685,13 @@ int main( void )
  */
 static void __inline__ brief_pause(register unsigned int n)
 {
+#ifndef __ICC430__
     __asm__ __volatile__ (
 		"1: \n"
 		" dec	%[n] \n"
 		" jne	1b \n"
         : [n] "+r"(n));
+#endif
 }
 
 /*
@@ -655,13 +731,11 @@ void io_init( void )
 //	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD | LED_REDn | LED_GREENn | P3_UNUSED;
 	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | CHARGER_TXD | BMS_TXD | P3_UNUSED;
 	
-	P4OUT = LED_PWM;
-	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | P4_UNUSED;
+	P4OUT = LED_PWM | LED_REDn | LED_GREENn;
+	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | LED_REDn | LED_GREENn;
 	
-//	P5OUT = 0x00;
-	P5OUT = LED_REDn | LED_GREENn;
-//	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
-	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_REDn | LED_GREENn | P5_UNUSED;
+	P5OUT = 0x00;
+	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
 	
 	P6OUT = 0x00;
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
@@ -814,7 +888,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	}
 
 	// MVE: Trigger charger events (command packet transmission)
-	if( --charger_count == 0 ){
+	if((command.state & MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
@@ -822,7 +896,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if (chgr_events & CHGR_SENT) {
 		if (--chgr_sent_timeout < 0)
 		{
-			events |= EVENT_FAULT;
+			fault();				// Turn on fault LED (eventually)
 			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
 		}
 	}
@@ -866,15 +940,11 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	old_switches = *state;
 
 	// Import switches into register
-#if !ASSUME_IGN_ON
-	if(P2IN & IN_GEAR_4)
-#endif
-		*state |= SW_MODE_R;
-#if !ASSUME_IGN_ON
-	else
-		*state &= ~SW_MODE_R;
-#endif
 
+#if 0
+	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
+	else *state &= ~SW_MODE_R;
+	
 	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;
 	else *state &= ~SW_MODE_N;
 
@@ -883,6 +953,7 @@ void update_switches( unsigned int *state, unsigned int *difference)
 
 	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;
 	else *state &= ~SW_MODE_D;
+#endif
 	
 	if(P1IN & IN_IGN_ACCn) *state &= ~SW_IGN_ACC;
 	else *state |= SW_IGN_ACC;
