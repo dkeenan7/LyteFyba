@@ -35,6 +35,15 @@
 #include <signal.h>			// For interrupt() macro
 #include <string.h>			// For memcpy()
 
+#ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly
+#define __inline__								//	in case press F7, and so definitions might work
+#define __volatile__
+#define interrupt(x) void
+void eint();
+void dint();
+#endif
+
+
 /*
  * Initialise SPI port
  * 	- Master, 8 bits, mode 0:0, max speed, 3 wire
