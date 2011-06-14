@@ -556,6 +556,7 @@ int main( void )
 								// We have the min and max information. Send a CAN packet so the telemetry
 								//	software can display them. Use CAN id 0x266, as the IQcell BMS would
 								can.address = 0x266;
+								can.address_ext = 0;
 								can.data.data_u16[0] = bmu_min_mV;
 								can.data.data_u16[1] = bmu_max_mV;
 								can.data.data_u16[2] = bmu_min_id;
@@ -616,7 +617,7 @@ int main( void )
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
-					case EL_CAN_ID_H:
+					case EL_CAN_ID_H:		// MVE: shouldn't this be EL_CAN_ID_L?
 						// MVE: update some globals with charger info
 						charger_volt = can.data.data_u16[0];
 						charger_curr = can.data.data_u16[1];
