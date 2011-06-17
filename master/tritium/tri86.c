@@ -375,21 +375,21 @@ int main( void )
 
 				// Transmit drive command frame
 				can.address = DC_CAN_BASE + DC_DRIVE;
-				can.address_ext = 0;
+//				can.address_ext = 0;
 				can.data.data_fp[1] = command.current;
 				can.data.data_fp[0] = command.rpm;
-				can_transmit();		
+				can_transmit();	
 	
 				// Transmit bus command frame
 				can.address = DC_CAN_BASE + DC_POWER;
-				can.address_ext = 0;
+//				can.address_ext = 0;
 				can.data.data_fp[1] = command.bus_current;
 				can.data.data_fp[0] = 0.0;
 				can_transmit();
 				
 				// Transmit switch position/activity frame and clear switch differences variables
 				can.address = DC_CAN_BASE + DC_SWITCH;
-				can.address_ext = 0;
+//				can.address_ext = 0;
 				can.data.data_u8[7] = command.state;
 				can.data.data_u8[6] = command.flags;
 				can.data.data_u16[2] = 0;
@@ -402,7 +402,7 @@ int main( void )
 				if(comms_event_count == 10){
 					comms_event_count = 0;
 					can.address = DC_CAN_BASE;
-					can.address_ext = 0;
+//					can.address_ext = 0;
 					can.data.data_u8[7] = 'T';
 					can.data.data_u8[6] = '0';
 					can.data.data_u8[5] = '8';
@@ -413,7 +413,7 @@ int main( void )
 			}
 		}
 			
-
+/* DCK: temporary
 		// Process badness events before sending charger packets
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
@@ -432,6 +432,7 @@ int main( void )
 					bmu_curr_cell = 1;
 			}
 		}
+*/
 		
 		// Send voltage request if required for min/max while driving
 		if (bmu_events & BMU_MINMAX) {
@@ -441,6 +442,7 @@ int main( void )
 			bmu_transmit(cmd);
 		}
 
+		/*		DCK: temporary
 		// MVE: send packets to charger
 		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {
@@ -449,7 +451,7 @@ int main( void )
 #if 0
 			// Charger is on the CAN bus
 			can.address = 0x1806;					// Charger is expecting 1806E5F4
-			can.address_ext = 0xE5F4;
+//			can.address_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
 			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
@@ -480,7 +482,8 @@ int main( void )
 			chgr_rxidx = 0;			// Expect receive packet in response
 #endif
 		}
-		
+*/
+
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
 			// Do something with the packet
@@ -520,6 +523,7 @@ int main( void )
 							(bmu_rxbuf[7] - '0');
 						// We expect voltage responses during charging and driving; split the logic here
 						if (command.state & MODE_CHARGE) {
+						  /* DCK: temporary
 							if (rxvolts < 359)
 								// This cell is not bypassing. So the string of cells known to be in bypass
 								// is zero length. Flag this
@@ -541,6 +545,7 @@ int main( void )
 									first_bmu_in_bypass = bmu_id;
 								}
 							}
+*/
 						} else {
 							// Not charging: driving. We use the voltage measurements to find the min and
 							//	max cell voltages
@@ -556,7 +561,7 @@ int main( void )
 								// We have the min and max information. Send a CAN packet so the telemetry
 								//	software can display them. Use CAN id 0x266, as the IQcell BMS would
 								can.address = 0x266;
-								can.address_ext = 0;
+//								can.address_ext = 0;
 								can.data.data_u16[0] = bmu_min_mV;
 								can.data.data_u16[1] = bmu_max_mV;
 								can.data.data_u16[2] = bmu_min_id;
@@ -575,7 +580,6 @@ int main( void )
 				}
 			}
 		}
-
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -596,7 +600,7 @@ int main( void )
 						else events &= ~EVENT_REVERSE;
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= ~EVENT_SLOW;
-						motor_rpm = can.data.data_fp[1];
+						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s
 						gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
@@ -617,13 +621,13 @@ int main( void )
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
-					case EL_CAN_ID_H:		// MVE: shouldn't this be EL_CAN_ID_L?
+/*					case EL_CAN_ID_H:		// MVE: shouldn't this be EL_CAN_ID_L?
 						// MVE: update some globals with charger info
 						charger_volt = can.data.data_u16[0];
 						charger_curr = can.data.data_u16[1];
 						charger_status = can.data.data_u8[4];
 						break;
-				}
+*/				}
 			}
 			if(can.status == CAN_RTR){
 				// Remote request packet received - reply to it
@@ -887,7 +891,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		comms_count = COMMS_SPEED;
 		events |= EVENT_COMMS;
 	}
-
+/* DCK: temporary
 	// MVE: Trigger charger events (command packet transmission)
 	if((command.state & MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
@@ -901,7 +905,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
 		}
 	}
-	
+*/
 
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){

@@ -2,21 +2,21 @@
  * Tritium MCP2515 CAN Interface
  * Copyright (c) 2010, Tritium Pty Ltd.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without modification,
+ * Redistribution and use in source and binary forms, with or without modification, 
  * are permitted provided that the following conditions are met:
  *  - Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
+ *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
  *	  in the documentation and/or other materials provided with the distribution.
- *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products
+ *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products 
  *	  derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
  * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
- * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
- * OF SUCH DAMAGE.
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
+ * OF SUCH DAMAGE. 
  *
  * - Implements the following CAN interface functions
  *	- can_init
@@ -66,21 +66,9 @@ void can_init( void )
 	can_mod( CANCTRL, 0x03, 0x00 );			// CANCTRL register, modify lower 2 bits, CLK = /1 = 16 MHz
 	
 	// Set up bit timing & interrupts
-// Bit 7 = SOF (1 = clock out for clock not SOF)
-// Bit 6 = WAKFIL (1 = wake filter enabled)
-// Bits 5-3 unused
-// Bits 2-0: PHSEG2 (1 less than number of Tqs in phase segment 2)
 	buffer[0] = 0x45;						// CNF3 register: PHSEG2 = 6Tq, Wakeup filter, CLKOUT = CLK
-// Bit 7 = BLTMODE (1 = use PHSEG2 setting)
-// Bit 6 = SAM (1 = sample 3 times)
-// Bits 5-3 = PHSEG1 (1 less than Tqs in phase segment 1)
-// Bits 2-0 = PRSEG (1 less than Tqs in propagation segment)
 	buffer[1] = 0xF8;						// CNF2 register: set PHSEG2 in CNF3, Triple sample, PHSEG1= 8Tq, PROP = 1Tq
-// Bits 7-6 are SJW (less 1); sets the Synchronisation Jump Width (can safely be set to 0 for crystal oscillators)
-// Bits 5-0 are BRP, which is 1 less than the prescaler from oscillator clock to Tq. Set to 0 for 500k bps, to 1 for 250k pbs
-	buffer[2] = 0x00;						// CNF1 register: SJW = 1Tq, BRP = 0 (500k bps)
-//	buffer[2] = 0x01;						// CNF1 register: SJW = 1Tq, BRP = 1 (250k bps)
-
+	buffer[2] = 0x00;						// CNF1 register: SJW = 1Tq, BRP = 0
 	buffer[3] = 0x63;						// CANINTE register: enable WAKE, ERROR, RX0 & RX1 interrupts on IRQ pin
 	buffer[4] = 0x00;						// CANINTF register: clear all IRQ flags
 	buffer[5] = 0x00;						// EFLG register: clear all user-changable error flags
@@ -93,11 +81,10 @@ void can_init( void )
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
 	// RXF1 - Buffer 0
-	buffer[ 4] = (unsigned char)(EL_CAN_ID_H >> (2+3));	// Skip 2 extended bits and SID 0-2
-	// Want SID2 SID1 SID0 0 EXIDE=1 0 EID17 EID16:
-	buffer[ 5] = (unsigned char)(((EL_CAN_ID_H << 3) & 0xE0) | 8 | (EL_CAN_ID_H  & 3));
-	buffer[ 6] = (unsigned char)(EL_CAN_ID_L >>  8);
-	buffer[ 7] = (unsigned char)(EL_CAN_ID_L);
+	buffer[ 4] = 0x00;
+	buffer[ 5] = 0x00;
+	buffer[ 6] = 0x00;
+	buffer[ 7] = 0x00;
 	// RXF2 - Buffer 1
 	buffer[ 8] = (unsigned char)(MC_CAN_BASE >> 3);
 	buffer[ 9] = (unsigned char)(MC_CAN_BASE << 5);
@@ -163,7 +150,6 @@ void can_receive( void )
 		// Return error code, a blank address field, and error registers in data field
 		can.status = CAN_ERROR;
 		can.address = 0x0000;
-		can.address_ext = 0;				// MVE
 		can.data.data_u8[0] = flags;		// CANINTF
 		can.data.data_u8[1] = buffer[0];	// EFLG
 		can.data.data_u8[2] = buffer[1];	// TEC
@@ -196,17 +182,10 @@ void can_receive( void )
 			can.status = CAN_RTR;
 		}
 		// Fill in the address
-		if (buffer[2] & 0x8)				// MVE: check the EXIDE bit
-		{
-			can.address = buffer[1] << 5;			// MVE: make room for 5 more bits (total 13)
-			can.address |= buffer[2] & 0x3;			// IED17 and EID16
-			can.address |= (buffer[2] >> 3) & 0x1c;	// SID 2-0
-			can.address_ext = (buffer[3] << 8) | buffer[4];	// lsbs
-		} else {
-			can.address = buffer[1] << 3;	// 8 msbs
-			can.address |= buffer[2] >> 5;	// 3 lsbs are in top 3 bits of buffer
-			can.address_ext = 0;
-		}
+		can.address = buffer[1];
+		can.address = can.address << 3;
+		buffer[2] = buffer[2] >> 5;
+		can.address = can.address | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB0, 0x00 );
 	}
@@ -236,17 +215,9 @@ void can_receive( void )
 		}
 		// Fill in the address
 		can.address = buffer[1];
-		if (buffer[2] & 0x8)				// MVE: check the EXIDE bit
-		{
-			can.address = buffer[1] << 5;			// MVE: make room for 5 more bits (total 13)
-			can.address |= buffer[2] & 0x3;			// IED17 and EID16
-			can.address |= (buffer[2] >> 3) & 0x1c;	// SID 2-0
-			can.address_ext = (buffer[3] << 8) | buffer[4];	// lsbs
-		} else {
-			can.address = buffer[1] << 3;	// 8 msbs
-			can.address |= buffer[2] >> 5;	// 3 lsbs are in top 3 bits of buffer
-			can.address_ext = 0;
-		}
+		can.address = can.address << 3;
+		buffer[2] = buffer[2] >> 5;
+		can.address = can.address | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB1, 0x00 );
 	}
@@ -277,9 +248,6 @@ void can_receive( void )
  */
 char can_transmit( void )
 {
-	// MVE: these operate on only the 11 bits of a standard address, or the 13 MSBs of an extended address
-	// The chances of collision are miniscule (i.e. the upper 11 bits of an extended address colliding with
-	// some standard 11-bit address)
 	static unsigned int buf_addr[3] = {0xFFFF, 0xFFFF, 0xFFFF};
 	
 	// Check for busy mailboxes
@@ -320,16 +288,10 @@ char can_transmit( void )
 		else{
 			// No matches in existing mailboxes
 			// No mailboxes already configured, so we'll need to load an address - set it up
-			if (can.address_ext) {					// MVE set extended bits
-				buffer[0] = (unsigned char)(can.address >> 5);	// MVE: 8 MSBs
-				// MVE: set EXIDE bit and bits 4-2, and fill in EID16, EID17 with bits 1 and 0
-				buffer[1] = (unsigned char) (8 | ((can.address & 0x1c) << 3) | (can.address & 3));	
-			} else {
-				buffer[0] = (unsigned char)(can.address >> 3);	// Bits 10-3
-				buffer[1] = (unsigned char)(can.address << 5);	// Bits 2-0
-			}
-			buffer[2] = can.address_ext >> 8;		// EID8
-			buffer[3] = can.address_ext & 0xFF;		// EID0
+			buffer[0] = (unsigned char)(can.address >> 3);
+			buffer[1] = (unsigned char)(can.address << 5);
+			buffer[2] = 0x00;						// EID8
+			buffer[3] = 0x00;						// EID0
 			buffer[4] = 0x08;						// DLC = 8 bytes
 			
 			// Check if we've got any un-setup mailboxes free and use them
@@ -400,7 +362,7 @@ void can_abort_transmit( void )
  */
 void can_sleep( void )
 {
-	unsigned char status = 0;
+	unsigned char status;
 	
 	// Switch to sleep mode
 	can_mod( CANCTRL, 0xE0, 0x20 );			// CANCTRL register, modify upper 3 bits, mode = Sleep
@@ -438,7 +400,7 @@ void can_reset( void )
 	usci_transmit( MCP_RESET );
 	can_deselect;
 }
-
+ 
 /*
  * Reads data bytes from the MCP2515
  *	- Pass in starting address, pointer to array of bytes for return data, and number of bytes to read
@@ -578,7 +540,7 @@ unsigned char can_read_filter( void )
 	can_deselect;
 	return status;
 }
-
+ 
 /*
  * Modifies selected register in MCP2515
  *	- Pass in register to be modified, bit mask, and bit data
