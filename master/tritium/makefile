@@ -4,7 +4,7 @@ OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o
 CPU             = msp430x247
 
 ASFLAGS         = -mmcu=${CPU} -x assembler-with-cpp -D_GNU_ASSEMBLER_ -c
-CFLAGS         = -mmcu=${CPU} -Wall -g -O2
+CFLAGS          = -mmcu=${CPU} -Wall -g -O2
 #CFLAGS          = -mmcu=${CPU} -Wall -g -O0
 
 #switch the compiler (for the internal make rules)

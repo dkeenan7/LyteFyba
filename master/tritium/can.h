@@ -38,10 +38,8 @@ extern void 			can_wake( void );
 // Public variables
 typedef struct _can_variables {
 	unsigned int		status;
-	unsigned int 		address;			// 11 bits of address. MVE: or 13 MSB of address
+	unsigned int 		address;
 	group_64			data;
-	unsigned int		address_ext;		// MVE: 16 bits of extended address. NB: another 2 bits are in address
-											// address_ext must be 0 for non-extended addresses
 } can_variables;
 
 extern can_variables	can;
@@ -85,17 +83,11 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define DC_RESET		0x03
 #define DC_SWITCH		0x05
 
-// Elcon charger CAN base (and only) address
-#define EL_CAN_ID_H		0x18FF		// MSBits of the Elcon charger CAN address
-#define EL_CAN_ID_L		0x50E5		// LSBits of the Elcon charger CAN address
-#define BM_CAN_ID_H		0x1806		// MSBits of the Elcon expected BMS address
-#define BM_CAN_ID_L		0xE5F4		// LSBits of the Elcon expected BMS address
-
 // Driver controls switch position packet bitfield positions (lower 16 bits)
-#define SW_MODE_R		0x0001		// MVE: With our mods, this is always off
-#define SW_MODE_N		0x0002		// MVE: we ignore 
-#define SW_MODE_B		0x0004		// MVE: we ignore
-#define SW_MODE_D		0x0008		// MVE: We ignore this switch; with our mods, it changes with charger RXD
+#define SW_MODE_R		0x0001
+#define SW_MODE_N		0x0002
+#define SW_MODE_B		0x0004
+#define SW_MODE_D		0x0008
 #define SW_IGN_ACC		0x0010
 #define SW_IGN_ON		0x0020
 #define SW_IGN_START	0x0040
