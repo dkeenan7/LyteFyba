@@ -54,8 +54,8 @@ unsigned char 			buffer[16];
  *		- Rx Filter 3 = Unused
  *		- Rx Filter 4 = Unused
  *		- Rx Filter 5 = Unused
- *		- Rx Mask 0   = Block address must match (upper 6 bits)
- *		- Rx Mask 1   = Block address must match (upper 6 bits)
+ *		- Rx Mask 0   = Block identifier must match (upper 6 bits)
+ *		- Rx Mask 1   = Block identifier must match (upper 6 bits)
  *	- Enables ERROR and RX interrupts on IRQ pin
  *	- Switches to normal (operating) mode
  */
@@ -110,12 +110,12 @@ void can_init( void )
 	can_write( RXF3SIDH, &buffer[0], 12 );
 
 	// RXM0 - Buffer 0
-	buffer[ 0] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block address)
+	buffer[ 0] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block identifier)
 	buffer[ 1] = 0x00;
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
 	// RXM1 - Buffer 1
-	buffer[ 4] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block address)
+	buffer[ 4] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block identifier)
 	buffer[ 5] = 0x00;
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
@@ -130,7 +130,7 @@ void can_init( void )
  *	- Run this routine when an IRQ is received
  *	- Query the controller to identify the source of the IRQ
  *		- If it was an ERROR IRQ, read & clear the Error Flag register, and return it
- *		- If it was an RX IRQ, read the message and address, and return them
+ *		- If it was an RX IRQ, read the message and identifier, and return them
  *		- If both, handle the error preferentially to the message
  *	- Clear the appropriate IRQ flag bits
  */
@@ -147,9 +147,9 @@ void can_receive( void )
 		can_read( TEC, &buffer[1], 2 );
 		// Clear error flags
 		can_mod( EFLAG, buffer[0], 0x00 );	// Modify (to '0') all bits that were set
-		// Return error code, a blank address field, and error registers in data field
+		// Return error code, a blank identifier field, and error registers in data field
 		can.status = CAN_ERROR;
-		can.address = 0x0000;
+		can.identifier = 0x0000;
 		can.data.data_u8[0] = flags;		// CANINTF
 		can.data.data_u8[1] = buffer[0];	// EFLG
 		can.data.data_u8[2] = buffer[1];	// TEC
@@ -159,7 +159,7 @@ void can_receive( void )
 	}	
 	// No error, check for received messages, buffer 0
 	else if(( flags & MCP_IRQ_RXB0 ) != 0x00 ){
-		// Read in the info, address & message data
+		// Read in the info, identifier & message data
 		can_read( RXB0CTRL, &buffer[0], 14 );
 		// Fill out return structure
 		// check for Remote Frame requests and indicate the status correctly
@@ -181,17 +181,17 @@ void can_receive( void )
 			// Data is irrelevant with an RTR
 			can.status = CAN_RTR;
 		}
-		// Fill in the address
-		can.address = buffer[1];
-		can.address = can.address << 3;
+		// Fill in the identifier
+		can.identifier = buffer[1];
+		can.identifier = can.identifier << 3;
 		buffer[2] = buffer[2] >> 5;
-		can.address = can.address | buffer[2];
+		can.identifier = can.identifier | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB0, 0x00 );
 	}
 	// No error, check for received messages, buffer 1
 	else if(( flags & MCP_IRQ_RXB1 ) != 0x00 ){
-		// Read in the info, address & message data
+		// Read in the info, identifier & message data
 		can_read( RXB1CTRL, &buffer[0], 14 );
 		// Fill out return structure
 		// check for Remote Frame requests and indicate the status correctly
@@ -213,11 +213,11 @@ void can_receive( void )
 			// Data is irrelevant with an RTR
 			can.status = CAN_RTR;
 		}
-		// Fill in the address
-		can.address = buffer[1];
-		can.address = can.address << 3;
+		// Fill in the identifier
+		can.identifier = buffer[1];
+		can.identifier = can.identifier << 3;
 		buffer[2] = buffer[2] >> 5;
-		can.address = can.address | buffer[2];
+		can.identifier = can.identifier | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB1, 0x00 );
 	}
@@ -227,23 +227,23 @@ void can_receive( void )
 		can_mod( CANINTF, MCP_IRQ_WAKE, 0x00 );
 		// Signal the event
 		can.status = CAN_ERROR;
-		can.address = 0x0002;
+		can.identifier = 0x0002;
 	}
 	// Else, spurious interrupt, signal an error
 	else{
 		can.status = CAN_ERROR;
-		can.address = 0x0001;
+		can.identifier = 0x0001;
 		can.data.data_u8[0] = flags;		// CANINTF
 	}
 }
 
 /*
  * Transmits a CAN message to the bus
- *	- Accepts address and data payload via can_interface structure
+ *	- Accepts identifier and data payload via can_interface structure
  *	- Checks if any mailboxes are free, if not, returns -1 without transmitting packet
  *	- Busy waits while message is sent to CAN controller
  *	- Uses all available transmit buffers (3 available in CAN controller) to maximise throughput
- *	- Only modifies address information if it's different from what is already set up in CAN controller
+ *	- Only modifies identifier information if it's different from what is already set up in CAN controller
  *	- Assumes constant 8-byte data length value
  */
 char can_transmit( void )
@@ -255,8 +255,8 @@ char can_transmit( void )
 //		return(-1);
 //	}
 //	else{
-		// Fill data into buffer, it's used by any address
-		// Allow room at the start of the buffer for the address info if needed
+		// Fill data into buffer, it's used by any identifier
+		// Allow room at the start of the buffer for the identifier info if needed
 		buffer[ 5] = can.data.data_u8[0];
 		buffer[ 6] = can.data.data_u8[1];
 		buffer[ 7] = can.data.data_u8[2];
@@ -266,20 +266,20 @@ char can_transmit( void )
 		buffer[11] = can.data.data_u8[6];
 		buffer[12] = can.data.data_u8[7];
 
-		// Check if the incoming address has already been configured in a mailbox
-		if( can.address == buf_addr[0] ){
+		// Check if the incoming identifier has already been configured in a mailbox
+		if( can.identifier == buf_addr[0] ){
 			// Mailbox 0 setup matches our new message
 			// Write to TX Buffer 0, start at data registers, and initiate transmission
 			can_write_tx( 0x01, &buffer[5] );		
 			can_rts( 0 );
 		}
-		else if( can.address == buf_addr[1] ){
+		else if( can.identifier == buf_addr[1] ){
 			// Mailbox 1 setup matches our new message
 			// Write to TX Buffer 1, start at data registers, and initiate transmission
 			can_write_tx( 0x03, &buffer[5] );		
 			can_rts( 1 );
 		}
-		else if( can.address == buf_addr[2] ){
+		else if( can.identifier == buf_addr[2] ){
 			// Mailbox 2 setup matches our new message
 			// Write to TX Buffer 2, start at data registers, and initiate transmission
 			can_write_tx( 0x05, &buffer[5] );		
@@ -287,32 +287,32 @@ char can_transmit( void )
 		}
 		else{
 			// No matches in existing mailboxes
-			// No mailboxes already configured, so we'll need to load an address - set it up
-			buffer[0] = (unsigned char)(can.address >> 3);
-			buffer[1] = (unsigned char)(can.address << 5);
+			// No mailboxes already configured, so we'll need to load an identifier - set it up
+			buffer[0] = (unsigned char)(can.identifier >> 3);
+			buffer[1] = (unsigned char)(can.identifier << 5);
 			buffer[2] = 0x00;						// EID8
 			buffer[3] = 0x00;						// EID0
 			buffer[4] = 0x08;						// DLC = 8 bytes
 			
 			// Check if we've got any un-setup mailboxes free and use them
-			// Otherwise, find a non-busy mailbox and set it up with our new address
+			// Otherwise, find a non-busy mailbox and set it up with our new identifier
 			if( buf_addr[0] == 0xFFFF ){			// Mailbox 0 is free
-				// Write to TX Buffer 0, start at address registers, and initiate transmission
+				// Write to TX Buffer 0, start at identifier registers, and initiate transmission
 				can_write_tx( 0x00, &buffer[0] );
 				can_rts( 0 );
-				buf_addr[0] = can.address;
+				buf_addr[0] = can.identifier;
 			}									
 			else if( buf_addr[1] == 0xFFFF ){		// Mailbox 1 is free
-				// Write to TX Buffer 1, start at address registers, and initiate transmission
+				// Write to TX Buffer 1, start at identifier registers, and initiate transmission
 				can_write_tx( 0x02, &buffer[0] );
 				can_rts( 1 );
-				buf_addr[1] = can.address;
+				buf_addr[1] = can.identifier;
 			}
 			else if( buf_addr[2] == 0xFFFF ){		// Mailbox 2 is free
-				// Write to TX Buffer 2, start at address registers, and initiate transmission
+				// Write to TX Buffer 2, start at identifier registers, and initiate transmission
 				can_write_tx( 0x04, &buffer[0] );
 				can_rts( 2 );
-				buf_addr[2] = can.address;
+				buf_addr[2] = can.identifier;
 			}
 			else {					
 		
@@ -323,21 +323,21 @@ char can_transmit( void )
 					// Setup mailbox 0 and send the message
 					can_write_tx( 0x00, &buffer[0] );
 					can_rts( 0 );
-					buf_addr[0] = can.address;
+					buf_addr[0] = can.identifier;
 				}
 				// Is it mailbox 1?
 				else if(( can_read_status() & 0x10 ) == 0x00) {
 					// Setup mailbox 1 and send the message
 					can_write_tx( 0x02, &buffer[0] );
 					can_rts( 1 );
-					buf_addr[1] = can.address;
+					buf_addr[1] = can.identifier;
 				}
 				// Is it mailbox 2?
 				else if(( can_read_status() & 0x40 ) == 0x00) {
 					// Setup mailbox 2 and send the message
 					can_write_tx( 0x04, &buffer[0] );
 					can_rts( 2 );
-					buf_addr[2] = can.address;
+					buf_addr[2] = can.identifier;
 				}
 			}			
 		}
@@ -468,7 +468,7 @@ void can_write( unsigned char address, unsigned char *ptr, unsigned char bytes )
  * Writes data bytes to transmit buffers
  *	- Pass in buffer number and start position as defined in MCP2515 datasheet
  *		- For starting at data, accepts 8 bytes
- *		- For starting at address, accepts 13 bytes
+ *		- For starting at identifier, accepts 13 bytes
  */
 void can_write_tx( unsigned char address, unsigned char *ptr )
 {

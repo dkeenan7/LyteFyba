@@ -374,22 +374,19 @@ int main( void )
 				// events |= EVENT_ACTIVITY;
 
 				// Transmit drive command frame
-				can.address = DC_CAN_BASE + DC_DRIVE;
-//				can.address_ext = 0;
+				can.identifier = DC_CAN_BASE + DC_DRIVE;
 				can.data.data_fp[1] = command.current;
 				can.data.data_fp[0] = command.rpm;
 				can_transmit();	
 	
 				// Transmit bus command frame
-				can.address = DC_CAN_BASE + DC_POWER;
-//				can.address_ext = 0;
+				can.identifier = DC_CAN_BASE + DC_POWER;
 				can.data.data_fp[1] = command.bus_current;
 				can.data.data_fp[0] = 0.0;
 				can_transmit();
 				
 				// Transmit switch position/activity frame and clear switch differences variables
-				can.address = DC_CAN_BASE + DC_SWITCH;
-//				can.address_ext = 0;
+				can.identifier = DC_CAN_BASE + DC_SWITCH;
 				can.data.data_u8[7] = command.state;
 				can.data.data_u8[6] = command.flags;
 				can.data.data_u16[2] = 0;
@@ -401,8 +398,7 @@ int main( void )
 				comms_event_count++;
 				if(comms_event_count == 10){
 					comms_event_count = 0;
-					can.address = DC_CAN_BASE;
-//					can.address_ext = 0;
+					can.identifier = DC_CAN_BASE;
 					can.data.data_u8[7] = 'T';
 					can.data.data_u8[6] = '0';
 					can.data.data_u8[5] = '8';
@@ -450,8 +446,8 @@ int main( void )
 			events |= EVENT_ACTIVITY;
 #if 0
 			// Charger is on the CAN bus
-			can.address = 0x1806;					// Charger is expecting 1806E5F4
-//			can.address_ext = 0xE5F4;
+			can.identifier = 0x1806;					// Charger is expecting 1806E5F4
+//			can.identifier_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
 			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
 			can.data.data_u32[1] = 0;				// Clear the rest of the data
@@ -560,8 +556,7 @@ int main( void )
 							if (bmu_id >= NUMBER_OF_CELLS) {
 								// We have the min and max information. Send a CAN packet so the telemetry
 								//	software can display them. Use CAN id 0x266, as the IQcell BMS would
-								can.address = 0x266;
-//								can.address_ext = 0;
+								can.identifier = 0x266;
 								can.data.data_u16[0] = bmu_min_mV;
 								can.data.data_u16[1] = bmu_max_mV;
 								can.data.data_u16[2] = bmu_min_id;
@@ -591,7 +586,7 @@ int main( void )
 					// MVE TODO: Distinguish between connecting to other DCU and to motor controller?
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				switch(can.address){
+				switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
 						if(can.data.data_fp[1] > ENGAGE_VEL_F) events |= EVENT_FORWARD;
@@ -600,7 +595,7 @@ int main( void )
 						else events &= ~EVENT_REVERSE;
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= ~EVENT_SLOW;
-						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s
+						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
 						gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
@@ -631,7 +626,7 @@ int main( void )
 			}
 			if(can.status == CAN_RTR){
 				// Remote request packet received - reply to it
-				switch(can.address){
+				switch(can.identifier){
 					case DC_CAN_BASE:
 						can.data.data_u8[3] = 'T';
 						can.data.data_u8[2] = '0';
@@ -661,7 +656,7 @@ int main( void )
 				}
 			}
 			if (can.status == CAN_ERROR) {
-				if (can.address == 0x0002) {
+				if (can.identifier == 0x0002) {
 					// Wake up CAN controller
 					can_wake();
 				}
