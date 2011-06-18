@@ -38,7 +38,7 @@ extern void 			can_wake( void );
 // Public variables
 typedef struct _can_variables {
 	unsigned int		status;
-	unsigned int 		address;
+	unsigned int 		identifier;
 	group_64			data;
 } can_variables;
 
@@ -59,7 +59,7 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define can_select		P3OUT &= ~CAN_CSn
 #define can_deselect	P3OUT |= CAN_CSn
 
-// Motor controller CAN base address and packet offsets
+// Motor controller CAN base identifier and packet offsets
 #define	MC_CAN_BASE		0x400		// High = Serial Number             Low = "TRIa" string
 #define MC_LIMITS		0x01		// High = Active Motor/CAN counts   Low = Error & Limit flags
 #define	MC_BUS			0x02		// High = Bus Current               Low = Bus Voltage
@@ -76,7 +76,7 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define MC_TEMP3		0x0D		// High = Heatsink Phase A Temp     Low = Unused
 #define MC_CUMULATIVE	0x0E		// High = DC Bus AmpHours           Low = Odometer
 
-// Driver controls CAN base address and packet offsets
+// Driver controls CAN base identifier and packet offsets
 #define DC_CAN_BASE		0x0500
 #define DC_DRIVE		0x01
 #define DC_POWER		0x02
