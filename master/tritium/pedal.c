@@ -104,7 +104,8 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				*/
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
-				float normalised_rpm = motor_rpm / RPM_FWD_MAX;
+				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
+				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
 				float p2 = pedal*pedal;		// Pedal squared
 				command.current = (CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm));
 				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
