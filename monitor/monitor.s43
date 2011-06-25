@@ -97,6 +97,9 @@ lastSentBad	DS		1				; Last sent badness
 
 			ALIGNRAM 1
 TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
+; The below is to allow for different clock speeds over long strings of BMUs. The idea is that when
+; originating, use an extra stop bit; when echoing, use no extra stop bit
+TXExtraStop	DS		2				; Timer ticks to add to end of stop bit
 RXData		DS		1				; Received char
 BitCntTx	DS		1				; Bit count 10 -> 1
 BitCntRx	DS		1				; Bit count 8 -> 1
@@ -232,7 +235,7 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 					eint
 					tst.b	R8
 					_IF		_NN
-						call	#TX_Byte				; Echo the command or password byte
+						call	#Echo_Byte				; Echo the command or password byte
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
