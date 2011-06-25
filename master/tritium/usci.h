@@ -21,4 +21,5 @@ extern	void			bmu_transmit_buf( void );
 
 // Public variables
 volatile unsigned int chgr_sent_timeout;
+volatile unsigned int bmu_sent_timeout;
 

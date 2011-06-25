@@ -114,7 +114,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX;
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
-	{ can_variables can;
+/*	{ can_variables can;
 	can.identifier = MC_CAN_BASE+8;		// For 15 V in fp[1]
 	can.data.data_fp[1] = normalised_rpm;		
 	can_transmit();
@@ -123,7 +123,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 	can.data.data_fp[1] = command.current;	// 3.3 V
 	can_transmit();
 	}
-
+*/
 				break;
 			}
 			case MODE_CHARGE:

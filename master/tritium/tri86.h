@@ -102,6 +102,8 @@
 #define CHARGER_SPEED		100					// Charger update speed: 1 per second
 #define CHGR_TIMEOUT		50					// Charger timeout in timer ticks; absolute minumum is
 													// about 13*4*2 = 104 ms
+#define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minumum is
+													// about 250 ms
 
 // Event definitions
 #define EVENT_TIMER			0x0001				// Timer went off
@@ -135,7 +137,7 @@
 
 // Charger constants
 //#define NUMBER_OF_CELLS	60
-#define NUMBER_OF_CELLS		8
+#define NUMBER_OF_CELLS		28
 //#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
 //#define   CHGR_VOLT_LIMIT		((int)(  60            * 36.5))	// Charger voltage limit in tenths of a volt
 #define   CHGR_VOLT_LIMIT		1995	// Charger voltage limit in tenths of a volt
