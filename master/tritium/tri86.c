@@ -178,6 +178,7 @@ int main( void )
 	command.flags = 0x00;
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
+	bmu_events |= BMU_MINMAX;		// Kick off the first voltage request packet while driving or charging
 	
 	// Init gauges
 	gauge_init();
@@ -507,71 +508,76 @@ int main( void )
 					bmu_rxbuf[10] == 'V') {
 						int bmu_id = 100 * (bmu_rxbuf[1] - '0') + (bmu_rxbuf[2] - '0') * 10 +
 							bmu_rxbuf[3] - '0';
-						unsigned int rxvolts =
+						if (bmu_id == bmu_curr_cell) {
+							bmu_events &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
+							unsigned int rxvolts =
 #if 0
-							(bmu_rxbuf[5] - '0') * 100 +
+								(bmu_rxbuf[5] - '0') * 100 +
 #else
-							// The *50 and << 1 below are to work around a mspgcc bug! See
-							// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
-							(((bmu_rxbuf[5] - '0') * 50) << 1) +
+								// The *50 and << 1 below are to work around a mspgcc bug! See
+								// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
+								(((bmu_rxbuf[5] - '0') * 50) << 1) +
 #endif
-							(bmu_rxbuf[6] - '0') * 10 +
-							(bmu_rxbuf[7] - '0');
-						// We expect voltage responses during charging and driving; split the logic here
-						if (command.state & MODE_CHARGE) {
-						  /* DCK: temporary
-							if (rxvolts < 359)
-								// This cell is not bypassing. So the string of cells known to be in bypass
-								// is zero length. Flag this
-								first_bmu_in_bypass = -1;
-							else {
-								// This cell is in bypass. Check if the first bmu in bypass is the next one
-								int next_bmu_id = bmu_id+1;
-								if (next_bmu_id > NUMBER_OF_CELLS)
-									next_bmu_id = 1;
-								if (next_bmu_id == first_bmu_in_bypass) {
-									// We have detected all cells in bypass. Now we enter the soak phase
-									// The idea is to allow the last cell to have gone into bypass some
-									// time to stay at that level and balance with the others
-									chgr_events |= CHGR_SOAKING;
-								}
+								(bmu_rxbuf[6] - '0') * 10 +
+								(bmu_rxbuf[7] - '0');
+							// We expect voltage responses during charging and driving; split the logic here
+							if (command.state == MODE_CHARGE) {
+						  		/* DCK: temporary
+								if (rxvolts < 359)
+									// This cell is not bypassing. So the string of cells known to be in bypass
+									// is zero length. Flag this
+									first_bmu_in_bypass = -1;
 								else {
-									if (first_bmu_in_bypass == -1)
-									// This cell is in bypass; we must be starting a new string of bypassed BMUs
-									first_bmu_in_bypass = bmu_id;
+									// This cell is in bypass. Check if the first bmu in bypass is the next one
+									int next_bmu_id = bmu_id+1;
+									if (next_bmu_id > NUMBER_OF_CELLS)
+										next_bmu_id = 1;
+									if (next_bmu_id == first_bmu_in_bypass) {
+										// We have detected all cells in bypass. Now we enter the soak phase
+										// The idea is to allow the last cell to have gone into bypass some
+										// time to stay at that level and balance with the others
+										chgr_events |= CHGR_SOAKING;
+									}
+									else {
+										if (first_bmu_in_bypass == -1)
+										// This cell is in bypass; we must be starting a new string of bypassed BMUs
+										first_bmu_in_bypass = bmu_id;
+									}
 								}
-							}
 */
-						} else {
-							// Not charging: driving. We use the voltage measurements to find the min and
-							//	max cell voltages
-							if (rxvolts < bmu_min_mV) {
-								bmu_min_mV = rxvolts;
-								bmu_min_id = bmu_id;
-							}
-							if (rxvolts > bmu_max_mV) {
-								bmu_max_mV = rxvolts;
-								bmu_max_id = bmu_id;
-							}
-							if (bmu_id >= NUMBER_OF_CELLS) {
-								// We have the min and max information. Send a CAN packet so the telemetry
-								//	software can display them. Use CAN id 0x266, as the IQcell BMS would
-								can.identifier = 0x266;
-								can.data.data_u16[0] = bmu_min_mV;
-								can.data.data_u16[1] = bmu_max_mV;
-								can.data.data_u16[2] = bmu_min_id;
-								can.data.data_u16[3] = bmu_max_id;
-								can_transmit();
+							} else {
+								// Not charging: driving. We use the voltage measurements to find the min and
+								//	max cell voltages
+								// Get the whole 4-digit number
+								rxvolts *= 10; rxvolts += bmu_rxbuf[8] - '0';
+								if (rxvolts < bmu_min_mV) {
+									bmu_min_mV = rxvolts;
+									bmu_min_id = bmu_id;
+								}
+								if (rxvolts > bmu_max_mV) {
+									bmu_max_mV = rxvolts;
+									bmu_max_id = bmu_id;
+								}
+								if (bmu_id >= NUMBER_OF_CELLS) {
+									// We have the min and max information. Send a CAN packet so the telemetry
+									//	software can display them. Use CAN id 0x266, as the IQcell BMS would
+									can.identifier = 0x266;
+									can.data.data_u16[0] = bmu_min_mV;
+									can.data.data_u16[1] = bmu_max_mV;
+									can.data.data_u16[2] = bmu_min_id;
+									can.data.data_u16[3] = bmu_max_id;
+									can_transmit();
 
-								// Reset the min/max data
-								bmu_min_mV = 9999;	bmu_max_mV = 0;
-								bmu_min_id = 0;		bmu_max_id = 0;
-							}
-							// Move to the next BMU
-							if (++bmu_curr_cell >= NUMBER_OF_CELLS)
-								bmu_curr_cell = 1;
-							bmu_events |= BMU_MINMAX;			// Schedule another voltage request
+									// Reset the min/max data
+									bmu_min_mV = 9999;	bmu_max_mV = 0;
+									bmu_min_id = 0;		bmu_max_id = 0;
+								}
+								// Move to the next BMU
+								if (++bmu_curr_cell > NUMBER_OF_CELLS)
+									bmu_curr_cell = 1;
+								bmu_events |= BMU_MINMAX;			// Schedule another voltage request
 						}
+					}
 				}
 			}
 		}
@@ -891,19 +897,24 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	}
 /* DCK: temporary
 	// MVE: Trigger charger events (command packet transmission)
-	if((command.state & MODE_CHARGE) && (--charger_count == 0) ){
+	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
 	
 	if (chgr_events & CHGR_SENT) {
-		if (--chgr_sent_timeout < 0)
-		{
+		if (--chgr_sent_timeout == 0) {
 			fault();				// Turn on fault LED (eventually)
 			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
 		}
 	}
 */
+	if (bmu_events & BMU_SENT) {
+		if (--bmu_sent_timeout == 0) {
+			fault();
+			bmu_transmit_buf();				// Resend
+		}
+	}
 
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){

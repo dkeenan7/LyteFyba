@@ -156,9 +156,9 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 			{
 				bmu_rxidx = 0;
 				bmu_events |= BMU_REC;			// Tell main line we've received a BMU response
-				bmu_events &= ~BMU_SENT;		// No longer unacknowledged (not used yet)
-			if (bmu_rxidx == 64)	bmu_rxidx = 0; // DCK: Avoid buffer overrun
+				// Note: don't reset BMU_SENT till we have a completely valid response
 			}
+			if (bmu_rxidx == 64)	bmu_rxidx = 0; // DCK: Avoid buffer overrun
 		}
 	}
 }
@@ -197,6 +197,7 @@ void bmu_transmit_buf(void)
 	bmu_txidx = 0;
     UCA1TXBUF = bmu_txbuf[bmu_txidx++];				// Send the first char to kick things off
 	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
+	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
     UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
 }

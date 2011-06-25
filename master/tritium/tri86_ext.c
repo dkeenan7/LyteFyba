@@ -518,7 +518,7 @@ int main( void )
 							(bmu_rxbuf[6] - '0') * 10 +
 							(bmu_rxbuf[7] - '0');
 						// We expect voltage responses during charging and driving; split the logic here
-						if (command.state & MODE_CHARGE) {
+						if (command.state == MODE_CHARGE) {
 							if (rxvolts < 359)
 								// This cell is not bypassing. So the string of cells known to be in bypass
 								// is zero length. Flag this
@@ -886,13 +886,13 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	}
 
 	// MVE: Trigger charger events (command packet transmission)
-	if((command.state & MODE_CHARGE) && (--charger_count == 0) ){
+	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
 	
 	if (chgr_events & CHGR_SENT) {
-		if (--chgr_sent_timeout < 0)
+		if (--chgr_sent_timeout == 0)
 		{
 			fault();				// Turn on fault LED (eventually)
 			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
