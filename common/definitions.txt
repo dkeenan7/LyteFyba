@@ -19,7 +19,7 @@ b   Badness (local to each BMU)
   c Calibrate
 d d Decimal output
 e e ErrorLED
-  f FrequencyBurst (was Fetch word (peek word))
+  f FrequencyBurst (puts MCLK/22 = 181.5 kHz on TX+, TX- and activity LED)
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
@@ -94,7 +94,7 @@ q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
   o St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 
-  f FrequencyBurst
+  f FrequencyBurst (puts MCLK/22 = 181.5 kHz on TX+, TX- and activity LED)
 
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
   w WriteCalValue
