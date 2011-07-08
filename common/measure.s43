@@ -37,9 +37,9 @@ measure:
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
 ;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-;			_LOOP		R8						; Relied on to clear R8 for following
+;			_LOOP		R8
 	
-	;		mov			#0,R8					; Initialise the sum. R8 cleared by above loop
+			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
 			_DO			#NumSamples,R9			; Sample counter
 				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
 				_BEGIN								; Busy wait for conversion to complete
@@ -76,7 +76,7 @@ measure:
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
 ;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-;			_LOOP		R8						; Relied on to clear R8 for following
+;			_LOOP		R8
 	
 			mov.b		#NumSamples,&ADC10DTC1	; Typically 16 conversions
 			mov			#sampleBuf,&ADC10SA		; Set start address
@@ -90,7 +90,7 @@ measure:
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0		; Turn off ADC core
 			; Sum the samples
-;			mov			#0,R8					; Initialise the sum. R8 cleared by above loop
+			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
 			mov			#NumSamples*2,R9
 			_BEGIN
 				add			sampleBuf-2(R9),R8		; Add a sample
