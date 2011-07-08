@@ -750,9 +750,12 @@ void io_init( void )
 	P3SEL |= CHARGER_TXD | CHARGER_RXD | BMS_TXD | BMS_RXD;// Set pins to peripheral function, not GPIO
 	UCA0CTL1 |= UCSSEL_2;					// SMCLK
 	UCA1CTL1 |= UCSSEL_2;					// SMCLK
-	// Set two stop bits for the BMS port. This is so that a long string of BMUs with slightly differing
-	// clock speeds can echo (with one stop bit) and not indefinitely accumulate bytes to transmit
-	UCA1CTL0 = UCSPB;
+	// At one point, we tried to set two stop bits for the BMS port. This was so that a long string of BMUs
+
+	// with slightly differing clock speeds can echo (with one stop bit) and not indefinitely accumulate
+	// bytes to transmit. But this changes the receiver to *expect* two stop bits, and we can't guarantee
+	// this
+	// UCA1CTL0 = UCSPB;
 	// Baud rate charger 2400 b/s, 16000 / 2.4 / 16 = 416.667 = 0x01A0 with 0xB1 for the fractional part
 	UCA0BR1=0x01; UCA0BR0=0xA0; UCA0MCTL=0xB1;
 	// Baud rate BMS     9600 b/s, 16000 / 9.6 / 16 = 104.167 = 0x0068 with 0x31 for the fractional part
@@ -771,7 +774,7 @@ void io_init( void )
 void timerA_init( void )
 {
 	TACTL = TASSEL_2 | ID_3 | TACLR;			// MCLK/8, clear TAR
-	TACCR0 = (INPUT_CLOCK/8/TICK_RATE);		// Set timer to count to this value = TICK_RATE overflow
+	TACCR0 = (INPUT_CLOCK/8/TICK_RATE);			// Set timer to count to this value = TICK_RATE overflow
 	TACCTL0 = CCIE;								// Enable CCR0 interrrupt
 	TACTL |= MC_1;								// Set timer to 'up' count mode
 }

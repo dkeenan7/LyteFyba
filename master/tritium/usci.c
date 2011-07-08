@@ -198,6 +198,9 @@ void bmu_transmit_buf(void)
     UCA1TXBUF = bmu_txbuf[bmu_txidx++];				// Send the first char to kick things off
 	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
 	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
+//	brief_pause(INPUT_CLOCK / 1000000 * 1000 / 3);	// Delay 1000 us (1 ms) between chars to see if it
+													// fixes problem where string of BMUs drops characters
+
     UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
 }
