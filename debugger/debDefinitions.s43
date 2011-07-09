@@ -265,6 +265,8 @@ failCompare mov		#3,rERR
 ; as a low digital output to keep the link input below Vcc.
 ; But maybe it needs to be below Vref+? See MSP430F2012 datasheet page 39 note 2.
 ; So use 1p for parallel testing, and 0p (default)) for operation on cells
+; MVE: This should not be an issue if testing at <= about 3.5 V, e.g. with our LM4041 mod
+; This is because 3.5 V averaged with 1.5 V gives 2.50 V, which is OK
 ;
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		tst			Rtos
