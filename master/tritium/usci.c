@@ -183,11 +183,23 @@ void chgr_transmit_buf(void)
 
 void bmu_transmit(const unsigned char* ptr)
 {
-	unsigned char ch, i = 0;
+	unsigned char ch, i = 0, sum = 0;
 	do {
 		ch = *ptr++;
+		sum ^= ch;									// Calculate XOR checksum
 		bmu_txbuf[i++] = ch;						// Copy the data to the transmit buffer
 	} while (ch != '\r');
+#if USE_CKSUM
+	sum ^= '\r';									// CR is not part of the checksum
+	if (sum < ' ') {
+		// If the checksum would be a control character that could be confused with a CR, BS,
+		//	etc, then send a space, which will change the checksum to a non-control character
+		bmu_txbuf[i++-1] = ' ';						// Replace CR with space
+		sum ^= ' ';									// Update checksum
+	}
+	bmu_txbuf[i++-1] = sum;							// Insert the checksum
+	bmu_txbuf[i-1] = '\r';							// Add CR
+#endif
 	bmu_transmit_buf();								// Tail call the main transmit function
 }
 
