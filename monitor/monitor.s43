@@ -57,7 +57,9 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 #define		TACCRr		TACCR1		// Receive capture/compare register
 
 rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
-txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
+									; 8 was necc and suff to prevent dropped cmd and response characters
+txsz		EQU		8				; Transmit queue size. Must be a power of 2 no greater than 256
+									; 8 was found to be sufficient to prevent dropped badness
 
 ; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
