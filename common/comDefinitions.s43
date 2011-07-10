@@ -93,6 +93,57 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 ; Trashes R8-R12
 		
 		xCODE	'n',emitNum,_emitNum
+#if 1	; Untested
+		mov		#4,R12				; Loop 5 times for decimal conversion
+		bit.b	#bHexOutput,&intFlags ; Distinguish decimal from hex (the only bases allowed)
+		_IF		_Z					; If decimal, treat as a signed number
+			tst		Rsec
+			_IF		_L					; If n is negative
+				mov.b	#'-',R8				; Emit minus sign
+				call	#TX_ByteCk
+				inv		Rsec				; Negate to get absolute value
+				inc		Rsec
+			_ENDIF						; Endif negative
+			mov		Rsec,R10			; Fixpoint 16.16 Dividend in R10:R9 will have n initially
+			clr		R9
+			mov		#40000,R8			; Divisor in R8 is 4 * 10^4
+			call	#UMSlashMod			; R10:R9 / R8 -> R9, remainder to R10 (ignored), clears R11
+			inc		R9					; Rounding
+			rla		R9					; Shift R10:R9 2 bits left
+			rlc		R10					; to get most sig decimal digit in R10 (max value 3)
+			rla		R9
+			rlc		R10
+			mov		#10,Rsec			; Rsec := 10 (radix)
+		_ELSE						; Else hexadecimal
+			dec		R12					; Only loop 4 times for hexadecimal conversion
+			dec		Rtos				; Send one less digit than requested, for hexadecimal
+			mov.b	#'$',R8				; Emit dollar sign, for hexadecimal
+			call	#TX_ByteCk
+			mov		Rsec,R9				; R9 := n
+			mov		#16,R8				; R8 := 16
+			call	#UMStar				; R9 * R8 -> R10:R9, clears R11
+			mov		R8,Rsec				; Rsec := 16 (radix)
+		_ENDIF						; End hexadecimal
+		dec		Rtos				; Count := Count-1
+		_IF		_L					; Enforce a minimum of 2 digits
+			mov		#1,Rtos
+		_ENDIF
+		_BEGIN
+			cmp		Rtos,R12			; Only convert and send the digit if it was asked for
+			_IF		_L
+				mov.b	R10,R8				; ASCII conversion follows
+				clrc						; Because dadd is always done with carry on MSP430
+				dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
+				dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
+		;		and.b	#$7F,R8				; Ensure nothing can be misinterpreted as badness
+				call	#TX_ByteCk
+			_ENDIF
+			dec		R12					; Decrement loop counter
+		_WHILE	_NN					; Jump past matching _REPEAT if loop counter is negative
+			mov		Rsec,R8				; Radix (10 or 16) into R8
+			call	#UMStar				; R9 * R8 -> R10:R9, clears R11
+		_REPEAT						; Jump back to matching _BEGIN
+#else
 		bit.b	#bHexOutput,&intFlags ; Distinguish decimal from hex (the only bases allowed)
 		_IF		_Z					; If decimal, treat as a signed number
 			tst		Rsec
@@ -109,9 +160,9 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			call	#TX_ByteCk
 			mov.b	#16,R8			; Divisor in R8 is number base
 		_ENDIF						; End hexadecimal
-		cmp		#2,Rtos				; Enforce a minimum of 2 digits
-		_IF		_L
-			mov		#2,Rtos
+		dec		Rtos				; Count := Count-1
+		_IF		_L					; Enforce a minimum of 2 digits
+			mov		#1,Rtos
 		_ENDIF
 		mov		Rtos,R12			; Count to R12
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
@@ -134,6 +185,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		_WHILE	_NZ
 			pop		R8
 		_REPEAT
+#endif
 		ret
 
 
