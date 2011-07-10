@@ -217,9 +217,9 @@ ACCEPT
 		_CASE
 		
 		_OFb	#$0D,R8			; Carriage return = end of packet
-			tst.b	&Checksumming
+			bit.b	#bChecksumming,&intFlags
 			_IF		_NZ				; If checksumming
-				TST.B	&CHKSUM
+				TST.B	&checksum
 				_IF		_Z				; If good checksum
 					DEC		R9				; Prepare to overwrite the checksum with an EXIT bytecode
 					CMP		#TIB,R9			; Handle case of empty packet with no checksum
@@ -229,14 +229,14 @@ ACCEPT
 			_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
 			_ENDIF					; Endif checksumming
 					MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with EXIT bytecode
-					tst.b	&dontInterpret
+					bit.b	#bDontInterpret,&intFlags
 					_IF		_Z
 						MOV		#TIB,Rip		; Interpret the packet as bytecode
 						CALL	#_ENTER
 					_ENDIF
 				_ENDIF					; Endif (good checksum)
 			MOV		#TIB,&ToIN		; Initialise packet buffer pointer
-			CLR.B	&CHKSUM			; Clear the packet checksum
+			CLR.B	&checksum		; Clear the packet checksum
 		_ENDOF					; EndOf carriage return
 		
 		_OFb	#$08,R8			; Backspace editing
@@ -249,13 +249,13 @@ ACCEPT
 		_ENDOF					; EndOf backspace
 		
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
-			clr.b	&dontInterpret
+			bic.b	#bDontInterpret,&intFlags
 		_ENDOF					; EndOf escape
 		
 		; Default case, if not CR or BS
 			MOV.B	R8,0(R9)		; Write the byte to the buffer
 			INC		&ToIN			; Increment the pointer
-			XOR.B	R8,&CHKSUM		; Accumulate the checksum		
+			XOR.B	R8,&checksum	; Accumulate the checksum		
 
 		_ENDCASE				; End Case char
 
