@@ -42,7 +42,7 @@ DCOckPerMck	EQU		2						; Number of DCO clocks per MCK (CPU, ADC) (allowed value
 DCOckPerSMck EQU	8						; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
 BadnessFreq	EQU		16						; Badness frequency in hertz
 											; Only sent every fourth time if badness not increased
-SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/BadnessFreq+(1<<15))/(1<<16) 
+SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/BadnessFreq+(1<<15))/(1<<16)
 											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
 MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
@@ -201,7 +201,7 @@ RX_TIOV_ISR	; Combined Receive (timer capture/compare 1) and timer overflow inte
 ;	Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
 TIOV_ISR:
-			clr.b	&bNotMeasureTime		; Notify mainline that it's time to measure
+			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
 			bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 			reti
 

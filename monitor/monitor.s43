@@ -57,9 +57,9 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 #define		TACCRr		TACCR1		// Receive capture/compare register
 
 rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
-									; 8 was necc and suff to prevent dropped cmd and response characters
-txsz		EQU		8				; Transmit queue size. Must be a power of 2 no greater than 256
-									; 8 was found to be sufficient to prevent dropped badness
+									; 8 is sufficient to prevent dropped cmd and response characters
+txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
+									; 4 is sufficient to reduce dropped badness to less than one a minute
 
 ; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
@@ -81,9 +81,11 @@ bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 ; Don't move them or insert new variables without checking.
 
 			ALIGNRAM 1
-bNotSendBad	 DS		1				; Zero if sending badness bytes at all
-bNotMeasureTime DS	1				; Zero if time to measure
-bAlarmForBad DS		1				; A BMU can be told to raise an alarm instead of sending badness on
+monFlags	DS		1				; Monitor flags, bitmask definitions follow
+bAlarmForBad EQU	1				; A BMU can be told to raise an alarm instead of sending badness on
+bNotSendBad	 EQU	2				; Zero if sending badness bytes at all
+bNotMeasureTime EQU	4				; Zero if time to measure
+
 localBadness DS		1				; Local badness
 			ALIGNRAM 1
 worstBadMeas DS		2				; Value of measurement that caused worst badness
@@ -116,9 +118,11 @@ txrd		DS		1				; Transmit queue read index
 
 			ALIGNRAM 1
 base		DS		1				; Number base for output, 10 or 16
-CHKSUM		DS		1				; Packet xor checksum
-Checksumming DS		1				; Boolean
-dontInterpret DS	1				; Boolean
+checksum	DS		1				; Packet xor checksum
+intFlags	DS		1				; Interpreter flags, bitmask definitions follow
+bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
+bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
+bDontInterpret EQU	4				; Are we interpreting?
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -203,19 +207,19 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
-			mov.b	#10,&base				; Decimal output mode by default
-;			clr.b	&CHKSUM					; Clear checksum
-;			clr.b	&Checksumming			; Checksumming of packets, off by default
-;			clr.b	&dontInterpret			; Interpret
+;			clr.b	&checksum				; Clear checksum
+;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
+;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
+;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
 ;
 ; Miscellaneous initialisation
 ;
 ;			clr		&bypassVolts			; No special bypass voltage as yet
-;			clr.b	&bNotSendBad			; Default to sending badness
-;			clr.b	&bNotMeasureTime		; Make it measure time immediately
-;			clr.b	&bAlarmForBad			; Just pass badness on, don't raise alarm
+;			bic.b	#bNotSendBad,&monFlags		; Default to sending badness
+;			bic.b	#bNotMeasureTime,&monFlags	; Make it measure time immediately
+;			bic.b	#bAlarmForBad,&monFlags		; Just pass badness on, don't raise alarm
 ;			clr.b	&localBadness			; Local badness is none
 ;			clr		&worstBadMeas			; Value of measurement causing worstBadness is zero
 ;			clr.b	&worstBadUnit			; Unit of measurement causing worst badness is null
@@ -241,10 +245,10 @@ main:		mov.w	#$280,SP				; Initialize stackpointer
 						call	#DoBadness				; Process badness bytes
 					_ENDIF
 				_ELSE
-					tst.b	bNotMeasureTime			; Check if time to measure
+					bit.b	#bNotMeasureTime,&monFlags ; Check if time to measure
 					_IF		_Z						; If not, skip measurement and set/clear of bypass
 						eint
-						mov.b	#$FF,bNotMeasureTime
+						bis.b	#bNotMeasureTime,&monFlags
 						call	#measures				; May send badness
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
@@ -371,7 +375,7 @@ measures:
 			_ENDIF
 
 			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 1
-			tst.b	bNotSendBad				; Are we sending badness?
+			bit.b	#bNotSendBad,&monFlags	; Are we sending badness?
 			_IF		_Z						; If not, there can't be a comms badness
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
@@ -399,7 +403,7 @@ measures:
 			CtoAllBits	R8
 			movBits_B	R8,#LED,&P1OUT
 			
-			tst.b	&bNotSendBad				; If bNotSendBad is false
+			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
 			_IF		_Z			
 				mov.b	badnessTable(R9),R9		; Look up the encoded badness
 				cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
@@ -462,7 +466,7 @@ DoBadness:
 ;	Badness byte in R8. Trashes R9
 ;
 SendBadness:
-			tst.b	&bAlarmForBad
+			bit.b	#bAlarmForBad,&monFlags
 			_IF		_NZ						; If told to raise alarm
 				cmp.b	#$80,R8
 				_IF		_NE						; If nonzero badness

@@ -14,13 +14,13 @@ EXIT	EQU		'\\'		; Interpreter treats slosh (backslash) as synonym for vertical b
 ; HEX ( flag -- ) ; Set the number base to hexadecimal
 
 		xCODE	'h',HEX,_HEX
-		mov.b	#16,&base
+		bis.b	#bHexOutput,&intFlags
 _Space	ret					; When _Space is called, be a no-op (for separating literal numbers)
 
 ; DECIMAL ( flag -- ) ; Set the number base to decimal
 
 		xCODE	'd',DECIMAL,_DECIMAL
-		mov.b	#10,&base
+		bic.b	#bHexOutput,&intFlags
 		ret
 
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
@@ -61,7 +61,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
 ;
 		xCODE	'x',eXclusive,_eXclusive
-		mov.b	#-1,&dontInterpret
+		bis.b	#bDontInterpret,&intFlags
 		; Fall through to _Select
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
@@ -73,7 +73,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		_IF		_NE					; If not correct ID
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
 		_ELSE						; Else
-			clr.b	&dontInterpret		; Needed to handle _eXclusive fall-through
+			bic.b	#bDontInterpret,&intFlags ; Needed to handle _eXclusive fall-through
 		_ENDIF						; Endif
 		ret
 		
@@ -93,8 +93,8 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 ; Trashes R8-R12
 		
 		xCODE	'n',emitNum,_emitNum
-		bit.b	#2,&base			; Distinguish decimal from hex (the only bases allowed)
-		_IF		_NZ					; If decimal, treat as a signed number
+		bit.b	#bHexOutput,&intFlags ; Distinguish decimal from hex (the only bases allowed)
+		_IF		_Z					; If decimal, treat as a signed number
 			tst		Rsec
 			_IF		_L					; If n is negative
 				mov.b	#'-',R8				; Emit minus sign
@@ -102,10 +102,12 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 				inv		Rsec				; Negate
 				inc		Rsec
 			_ENDIF						; Endif negative
+			mov.b	#10,R8			; Divisor in R8 is number base
 		_ELSE						; Else hexadecimal
 			dec		Rtos				; Use one less digit
 			mov.b	#'$',R8				; Emit dollar sign
 			call	#TX_ByteCk
+			mov.b	#16,R8			; Divisor in R8 is number base
 		_ENDIF						; End hexadecimal
 		cmp		#2,Rtos				; Enforce a minimum of 2 digits
 		_IF		_L
@@ -113,7 +115,6 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		_ENDIF
 		mov		Rtos,R12			; Count to R12
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
-		mov.b	&base,R8			; Divisor in R8 is number base
 		dec		R12					; Count := Count-1
 		_BEGIN
 			clr		R10
@@ -121,17 +122,18 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			push	R10					; Push remainder
 			dec		R12
 		_UNTIL	_Z					; R9 keeps quotient as next dividend
-		push	R9
-		; Now we have n results on the stack; print these as hex/decimal
+		mov		R9,R8
+		; Now we have n-1 results on the stack and the last one in R8; print these as hex/decimal
 		_BEGIN
-			pop		R8
 			clrc						; Because dadd is always done with carry on MSP430
 			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
 			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as badness
 			call	#TX_ByteCk
 			dec		Rtos
-		_UNTIL	_Z
+		_WHILE	_NZ
+			pop		R8
+		_REPEAT
 		ret
 
 
@@ -143,7 +145,7 @@ _prettyPrint3:
 ; (no command letter)
 _prettyPrint:
 		push	Rthd				; Save ch
-		push.b	&base				; Save current base
+;		push.b	&intFlags			; Save current number base
 		
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
@@ -152,7 +154,7 @@ _prettyPrint:
 		push	Rsec				; Save n
 		push	Rtos				; Save m
 		
-		mov.b	#10,&base			; Set to decimal
+;		bic.b	#bHexOutput,&intFlags ; Set to decimal output
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
 		call	#_emitNum			; Emit the ID in decimal
@@ -162,7 +164,7 @@ _prettyPrint:
 		
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
-		pop.b	&base				; Restore radix to print n with
+;		pop.b	&intFlags			; Restore number base to print n with
 		call	#_emitNum
 		
 		mov		#' ',R8				; Transmit a space

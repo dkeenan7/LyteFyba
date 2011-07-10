@@ -9,12 +9,12 @@
 ;
 			xCODE	'}',BadnessAutonomy_,_BadnessAutonomy
 BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-brace
-			inv.b	&bNotSendBad			; Toggle badness sending
+			xor.b	#bNotSendBad,&monFlags	; Toggle badness sending
 			ret
 		
 ; checKsumming toggle ( -- )
 			xCODE	'k',checksumming,_checksumming
-			inv.b	&Checksumming			; Toggle checksumming
+			xor.b	#bChecksumming,&intFlags ; Toggle checksumming
 			ret
 		
 ; Rx state ( -- )
@@ -35,11 +35,11 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
 			mov		#'{',Rthd				; Units are frowny mouths :-{
 			mov.b	&worstBadness,Rsec		; Result
-;			mov		#3,Rtos					; Print 3 digits
+		;	mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
-#if WATCHDOG
+	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-#endif
+	#endif
 			; Now prettyPrint the reason for the worst badness
 			mov.b	&worstBadUnit,Rthd		; Units
 			mov		&worstBadMeas,Rsec		; Result
@@ -55,6 +55,17 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			
 ; Alarm ( boolean -- )
 			xCODE	'a',Alarm,_Alarm
-			mov.b	Rtos,&bAlarmForBad
+	#if 1
+			; Relies on bAlarmForBad being in bit 0
+		;	allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#bAlarmForBad,&monFlags ; Move only bAlarmForBad bit from Rtos to monFlags
+	#else								; Trashes Rtos
+			tst		Rtos
+			_IF		_NZ
+				bic.b		#bAlarmForBad,&monFlags
+			_ELSE
+				bis.b		#bAlarmForBad,&monFlags
+			_ENDIF
+	#endif
 			ret
 #endif
