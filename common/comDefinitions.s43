@@ -126,10 +126,9 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			mov		Rsec,R9				; R9 := n
 			mov		#16,Rsec			; Rsec := 16 (radix)
 			_BEGIN
-			_CS_SWAP					; [Make following _ENDIF apply to preceding _ELSE
-										;  so decimal skips the first multiply]
 				mov		Rsec,R8				; Radix (10 or 16) into R8
 				call	#UMStar				; R9 * R8 -> R10:R9, clears R11
+		_CS_SWAP					; [Make next _ENDIF apply to prev _ELSE so decimal skips first multiply]
 		_ENDIF						; End hexadecimal
 				cmp		Rtos,R12			; Only convert and send the digit if it was asked for
 				_IF		_LO					; Equivalent to _IF _NC. So clrc isn't necessary below
@@ -138,7 +137,9 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 					dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 					dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
 			;		and.b	#$7F,R8				; Ensure nothing can be misinterpreted as badness
-					call	#TX_ByteCk
+					mov		R9,Rthd				; Save R9 
+					call	#TX_ByteCk			; Transmit byte (accumulating checksum). Trashes R9
+					mov		Rthd,R9				; Restore R9
 				_ENDIF
 				dec		R12					; Decrement loop counter
 			_UNTIL	_L					; Jump back to matching _BEGIN if loop counter not negative
