@@ -77,9 +77,6 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 
-; NOTE: Many pairs of byte variables below are initialised as a word to save code space.
-; Don't move them or insert new variables without checking.
-
 monFlags	DS		1				; Monitor flags, bitmask definitions follow
 bAlarmForBad EQU	1				; A BMU can be told to raise an alarm instead of sending badness on
 bNotSendBad	 EQU	2				; Zero if sending badness bytes at all
