@@ -126,15 +126,16 @@ TIB			DS		1				; Start of Text Input Buffer, grows towards stack
 			ORG		$F800					; Reset vector points here
 ;-------------------------------------------------------------------------------
 
-; Clear all of RAM
-			_DO		#$80,R8
-				clr		$1FE(R8)
-			_mLOOP	#2,R8
-
-main:		mov.w	#$280,SP				; Initialize stackpointer
+main:										; For IAR Embedded Workbench IDE debugger
+			mov.w	#$280,SP				; Initialize stackpointer
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
+			; Clear all variables in RAM
+			_DO		#TIB-$200,R8
+				clr		$200-2(R8)
+			_mLOOP	#2,R8
+
 			; Initialise clocks. SMCLK is only used by timer.
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
