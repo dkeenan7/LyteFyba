@@ -143,31 +143,29 @@ SETLOCKA	MACRO
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 
-; NOTE: Many pairs of byte variables below are initialised as a word to save code space.
-; Don't move them or insert new variables without checking.
-
-; ByteCodeInterpreter2 variables
-
-base			DS		1			; Number base, 10 or 16
-CHKSUM			DS		1			; Packet xor checksum
-Checksumming 	DS		1			; Boolean
-dontInterpret	DS		1			; Boolean; for 'x' command
-passWordState	DS		1			; State of the password detection logic; 3 = start
-TXCksum			DS		1			; Transmit checksum
-
 ; RAM copies of various calibration settings
 ; Same order as stored in the BSL
 			ALIGNRAM 1				; So these can be copied with word moves
 ramDataStart
-ramVoltCal	ds		2				; Voltage scale calibration word; may be written by BSL writer
-ramTempCal	ds		1				; Temperature offset calibration; may be written by BSL writer
-ramLinkCal	ds		1				; Link voltage offset calibration data; may be written by BSL writer
-ram8MHzCalD ds		1				; 4 MHz DCO frequency calibration byte
-ram8MHzCalB ds		1				; 4 MHz DCO range calibration byte
-ramID		ds		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
-ramDataVers	ds		1				; Data version
+ramVoltCal	DS		2				; Voltage scale calibration word; may be written by BSL writer
+ramTempCal	DS		1				; Temperature offset calibration; may be written by BSL writer
+ramLinkCal	DS		1				; Link voltage offset calibration data; may be written by BSL writer
+ram8MHzCalD DS		1				; 4 MHz DCO frequency calibration byte
+ram8MHzCalB DS		1				; 4 MHz DCO range calibration byte
+ramID		DS		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+ramDataVers	DS		1				; Data version
 ramDataEnd
 
+passWordState DS	1				; State machine for password recogniser
+TXCksum		DS		1				; Transmit checksum
+
+; ByteCodeInterpreter2 variables
+
+checksum	DS		1				; Packet xor checksum
+intFlags	DS		1				; Interpreter flags, bitmask definitions follow
+bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
+bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
+bDontInterpret EQU	4				; Are we interpreting?
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		1				; Start of Text Input Buffer, grows towards stack
@@ -247,16 +245,24 @@ initialise:
 			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
+; Clear all of RAM
+			_DO		#$80,R8
+				clr		$1FE(R8)
+			_mLOOP	#2,R8
+			
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
-			mov.w	#10,&base				; Decimal output mode by default
-;			clr.b	&CHKSUM					; Clear checksum
-			clr.w	&Checksumming			; Checksumming of packets, off by default
-;			clr.b	&dontInterpret			; Interpret
-			mov.w	#3,&passWordState
-;			clr.b	&TXCksum
+;			clr.b	&checksum				; Clear checksum
+;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
+;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
+;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
+			
+;
+; Miscellaneous initialisation
+;
+			mov.b	#4,&passWordState		; Waiting for first byte of ^C ^B ^A ^@ sequence
 			
 ;
 ; Copy calibration data into RAM
