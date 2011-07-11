@@ -156,7 +156,8 @@ ramID		DS		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
 ramDataVers	DS		1				; Data version
 ramDataEnd
 
-passWordState DS	1				; State machine for password recogniser
+; Miscellaneous variables
+
 TXCksum		DS		1				; Transmit checksum
 
 ; ByteCodeInterpreter2 variables
@@ -211,6 +212,11 @@ initialise:
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
+			; Clear all variables in RAM
+			_DO		#TIB-$200,R8
+				clr		$200-2(R8)
+			_mLOOP	#2,R8
+			
 			; Set VREFp (P1.4) as an output as well as the LED. This will put 0V at the bottom of the
 			; link voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
@@ -245,10 +251,10 @@ initialise:
 			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
-; Clear all of RAM
-			_DO		#$80,R8
-				clr		$1FE(R8)
-			_mLOOP	#2,R8
+;
+; Miscellaneous initialisation
+;
+;			clr.b	TXCksum						; Clear transmit checksum
 			
 ;
 ; Initialise the command character (bytecode) interpreter
@@ -258,11 +264,6 @@ initialise:
 ;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
 ;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
-			
-;
-; Miscellaneous initialisation
-;
-			mov.b	#4,&passWordState		; Waiting for first byte of ^C ^B ^A ^@ sequence
 			
 ;
 ; Copy calibration data into RAM
@@ -299,7 +300,7 @@ newChip
 			
 currVersBSL
 			; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#infoDataEnd-infoDataStart,R15	; Prepare to move ~8 bytes by 2s
+			_DO		#infoDataEnd-infoDataStart,R15	; Prepare to move ~8 bytes
 				mov.b		infoDataStart-1(R15),ramDataStart-1(R15)	; Move 1 byte
 			_mLOOP	#1,R15							; Decrement loop counter by 1, loop if non zero
 			ret
@@ -308,7 +309,7 @@ currVersBSL
 ; Start of the actual debugger, when not started from the BSL
 ; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
-main:										; For debugger
+main:										; For IAR Embedded Workbench IDE debugger
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
 ;			br		#_updateInfoFlash		; Update info flash and establish a BSL
