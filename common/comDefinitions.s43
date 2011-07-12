@@ -93,7 +93,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 ; Trashes R8-R12
 		
 		xCODE	'n',emitNum,_emitNum
-#if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
+#if 0	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&intFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
@@ -143,8 +143,9 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 				_ENDIF
 				dec		R12					; Decrement loop counter
 			_UNTIL	_L					; Jump back to matching _BEGIN if loop counter not negative
-#else	// This version takes up less flash but uses up to 8 bytes of the stack to reverse the digits
-		bit.b	#bHexOutput,&intFlags ; Distinguish decimal from hex (the only bases allowed)
+
+#else	// This version of emitNum takes less flash but uses up to 8 bytes of stack to reverse digits
+		bit.b	#bHexOutput,&intFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
 			tst		Rsec
 			_IF		_L					; If n is negative

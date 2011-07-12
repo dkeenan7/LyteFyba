@@ -133,64 +133,64 @@ sizeTranslateTable	EQU	$-translateTable
 _ENTER
 _NEXT	
 #if WATCHDOG
-		MOV.W	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer before each bytecode is interpreted
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer before each bytecode is interpreted
 #endif
-		MOV.B	@Rip+,Rw	; Fetch the next bytecode
+		mov.b	@Rip+,Rw	; Fetch the next bytecode
 		
 		; Do the bytecode translations using the table above
-		MOV		#sizeTranslateTable,R9 ; Initialise the loop counter and table index
+		mov		#sizeTranslateTable,R9 ; Initialise the loop counter and table index
 		_BEGIN				; Begin loop
-			MOV.W	translateTable-2(R9),R10 ; Get two bytes from the table
-			CMP.B	R10,Rw		; Compare the bytecode with the low byte from the table
+			mov.w	translateTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rw		; Compare the bytecode with the low byte from the table
 			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
-				DECD	R9			; Decrement loop-counter/table-index by 2
+				decd	R9			; Decrement loop-counter/table-index by 2
 		_UNTIL	_Z			; Until loop counter is zero
 			_ELSE				; Else there is a match so
-				SWPB	R10			; Get the high byte from the table
-				MOV.B	R10,Rw		; Substitute it for the bytecode
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rw		; Substitute it for the bytecode
 			_ENDIF				; Endif match
 
-		CMP.B	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
-		JLO		DoUNDEF		;	as undefined, and try to interpret as digits
+		cmp.b	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
+		jlo		DoUNDEF		;	as undefined, and try to interpret as digits
 		
-_RUN	RLA.B	Rw			; Multiply bytecode by 2
-FncOPCD MOV _OPCODETBL-($60*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
+_RUN	rla.b	Rw			; Multiply bytecode by 2
+FncOPCD mov _OPCODETBL-($60*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
 							;	the code address
-		CMP		#$FFFF,Rw	; Check for undefined bytecodes
-		JNE		FncLIT		; If undefined and >= $60
-NotDigit MOV	#_Space,Rw	;	Treat as literal-separator no-op
+		cmp		#$FFFF,Rw	; Check for undefined bytecodes
+		jne		FncLIT		; If undefined and >= $60
+NotDigit mov	#_Space,Rw	;	Treat as literal-separator no-op
 
-FncLIT	TST		SR			; Check for an implied push-literal
-		JGE		DoOPCD		; If there's an operand-in-progress
+FncLIT	tst		SR			; Check for an implied push-literal
+		jge		DoOPCD		; If there's an operand-in-progress
 							;	there's an implied LIT now
-		BIC		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
-;		PUSH	Rtos		;	Push the operand now, before doing the
-;		MOV		Rlit,Rtos	;	operation
+		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
+;		push	Rtos		;	Push the operand now, before doing the
+;		mov		Rlit,Rtos	;	operation
 		DPUSH	Rlit
 
-DoOPCD	CALL	Rw			; Call the machine-code implementation of the bytecode
+DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
 							; It must end with an RET
-		JMP		_NEXT
+		jmp		_NEXT
 
 DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
-		SUB.B	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
-		JN		NotDigit	; Ignore undefined bytecodes below '0'
-		CMP.B	#$0A,Rw
+		sub.b	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		jn		NotDigit	; Ignore undefined bytecodes below '0'
+		cmp.b	#$0A,Rw
 		_IF		_GE
-			CMP.B	#$17,Rw
-			JGE		NotDigit ; Ignore undefined bytecodes above 'F'
-			CMP.B	#$11,Rw
-			JL		NotDigit ; Ignore undefined between '9' and 'A'
-			SUB.B	#'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
+			cmp.b	#$17,Rw
+			jge		NotDigit ; Ignore undefined bytecodes above 'F'
+			cmp.b	#$11,Rw
+			jl		NotDigit ; Ignore undefined between '9' and 'A'
+			sub.b	#'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
 		_ENDIF
 		
-FncPFX4 TST		SR			; Test the operand-in-progress flag
-		BIS		#1<<15,SR	; Set the operand-in-progress flag
-		JN		DatMor4		; If there was no operand-in-progress
+FncPFX4 tst		SR			; Test the operand-in-progress flag
+		bis		#1<<15,SR	; Set the operand-in-progress flag
+		jn		DatMor4		; If there was no operand-in-progress
 
-DatFst4 MOV		Rw,Rlit		;	Move 4-bit data to partial-operand register
-		JMP		_NEXT		; Else (operand-in-progress)
+DatFst4 mov		Rw,Rlit		;	Move 4-bit data to partial-operand register
+		jmp		_NEXT		; Else (operand-in-progress)
 
 DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		mov		Rlit,R9		;	Save 2*Rlit in R9
@@ -213,53 +213,59 @@ DatEnd4 jmp		_NEXT		; Endif
 ; Implements backspace editing and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ACCEPT
-		MOV		&ToIN,R9
+		mov		&ToIN,R9
 		_CASE
 		
 		_OFb	#$0D,R8			; Carriage return = end of packet
-			bit.b	#bChecksumming,&intFlags
-			_IF		_NZ				; If checksumming
-				TST.B	&checksum
-				_IF		_Z				; If good checksum
-					DEC		R9				; Prepare to overwrite the checksum with an EXIT bytecode
-					CMP		#TIB,R9			; Handle case of empty packet with no checksum
-					_IF		_LO
-						MOV		#TIB,R9
-					_ENDIF
-			_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
-			_ENDIF					; Endif checksumming
-					MOV.B	#EXIT,0(R9) 	; Overwrite checksum or carriage return with EXIT bytecode
-					bit.b	#bDontInterpret,&intFlags
-					_IF		_Z
-						MOV		#TIB,Rip		; Interpret the packet as bytecode
-						CALL	#_ENTER
-					_ENDIF
-				_ENDIF					; Endif (good checksum)
-			MOV		#TIB,&ToIN		; Initialise packet buffer pointer
-			CLR.B	&checksum		; Clear the packet checksum
+			cmp		#TIBEnd,R9
+			_IF		_LO				; If packet buffer not full
+				bit.b	#bChecksumming,&intFlags
+				_IF		_NZ				; If checksumming
+					tst.b	&checksum
+					_IF		_Z				; If good checksum
+						dec		R9				; Prepare to overwrite the checksum with an EXIT bytecode
+						cmp		#TIB,R9			; Handle case of empty packet with no checksum
+						_IF		_LO
+							mov		#TIB,R9
+						_ENDIF
+				_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
+				_ENDIF					; Endif checksumming
+						mov.b	#EXIT,0(R9) 	; Overwrite checksum or carriage return with EXIT bytecode
+						bit.b	#bDontInterpret,&intFlags
+						_IF		_Z				; If the dont-interpret flag is clear
+							mov		#TIB,Rip		; Interpret the packet as bytecode
+							call	#_ENTER
+						_ENDIF					; Endif dont-interpret flag is clear
+					_ENDIF					; Endif good checksum
+				_ENDIF					; Endif packet buffer not full
+			mov		#TIB,&ToIN		; Initialise packet buffer pointer
+			clr.b	&checksum		; Clear the packet checksum
 		_ENDOF					; EndOf carriage return
 		
 		_OFb	#$08,R8			; Backspace editing
-			DEC		R9				; Decrement the pointer, but
-			CMP		#TIB,R9			; don't go back past start of packet
+			dec		R9				; Decrement the pointer, but
+			cmp		#TIB,R9			; don't go back past start of packet
 			_IF		_LO
-				MOV		#TIB,R9
+				mov		#TIB,R9
 			_ENDIF
-			MOV		R9,&ToIN
+			mov		R9,&ToIN
 		_ENDOF					; EndOf backspace
 		
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
-			bic.b	#bDontInterpret,&intFlags
+			bic.b	#bDontInterpret,&intFlags ; Clear the don't interpret flag
 		_ENDOF					; EndOf escape
 		
 		; Default case, if not CR or BS
-			MOV.B	R8,0(R9)		; Write the byte to the buffer
-			INC		&ToIN			; Increment the pointer
-			XOR.B	R8,&checksum	; Accumulate the checksum		
+			cmp		#TIBEnd,R9
+			_IF		_LO				; If packet buffer not full
+				mov.b	R8,0(R9)		; Write the byte to the buffer
+				inc		&ToIN			; Increment the pointer
+				xor.b	R8,&checksum	; Accumulate the checksum
+			_ENDIF
 
 		_ENDCASE				; End Case char
 
-		RET
+		ret
 		
 
 
