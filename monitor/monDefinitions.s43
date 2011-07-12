@@ -19,21 +19,21 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 		
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
-			mov		#'x',Rthd				; Units are "rX/tX tiX" (communication ticks)
+			mov		#'R',Rthd				; Units are Rx ticks
 			mov.b	&ticksSinceLastRx,Rsec	; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
-			mov		#'{',Rthd				; Units are frowny mouths :-{
+			mov		#'B',Rthd				; Units are badnes levels
 			mov.b	&localBadness,Rsec		; Result
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #if 1
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
-			mov		#'{',Rthd				; Units are frowny mouths :-{
+			mov		#'Q',Rthd				; Units are badness levels
 			mov.b	&worstBadness,Rsec		; Result
 		;	mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits

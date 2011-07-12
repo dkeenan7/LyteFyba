@@ -119,7 +119,7 @@ bChecksumming EQU	2				; Are we sending checksums and checking received checksum
 bDontInterpret EQU	4				; Are we interpreting?
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
-TIB			DS		40				; Text Input Buffer (packet buffer)
+TIB			DS		48				; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes)
 

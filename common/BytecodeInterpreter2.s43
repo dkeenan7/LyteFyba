@@ -243,12 +243,15 @@ ACCEPT
 		_ENDOF					; EndOf carriage return
 		
 		_OFb	#$08,R8			; Backspace editing
-			dec		R9				; Decrement the pointer, but
-			cmp		#TIB,R9			; don't go back past start of packet
-			_IF		_LO
-				mov		#TIB,R9
-			_ENDIF
-			mov		R9,&ToIN
+			cmp		#TIBEnd,R9
+			_IF		_LO				; If packet buffer not full
+				dec		R9				; Decrement the pointer, but
+				cmp		#TIB,R9			; don't go back past start of packet
+				_IF		_LO
+					mov		#TIB,R9
+				_ENDIF
+				mov		R9,&ToIN
+			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 		
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
@@ -261,7 +264,7 @@ ACCEPT
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
 				xor.b	R8,&checksum	; Accumulate the checksum
-			_ENDIF
+			_ENDIF					; Endif packet buffer not full
 
 		_ENDCASE				; End Case char
 

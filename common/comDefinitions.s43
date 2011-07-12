@@ -253,7 +253,7 @@ _prettyPrint:
 ;
 		xCODE		't',cellTemp,_cellTemp
 		call		#temp				; Return temp in degrees Celsius in R10
-		mov			#'C',Rthd			; Don't use degree symbol (0xF8, Terminal font only);
+		mov			#'T',Rthd			; Don't use degree symbol (0xF8, Terminal font only);
 										;	it's treated as a badness
 		mov			R10,Rsec
 		mov			#2,Rtos				; Print 2 digits
@@ -264,7 +264,7 @@ _prettyPrint:
 ; Transmit link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
 		xCODE		'l',linkVolt,_linkVolt
 		call		#linkV				; Return link voltage in millivolts in R10
-		mov			#'m',Rthd			; Units are millivolts
+		mov			#'L',Rthd			; Units are millivolts
 		mov			R10,Rsec			; Result
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint		; Tail-call pretty-print and return
