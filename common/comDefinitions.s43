@@ -173,7 +173,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			call	#UMSlashMod			; dividend/base -> R9, remainder to R10
 			push	R10					; Push remainder
 			dec		R12
-		_UNTIL	_Z					; R9 keeps quotient as next dividend
+		_UNTIL	_L					; R9 keeps quotient as next dividend
 		mov		R9,R8
 		; Now we have n-1 results on the stack and the last one in R8; print these as hex/decimal
 		_BEGIN
@@ -183,7 +183,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as badness
 			call	#TX_ByteCk
 			dec		Rtos
-		_WHILE	_NZ
+		_WHILE	_NN
 			pop		R8
 		_REPEAT
 #endif
