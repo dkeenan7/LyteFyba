@@ -83,11 +83,6 @@ bNotSendBad	 EQU	2				; Zero if sending badness bytes at all
 bNotMeasureTime EQU	4				; Zero if time to measure
 
 localBadness DS		1				; Local badness
-			ALIGNRAM 1
-worstBadMeas DS		2				; Value of measurement that caused worst badness
-worstBadUnit DS		1				; Unit character for reason for worst badness
-worstBadness DS		1				; Worst local badness since last resetWorstBadness command
-
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
@@ -117,6 +112,12 @@ intFlags	DS		1				; Interpreter flags, bitmask definitions follow
 bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
 bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
 bDontInterpret EQU	4				; Are we interpreting?
+
+			ALIGNRAM 1
+worstBadness DS		1				; Worst local badness since last resetWorstBadness command
+worstBadType DS		1				; Character giving type of measurement that caused worst badness
+worstBadMeas DS		2				; Value of measurement that caused worst badness
+
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
 TIB			DS		48				; Text Input Buffer (packet buffer)
@@ -132,8 +133,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
-			; Clear all variables in RAM
-			_DO		#TIB-$200,R8
+			; Clear all variables in RAM except worstBadness (and ToIN/TIB)
+			_DO		#worstBadness-$200,R8
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
 
@@ -218,7 +219,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bAlarmForBad,&monFlags		; Just pass badness on, don't raise alarm
 ;			clr.b	&localBadness			; Local badness is none
 ;			clr		&worstBadMeas			; Value of measurement causing worstBadness is zero
-;			clr.b	&worstBadUnit			; Unit of measurement causing worst badness is null
+;			clr.b	&worstBadType			; Type of measurement causing worst badness is null
 ;			clr.b	&worstBadness			; Worst local badness is none
 ;			clr.b	&ticksSinceLastSend
 ;			clr.b	&ticksSinceLastRx
@@ -264,7 +265,7 @@ measures:
 ; Regular measurement. Called BadnessFreq times per second (4-32 times per second)
 ;
 #define Rmeas R15				// Tentative measurement causing worst badness
-#define Runit R14				// Tentative unit of measurement causing worst badness
+#define Rtype R14				// Tentative type of measurement causing worst badness
 
 			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
@@ -275,7 +276,7 @@ measures:
 			; Cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
 			mov		R10,Rmeas				; Tentative measurement causing worst badness
-			mov.b	#'V',Runit				; Tentative unit of measurement causing worst badness
+			mov.b	#'V',Rtype				; Tentative type of measurement causing worst badness
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -317,8 +318,8 @@ measures:
 			push	R9						; Save badness_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; Temperature badness: 1 for every 2 degrees over 50
-			sub		#50-1,R10				; -1 for rounding
+			; Temperature badness: 1 for every 2 degrees over 45
+			sub		#45-1,R10				; -1 for rounding
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
@@ -329,7 +330,7 @@ measures:
 			_IF		_LO
 				mov		R10,R9					; Yes, new badness_so_far
 				mov		R8,Rmeas				; Tentative measurement causing worst badness
-				mov.b	#'C',Runit				; Tentative unit of measurement causing worst badness
+				mov.b	#'T',Rtype				; Tentative type of measurement causing worst badness
 			_ENDIF
 
 			; Link measurement, if appropriate
@@ -359,7 +360,7 @@ measures:
 				_IF		_LO
 					mov		R8,R9					; Yes, new badness_so_far
 					mov		R10,Rmeas				; Tentative measurement causing worst badness
-					mov.b	#'m',Runit				; Tentative unit of measurement causing worst bad
+					mov.b	#'L',Rtype				; Tentative type of measurement causing worst bad
 				_ENDIF
 			_ELSE
 				pop		R9						; Restore badness_so_far
@@ -370,9 +371,9 @@ measures:
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
 
-			; Comms badness: 1 if no badness RX for 10 ticks and we are not ID 1
+			; Receive (comms) badness: 1 if no badness RX for 10 ticks and we are not ID 1
 			bit.b	#bNotSendBad,&monFlags	; Are we sending badness?
-			_IF		_Z						; If not, there can't be a comms badness
+			_IF		_Z						; If not, there can't be a receive badness
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
 					cmp.b	#1,&ID					; Only if ID
@@ -381,7 +382,7 @@ measures:
 						_IF		_Z
 							mov		#1,R9					; Yes, make it 1 for the comms error
 							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
-							mov.b	#'x',Runit				; Tentative unit of measurement causing worst bad
+							mov.b	#'R',Rtype				; Tentative type of measurement causing worst bad
 						_ENDIF
 					_ENDIF
 				_ENDIF
@@ -392,7 +393,7 @@ measures:
 			_IF		_HS						; If localBadness equal or higher than worstBadness
 				mov.b	R9,&worstBadness		; Update worstBadness
 				mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
-				mov.b	Runit,&worstBadUnit		; Update unit of measurement causing worst badness
+				mov.b	Rtype,&worstBadType		; Update type of measurement causing worst badness
 			_ENDIF
 			
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more

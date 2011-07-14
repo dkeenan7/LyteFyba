@@ -223,7 +223,7 @@ _prettyPrint:
 		mov		#' ',R8				; Transmit a space
 		call	#TX_ByteCk
 		
-		pop		R8					; Restore ch (unit letter)
+		pop		R8					; Restore ch (type of measurement)
 		call	#TX_ByteCk			; Transmit ch
 		
 		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
@@ -242,8 +242,8 @@ _prettyPrint:
 ;
 		xCODE		'v',cellVolt,_cellVolt
 		call		#cellV				; Return cell voltage in millivolts in R10
-		mov			#'V',Rthd			; Units are millivolts
-		mov			R10,Rsec			; Result
+		mov			#'V',Rthd			; Type is cell Voltage
+		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
@@ -252,10 +252,10 @@ _prettyPrint:
 ; Transmit cell temperature in degrees C
 ;
 		xCODE		't',cellTemp,_cellTemp
-		call		#temp				; Return temp in degrees Celsius in R10
-		mov			#'T',Rthd			; Don't use degree symbol (0xF8, Terminal font only);
-										;	it's treated as a badness
-		mov			R10,Rsec
+		call		#temp				; Return temperature in degrees Celsius in R10
+		mov			#'T',Rthd			; Type is temperature
+										; Don't use degree symbol ($F8 Terminal font). It's a badness
+		mov			R10,Rsec			; Result in degrees Celsius
 		mov			#2,Rtos				; Print 2 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
@@ -264,7 +264,7 @@ _prettyPrint:
 ; Transmit link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
 		xCODE		'l',linkVolt,_linkVolt
 		call		#linkV				; Return link voltage in millivolts in R10
-		mov			#'L',Rthd			; Units are millivolts
-		mov			R10,Rsec			; Result
+		mov			#'L',Rthd			; Type is Link voltage
+		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint		; Tail-call pretty-print and return

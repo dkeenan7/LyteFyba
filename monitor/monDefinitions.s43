@@ -19,21 +19,21 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 		
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
-			mov		#'R',Rthd				; Units are Rx ticks
-			mov.b	&ticksSinceLastRx,Rsec	; Result
+			mov		#'R',Rthd				; Type is Rx state
+			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
-			mov		#'B',Rthd				; Units are badnes levels
-			mov.b	&localBadness,Rsec		; Result
+			mov		#'B',Rthd				; Type is badness
+			mov.b	&localBadness,Rsec		; Result in badness levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #if 1
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
-			mov		#'Q',Rthd				; Units are badness levels
+			mov		#'Q',Rthd				; Type is worst badness level
 			mov.b	&worstBadness,Rsec		; Result
 		;	mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
@@ -41,7 +41,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst badness
-			mov.b	&worstBadUnit,Rthd		; Units
+			mov.b	&worstBadType,Rthd		; Type of measurement
 			mov		&worstBadMeas,Rsec		; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
@@ -49,7 +49,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 ; Reset worst badness ( -- )
 			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
 			clr.b	&worstBadness
-			mov.b	#' ',&worstBadUnit
+			mov.b	#' ',&worstBadType
 			clr		&worstBadMeas
 			ret
 			
