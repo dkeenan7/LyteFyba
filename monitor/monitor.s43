@@ -1,4 +1,6 @@
 			COL		150			; Wide listings
+			
+#define COUNTCKSM 1							// 1 to count checksum errors instead of badness
 
 			LSTOUT-
 #include "msp430.h"
@@ -115,6 +117,7 @@ bDontInterpret EQU	4				; Are we interpreting?
 
 			ALIGNRAM 1
 worstBadness DS		1				; Worst local badness since last resetWorstBadness command
+									;	Or checksum errors if COUNTCKSM is on
 worstBadType DS		1				; Character giving type of measurement that caused worst badness
 worstBadMeas DS		2				; Value of measurement that caused worst badness
 
@@ -388,6 +391,7 @@ measures:
 				_ENDIF
 			_ENDIF
 
+#if !COUNTCKSM
 			mov.b	R9,&localBadness		; Record this for later use
 			cmp.b	&worstBadness,R9
 			_IF		_HS						; If localBadness equal or higher than worstBadness
@@ -395,7 +399,8 @@ measures:
 				mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
 				mov.b	Rtype,&worstBadType		; Update type of measurement causing worst badness
 			_ENDIF
-			
+#endif
+
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
 			CtoAllBits	R8
 			movBits_B	R8,#LED,&P1OUT
