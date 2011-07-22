@@ -148,7 +148,7 @@
 
 // BMU constants
 #define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
-#define USE_CKSUM 0								// Set non-zero to send and expect checksums
+#define USE_CKSUM 1								// Set non-zero to send and expect checksums
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
