@@ -236,6 +236,10 @@ ACCEPT
 							mov		#TIB,Rip		; Interpret the packet as bytecode
 							call	#_ENTER
 						_ENDIF					; Endif dont-interpret flag is clear
+#if COUNTCKSM
+					_ELSE
+						inc.b	&worstBadness
+#endif
 					_ENDIF					; Endif good checksum
 				_ENDIF					; Endif packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
