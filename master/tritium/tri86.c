@@ -52,7 +52,6 @@ void timerB_init( void );
 void adc_init( void );
 static void __inline__ brief_pause(register unsigned int n);
 void update_switches( unsigned int *state, unsigned int *difference);
-void chgr_transmit(const unsigned char* ptr);		// In usci.c
 
 // Global variables
 // Status and event flags
@@ -79,23 +78,34 @@ unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a v
 unsigned int chgr_soaking = 0;			// Counter for soak phase
 
 // Charger buffers
-		 unsigned char chgr_txbuf[16];	// Buffer for a transmitted charger "CAN" packet
-volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
-volatile unsigned char chgr_txidx = 0;	// Index into the charger transmit buffer
-volatile unsigned char chgr_rxidx = 0;	// Index into the charger receive buffer
+// The following is not actually volatile, but we declare it such so we can avoid warnings about lost
+//	qualifiers
+volatile unsigned char chgr_txbuf[CHGR_TX_BUFSZ];	// Buffer for a transmitted charger "CAN" packet
+volatile unsigned char chgr_rxbuf[CHGR_RX_BUFSZ];	// Buffer for a received charger "CAN" packet
+		 unsigned char chgr_txwr = 0;	// Write index into the charger transmit buffer
+volatile unsigned char chgr_txrd = 0;	// Read index into the charger transmit buffer
+volatile unsigned char chgr_rxwr = 0;	// Write index into the charger receive buffer
+		 unsigned char chgr_rxrd = 0;	// Read index into the charger receive buffer
+volatile unsigned char chgr_txcnt = 0;	// Count of bytes transmitted
+volatile unsigned char chgr_rxcnt = 0;	// Count of bytes received
 
 // BMU buffers and variables
-		 unsigned char bmu_txbuf[64];	// Buffer for a transmitted BMU command
-volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
-volatile unsigned char bmu_txidx = 0;	// Index into the BMU transmit buffer
-volatile unsigned char bmu_rxidx = 0;	// Index into the BMU  receive buffer
+volatile unsigned char bmu_txbuf[BMU_TX_BUFSZ];	// Buffer for a transmitted BMU command
+volatile unsigned char bmu_rxbuf[BMU_RX_BUFSZ];	// Buffer for a received BMU response
+volatile unsigned char bmu_txwr = 0;	// Write index into the BMU transmit buffer
+volatile unsigned char bmu_txrd = 0;	// Read index into the BMU transmit buffer
+volatile unsigned char bmu_rxwr = 0;	// Write index into the BMU  receive buffer
+volatile unsigned char bmu_rxrd = 0;	// Read index into the BMU  receive buffer
 volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
 volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
 volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 
+
+
 void fault() {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
+										//	(but beware the compiler may well inline it)
 }
 
 void makeVoltCmd(unsigned char* cmd, int bmu_curr_cell)

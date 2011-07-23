@@ -12,10 +12,10 @@ extern 	void 			usci_init( unsigned char clock );
 extern 	void			usci_transmit( unsigned char data );
 extern 	unsigned char 	usci_exchange( unsigned char data );
 
-extern	void			chgr_transmit(const unsigned char* ptr);
-extern	void			chgr_transmit_buf( void );
-extern	void			bmu_transmit(const unsigned char* ptr);
-extern	void			bmu_transmit_buf( void );
+extern	bool			chgr_transmit(const unsigned char* ptr);
+extern	bool			chgr_transmit_buf( void );
+extern	bool			bmu_transmit(const unsigned char* ptr);
+extern	bool			bmu_transmit_buf( void );
 
 // Private Function prototypes
 

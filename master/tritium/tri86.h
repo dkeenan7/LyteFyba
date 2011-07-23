@@ -163,18 +163,34 @@ extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
 extern volatile unsigned int bmu_events;		// BMU events
 extern volatile unsigned char bmu_badness;		// BMU badness
-extern 		 unsigned char chgr_txbuf[16];		// Buffer for a transmitted charger "CAN" packet
-extern volatile unsigned char chgr_rxbuf[16];	// Buffer for a received charger "CAN" packet
-extern 		 unsigned char bmu_txbuf[64];		// Buffer for a transmitted BMU command
-extern volatile unsigned char bmu_rxbuf[64];	// Buffer for a received BMU response
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
-extern volatile unsigned char chgr_txidx;		// Index into the charger transmit buffer
-extern volatile unsigned char chgr_rxidx;		// Index into the charger receive buffer
-extern volatile unsigned char bmu_txidx;		// Index into the BMU transmit buffer
-extern volatile unsigned char bmu_rxidx;		// Index into the BMU  receive buffer
 
+// Charger buffers
+#define CHGR_TX_BUFSZ	16
+// The following is not actually volatile, but we declare it such so we can avoid warnings about lost
+//	qualifiers
+extern volatile unsigned char chgr_txbuf[CHGR_TX_BUFSZ];	// Buffer for a transmitted charger "CAN" packet
+#define CHGR_RX_BUFSZ 16
+extern volatile unsigned char chgr_rxbuf[CHGR_RX_BUFSZ];	// Buffer for a received charger "CAN" packet
+extern unsigned char chgr_txwr;						// Write index into the charger transmit buffer
+extern volatile unsigned char chgr_txrd;			// Read index into the charger transmit buffer
+extern volatile unsigned char chgr_rxwr;			// Write index into the charger receive buffer
+extern			unsigned char chgr_rxrd;			// Read index into the charger receive buffer
+extern volatile unsigned char chgr_txcnt;			// Count of bytes transmitted
+extern volatile unsigned char chgr_rxcnt;			// Count of bytes received
 
+// BMU buffers and variables
+#define BMU_TX_BUFSZ	64
+extern volatile unsigned char bmu_txbuf[BMU_TX_BUFSZ];	// Buffer for a transmitted BMU command
+#define BMU_RX_BUFSZ	64
+extern volatile unsigned char bmu_rxbuf[BMU_RX_BUFSZ];	// Buffer for a received BMU response
+extern volatile unsigned char bmu_txwr;				// Write index into the BMU transmit buffer
+extern volatile unsigned char bmu_txrd;				// Read index into the BMU transmit buffer
+extern volatile unsigned char bmu_rxwr;				// Write index into the BMU  receive buffer
+extern volatile unsigned char bmu_rxrd;				// Read index into the BMU  receive buffer
+
+void fault();							// Set an event to flash the error LED
 
 
 // Typedefs for quickly joining multiple bytes/ints/etc into larger values
@@ -205,3 +221,7 @@ typedef union _group_16 {
 	unsigned int data_u16;
 	int data_16;
 } group_16;
+
+typedef unsigned char bool;			// C does not define type bool
+#define true 1
+#define false 0

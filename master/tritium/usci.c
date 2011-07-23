@@ -43,6 +43,51 @@ void eint();
 void dint();
 #endif
 
+/* Enqueue and Dequeue general queueing functions */
+// Enqueue a byte. Returns true on success (queue not full)
+bool enqueue(
+  volatile unsigned char* buf,			// The buffer
+		   unsigned char rd,			// The read index
+  volatile unsigned char* wr,			// *Pointer to* the write index
+		   unsigned int bufSize,		// The buffer size, pass a constant
+		   unsigned char ch)			// The byte to enqueue
+{
+	unsigned char wr_copy = *wr;		// Make a copy of the write index
+	buf[wr_copy] = ch;					// Tentatively write the byte to the queue; there is always
+										//	one free space, but don't update write index yet
+	wr_copy++;							// Increment the copy
+	wr_copy &= (bufSize-1);				//	modulo the buffer size
+	if (wr_copy == rd)					// Does the incremented write pointer equal the read pointer?
+		return false;					// Yes, error return
+	*wr = wr_copy;						// Update write pointer; byte is officially in the queue now
+	return true;						// Normal return
+}
+
+// Dequeue a byte. Returns true on success (queue not empty). 
+bool dequeue(
+	volatile unsigned char* buf,		// The buffer
+	volatile unsigned char* rd,			// *Pointer to* the read index
+			 unsigned char wr,			// The write index
+			 unsigned int bufSize,		// Buffer size (pass a constant)
+			 unsigned char* ch)			// Pointer to the byte to be read to
+{
+	unsigned char rd_copy = *rd;
+	if (wr == rd_copy)					// Indexes equal?
+		return false;					// If so, buffer is empty
+	*ch = buf[rd_copy++];				// Read the byte, increment read index
+	rd_copy &= (bufSize-1);				//	modulo the buffer size
+	rd = rd_copy;						// Atomic update
+	return true;
+}
+
+// Returns the space in the queue.
+unsigned int queue_space(
+				unsigned char rd,		// Read index
+				unsigned char wr,		// Write index
+				unsigned int bufSize)	// Buffer size
+{
+	return (wr - rd) & (bufSize-1);
+}
 
 /*
  * Initialise SPI port
@@ -94,14 +139,17 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 {
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		unsigned char ch = chgr_txbuf[chgr_txidx++];
-		events |= EVENT_ACTIVITY;				// Turn on activity light
-
-		if (chgr_txidx == 12) {					// TX over?
-			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
-			chgr_txidx = 0;
+		unsigned char ch;						// Get byte from the transmit queue
+		if (!dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch))
+			fault();							// Fault if queue is empty
+		else {
+			events |= EVENT_ACTIVITY;			// Turn on activity light
+	
+			if (++chgr_txcnt == 12) {			// TX over?
+				IE2 &= ~UCA0TXIE;				// Disable USCI_A0 TX interrupt
+			}
+			UCA0TXBUF = ch;						// TX next byte
 		}
-		UCA0TXBUF = ch;							// TX next character
 	}
 }
 
@@ -111,14 +159,17 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 {
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		unsigned char ch = bmu_txbuf[bmu_txidx++];// Next character
-		events |= EVENT_ACTIVITY;				// Turn on activity light
-
-		if (ch == '\r') {						// TX over? All commands terminated with return
-			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
-			bmu_txidx = 0;
+		unsigned char ch;						// Get byte from the transmit queue
+		if (!dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch))
+			fault();							// Fault if queue is empty
+		else {
+			events |= EVENT_ACTIVITY;			// Turn on activity light
+	
+			if (ch == '\r') {					// TX over? All commands terminated with return
+				UC1IE &= ~UCA1TXIE;				// Disable USCI_A1 TX interrupt
+			}
+			UCA1TXBUF = ch;						// Transmit this byte
 		}
-		UCA1TXBUF = ch;							// Transmit this byte
 	}
 }
 
@@ -128,13 +179,15 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 {
 	if (IFG2 & UCA0RXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		chgr_rxbuf[chgr_rxidx++] = UCA0RXBUF;
-		events |= EVENT_ACTIVITY;				// Turn on activity light
-		if (chgr_rxidx >= 12)
-		{
-			chgr_rxidx = 0;
-			chgr_events |= CHGR_REC;			// Tell main line we've received a charger packet
-			chgr_events &= ~CHGR_SENT;			// No longer unacknowledged
+		if (!enqueue(chgr_rxbuf, chgr_rxrd, &chgr_rxwr, CHGR_RX_BUFSZ, UCA0RXBUF))
+			fault();							// Fault if queue is full
+		else {
+			events |= EVENT_ACTIVITY;				// Turn on activity light
+			if (++chgr_rxcnt >= 12) {
+				chgr_rxcnt = 0;
+				chgr_events |= CHGR_REC;			// Tell main line we've received a charger packet
+				chgr_events &= ~CHGR_SENT;			// No longer unacknowledged
+			}
 		}
 	}
 }
@@ -146,50 +199,65 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
 		unsigned char ch = UCA1RXBUF;
-		events |= EVENT_ACTIVITY;				// Turn on activity light
 		if (ch >= 0x80) {
 			bmu_events |= BMU_BADNESS;
 			bmu_badness = ch;
 		} else {
-			bmu_rxbuf[bmu_rxidx++] = ch;
-			if (ch == '\r')						// All BMU responses terminate with a return
-			{
-				bmu_rxidx = 0;
-				bmu_events |= BMU_REC;			// Tell main line we've received a BMU response
-				// Note: don't reset BMU_SENT till we have a completely valid response
+			if (!enqueue(bmu_rxbuf, bmu_rxrd, &bmu_rxwr, BMU_RX_BUFSZ, ch))
+				fault();							// Fault if queue is full
+			else {
+				events |= EVENT_ACTIVITY;			// Turn on activity light
+				if (ch == '\r')					// All BMU responses terminate with a return
+				{
+					bmu_events |= BMU_REC;		// Tell main line we've received a BMU response
+					// Note: don't reset BMU_SENT till we have a completely valid response
+				}
 			}
-			if (bmu_rxidx == 64)	bmu_rxidx = 0; // DCK: Avoid buffer overrun
 		}
 	}
 }
 
-void chgr_transmit(const unsigned char* ptr)
+unsigned char chgr_lastxmit[12];					// Last CAN message for charger
+
+bool chgr_transmit(const unsigned char* ptr)
 {
-	memcpy(chgr_txbuf, ptr, 12);					// Copy the data to the transmit buffer
-	chgr_transmit_buf();							// Tail call the main transmit function
+	memcpy(chgr_lastxmit, ptr, 12);					// Copy the data to the last message buffer
+	return chgr_transmit_buf();						// Call the main transmit function
 }
 
 // chgr_transmit_buf sends the transmit buffer. Used for resending after a timeout.
-void chgr_transmit_buf(void)
+// Returns true on success
+bool chgr_transmit_buf(void)
 {
-	chgr_txidx = 0;
-    UCA0TXBUF = chgr_txbuf[chgr_txidx++];			// Send the first char to kick things off
+	int i;
+	if (queue_space(chgr_txrd, chgr_txwr, CHGR_RX_BUFSZ) < 11) {
+		// Need 11 bytes in the queue (first byte is sent immediately)
+		// If not, best to abort the whole command, rather than sending a partial message
+		fault();
+		return false;
+	}
+	chgr_txcnt = 0;									// No bytes transmitted yet
+    UCA0TXBUF = chgr_lastxmit[0];					// Send the first char to kick things off
+	for (i=1; i < 12; ++i)
+		enqueue(chgr_txbuf, chgr_txrd, &chgr_txwr, CHGR_TX_BUFSZ, chgr_lastxmit[i]);
 	chgr_events |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
 	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
     IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
+	return true;
 }
 
+unsigned char bmu_lastxmit[BMU_TX_BUFSZ];			// Copy of the last command sent to the BMUs
 
-void bmu_transmit(const unsigned char* ptr)
+bool bmu_transmit(const unsigned char* ptr)
 {
+#if USE_CKSUM
 	unsigned char ch, i = 0, sum = 0;
 	do {
 		ch = *ptr++;
 		sum ^= ch;									// Calculate XOR checksum
 		bmu_txbuf[i++] = ch;						// Copy the data to the transmit buffer
 	} while (ch != '\r');
-#if USE_CKSUM
 	sum ^= '\r';									// CR is not part of the checksum
 	if (sum < ' ') {
 		// If the checksum would be a control character that could be confused with a CR, BS,
@@ -200,19 +268,21 @@ void bmu_transmit(const unsigned char* ptr)
 	bmu_txbuf[i++-1] = sum;							// Insert the checksum
 	bmu_txbuf[i-1] = '\r';							// Add CR
 #endif
-	bmu_transmit_buf();								// Tail call the main transmit function
+	return bmu_transmit_buf();						// Call the main transmit function
 }
 
 // bmu_transmit_buf sends the transmit buffer. Used for resending after a timeout.
-void bmu_transmit_buf(void)
+// Returns true on success
+bool bmu_transmit_buf(void)
 {
-	bmu_txidx = 0;
-    UCA1TXBUF = bmu_txbuf[bmu_txidx++];				// Send the first char to kick things off
+	if (queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < strlen((char*)bmu_lastxmit)-1) {
+		fault();
+		return false;
+	}
+    UCA1TXBUF = bmu_lastxmit[0];					// Send the first char to kick things off
 	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
 	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
-//	brief_pause(INPUT_CLOCK / 1000000 * 1000 / 3);	// Delay 1000 us (1 ms) between chars to see if it
-													// fixes problem where string of BMUs drops characters
-
     UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
 	events |= EVENT_ACTIVITY;						// Turn on activity light
+	return true;
 }
