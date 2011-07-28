@@ -92,13 +92,13 @@ static unsigned int queue_length(
 
 // Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
 // The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
-// as (wr - rd - 1) & (bufSize-1)
+// as (rd - wr - 1) & (bufSize-1)
 static unsigned int queue_space(
 				unsigned char rd,		// Read index
 				unsigned char wr,		// Write index
 				unsigned int bufSize)	// Buffer size
 {
-	return (wr - rd - 1) & (bufSize-1);
+	return (rd - wr - 1) & (bufSize-1);
 }
 
 /*
@@ -151,16 +151,12 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 {
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		unsigned char ch;						// Get byte from the transmit queue
-		if (!dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch))
-			fault();							// Fault if queue is empty
-		else {
-			events |= EVENT_ACTIVITY;			// Turn on activity light
-	
-			if (queue_length(chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ) == 0)	// TX complete?
-				IE2 &= ~UCA0TXIE;				// Disable USCI_A0 TX interrupt
-			UCA0TXBUF = ch;						// TX this byte
-		}
+		unsigned char ch = 0;					// Get byte from the transmit queue
+		dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch);
+		if (queue_length(chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ) == 0)	// TX complete?
+			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
+		UCA0TXBUF = ch;							// TX this byte
+		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}
 }
 
@@ -170,16 +166,12 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 {
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		unsigned char ch;						// Get byte from the transmit queue
-		if (!dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch))
-			fault();							// Fault if queue is empty
-		else {
-			events |= EVENT_ACTIVITY;			// Turn on activity light
-
-			if (queue_length(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) == 0)	// TX complete?
-				UC1IE &= ~UCA1TXIE;				// Disable USCI_A1 TX interrupt
-			UCA1TXBUF = ch;						// Transmit this byte
-		}
+		unsigned char ch = 0;					// Get byte from the transmit queue
+		dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch);
+		if (queue_length(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) == 0)	// TX complete?
+			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
+		UCA1TXBUF = ch;							// Transmit this byte
+		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}
 }
 
