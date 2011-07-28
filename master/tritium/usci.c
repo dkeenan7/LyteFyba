@@ -45,7 +45,8 @@ void dint();
 
 /* Enqueue and Dequeue general queueing functions */
 // Enqueue a byte. Returns true on success (queue not full)
-bool enqueue(
+// Declared static so the compiler can optimise out the body if it inlines all calls
+static bool enqueue(
   volatile unsigned char* buf,			// The buffer
 		   unsigned char rd,			// The read index
   volatile unsigned char* wr,			// *Pointer to* the write index
@@ -53,9 +54,9 @@ bool enqueue(
 		   unsigned char ch)			// The byte to enqueue
 {
 	unsigned char wr_copy = *wr;		// Make a copy of the write index
-	buf[wr_copy] = ch;					// Tentatively write the byte to the queue; there is always
+	buf[wr_copy++] = ch;				// Tentatively write the byte to the queue; there is always
 										//	one free space, but don't update write index yet
-	wr_copy++;							// Increment the copy
+										// Also increments the index copy
 	wr_copy &= (bufSize-1);				//	modulo the buffer size
 	if (wr_copy == rd)					// Does the incremented write pointer equal the read pointer?
 		return false;					// Yes, error return
@@ -64,7 +65,7 @@ bool enqueue(
 }
 
 // Dequeue a byte. Returns true on success (queue not empty). 
-bool dequeue(
+static bool dequeue(
 	volatile unsigned char* buf,		// The buffer
 	volatile unsigned char* rd,			// *Pointer to* the read index
 			 unsigned char wr,			// The write index
@@ -76,17 +77,28 @@ bool dequeue(
 		return false;					// If so, buffer is empty
 	*ch = buf[rd_copy++];				// Read the byte, increment read index
 	rd_copy &= (bufSize-1);				//	modulo the buffer size
-	rd = rd_copy;						// Atomic update
+	*rd = rd_copy;						// Atomic update
 	return true;
 }
 
-// Returns the space in the queue.
-unsigned int queue_space(
+// Returns the number of bytes in the queue.
+static unsigned int queue_length(
 				unsigned char rd,		// Read index
 				unsigned char wr,		// Write index
 				unsigned int bufSize)	// Buffer size
 {
 	return (wr - rd) & (bufSize-1);
+}
+
+// Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
+// The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
+// as (wr - rd - 1) & (bufSize-1)
+static unsigned int queue_space(
+				unsigned char rd,		// Read index
+				unsigned char wr,		// Write index
+				unsigned int bufSize)	// Buffer size
+{
+	return (wr - rd - 1) & (bufSize-1);
 }
 
 /*
@@ -145,10 +157,9 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 		else {
 			events |= EVENT_ACTIVITY;			// Turn on activity light
 	
-			if (++chgr_txcnt == 12) {			// TX over?
+			if (queue_length(chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ) == 0)	// TX complete?
 				IE2 &= ~UCA0TXIE;				// Disable USCI_A0 TX interrupt
-			}
-			UCA0TXBUF = ch;						// TX next byte
+			UCA0TXBUF = ch;						// TX this byte
 		}
 	}
 }
@@ -164,10 +175,9 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 			fault();							// Fault if queue is empty
 		else {
 			events |= EVENT_ACTIVITY;			// Turn on activity light
-	
-			if (ch == '\r') {					// TX over? All commands terminated with return
+
+			if (queue_length(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) == 0)	// TX complete?
 				UC1IE &= ~UCA1TXIE;				// Disable USCI_A1 TX interrupt
-			}
 			UCA1TXBUF = ch;						// Transmit this byte
 		}
 	}
