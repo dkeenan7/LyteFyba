@@ -88,6 +88,8 @@ volatile unsigned char chgr_rxwr = 0;	// Write index into the charger receive bu
 		 unsigned char chgr_rxrd = 0;	// Read index into the charger receive buffer
 volatile unsigned char chgr_txcnt = 0;	// Count of bytes transmitted
 volatile unsigned char chgr_rxcnt = 0;	// Count of bytes received
+		 unsigned char chgr_lastrx[12];	// Buffer for the last received charger message
+		 unsigned char chgr_lastrxidx = 0;	// Index into the above
 
 // BMU buffers and variables
 volatile unsigned char bmu_txbuf[BMU_TX_BUFSZ];	// Buffer for a transmitted BMU command
@@ -100,6 +102,8 @@ volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
 volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
 volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
+		 unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
+		 unsigned char bmu_lastrxidx = 0;	// Index into the above
 
 
 
@@ -346,7 +350,33 @@ int main( void )
                     chgr_events |= CHGR_END_CHARGE;
                 }
             }
-		}
+			
+			{	unsigned int j, len;
+				unsigned char ch;
+
+				// Read incoming bytes from BMUs
+				len = bmu_queueLength();
+				for (j=0; j < len; ++j) {
+					ch = bmu_getByte();				// Get a byte from the BMU receive queue
+					bmu_lastrx[bmu_lastrxidx++] = ch;
+					if (ch == '\r')	{				// All BMU responses end with a carriage return
+						bmu_events |= BMU_REC;		// Tell main line we've received a BMU response
+						break;
+					}
+				}
+
+				// Read incoming bytes from charger
+				len = chgr_queueLength();
+				for (j=0; j < len; ++j) {
+					chgr_lastrx[chgr_lastrxidx++] = chgr_getByte();
+					if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
+						chgr_events |= CHGR_REC;	// We've received a charger response
+						break;
+					}
+				}
+			}
+			
+		}		// End of processing EVENT_TIMER
 		
 		// Handle outgoing communications events (to motor controller)
 		if(events & EVENT_COMMS){
@@ -493,15 +523,17 @@ int main( void )
 
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
+			chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
+													//	(starting next timer interrupt)
 			// Do something with the packet
 #if 1
 			{
-				int nVolt = (chgr_rxbuf[4] << 8) + chgr_rxbuf[5];
+				int nVolt = (chgr_lastrx[4] << 8) + chgr_lastrx[5];
 				szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
 				szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
 				szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
-				szChgrVolt[10] = (chgr_rxbuf[7] / 10) + '0';	// Current units
-				szChgrVolt[12] = (chgr_rxbuf[7] % 10) + '0';	//	tenths
+				szChgrVolt[10] = (chgr_lastrx[7] / 10) + '0';	// Current units
+				szChgrVolt[12] = (chgr_lastrx[7] % 10) + '0';	//	tenths
 				bmu_transmit(szChgrVolt);
 			}
 #endif
@@ -509,11 +541,13 @@ int main( void )
 		
 		if (bmu_events & BMU_REC) {
 			bmu_events &= ~BMU_REC;
+			bmu_lastrxidx = 0;						// Ready for next BMU response to overwrite this one
+													//	(starting next timer interrupt)
 
 #if USE_CKSUM
 			{	unsigned char sum = 0, j = 0;
-				while (bmu_rxbuf[j] != '\r')
-					sum ^= bmu_rxbuf[j++];
+				while (bmu_lastrx[j] != '\r')
+					sum ^= bmu_lastrx[j++];
 				if (sum != 0) {
 					// Checksum error; set the error LED and resend the last command
 					fault();
@@ -527,23 +561,23 @@ int main( void )
 				// Check for a voltage response
 				// Expecting \123:1234 V  ret
 				//           0   45    10 11  (note space before the 'V'
-				if (bmu_rxbuf[0] == '\\' &&
-					bmu_rxbuf[4] == ':' &&
-					bmu_rxbuf[10] == 'V') {
-						int bmu_id = 100 * (bmu_rxbuf[1] - '0') + (bmu_rxbuf[2] - '0') * 10 +
-							bmu_rxbuf[3] - '0';
+				if (bmu_lastrx[0] == '\\' &&
+					bmu_lastrx[4] == ':' &&
+					bmu_lastrx[10] == 'V') {
+						int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
+							bmu_lastrx[3] - '0';
 						if (bmu_id == bmu_curr_cell) {
 							bmu_events &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
 							unsigned int rxvolts =
 #if 0
-								(bmu_rxbuf[5] - '0') * 100 +
+								(bmu_lastrx[5] - '0') * 100 +
 #else
 								// The *50 and << 1 below are to work around a mspgcc bug! See
 								// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
-								(((bmu_rxbuf[5] - '0') * 50) << 1) +
+								(((bmu_lastrx[5] - '0') * 50) << 1) +
 #endif
-								(bmu_rxbuf[6] - '0') * 10 +
-								(bmu_rxbuf[7] - '0');
+								(bmu_lastrx[6] - '0') * 10 +
+								(bmu_lastrx[7] - '0');
 							// We expect voltage responses during charging and driving; split the logic here
 							if (command.state == MODE_CHARGE) {
 						  		/* DCK: temporary
@@ -573,7 +607,7 @@ int main( void )
 								// Not charging: driving. We use the voltage measurements to find the min and
 								//	max cell voltages
 								// Get the whole 4-digit number
-								rxvolts *= 10; rxvolts += bmu_rxbuf[8] - '0';
+								rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
 								if (rxvolts < bmu_min_mV) {
 									bmu_min_mV = rxvolts;
 									bmu_min_id = bmu_id;
