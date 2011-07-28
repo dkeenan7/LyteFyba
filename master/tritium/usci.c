@@ -296,3 +296,24 @@ bool bmu_transmit_buf(void)
 	events |= EVENT_ACTIVITY;						// Turn on activity light
 	return true;
 }
+
+// For tri86.c to call:
+unsigned char bmu_getByte() {
+	unsigned char ch = 0;
+	dequeue(bmu_rxbuf, &bmu_rxrd, bmu_rxwr, BMU_RX_BUFSZ, &ch);
+	return ch;
+}
+unsigned char chgr_getByte() {
+	unsigned char ch = 0;
+	dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, &ch);
+	return ch;
+}
+
+unsigned int bmu_queueLength() {
+	return queue_length(bmu_rxrd, bmu_txwr, BMU_RX_BUFSZ);
+}
+
+unsigned int chgr_queueLength() {
+	return queue_length(chgr_rxrd, chgr_txwr, CHGR_RX_BUFSZ);
+}
+

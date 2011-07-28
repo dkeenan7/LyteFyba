@@ -17,6 +17,13 @@ extern	bool			chgr_transmit_buf( void );
 extern	bool			bmu_transmit(const unsigned char* ptr);
 extern	bool			bmu_transmit_buf( void );
 
+// Receive queue functions
+unsigned char bmu_getByte();
+unsigned char chgr_getByte();
+unsigned int bmu_queueLength();
+unsigned int chgr_queueLength();
+
+
 // Private Function prototypes
 
 // Public variables
