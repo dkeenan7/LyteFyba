@@ -277,11 +277,14 @@ bool bmu_transmit(const unsigned char* ptr)
 // Returns true on success
 bool bmu_transmit_buf(void)
 {
-	if (queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < strlen((char*)bmu_lastxmit)-1) {
+	int i, len = strlen((char*)bmu_lastxmit);
+	if (queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len-1) {
 		fault();
 		return false;
 	}
     UCA1TXBUF = bmu_lastxmit[0];					// Send the first char to kick things off
+	for (i=1; i < len; ++i)							// Enqueue the SECOND byte through last
+		enqueue(bmu_txbuf, bmu_txrd, &bmu_txwr, CHGR_TX_BUFSZ, bmu_lastxmit[i]);
 	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
 	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
     UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
