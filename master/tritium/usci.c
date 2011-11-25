@@ -183,14 +183,8 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 	{
 		if (!enqueue(chgr_rxbuf, chgr_rxrd, &chgr_rxwr, CHGR_RX_BUFSZ, UCA0RXBUF))
 			fault();							// Fault if queue is full
-		else {
+		else
 			events |= EVENT_ACTIVITY;				// Turn on activity light
-			if (++chgr_rxcnt >= 12) {
-				chgr_rxcnt = 0;
-				chgr_events |= CHGR_REC;			// Tell main line we've received a charger packet
-				chgr_events &= ~CHGR_SENT;			// No longer unacknowledged
-			}
-		}
 	}
 }
 
@@ -201,21 +195,10 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
 		unsigned char ch = UCA1RXBUF;
-		if (ch >= 0x80) {
-			bmu_events |= BMU_BADNESS;
-			bmu_badness = ch;
-		} else {
-			if (!enqueue(bmu_rxbuf, bmu_rxrd, &bmu_rxwr, BMU_RX_BUFSZ, ch))
-				fault();							// Fault if queue is full
-			else {
-				events |= EVENT_ACTIVITY;			// Turn on activity light
-				if (ch == '\r')					// All BMU responses terminate with a return
-				{
-					bmu_events |= BMU_REC;		// Tell main line we've received a BMU response
-					// Note: don't reset BMU_SENT till we have a completely valid response
-				}
-			}
-		}
+		if (!enqueue(bmu_rxbuf, bmu_rxrd, &bmu_rxwr, BMU_RX_BUFSZ, ch))
+			fault();							// Fault if queue is full
+		else
+			events |= EVENT_ACTIVITY;			// Turn on activity light
 	}
 }
 

@@ -237,7 +237,7 @@ int main( void )
 					P5OUT &= ~(LED_GEAR_ALL);
 					break;
 				case MODE_N:						// MVE: we get here briefly when the fuel door closes, and a few other cases
-													// With the 
+													// With the
 #if 0
 					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
@@ -358,10 +358,15 @@ int main( void )
 				len = bmu_queueLength();
 				for (j=0; j < len; ++j) {
 					ch = bmu_getByte();				// Get a byte from the BMU receive queue
-					bmu_lastrx[bmu_lastrxidx++] = ch;
-					if (ch == '\r')	{				// All BMU responses end with a carriage return
-						bmu_events |= BMU_REC;		// Tell main line we've received a BMU response
-						break;
+					if (ch >= 0x80) {
+						bmu_events |= BMU_BADNESS;
+						bmu_badness = ch;
+					} else {
+						bmu_lastrx[bmu_lastrxidx++] = ch;
+						if (ch == '\r')	{				// All BMU responses end with a carriage return
+							bmu_events |= BMU_REC;		// We've received a BMU response
+							break;
+						}
 					}
 				}
 
@@ -371,6 +376,7 @@ int main( void )
 					chgr_lastrx[chgr_lastrxidx++] = chgr_getByte();
 					if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
 						chgr_events |= CHGR_REC;	// We've received a charger response
+						chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
 						break;
 					}
 				}
@@ -461,7 +467,7 @@ int main( void )
 				// Send a voltage check for the current cell
 //				sprintf(cmd, "%dsv\r", bmu_curr_cell);		// FIXME: send checksum
 				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
-				unsigned char cmd[8]; 
+				unsigned char cmd[8];
 				makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
 				bmu_transmit(cmd);
 				++bmu_curr_cell;
@@ -474,7 +480,7 @@ int main( void )
 		// Send voltage request if required for min/max while driving
 		if (bmu_events & BMU_MINMAX) {
 			bmu_events &= ~BMU_MINMAX;
-			unsigned char cmd[8]; 
+			unsigned char cmd[8];
 			makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
 			bmu_transmit(cmd);
 		}
