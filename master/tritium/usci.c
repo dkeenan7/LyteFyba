@@ -64,7 +64,7 @@ static bool enqueue(
 	return true;						// Normal return
 }
 
-// Dequeue a byte. Returns true on success (queue not empty). 
+// Dequeue a byte. Returns true on success (queue not empty).
 static bool dequeue(
 	volatile unsigned char* buf,		// The buffer
 	volatile unsigned char* rd,			// *Pointer to* the read index
@@ -258,17 +258,17 @@ bool bmu_transmit(const unsigned char* ptr)
 	do {
 		ch = *ptr++;
 		sum ^= ch;									// Calculate XOR checksum
-		bmu_txbuf[i++] = ch;						// Copy the data to the transmit buffer
+		bmu_lastxmit[i++] = ch;						// Copy the data to the transmit buffer
 	} while (ch != '\r');
 	sum ^= '\r';									// CR is not part of the checksum
 	if (sum < ' ') {
 		// If the checksum would be a control character that could be confused with a CR, BS,
 		//	etc, then send a space, which will change the checksum to a non-control character
-		bmu_txbuf[i++-1] = ' ';						// Replace CR with space
+		bmu_lastxmit[i++-1] = ' ';					// Replace CR with space
 		sum ^= ' ';									// Update checksum
 	}
-	bmu_txbuf[i++-1] = sum;							// Insert the checksum
-	bmu_txbuf[i-1] = '\r';							// Add CR
+	bmu_lastxmit[i++-1] = sum;						// Insert the checksum
+	bmu_lastxmit[i-1] = '\r';						// Add CR
 #endif
 	return bmu_transmit_buf();						// Call the main transmit function
 }
