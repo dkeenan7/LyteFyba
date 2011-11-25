@@ -11,7 +11,7 @@ t g Name or description
 <ESC> ESCape from eXclusive mode
 $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
-K   KillBadnessSending (toggle)
+K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
 ` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
   a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
@@ -24,7 +24,7 @@ e e ErrorLED
 h h Hex output
   i set(I)Ds
   j JumpToSubroutine (call) [disabled to save space]
-k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
+k   chec(K)summing, 0k[ to turn checksumming off, 1k to turn it on
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
@@ -81,8 +81,8 @@ s s Select
 x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
 | | exit or comment
-k   chec(K)sum toggle [type twice, in a packet of its own, to Kill chec(K)sum]
-K   KillBadnessSending (toggle)
+k   chec(K)summing, 0k[ to turn checksumming off, 1k to turn it on
+K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)

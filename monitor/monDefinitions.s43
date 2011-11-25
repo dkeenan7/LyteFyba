@@ -5,16 +5,18 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and debugger
 ;
-; Kill badness sending (toggle) ( -- )
+; Kill badness sending ( boolean -- )	; 1 for no badness, 0 for badness
 ;
 			xCODE	'}',BadnessAutonomy_,_BadnessAutonomy
 BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-brace
-			xor.b	#bNotSendBad,&monFlags	; Toggle badness sending
+			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#bNotSendBad,&monFlags ; Move only bNotSendBad bit from Rtos to monFlags
 			ret
 		
-; checKsumming toggle ( -- )
+; checKsumming ( boolean -- )			; 1 for checksums, 0 for no checksums
 			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&intFlags ; Toggle checksumming
+			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#bChecksumming,&monFlags ; Move only bChecksumming bit from Rtos to monFlags
 			ret
 		
 ; Rx state ( -- )
