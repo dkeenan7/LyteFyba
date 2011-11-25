@@ -137,7 +137,7 @@
 
 // Charger constants
 //#define NUMBER_OF_CELLS	60
-#define NUMBER_OF_CELLS		28
+#define NUMBER_OF_CELLS		19		// FIXME: testing with 19 BMUs
 //#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.5))	// Charger voltage limit in tenths of a volt
 //#define   CHGR_VOLT_LIMIT		((int)(  60            * 36.5))	// Charger voltage limit in tenths of a volt
 #define   CHGR_VOLT_LIMIT		1995	// Charger voltage limit in tenths of a volt
