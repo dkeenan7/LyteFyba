@@ -81,15 +81,6 @@ static bool dequeue(
 	return true;
 }
 
-// Returns the number of bytes in the queue.
-static unsigned int queue_length(
-				unsigned char rd,		// Read index
-				unsigned char wr,		// Write index
-				unsigned int bufSize)	// Buffer size
-{
-	return (wr - rd) & (bufSize-1);
-}
-
 // Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
 // The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
 // as (rd - wr - 1) & (bufSize-1)
@@ -153,7 +144,7 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch);
-		if (queue_length(chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ) == 0)	// TX complete?
+		if (chgr_queueEmpty())					// TX complete?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -168,7 +159,7 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch);
-		if (queue_length(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) == 0)	// TX complete?
+		if (bmu_queueEmpty())					// TX complete?
 			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -276,22 +267,18 @@ bool bmu_transmit_buf(void)
 }
 
 // For tri86.c to call:
-unsigned char bmu_getByte() {
-	unsigned char ch = 0;
-	dequeue(bmu_rxbuf, &bmu_rxrd, bmu_rxwr, BMU_RX_BUFSZ, &ch);
-	return ch;
+bool bmu_getByte(unsigned char* chp) {
+	return dequeue(bmu_rxbuf, &bmu_rxrd, bmu_rxwr, BMU_RX_BUFSZ, chp);
 }
-unsigned char chgr_getByte() {
-	unsigned char ch = 0;
-	dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, &ch);
-	return ch;
+bool chgr_getByte(unsigned char* chp) {
+	return dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, chp);
 }
 
-unsigned int bmu_queueLength() {
-	return queue_length(bmu_rxrd, bmu_txwr, BMU_RX_BUFSZ);
+bool bmu_queueEmpty() {
+	return (bmu_rxrd == bmu_txwr);
 }
 
-unsigned int chgr_queueLength() {
-	return queue_length(chgr_rxrd, chgr_txwr, CHGR_RX_BUFSZ);
+bool chgr_queueEmpty() {
+	return (chgr_rxrd == chgr_txwr);
 }
 

@@ -6,7 +6,7 @@
  * Then by Mike Van Emmerik for dual serial ports
  *
  */
- 
+
 // Public Function prototypes
 extern 	void 			usci_init( unsigned char clock );
 extern 	void			usci_transmit( unsigned char data );
@@ -18,10 +18,10 @@ extern	bool			bmu_transmit(const unsigned char* ptr);
 extern	bool			bmu_transmit_buf( void );
 
 // Receive queue functions
-unsigned char bmu_getByte();
-unsigned char chgr_getByte();
-unsigned int bmu_queueLength();
-unsigned int chgr_queueLength();
+bool bmu_getByte(unsigned char* ch);
+bool chgr_getByte(unsigned char* ch);
+bool bmu_queueEmpty();
+bool chgr_queueEmpty();
 
 
 // Private Function prototypes

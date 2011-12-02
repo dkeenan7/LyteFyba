@@ -351,18 +351,15 @@ int main( void )
                 }
             }
 			
-			{	unsigned int j, len;
-				unsigned char ch;
+			{	unsigned char ch;
 
 				// Read incoming bytes from BMUs
-				len = bmu_queueLength();
-				for (j=0; j < len; ++j) {
-					ch = bmu_getByte();				// Get a byte from the BMU receive queue
+				while (bmu_getByte(&ch)) {			// Get a byte from the BMU receive queue
 					if (ch >= 0x80) {
 						bmu_events |= BMU_BADNESS;
 						bmu_badness = ch;
 					} else {
-						bmu_lastrx[bmu_lastrxidx++] = ch;
+						bmu_lastrx[bmu_lastrxidx++] = ch; // !!! Need to check for buffer overflow
 						if (ch == '\r')	{				// All BMU responses end with a carriage return
 							bmu_events |= BMU_REC;		// We've received a BMU response
 							break;
@@ -371,9 +368,8 @@ int main( void )
 				}
 
 				// Read incoming bytes from charger
-				len = chgr_queueLength();
-				for (j=0; j < len; ++j) {
-					chgr_lastrx[chgr_lastrxidx++] = chgr_getByte();
+				while (chgr_getByte(&ch)) {
+					chgr_lastrx[chgr_lastrxidx++] = ch;
 					if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
 						chgr_events |= CHGR_REC;	// We've received a charger response
 						chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
