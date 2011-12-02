@@ -64,7 +64,7 @@ static bool enqueue(
 	return true;						// Normal return
 }
 
-// Dequeue a byte. Returns true on success (queue not empty).
+// Dequeue a byte. Returns true on success (queue was not empty).
 static bool dequeue(
 	volatile unsigned char* buf,		// The buffer
 	volatile unsigned char* rd,			// *Pointer to* the read index
@@ -243,6 +243,9 @@ bool bmu_transmit(const unsigned char* ptr)
 	}
 	bmu_lastxmit[i++-1] = sum;						// Insert the checksum
 	bmu_lastxmit[i-1] = '\r';						// Add CR
+	bmu_lastxmit[i] = '\0';							// Null terminate; bmu_transmit expects this
+#else
+	strcpy(bmu_lastxmit, ptr);						// Copy the buffer in case we have to retransmit
 #endif
 	return bmu_transmit_buf();						// Call the main transmit function
 }
@@ -252,7 +255,7 @@ bool bmu_transmit(const unsigned char* ptr)
 bool bmu_transmit_buf(void)
 {
 	int i, len = strlen((char*)bmu_lastxmit);
-	if (queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len-1) {
+	if ((int)queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len-1) {
 		fault();
 		return false;
 	}
