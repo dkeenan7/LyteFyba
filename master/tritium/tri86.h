@@ -190,7 +190,7 @@ extern volatile unsigned char bmu_txrd;				// Read index into the BMU transmit b
 extern volatile unsigned char bmu_rxwr;				// Write index into the BMU  receive buffer
 extern volatile unsigned char bmu_rxrd;				// Read index into the BMU  receive buffer
 
-void fault();							// Set an event to flash the error LED
+void fault() __attribute__ ((noinline));			// Single flash the error LED
 
 
 // Typedefs for quickly joining multiple bytes/ints/etc into larger values

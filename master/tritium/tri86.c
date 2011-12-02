@@ -107,7 +107,7 @@ volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 
 
 
-void fault() {
+void fault() /* __attribute__ ((noinline)) */ {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
 										//	(but beware the compiler may well inline it)
 }
@@ -359,6 +359,10 @@ int main( void )
 						bmu_events |= BMU_BADNESS;
 						bmu_badness = ch;
 					} else {
+						if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
+							fault();
+							break;
+						}
 						bmu_lastrx[bmu_lastrxidx++] = ch; // !!! Need to check for buffer overflow
 						if (ch == '\r')	{				// All BMU responses end with a carriage return
 							bmu_events |= BMU_REC;		// We've received a BMU response
