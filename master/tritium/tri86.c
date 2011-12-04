@@ -107,7 +107,7 @@ volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 
 
 
-void fault() /* __attribute__ ((noinline)) */ {
+void fault() {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
 										//	(but beware the compiler may well inline it)
 }
@@ -207,17 +207,12 @@ int main( void )
 			events &= ~EVENT_TIMER;
 
 			// Convert potentiometer and current monitoring inputs
-		//	ADC12IFG = 0x0000; 	// DCK: MVE: Reset the ADC interrupt flags so the while loop below will work
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
-		//	while ((ADC12IFG & BIT6) == 0 );		// Busy wait for all conversions to complete TODO: replace with ADC ISR
 			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
-			// Check for 5V pedal supply errors
-			// TODO
-			// Check for overcurrent errors on 12V outputs
-			// TODO
+			// TODO: Check for 5V pedal supply errors
+			// TODO: Check for overcurrent errors on 12V outputs
 			// Update motor commands based on pedal and slider positions
-		//	process_pedal( ADC12MEM0, ADC12MEM1, ADC12MEM2 );
 			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	// MVE: For now, pass constant regen as 3rd arg
 			
 			// Update current state of the switch inputs
@@ -236,8 +231,8 @@ int main( void )
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
 					break;
-				case MODE_N:						// MVE: we get here briefly when the fuel door closes, and a few other cases
-													// With the
+				case MODE_N:	// MVE: we get here briefly when the fuel door closes, and a few other cases
+								// With the
 #if 0
 					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
@@ -746,11 +741,11 @@ no_bmu_received:
 			P4OUT &= ~LED_PWM;
 			__bis_SR_register(LPM3_bits);     // Enter LPM3
 		}*/
-	}
+	} // End of while(True) do
 	
 	// Will never get here, keeps compiler happy
 	return(1);
-}
+} // End of main
 
 
 /*

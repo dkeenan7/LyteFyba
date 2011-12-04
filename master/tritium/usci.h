@@ -20,8 +20,8 @@ extern	bool			bmu_transmit_buf( void );
 // Receive queue functions
 bool bmu_getByte(unsigned char* ch);
 bool chgr_getByte(unsigned char* ch);
-bool bmu_queueEmpty();
-bool chgr_queueEmpty();
+bool bmu_tx_queueEmpty();
+bool chgr_tx_queueEmpty();
 
 
 // Private Function prototypes

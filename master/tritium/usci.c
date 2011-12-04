@@ -144,7 +144,7 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch);
-		if (chgr_queueEmpty())					// TX complete?
+		if (chgr_tx_queueEmpty())				// TX complete?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -159,7 +159,7 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch);
-		if (bmu_queueEmpty())					// TX complete?
+		if (bmu_tx_queueEmpty())				// TX complete?
 			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -277,11 +277,11 @@ bool chgr_getByte(unsigned char* chp) {
 	return dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, chp);
 }
 
-bool bmu_queueEmpty() {
-	return (bmu_rxrd == bmu_txwr);
+bool bmu_tx_queueEmpty() {
+	return (bmu_txrd == bmu_txwr);
 }
 
-bool chgr_queueEmpty() {
-	return (chgr_rxrd == chgr_txwr);
+bool chgr_tx_queueEmpty() {
+	return (chgr_txrd == chgr_txwr);
 }
 
