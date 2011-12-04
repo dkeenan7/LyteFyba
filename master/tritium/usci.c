@@ -144,7 +144,7 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch);
-		if (chgr_tx_queueEmpty())				// TX complete?
+		if (chgr_txrd == chgr_txwr)				// Queue empty and therefore TX complete?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -159,7 +159,7 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
 		dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch);
-		if (bmu_tx_queueEmpty())				// TX complete?
+		if (bmu_txrd == bmu_txwr)				// Queue empty and therefore TX complete?
 			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -193,79 +193,72 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 	}
 }
 
-unsigned char chgr_lastxmit[12];					// Last CAN message for charger
+unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
 
-bool chgr_transmit(const unsigned char* ptr)
+bool chgr_sendPacket(const unsigned char* ptr)
 {
-	memcpy(chgr_lastxmit, ptr, 12);					// Copy the data to the last message buffer
-	return chgr_transmit_buf();						// Call the main transmit function
+	memcpy(chgr_lastSentPacket, ptr, 12);				// Copy the data to the last message buffer
+	return chgr_resendLastPacket();						// Call the main transmit function
 }
 
-// chgr_transmit_buf sends the transmit buffer. Used for resending after a timeout.
+// chgr_resendLastPacket is used for resending after a timeout.
 // Returns true on success
-bool chgr_transmit_buf(void)
+bool chgr_resendLastPacket(void)
 {
 	int i;
-	if (queue_space(chgr_txrd, chgr_txwr, CHGR_RX_BUFSZ) < 11) {
-		// Need 11 bytes in the queue (first byte is sent immediately)
+	if (queue_space(chgr_txrd, chgr_txwr, CHGR_RX_BUFSZ) < 12) {
+		// Need 12 bytes of space in the queue
 		// If not, best to abort the whole command, rather than sending a partial message
 		fault();
 		return false;
 	}
-	chgr_txcnt = 0;									// No bytes transmitted yet
-    UCA0TXBUF = chgr_lastxmit[0];					// Send the first char to kick things off
-	for (i=1; i < 12; ++i)
-		enqueue(chgr_txbuf, chgr_txrd, &chgr_txwr, CHGR_TX_BUFSZ, chgr_lastxmit[i]);
+	for (i=0; i < 12; ++i)
+		chgr_sendByte(chgr_lastSentPacket[i]);
 	chgr_events |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
 	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
-    IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
-	events |= EVENT_ACTIVITY;						// Turn on activity light
 	return true;
 }
 
-unsigned char bmu_lastxmit[BMU_TX_BUFSZ];			// Copy of the last command sent to the BMUs
+unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
 
-bool bmu_transmit(const unsigned char* ptr)
+bool bmu_sendPacket(const unsigned char* ptr)
 {
 #if USE_CKSUM
 	unsigned char ch, i = 0, sum = 0;
 	do {
 		ch = *ptr++;
 		sum ^= ch;									// Calculate XOR checksum
-		bmu_lastxmit[i++] = ch;						// Copy the data to the transmit buffer
+		bmu_lastSentPacket[i++] = ch;				// Copy the data to the transmit buffer
 	} while (ch != '\r');
 	sum ^= '\r';									// CR is not part of the checksum
 	if (sum < ' ') {
 		// If the checksum would be a control character that could be confused with a CR, BS,
 		//	etc, then send a space, which will change the checksum to a non-control character
-		bmu_lastxmit[i++-1] = ' ';					// Replace CR with space
+		bmu_lastSentPacket[i++-1] = ' ';			// Replace CR with space
 		sum ^= ' ';									// Update checksum
 	}
-	bmu_lastxmit[i++-1] = sum;						// Insert the checksum
-	bmu_lastxmit[i-1] = '\r';						// Add CR
-	bmu_lastxmit[i] = '\0';							// Null terminate; bmu_transmit expects this
+	bmu_lastSentPacket[i++-1] = sum;				// Insert the checksum
+	bmu_lastSentPacket[i-1] = '\r';					// Add CR
+	bmu_lastSentPacket[i] = '\0';					// Null terminate; bmu_resendLastPacket expects this
 #else
-	strcpy(bmu_lastxmit, ptr);						// Copy the buffer in case we have to retransmit
+	strcpy(bmu_lastSentPacket, ptr);				// Copy the buffer in case we have to resend
 #endif
-	return bmu_transmit_buf();						// Call the main transmit function
+	return bmu_resendLastPacket();					// Call the main transmit function
 }
 
-// bmu_transmit_buf sends the transmit buffer. Used for resending after a timeout.
+// bmu_resendLastPacket is used for resending after a timeout.
 // Returns true on success
-bool bmu_transmit_buf(void)
+bool bmu_resendLastPacket(void)
 {
-	int i, len = strlen((char*)bmu_lastxmit);
-	if ((int)queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len-1) {
+	int i, len = strlen((char*)bmu_lastSentPacket);
+	if ((int)queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len) {
 		fault();
 		return false;
 	}
-    UCA1TXBUF = bmu_lastxmit[0];					// Send the first char to kick things off
-	for (i=1; i < len; ++i)							// Enqueue the SECOND byte through last
-		enqueue(bmu_txbuf, bmu_txrd, &bmu_txwr, CHGR_TX_BUFSZ, bmu_lastxmit[i]);
+	for (i=0; i < len; ++i)							// Send the bytes of the packet
+		bmu_sendByte(bmu_lastSentPacket[i]);
 	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
 	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
-    UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
-	events |= EVENT_ACTIVITY;						// Turn on activity light
 	return true;
 }
 
@@ -273,15 +266,25 @@ bool bmu_transmit_buf(void)
 bool bmu_getByte(unsigned char* chp) {
 	return dequeue(bmu_rxbuf, &bmu_rxrd, bmu_rxwr, BMU_RX_BUFSZ, chp);
 }
+
+bool bmu_sendByte(unsigned char ch) {
+	if (enqueue(bmu_txbuf, bmu_txrd, &bmu_txwr, BMU_TX_BUFSZ, ch)) {
+    	UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
+		events |= EVENT_ACTIVITY;						// Turn on activity light
+		return true;
+	}
+	return false;
+}
+
 bool chgr_getByte(unsigned char* chp) {
 	return dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, chp);
 }
 
-bool bmu_tx_queueEmpty() {
-	return (bmu_txrd == bmu_txwr);
+bool chgr_sendByte(unsigned char ch) {
+	if (enqueue(chgr_txbuf, chgr_txrd, &chgr_txwr, CHGR_TX_BUFSZ, ch)) {
+    	IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
+		events |= EVENT_ACTIVITY;						// Turn on activity light
+		return true;
+	}
+	return false;
 }
-
-bool chgr_tx_queueEmpty() {
-	return (chgr_txrd == chgr_txwr);
-}
-
