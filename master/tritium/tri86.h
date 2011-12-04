@@ -177,8 +177,6 @@ extern unsigned char chgr_txwr;						// Write index into the charger transmit bu
 extern volatile unsigned char chgr_txrd;			// Read index into the charger transmit buffer
 extern volatile unsigned char chgr_rxwr;			// Write index into the charger receive buffer
 extern			unsigned char chgr_rxrd;			// Read index into the charger receive buffer
-extern volatile unsigned char chgr_txcnt;			// Count of bytes transmitted
-extern volatile unsigned char chgr_rxcnt;			// Count of bytes received
 
 // BMU buffers and variables
 #define BMU_TX_BUFSZ	64

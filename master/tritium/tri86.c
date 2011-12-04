@@ -464,7 +464,7 @@ int main( void )
 				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
 				unsigned char cmd[8];
 				makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
-				bmu_transmit(cmd);
+				bmu_sendPacket(cmd);
 				++bmu_curr_cell;
 				if (bmu_curr_cell > NUMBER_OF_CELLS)
 					bmu_curr_cell = 1;
@@ -477,7 +477,7 @@ int main( void )
 			bmu_events &= ~BMU_MINMAX;
 			unsigned char cmd[8];
 			makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
-			bmu_transmit(cmd);
+			bmu_sendPacket(cmd);
 		}
 
 		/*		DCK: temporary
@@ -516,7 +516,7 @@ int main( void )
 				chgr_txbuf[8] = 0;
 			}
 			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-			chgr_transmit_buf();
+			chgr_resendLastPacket();
 			chgr_rxidx = 0;			// Expect receive packet in response
 #endif
 		}
@@ -535,7 +535,7 @@ int main( void )
 				szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
 				szChgrVolt[10] = (chgr_lastrx[7] / 10) + '0';	// Current units
 				szChgrVolt[12] = (chgr_lastrx[7] % 10) + '0';	//	tenths
-				bmu_transmit(szChgrVolt);
+				bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
 			}
 #endif
 		}
@@ -552,7 +552,7 @@ int main( void )
 				if (sum != 0) {
 					// Checksum error; set the error LED and resend the last command
 					fault();
-					bmu_transmit_buf();				// Resend
+					bmu_resendLastPacket();				// Resend
 					goto no_bmu_received;			// Don't process this packet
 				}
 			}
@@ -964,14 +964,14 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if (chgr_events & CHGR_SENT) {
 		if (--chgr_sent_timeout == 0) {
 			fault();				// Turn on fault LED (eventually)
-			chgr_transmit_buf();	// Resend; will loop until a complete packet is recvd
+			chgr_resendLastPacket();	// Resend; will loop until a complete packet is recvd
 		}
 	}
 */
 	if (bmu_events & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-			bmu_transmit_buf();				// Resend
+			bmu_resendLastPacket();				// Resend
 		}
 	}
 
