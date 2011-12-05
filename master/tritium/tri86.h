@@ -166,27 +166,25 @@ extern volatile unsigned char bmu_badness;		// BMU badness
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
+// Define a queue type for serial transmit and receive (charger and BMUs)
+struct queue {
+      unsigned char rd;		 // Read index
+      unsigned char wr;		 // Write index
+      unsigned char bufSize; // Buffer size must be a power of 2
+      unsigned char buf[];	 // Circular buffer (size determined when initialised)
+};
+
 // Charger buffers
 #define CHGR_TX_BUFSZ	16
-// The following is not actually volatile, but we declare it such so we can avoid warnings about lost
-//	qualifiers
-extern volatile unsigned char chgr_txbuf[CHGR_TX_BUFSZ];	// Buffer for a transmitted charger "CAN" packet
-#define CHGR_RX_BUFSZ 16
-extern volatile unsigned char chgr_rxbuf[CHGR_RX_BUFSZ];	// Buffer for a received charger "CAN" packet
-extern unsigned char chgr_txwr;						// Write index into the charger transmit buffer
-extern volatile unsigned char chgr_txrd;			// Read index into the charger transmit buffer
-extern volatile unsigned char chgr_rxwr;			// Write index into the charger receive buffer
-extern			unsigned char chgr_rxrd;			// Read index into the charger receive buffer
+struct queue chgr_tx_q;
+#define CHGR_RX_BUFSZ 	16
+struct queue chgr_rx_q;
 
 // BMU buffers and variables
 #define BMU_TX_BUFSZ	64
-extern volatile unsigned char bmu_txbuf[BMU_TX_BUFSZ];	// Buffer for a transmitted BMU command
+struct queue bmu_tx_q;
 #define BMU_RX_BUFSZ	64
-extern volatile unsigned char bmu_rxbuf[BMU_RX_BUFSZ];	// Buffer for a received BMU response
-extern volatile unsigned char bmu_txwr;				// Write index into the BMU transmit buffer
-extern volatile unsigned char bmu_txrd;				// Read index into the BMU transmit buffer
-extern volatile unsigned char bmu_rxwr;				// Write index into the BMU  receive buffer
-extern volatile unsigned char bmu_rxrd;				// Read index into the BMU  receive buffer
+struct queue bmu_rx_q;
 
 void fault() __attribute__ ((noinline));			// Single flash the error LED
 
