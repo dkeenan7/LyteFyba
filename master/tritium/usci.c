@@ -43,53 +43,45 @@ void eint();
 void dint();
 #endif
 
+
 /* Enqueue and Dequeue general queueing functions */
 // Enqueue a byte. Returns true on success (queue not full)
 // Declared static so the compiler can optimise out the body if it inlines all calls
 static bool enqueue(
-  volatile unsigned char* buf,			// The buffer
-		   unsigned char rd,			// The read index
-  volatile unsigned char* wr,			// *Pointer to* the write index
-		   unsigned int bufSize,		// The buffer size, pass a constant
-		   unsigned char ch)			// The byte to enqueue
+			volatile struct queue* q,			// Pointer to the queue structure
+			unsigned char ch )			// The byte to enqueue
 {
-	unsigned char wr_copy = *wr;		// Make a copy of the write index
-	buf[wr_copy++] = ch;				// Tentatively write the byte to the queue; there is always
+	unsigned char wr_copy = q->wr;		// Make a copy of the write index
+	q->buf[wr_copy++] = ch;				// Tentatively write the byte to the queue; there is always
 										//	one free space, but don't update write index yet
 										// Also increments the index copy
-	wr_copy &= (bufSize-1);				//	modulo the buffer size
-	if (wr_copy == rd)					// Does the incremented write pointer equal the read pointer?
-		return false;					// Yes, error return
-	*wr = wr_copy;						// Update write pointer; byte is officially in the queue now
+	wr_copy &= (q->bufSize-1);			//	modulo the buffer size
+	if (wr_copy == q->rd)				// Does the incremented write pointer equal the read pointer?
+		return false;					// Yes means queue is full, error return
+	q->wr = wr_copy;					// Update write pointer; byte is officially in the queue now
 	return true;						// Normal return
 }
 
 // Dequeue a byte. Returns true on success (queue was not empty).
 static bool dequeue(
-	volatile unsigned char* buf,		// The buffer
-	volatile unsigned char* rd,			// *Pointer to* the read index
-			 unsigned char wr,			// The write index
-			 unsigned int bufSize,		// Buffer size (pass a constant)
-			 unsigned char* ch)			// Pointer to the byte to be read to
+			volatile struct queue* q,			// Pointer to the queue structure
+			unsigned char* ch )			// Pointer to the char to be read to
 {
-	unsigned char rd_copy = *rd;
-	if (wr == rd_copy)					// Indexes equal?
+	unsigned char rd_copy = q->rd;		// Make a copy of the read index
+	if (q->wr == rd_copy)				// Indexes equal?
 		return false;					// If so, buffer is empty
-	*ch = buf[rd_copy++];				// Read the byte, increment read index
-	rd_copy &= (bufSize-1);				//	modulo the buffer size
-	*rd = rd_copy;						// Atomic update
+	*ch = q->buf[rd_copy++];			// Read the byte, increment read index
+	rd_copy &= (q->bufSize-1);			//	modulo the buffer size
+	q->rd = rd_copy;					// Atomic update
 	return true;
 }
 
 // Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
 // The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
 // as (rd - wr - 1) & (bufSize-1)
-static unsigned int queue_space(
-				unsigned char rd,		// Read index
-				unsigned char wr,		// Write index
-				unsigned int bufSize)	// Buffer size
+static unsigned int queue_space( struct queue* q )	// Pointer to queue structure
 {
-	return (rd - wr - 1) & (bufSize-1);
+	return (q->rd - q->wr - 1) & (q->bufSize-1);
 }
 
 /*
@@ -143,8 +135,8 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
-		dequeue(chgr_txbuf, &chgr_txrd, chgr_txwr, CHGR_TX_BUFSZ, &ch);
-		if (chgr_txrd == chgr_txwr)				// Queue empty and therefore TX complete?
+		dequeue(&chgr_tx_q, &ch);
+		if (chgr_tx_q.rd == chgr_tx_q.wr)		// Queue empty and therefore TX complete?
 			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -158,8 +150,8 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
 		unsigned char ch = 0;					// Get byte from the transmit queue
-		dequeue(bmu_txbuf, &bmu_txrd, bmu_txwr, BMU_TX_BUFSZ, &ch);
-		if (bmu_txrd == bmu_txwr)				// Queue empty and therefore TX complete?
+		dequeue(&bmu_tx_q, &ch);
+		if (bmu_tx_q.rd == bmu_tx_q.wr)			// Queue empty and therefore TX complete?
 			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -172,10 +164,10 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 {
 	if (IFG2 & UCA0RXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		if (!enqueue(chgr_rxbuf, chgr_rxrd, &chgr_rxwr, CHGR_RX_BUFSZ, UCA0RXBUF))
+		if (!enqueue(&chgr_rx_q, UCA0RXBUF))
 			fault();							// Fault if queue is full
 		else
-			events |= EVENT_ACTIVITY;				// Turn on activity light
+			events |= EVENT_ACTIVITY;			// Turn on activity light
 	}
 }
 
@@ -185,8 +177,7 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 {
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		unsigned char ch = UCA1RXBUF;
-		if (!enqueue(bmu_rxbuf, bmu_rxrd, &bmu_rxwr, BMU_RX_BUFSZ, ch))
+		if (!enqueue(&bmu_rx_q, UCA1RXBUF))
 			fault();							// Fault if queue is full
 		else
 			events |= EVENT_ACTIVITY;			// Turn on activity light
@@ -206,7 +197,7 @@ bool chgr_sendPacket(const unsigned char* ptr)
 bool chgr_resendLastPacket(void)
 {
 	int i;
-	if (queue_space(chgr_txrd, chgr_txwr, CHGR_RX_BUFSZ) < 12) {
+	if (queue_space(&chgr_tx_q) < 12) {
 		// Need 12 bytes of space in the queue
 		// If not, best to abort the whole command, rather than sending a partial message
 		fault();
@@ -251,7 +242,7 @@ bool bmu_sendPacket(const unsigned char* ptr)
 bool bmu_resendLastPacket(void)
 {
 	int i, len = strlen((char*)bmu_lastSentPacket);
-	if ((int)queue_space(bmu_txrd, bmu_txwr, BMU_TX_BUFSZ) < len) {
+	if ((int)queue_space(&bmu_tx_q) < len) {
 		fault();
 		return false;
 	}
@@ -264,11 +255,11 @@ bool bmu_resendLastPacket(void)
 
 // For tri86.c to call:
 bool bmu_getByte(unsigned char* chp) {
-	return dequeue(bmu_rxbuf, &bmu_rxrd, bmu_rxwr, BMU_RX_BUFSZ, chp);
+	return dequeue(&bmu_rx_q, chp);
 }
 
 bool bmu_sendByte(unsigned char ch) {
-	if (enqueue(bmu_txbuf, bmu_txrd, &bmu_txwr, BMU_TX_BUFSZ, ch)) {
+	if (enqueue(&bmu_tx_q, ch)) {
     	UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
 		events |= EVENT_ACTIVITY;						// Turn on activity light
 		return true;
@@ -277,11 +268,11 @@ bool bmu_sendByte(unsigned char ch) {
 }
 
 bool chgr_getByte(unsigned char* chp) {
-	return dequeue(chgr_rxbuf, &chgr_rxrd, chgr_rxwr, CHGR_RX_BUFSZ, chp);
+	return dequeue(&chgr_rx_q, chp);
 }
 
 bool chgr_sendByte(unsigned char ch) {
-	if (enqueue(chgr_txbuf, chgr_txrd, &chgr_txwr, CHGR_TX_BUFSZ, ch)) {
+	if (enqueue(&chgr_tx_q, ch)) {
     	IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 		events |= EVENT_ACTIVITY;						// Turn on activity light
 		return true;
