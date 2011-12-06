@@ -167,24 +167,24 @@ extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
 // Define a queue type for serial transmit and receive (charger and BMUs)
-struct queue {
+typedef struct _queue {
       unsigned char rd;		 // Read index
       unsigned char wr;		 // Write index
       unsigned char bufSize; // Buffer size must be a power of 2
       unsigned char buf[];	 // Circular buffer (size determined when initialised)
-};
+} queue;
 
 // Charger buffers
 #define CHGR_TX_BUFSZ	16
-struct queue chgr_tx_q;
+queue chgr_tx_q;
 #define CHGR_RX_BUFSZ 	16
-struct queue chgr_rx_q;
+queue chgr_rx_q;
 
 // BMU buffers and variables
 #define BMU_TX_BUFSZ	64
-struct queue bmu_tx_q;
+queue bmu_tx_q;
 #define BMU_RX_BUFSZ	64
-struct queue bmu_rx_q;
+queue bmu_rx_q;
 
 void fault() __attribute__ ((noinline));			// Single flash the error LED
 
