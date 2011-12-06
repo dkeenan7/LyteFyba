@@ -48,7 +48,7 @@ void dint();
 // Enqueue a byte. Returns true on success (queue not full)
 // Declared static so the compiler can optimise out the body if it inlines all calls
 static bool enqueue(
-			volatile struct queue* q,			// Pointer to the queue structure
+			volatile queue* q,			// Pointer to the queue structure
 			unsigned char ch )			// The byte to enqueue
 {
 	unsigned char wr_copy = q->wr;		// Make a copy of the write index
@@ -64,7 +64,7 @@ static bool enqueue(
 
 // Dequeue a byte. Returns true on success (queue was not empty).
 static bool dequeue(
-			volatile struct queue* q,			// Pointer to the queue structure
+			volatile queue* q,			// Pointer to the queue structure
 			unsigned char* ch )			// Pointer to the char to be read to
 {
 	unsigned char rd_copy = q->rd;		// Make a copy of the read index
@@ -79,7 +79,7 @@ static bool dequeue(
 // Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
 // The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
 // as (rd - wr - 1) & (bufSize-1)
-static unsigned int queue_space( struct queue* q )	// Pointer to queue structure
+static unsigned int queue_space( queue* q )	// Pointer to queue structure
 {
 	return (q->rd - q->wr - 1) & (q->bufSize-1);
 }

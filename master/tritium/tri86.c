@@ -78,14 +78,14 @@ unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a v
 unsigned int chgr_soaking = 0;			// Counter for soak phase
 
 // Charger buffers
-struct queue chgr_tx_q = {
+queue chgr_tx_q = {
 	.rd = 0,
 	.wr = 0,
 	.bufSize =      CHGR_TX_BUFSZ,
 	.buf = { [0 ... CHGR_TX_BUFSZ-1] = 0 }
 };
 
-struct queue chgr_rx_q = {
+queue chgr_rx_q = {
 	.rd = 0,
 	.wr = 0,
 	.bufSize =      CHGR_RX_BUFSZ,
@@ -98,14 +98,14 @@ volatile unsigned char chgr_rxcnt = 0;	// Count of bytes received
 		 unsigned char chgr_lastrxidx = 0;	// Index into the above
 
 // BMU buffers and variables
-struct queue bmu_tx_q = {
+queue bmu_tx_q = {
 	.rd = 0,
 	.wr = 0,
 	.bufSize =      BMU_TX_BUFSZ,
 	.buf = { [0 ... BMU_TX_BUFSZ-1] = 0 }
 };
 
-struct queue bmu_rx_q = {
+queue bmu_rx_q = {
 	.rd = 0,
 	.wr = 0,
 	.bufSize =      BMU_RX_BUFSZ,
