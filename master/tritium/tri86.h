@@ -167,7 +167,7 @@ extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
 // Define a queue type for serial transmit and receive (charger and BMUs)
-typedef struct _queue {
+typedef struct {
       unsigned char rd;		 // Read index
       unsigned char wr;		 // Write index
       unsigned char bufSize; // Buffer size must be a power of 2

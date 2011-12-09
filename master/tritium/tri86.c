@@ -78,7 +78,7 @@ unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a v
 unsigned int chgr_soaking = 0;			// Counter for soak phase
 
 // Charger buffers
-queue chgr_tx_q = {
+queue chgr_tx_q = {						// Initialise structure members and size of
 	.rd = 0,
 	.wr = 0,
 	.bufSize =      CHGR_TX_BUFSZ,
