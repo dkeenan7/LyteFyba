@@ -24,7 +24,7 @@ e e ErrorLED
 h h Hex output
   i set(I)Ds
   j JumpToSubroutine (call) [disabled to save space]
-k   chec(K)summing, 0k[ to turn checksumming off, 1k to turn it on
+k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
@@ -81,7 +81,7 @@ s s Select
 x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
 | | exit or comment
-k   chec(K)summing, 0k[ to turn checksumming off, 1k to turn it on
+k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 

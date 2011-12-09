@@ -239,6 +239,10 @@ ACCEPT
 #if COUNTCKSM
 					_ELSE
 						inc.b	&worstBadness
+						mov.w	&TIB,&worstBadMeas
+						mov.w	&TIB+2,&worstBadStuf
+						mov.w	&TIB+4,&worstBadStuf+2
+						mov.b	&TIB+6,&worstBadType
 #endif
 					_ENDIF					; Endif good checksum
 				_ENDIF					; Endif packet buffer not full

@@ -33,13 +33,15 @@ CLIT	EQU		'\''			; Interpreter treats tick (single-quote) as synonym for tock
 		DPUSHb	@Rip+
 		ret
 
+#if 0 // FIXME!!!
 ; changeSign ( n -- -n )
 ;
 		xCODE	'~',changeSign,_changeSign
 		inv		Rtos
 		inc		Rtos
 		ret
-		
+#endif
+
 ; dollarHex ( -- )
 ;
 		xCODE	$7F,dollarHex_,_dollarHex	; $ gets converted to <DEL> for starting hex number input
@@ -47,7 +49,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		bis		#1<<14,SR					; Set the hex flag
 		ret
 
-
+#if 0 // FIXME!!!
 ; EMIT ( c -- )	; Emit the character on top of stack
 
 		xCODE	'm',EMIT,_EMIT
@@ -56,6 +58,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 ;		pop		Rtos
 ;		DROP
 		ret
+#endif
 
 ;
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
@@ -77,6 +80,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		_ENDIF						; Endif
 		ret
 		
+#if 0 // FIXME!!!		
 ;
 ; Turn on or off the error LED (bool -- )
 ;
@@ -87,6 +91,7 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 
 ;		pop		Rtos				; Remove operand
 		ret
+#endif
 
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base

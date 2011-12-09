@@ -13,18 +13,19 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			movBits_B	Rtos,#bNotSendBad,&monFlags ; Move only bNotSendBad bit from Rtos to monFlags
 			ret
 		
-; checKsumming ( boolean -- )			; 1 for checksums, 0 for no checksums
+; checKsumming ( -- )						; Toggle bChecksumming
+			; kk to turn checksumming off, k to turn it on (irrespective of current state)
 			xCODE	'k',checksumming,_checksumming
-			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#bChecksumming,&monFlags ; Move only bChecksumming bit from Rtos to monFlags
+			xor.b	#bChecksumming,&monFlags ; Toggle bChecksumming bit in monFlags
 			ret
-		
+#if 0 // FIXME!!!
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
 			mov		#'R',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+#endif
 
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
@@ -32,7 +33,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	&localBadness,Rsec		; Result in badness levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
-#if 1
+
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
 			mov		#'Q',Rthd				; Type is worst badness level
@@ -43,10 +44,24 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst badness
-			mov.b	&worstBadType,Rthd		; Type of measurement
-			mov		&worstBadMeas,Rsec		; Result
-			mov		#4,Rtos					; Print 4 digits
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+			mov.b	&worstBadMeas,R8		; First char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadMeas+1,R8		; 2nd char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadStuf,R8		; 3rd char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadStuf+1,R8		; 4th char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadStuf+2,R8		; 5th char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadStuf+3,R8		; 6th char of packet
+			call	#TX_ByteCk
+			mov.b	&worstBadType,R8		; 7th char of packet
+			call	#TX_ByteCk
+//			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
+//			mov		&worstBadMeas,Rsec		; Result
+//			mov		#4,Rtos					; Print 4 digits
+//			jmp		_prettyPrint			; Tail-call pretty-print and return
 		
 ; Reset worst badness ( -- )
 			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
@@ -55,6 +70,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			clr		&worstBadMeas
 			ret
 			
+#if 0			// FIXME!!!
 ; Alarm ( boolean -- )
 			xCODE	'a',Alarm,_Alarm
 	#if 1
