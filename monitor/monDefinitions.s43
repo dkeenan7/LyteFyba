@@ -16,7 +16,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 ; checKsumming ( -- )						; Toggle bChecksumming
 			; kk to turn checksumming off, k to turn it on (irrespective of current state)
 			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&monFlags ; Toggle bChecksumming bit in monFlags
+			xor.b	#bChecksumming,&intFlags ; Toggle bChecksumming bit in intFlags
 			ret
 #if 0 // FIXME!!!
 ; Rx state ( -- )
