@@ -109,7 +109,7 @@ txrd		DS		1				; Transmit queue read index
 
 ; ByteCodeInterpreter2 variables
 
-checksum	DS		1				; Packet xor checksum
+RXCksum		DS		1				; Received packet xor checksum
 intFlags	DS		1				; Interpreter flags, bitmask definitions follow
 bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
 bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
@@ -117,7 +117,7 @@ bDontInterpret EQU	4				; Are we interpreting?
 
 			ALIGNRAM 1
 worstBadness DS		1				; Worst local badness since last resetWorstBadness command
-									;	Or checksum errors if COUNTCKSM is on
+									;	Or count of received checksum errors if COUNTCKSM is on
 worstBadType DS		1				; Character giving type of measurement that caused worst badness
 worstBadMeas DS		2				; Value of measurement that caused worst badness
 worstBadStuf DS		12				; Temporary for bad checksum diagnosis
@@ -185,7 +185,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
 												;	idle bit)
 			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits
-;			clr.b	TXCksum						; Clear transmit checksum
+;			clr.b	TXCksum						; Clear the transmit checksum
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 ;			clr.b	&rxwr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxrd
@@ -208,7 +208,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
-;			clr.b	&checksum				; Clear checksum
+;			clr.b	&RXCksum				; Clear the receive checksum
 ;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
 ;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
 ;			bic.b	#bDontInterpret,&intFlags	; Interpret
