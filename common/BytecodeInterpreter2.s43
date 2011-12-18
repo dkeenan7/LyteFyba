@@ -239,6 +239,7 @@ ACCEPT
 #if COUNTCKSM
 					_ELSE
 						inc.b	&worstBadness
+						mov.b	&checksum,&worstBadType
 						mov.w	&TIB+0,&worstBadMeas
 						mov.w	&TIB+2,&worstBadStuf
 						mov.w	&TIB+4,&worstBadStuf+2
