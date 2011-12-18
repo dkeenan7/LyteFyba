@@ -36,7 +36,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
-			mov		#'Q',Rthd				; Type is worst badness level
+			mov.b	#'Q',Rthd				; Type is worst badness level
 			mov.b	&worstBadness,Rsec		; Result
 		;	mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
@@ -47,12 +47,20 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	#EXIT,R8				; Slosh
 			call	#TX_ByteCk
 			clr		R10
-qloop:		mov.b	worstBadType(R10),R8	; next char of packet
+qloop:		mov.b	worstBadMeas(R10),R8	; next char of packet
 			call	#TX_ByteCk
 			inc		R10
-			cmp		#15,R10
+			cmp		#14,R10
 			jne		qloop
-			ret
+			
+			call	#TX_Cksum				; Transmit checksum if required, then clear checksum.
+			mov		#'\r',R8				; Carriage return to R8
+			call	#TX_Byte				; Emit
+
+			mov.b	#'X',Rthd				; 'X' for XOR checksum
+			mov.b	&worstBadType,Rsec		; Residual checksum
+			; mov		#3,Rtos				; Print 3 digits
+			jmp		_prettyPrint3			; Tail-call pretty-print and return
 //			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
 //			mov		&worstBadMeas,Rsec		; Result
 //			mov		#4,Rtos					; Print 4 digits
@@ -61,8 +69,15 @@ qloop:		mov.b	worstBadType(R10),R8	; next char of packet
 ; Reset worst badness ( -- )
 			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
 			clr.b	&worstBadness
-			mov.b	#' ',&worstBadType
-			clr		&worstBadMeas
+//			mov.b	#' ',&worstBadType
+//			clr		&worstBadMeas
+						clr.b	&worstBadType
+						mov		#worstBadMeas,R9
+						mov		#7,R10
+clrloop					clr.w	0(R9)
+						incd	R9
+						dec		R10
+						jnz		clrloop
 			ret
 			
 #if 0			// FIXME!!!
