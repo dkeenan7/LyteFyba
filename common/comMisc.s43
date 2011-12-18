@@ -22,6 +22,7 @@ TX_Cksum:
 #endif
 				call 	#TX_ByteCk			; Send the checksum. Also updates TXCksum to 0
 			_ENDIF
+			clr.b	&TXCksum			; Needed for when checksumming is off
 			ret
 
 
