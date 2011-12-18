@@ -162,7 +162,7 @@ TXCksum		DS		1				; Transmit checksum
 
 ; ByteCodeInterpreter2 variables
 
-checksum	DS		1				; Packet xor checksum
+RXCksum		DS		1				; Received packet xor checksum
 intFlags	DS		1				; Interpreter flags, bitmask definitions follow
 bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
 bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
@@ -260,7 +260,7 @@ initialise:
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
-;			clr.b	&checksum				; Clear checksum
+;			clr.b	&RXCksum					; Clear the receive checksum
 ;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
 ;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
 ;			bic.b	#bDontInterpret,&intFlags	; Interpret
