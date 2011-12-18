@@ -47,11 +47,12 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	#EXIT,R8				; Slosh
 			call	#TX_ByteCk
 			clr		R10
-qloop:		mov.b	worstBadMeas(R10),R8	; next char of packet
+qloop:		mov.b	worstBadType(R10),R8	; next char of packet
 			call	#TX_ByteCk
 			inc		R10
-			cmp		#14,R10
+			cmp		#15,R10
 			jne		qloop
+			ret
 //			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
 //			mov		&worstBadMeas,Rsec		; Result
 //			mov		#4,Rtos					; Print 4 digits
