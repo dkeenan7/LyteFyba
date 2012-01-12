@@ -47,11 +47,14 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov.b	#EXIT,R8				; Slosh
 			call	#TX_ByteCk
 			clr		R10
-qloop:		mov.b	worstBadMeas(R10),R8	; next char of packet
-			call	#TX_ByteCk
-			inc		R10
-			cmp		#14,R10
-			jne		qloop
+			
+			_BEGIN
+				mov.b	worstBadMeas(R10),R8	; next char of packet
+				cmp		#EXIT,R8
+			_WHILE	_EQ
+				call	#TX_ByteCk
+				inc		R10
+			_REPEAT
 			
 			call	#TX_Cksum				; Transmit checksum if required, then clear checksum.
 			mov		#'\r',R8				; Carriage return to R8
@@ -72,13 +75,8 @@ qloop:		mov.b	worstBadMeas(R10),R8	; next char of packet
 //			mov.b	#' ',&worstBadType
 //			clr		&worstBadMeas
 						clr.b	&worstBadType
-						mov		#worstBadMeas,R9
-						mov		#7,R10
-clrloop					clr.w	0(R9)
-						incd	R9
-						dec		R10
-						jnz		clrloop
-			ret
+						mov.b	#EXIT,&worstBadMeas ; Carriage return for empty packet
+				ret
 			
 #if 0			// FIXME!!!
 ; Alarm ( boolean -- )
