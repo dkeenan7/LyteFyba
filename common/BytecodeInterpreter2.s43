@@ -244,11 +244,12 @@ ACCEPT
 						mov		#TIB,R8			; Save the packet that had the bad checksum
 						mov		#worstBadMeas,R10
 						_BEGIN
+							cmp		R8,R9
+						_WHILE		_NE
 							mov.b	@R8+,0(R10)
 							inc		R10
-							cmp		R8,R9
-						_UNTIL	_EQ
-						mov.b	#EXIT,0(R10)
+						_REPEAT
+						mov.b	#'\r',0(R10)
 #endif
 					_ENDIF					; Endif good checksum
 				_ENDIF					; Endif packet buffer not full
