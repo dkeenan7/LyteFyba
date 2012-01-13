@@ -50,8 +50,8 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			
 			_BEGIN
 				mov.b	worstBadMeas(R10),R8	; next char of packet
-				cmp		#EXIT,R8
-			_WHILE	_EQ
+				cmp		#'\r',R8
+			_WHILE	_NE
 				call	#TX_ByteCk
 				inc		R10
 			_REPEAT
@@ -75,7 +75,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 //			mov.b	#' ',&worstBadType
 //			clr		&worstBadMeas
 						clr.b	&worstBadType
-						mov.b	#EXIT,&worstBadMeas ; Carriage return for empty packet
+						mov.b	#'\r',&worstBadMeas ; Carriage return for empty packet
 				ret
 			
 #if 0			// FIXME!!!
