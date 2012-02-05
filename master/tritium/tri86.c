@@ -215,6 +215,9 @@ int main( void )
 
 	// Enable interrupts
 	eint();
+	
+	// Turn on checksumming for BMUs
+	bmu_sendPacket((const unsigned char*)"k\r");
 
 	// Check switch inputs and generate command packets to motor controller
 	while(TRUE){
