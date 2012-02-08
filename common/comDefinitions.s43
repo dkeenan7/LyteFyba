@@ -49,16 +49,15 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		bis		#1<<14,SR					; Set the hex flag
 		ret
 
-#if 0 // FIXME!!!
+;
 ; EMIT ( c -- )	; Emit the character on top of stack
-
+;
 		xCODE	'm',EMIT,_EMIT
 		mov.b	Rtos,R8
 		call	#TX_Byte
 ;		pop		Rtos
 ;		DROP
 		ret
-#endif
 
 ;
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.

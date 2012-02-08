@@ -57,7 +57,7 @@
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$TOOLKIT_DIR$\config\MSP430G2452.ddf</state>
+          <state>$TOOLKIT_DIR$\config\MSP430F2012.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>
@@ -145,7 +145,7 @@
       <name>430FET</name>
       <archiveVersion>1</archiveVersion>
       <data>
-        <version>22</version>
+        <version>23</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -278,6 +278,10 @@
           <name>CCVCCDefault</name>
           <state>1</state>
         </option>
+        <option>
+          <name>Retain</name>
+          <state>0</state>
+        </option>
       </data>
     </settings>
     <settings>
@@ -319,11 +323,27 @@
         <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\CMX\CmxArmPlugin.ENU.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\CMX\CmxTinyArmPlugin.ENU.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\embOS\embOSPlugin.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\OpenRTOS\OpenRTOSPlugin.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\PowerPac\PowerPacRTOS.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\SafeRTOS\SafeRTOSPlugin.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>
@@ -341,10 +361,6 @@
       <plugin>
         <file>$EW_DIR$\common\plugins\Orti\Orti.ENU.ewplugin</file>
         <loadFlag>0</loadFlag>
-      </plugin>
-      <plugin>
-        <file>$EW_DIR$\common\plugins\Stack\Stack.ENU.ewplugin</file>
-        <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
         <file>$EW_DIR$\common\plugins\SymList\SymList.ENU.ewplugin</file>
@@ -495,7 +511,7 @@
       <name>430FET</name>
       <archiveVersion>1</archiveVersion>
       <data>
-        <version>22</version>
+        <version>23</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -628,6 +644,10 @@
           <name>CCVCCDefault</name>
           <state>1</state>
         </option>
+        <option>
+          <name>Retain</name>
+          <state>0</state>
+        </option>
       </data>
     </settings>
     <settings>
@@ -669,11 +689,27 @@
         <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\CMX\CmxArmPlugin.ENU.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\CMX\CmxTinyArmPlugin.ENU.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\embOS\embOSPlugin.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\OpenRTOS\OpenRTOSPlugin.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\PowerPac\PowerPacRTOS.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\SafeRTOS\SafeRTOSPlugin.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>
@@ -691,10 +727,6 @@
       <plugin>
         <file>$EW_DIR$\common\plugins\Orti\Orti.ENU.ewplugin</file>
         <loadFlag>0</loadFlag>
-      </plugin>
-      <plugin>
-        <file>$EW_DIR$\common\plugins\Stack\Stack.ENU.ewplugin</file>
-        <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
         <file>$EW_DIR$\common\plugins\SymList\SymList.ENU.ewplugin</file>
