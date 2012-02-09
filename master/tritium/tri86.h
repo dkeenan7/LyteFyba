@@ -143,6 +143,8 @@
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger
+#define CHGR_SOAK_CURR		5					// Soak mode current in tenths of an ampere
+												//	Should be about 1/2 of BMU bypass capacity
 
 // BMU constants
 #define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
