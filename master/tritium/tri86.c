@@ -217,7 +217,9 @@ int main( void )
 	eint();
 	
 	// Turn on checksumming for BMUs
-	bmu_sendPacket((const unsigned char*)"k\r");
+	// The "k" command has no effect if checksumming is on (bad checksum), but toggles checksumming off
+	//	if it was on
+	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket, since that would send "kk"
 
 	// Check switch inputs and generate command packets to motor controller
 	while(TRUE){
