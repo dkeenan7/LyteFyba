@@ -37,7 +37,6 @@ void eint();
 void dint();
 #endif
 
-#define CHARGER_NEEDS_CAN	0					// MVE: set if charger needs the CAN bus
 #define LED_PORT			P4OUT				// MVE: modified DCU; uses port 3 for UART, port 4 for
 												//	GREENn and REDn LEDs
 
@@ -186,9 +185,6 @@ int main( void )
 	// This also changes the clock output from the MCP2515, but we're not using it in this software
 	can_init();
 	events |= EVENT_CONNECTED;
-#if CHARGER_NEEDS_CAN				// MVE: if charger needs CAN,
-	P1OUT |= CAN_PWR_OUT;			//	then power it up now, and
-#endif								//	don't disconnect with ignition key off
 
 	// Initialise Timer A (10ms timing ticks)
 	timerA_init();
@@ -339,15 +335,10 @@ int main( void )
 			
 			// Control CAN bus and pedal sense power
 			if(1){	//(switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
-#if !CHARGER_NEEDS_CAN					// MVE: if charger needs can,
-				P1OUT |= CAN_PWR_OUT;	//	then don't connect/disconnect it here
-#endif
 				P6OUT |= ANLG_V_ENABLE;
 			}
 			else{
-#if !CHARGER_NEEDS_CAN
-				P1OUT &= ~CAN_PWR_OUT;	// MVE: don't disconnect CAN power if charger needs it
-#endif
+				P1OUT &= ~CAN_PWR_OUT;
 				P6OUT &= ~ANLG_V_ENABLE;
 				events &= ~EVENT_CONNECTED;
 				events |= EVENT_REQ_SLEEP;
@@ -510,15 +501,7 @@ int main( void )
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
-#if 0
-			// Charger is on the CAN bus
-			can.identifier = 0x1806;				// Charger is expecting 1806E5F4
-//			can.identifier_ext = 0xE5F4;
-			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
-			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
-			can.data.data_u32[1] = 0;				// Clear the rest of the data
-			can_transmit();
-#else
+
 			// Charger is on the UART in UCI0
 			chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 			chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
@@ -530,9 +513,10 @@ int main( void )
 			if (chgr_events & CHGR_END_CHARGE) {
 				chgr_txbuf[7] = 0;					// Request no current now
 				chgr_txbuf[8] = 1;					// Turn off charger
-			} else if (chgr_events & CHGR_SOAKING)
-				chgr_txbuf[7] = 5;					// Soak at 0.5 amps (half the bypass capacity)
-			else {
+			} else if (chgr_events & CHGR_SOAKING) {
+				chgr_txbuf[7] = CHGR_SOAK_CURR;		// Soak at the soak current level (< bypass capacity)
+				chgr_txbuf[8] = 0;					// Keep charger on
+			} else {
 				chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
 				if (chgr_current > CHGR_CURR_LIMIT)
 					chgr_current = CHGR_CURR_LIMIT;
@@ -542,7 +526,6 @@ int main( void )
 			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
 			chgr_sendPacket(chgr_txbuf);
 			chgr_lastrxidx = 0;						// Expect receive packet in response
-#endif
 		}
 
 		if (chgr_events & CHGR_REC) {
