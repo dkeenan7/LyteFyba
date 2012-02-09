@@ -492,7 +492,7 @@ int main( void )
 				makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
 				bmu_sendPacket(cmd);
 				++bmu_curr_cell;
-				if (bmu_curr_cell > NUMBER_OF_CELLS)
+				if (bmu_curr_cell > NUMBER_OF_BMUS)
 					bmu_curr_cell = 1;
 			}
 		}
@@ -611,7 +611,7 @@ int main( void )
 								else {
 									// This cell is in bypass. Check if the first bmu in bypass is the next one
 									int next_bmu_id = bmu_id+1;
-									if (next_bmu_id > NUMBER_OF_CELLS)
+									if (next_bmu_id > NUMBER_OF_BMUS)
 										next_bmu_id = 1;
 									if (next_bmu_id == first_bmu_in_bypass) {
 										// We have detected all cells in bypass. Now we enter the soak phase
@@ -638,7 +638,7 @@ int main( void )
 									bmu_max_mV = rxvolts;
 									bmu_max_id = bmu_id;
 								}
-								if (bmu_id >= NUMBER_OF_CELLS) {
+								if (bmu_id >= NUMBER_OF_BMUS) {
 									// We have the min and max information. Send a CAN packet so the telemetry
 									//	software can display them. Use CAN id 0x266, as the IQcell BMS would
 									can.identifier = 0x266;
@@ -653,7 +653,7 @@ int main( void )
 									bmu_min_id = 0;		bmu_max_id = 0;
 								}
 								// Move to the next BMU
-								if (++bmu_curr_cell > NUMBER_OF_CELLS)
+								if (++bmu_curr_cell > NUMBER_OF_BMUS)
 									bmu_curr_cell = 1;
 								bmu_events |= BMU_MINMAX;			// Schedule another voltage request
 						}
