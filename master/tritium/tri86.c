@@ -37,7 +37,7 @@ void eint();
 void dint();
 #endif
 
-#define CHARGER_NEEDS_CAN	1					// MVE: set if charger needs the CAN bus
+#define CHARGER_NEEDS_CAN	0					// MVE: set if charger needs the CAN bus
 #define LED_PORT			P4OUT				// MVE: modified DCU; uses port 3 for UART, port 4 for
 												//	GREENn and REDn LEDs
 
@@ -92,10 +92,11 @@ queue chgr_rx_q = {
 	.buf = { [0 ... CHGR_RX_BUFSZ-1] = 0 }
 };
 
-volatile unsigned char chgr_txcnt = 0;	// Count of bytes transmitted
-volatile unsigned char chgr_rxcnt = 0;	// Count of bytes received
-		 unsigned char chgr_lastrx[12];	// Buffer for the last received charger message
+volatile unsigned char chgr_txcnt = 0;		// Count of bytes transmitted
+volatile unsigned char chgr_rxcnt = 0;		// Count of bytes received
+		 unsigned char chgr_lastrx[12];		// Buffer for the last received charger message
 		 unsigned char chgr_lastrxidx = 0;	// Index into the above
+static	 unsigned char chgr_txbuf[12];		// A buffer for a charger packet
 
 // BMU buffers and variables
 queue bmu_tx_q = {
@@ -477,7 +478,6 @@ int main( void )
 			}
 		}
 			
-/* DCK: temporary
 		// Process badness events before sending charger packets
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
@@ -496,7 +496,6 @@ int main( void )
 					bmu_curr_cell = 1;
 			}
 		}
-*/
 		
 		// Send voltage request if required for min/max while driving
 		if (bmu_events & BMU_MINMAX) {
@@ -506,7 +505,6 @@ int main( void )
 			bmu_sendPacket(cmd);
 		}
 
-		/*		DCK: temporary
 		// MVE: send packets to charger
 		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {
@@ -514,7 +512,7 @@ int main( void )
 			events |= EVENT_ACTIVITY;
 #if 0
 			// Charger is on the CAN bus
-			can.identifier = 0x1806;					// Charger is expecting 1806E5F4
+			can.identifier = 0x1806;				// Charger is expecting 1806E5F4
 //			can.identifier_ext = 0xE5F4;
 			can.data.data_u16[0] = SWAP16(288);		// Request 28.8 V
 			can.data.data_u16[1] = SWAP16(20);		// Request 2.0 A
@@ -542,11 +540,10 @@ int main( void )
 				chgr_txbuf[8] = 0;
 			}
 			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-			chgr_resendLastPacket();
-			chgr_rxidx = 0;			// Expect receive packet in response
+			chgr_sendPacket(chgr_txbuf);
+			chgr_lastrxidx = 0;						// Expect receive packet in response
 #endif
 		}
-*/
 
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
@@ -607,7 +604,6 @@ int main( void )
 								(bmu_lastrx[7] - '0');
 							// We expect voltage responses during charging and driving; split the logic here
 							if (command.state == MODE_CHARGE) {
-						  		/* DCK: temporary
 								if (rxvolts < 359)
 									// This cell is not bypassing. So the string of cells known to be in bypass
 									// is zero length. Flag this
@@ -629,7 +625,6 @@ int main( void )
 										first_bmu_in_bypass = bmu_id;
 									}
 								}
-*/
 							} else {
 								// Not charging: driving. We use the voltage measurements to find the min and
 								//	max cell voltages
@@ -980,7 +975,6 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		comms_count = COMMS_SPEED;
 		events |= EVENT_COMMS;
 	}
-/* DCK: temporary
 	// MVE: Trigger charger events (command packet transmission)
 	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
@@ -993,7 +987,6 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 			chgr_resendLastPacket();	// Resend; will loop until a complete packet is recvd
 		}
 	}
-*/
 	if (bmu_events & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
