@@ -215,11 +215,16 @@ int main( void )
 
 	// Enable interrupts
 	eint();
-	
+
+#if USE_CKSUM	
 	// Turn on checksumming for BMUs
-	// The "k" command has no effect if checksumming is on (bad checksum), but toggles checksumming off
-	//	if it was on
-	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket, since that would send "kk"
+	// The "k" command has no effect if BMU checksumming is on (bad checksum), but toggles BMU
+	// checksumming off if it was on
+	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket, since that would
+												// send "kk\r", which would have the opposite effect
+#else
+	bmu_sendPacket("kk\r");						// DCU checksumming is off, so it won't change the pkt
+#endif
 
 	// Check switch inputs and generate command packets to motor controller
 	while(TRUE){
