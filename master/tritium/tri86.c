@@ -214,12 +214,15 @@ int main( void )
 	eint();
 
 #if USE_CKSUM	
-	// Turn on checksumming for BMUs
-	// The "k" command has no effect if BMU checksumming is on (bad checksum), but toggles BMU
-	// checksumming off if it was on
-	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket, since that would
-												// send "kk\r", which would have the opposite effect
+	// Turn on checksumming in BMUs.
+	// The "k" packet is ignored if BMU checksumming is on (bad checksum), but toggles BMU
+	// checksumming on if it was off.
+	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket as it would insert a
+												// checksum giving "kk\r" and having opposite effect
 #else
+	// Turn off checksumming in BMUs.
+	// The "kk" packet toggles BMU checksumming off if it was on (single k command with good checksum),
+	// but toggles BMU checksumming twice if it was off, thereby leaving it off.
 	bmu_sendPacket("kk\r");						// DCU checksumming is off, so it won't change the pkt
 #endif
 
@@ -242,7 +245,7 @@ int main( void )
 			update_switches(&switches, &switches_diff);
 			
 			// Handle transitions
-			if ((switches_diff & SW_FUEL) && (switches & SW_FUEL)) {
+			if ((switches_diff & SW_FUEL_DR_OPEN) && (switches & SW_FUEL_DR_OPEN)) {
 				// The fuel door has come on since last time we looked. Kick off a voltage request
 				bmu_events |= BMU_MINMAX;
 			}
@@ -263,7 +266,7 @@ int main( void )
 					else
 #endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
+					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
 //					else next_state = MODE_N;
 					else next_state = MODE_D;			// Always proceed to MODE_D unless ignition is off or fuel door is open
 					P5OUT &= ~(LED_GEAR_ALL);
@@ -274,7 +277,7 @@ int main( void )
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
+					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
 					else next_state = MODE_R;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_4;
@@ -284,7 +287,7 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
+					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_2;
@@ -297,13 +300,13 @@ int main( void )
 					else
 #endif
 						if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL) next_state = MODE_CHARGE;
+					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if(!(switches & SW_FUEL)) next_state = MODE_N;
+					if(!(switches & SW_FUEL_DR_OPEN)) next_state = MODE_N;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
@@ -321,10 +324,8 @@ int main( void )
 					next_state = MODE_OFF;
 					break;
 			}
-	/* FOR NOW: ignore all the above logic, and leave the state alone (in drive)
 			command.state = next_state;
-	*/
-			
+				
 			// Control brake lights
 			if((switches & SW_BRAKE) || (events & EVENT_REGEN)) P1OUT |= BRAKE_OUT;
 			else P1OUT &= ~BRAKE_OUT;
@@ -335,6 +336,7 @@ int main( void )
 			
 			// Control CAN bus and pedal sense power
 			if(1){	//(switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
+			  	//P1OUT |= CAN_PWR_OUT;
 				P6OUT |= ANLG_V_ENABLE;
 			}
 			else{
@@ -1042,8 +1044,8 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	if(P1IN & IN_BRAKEn) *state &= ~SW_BRAKE;
 	else *state |= SW_BRAKE;
 
-	if(P1IN & IN_FUEL) *state |= SW_FUEL;
-	else *state &= ~SW_FUEL;
+	if(P1IN & IN_FUEL) *state |= SW_FUEL_DR_OPEN;
+	else *state &= ~SW_FUEL_DR_OPEN;
 
 	// Update changed switches
 	*difference = *state ^ old_switches;	
