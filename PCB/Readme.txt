@@ -8,14 +8,18 @@ it's unfortunately necessary to do the following if you want to make detailed
 changes to the circuit or PCB layout. (It is NOT needed for perusing the circuit
 or layout, or even making minor changes.)
 
-Start the DesignSpark PCB application, either from the start menu or by double
-clicking on the CellTopBMU.sch file. Open the Library Manager with control-L or by
-clicking the book (fifth) toolbar button. Choose the Folders (last) tab. Click on
-the Add button, then either type the path to the celltopBMU\PCB folder, or use the
-Browse button to locate it. Click OK, and Close. That's it.
+Double-click the "CellTopBMU.sch" file to open it in DesignSpark; it's in the PCB
+folder. Close the little window that contains nothing but the DesignSpark logo.
+Open DesignSpark's Library Manager by clicking the book-like icon on the toolbar
+(or typing Ctrl+L). Choose the "Folders" tab. Click on the "Add" button, then the
+"Browse" button. You should see three "Coulomb&Weber" files. If not, navigate to
+the celltopbmu/PCB folder so you do see them. Double-click any one of them (or
+type Backspace Enter). Then click "OK" to complete the Add operation.
 
-To check that you've done it right, open the library managed again, choose the
-Components (middle) tab, and in the Libraries drop down list, you should see near
-the top "Coulomb&Weber.cml in ..."; select it. Now you should see a handful of
-components, including "Dual diode", which we did not find in the standard
-DesignSpark libraries.
+Now in the lower "Files Found" list you should see the same three "Coulomb&Weber"
+files. If any are greyed out, select them and check the "Enabled" checkbox.
+
+To check that you've done it right, choose the "Components" tab, and in the
+"Libraries" drop down list, you should see near the top "Coulomb&Weber.cml in
+..."; select it. Now you should see a handful of components, including "Dual
+diode", which we did not find in the standard DesignSpark libraries. Click "Close".
