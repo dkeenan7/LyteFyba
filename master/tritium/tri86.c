@@ -329,8 +329,8 @@ int main( void )
 			else P1OUT &= ~REVERSE_OUT;
 			
 			// Control CAN bus and pedal sense power
-			if(1){	//(switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
-			  	//P1OUT |= CAN_PWR_OUT;
+			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) {
+			  	P1OUT |= CAN_PWR_OUT;
 				P6OUT |= ANLG_V_ENABLE;
 			}
 			else{
