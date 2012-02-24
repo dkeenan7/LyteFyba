@@ -133,7 +133,7 @@
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
 #define	BMU_REC				0x0002				// We have received a response from the BMU string
 #define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
-#define BMU_MINMAX			0x0008				// Time to send a voltage reading to get cell min and max
+#define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
 
 // Charger constants
 #define NUMBER_OF_CELLS		73

@@ -205,7 +205,7 @@ int main( void )
 	command.flags = 0x00;
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
-	bmu_events |= BMU_MINMAX;		// Kick off the first voltage request packet while driving or charging
+	bmu_events |= BMU_VOLTREQ;		// Kick off the first voltage request packet while driving or charging
 	
 	// Init gauges
 	gauge_init();
@@ -244,12 +244,6 @@ int main( void )
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
 			
-			// Handle transitions
-			if ((switches_diff & SW_FUEL_DR_OPEN) && (switches & SW_FUEL_DR_OPEN)) {
-				// The fuel door has come on since last time we looked. Kick off a voltage request
-				bmu_events |= BMU_MINMAX;
-			}
-			
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
@@ -266,7 +260,7 @@ int main( void )
 					else
 #endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
 //					else next_state = MODE_N;
 					else next_state = MODE_D;			// Always proceed to MODE_D unless ignition is off or fuel door is open
 					P5OUT &= ~(LED_GEAR_ALL);
@@ -277,7 +271,7 @@ int main( void )
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
 					else next_state = MODE_R;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_4;
@@ -287,7 +281,7 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_2;
@@ -300,13 +294,13 @@ int main( void )
 					else
 #endif
 						if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_FUEL_DR_OPEN) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if(!(switches & SW_FUEL_DR_OPEN)) next_state = MODE_N;
+					if(!(switches & SW_CHARGE_CABLE)) next_state = MODE_N;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
@@ -490,9 +484,9 @@ int main( void )
 			}
 		}
 		
-		// Send voltage request if required for min/max while driving
-		if (bmu_events & BMU_MINMAX) {
-			bmu_events &= ~BMU_MINMAX;
+		// Send voltage request if required for min/max while driving or max V when charging
+		if (bmu_events & BMU_VOLTREQ) {
+			bmu_events &= ~BMU_VOLTREQ;
 			unsigned char cmd[8];
 			makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
 			bmu_sendPacket(cmd);
@@ -637,12 +631,13 @@ int main( void )
 									bmu_min_mV = 9999;	bmu_max_mV = 0;
 									bmu_min_id = 0;		bmu_max_id = 0;
 								}
-								// Move to the next BMU
-								if (++bmu_curr_cell > NUMBER_OF_BMUS)
-									bmu_curr_cell = 1;
-								bmu_events |= BMU_MINMAX;			// Schedule another voltage request
 						}
 					}
+					// Move to the next BMU (driving or charging)
+					if (++bmu_curr_cell > NUMBER_OF_BMUS)
+						bmu_curr_cell = 1;
+					bmu_events |= BMU_VOLTREQ;			// Schedule another voltage request
+					
 				}
 			}
 		}
@@ -1044,8 +1039,8 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	if(P1IN & IN_BRAKEn) *state &= ~SW_BRAKE;
 	else *state |= SW_BRAKE;
 
-	if(P1IN & IN_FUEL) *state |= SW_FUEL_DR_OPEN;
-	else *state &= ~SW_FUEL_DR_OPEN;
+	if(P1IN & IN_FUEL) *state |= SW_CHARGE_CABLE;
+	else *state &= ~SW_CHARGE_CABLE;
 
 	// Update changed switches
 	*difference = *state ^ old_switches;	
