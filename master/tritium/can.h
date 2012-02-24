@@ -92,7 +92,7 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define SW_IGN_ON		0x0020
 #define SW_IGN_START	0x0040
 #define SW_BRAKE		0x0080
-#define SW_FUEL_DR_OPEN	0x0100
+#define SW_CHARGE_CABLE	0x0100		// Was SW_FUEL_DOOR: true if charger mains cable present
 #define SW_SPARE1		0x0200
 #define SW_SPARE2		0x0400
 #define SW_SPARE3		0x0800
