@@ -1,0 +1,8 @@
+Dual diode||#SOL=3
+Dual LED||#SM=4
+FUSE IEC||#SM=2
+IFO LED||#MISC=5
+IFO PT||#MISC=5
+OPTO||#SM=4
+TVS||#SM=3
+VREG||#SOT23-5=5||@=||@=||@=||@=||@=
