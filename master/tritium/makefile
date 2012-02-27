@@ -1,6 +1,6 @@
 # makfile configuration
 NAME            = tri86
-OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o
+OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o bms.o
 CPU             = msp430x247
 
 ASFLAGS         = -mmcu=${CPU} -x assembler-with-cpp -D_GNU_ASSEMBLER_ -c

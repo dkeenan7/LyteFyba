@@ -28,6 +28,7 @@
 #include "usci.h"
 #include "pedal.h"
 #include "gauge.h"
+#include "bms.h"
 
 #ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
 #define __inline__								//	press F7, and so that "go to definition of X" works better
@@ -55,12 +56,6 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
-volatile unsigned int chgr_events = 0;
-volatile unsigned int bmu_events = 0;
-volatile unsigned char bmu_badness = 0;		// Zero says we have received no badness so far
-// \ C H G _ n n n V _ n . n A \r
-// 0 1 2 3 4 5 6 7 8 9 a b c d e
-unsigned char szChgrVolt[16] = "\\CHG nnnV n.nA\r";// Packet to announce the charger's meas of total voltage
 
 // Data from controller
 float motor_rpm = 0;
@@ -68,82 +63,11 @@ float motor_temp = 0;
 float controller_temp = 0;
 float battery_voltage = 0;
 float battery_current = 0;
-unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
-unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
-unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
-unsigned int chgr_current = 9 - CHGR_CURR_DELTA;	// Charger present current; initially 0.9 A
-										// (incremented before first use)
-unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
-unsigned int chgr_soaking = 0;			// Counter for soak phase
-
-// Charger buffers
-queue chgr_tx_q = {						// Initialise structure members and size of
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_TX_BUFSZ,
-	.buf = { [0 ... CHGR_TX_BUFSZ-1] = 0 }
-};
-
-queue chgr_rx_q = {
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_RX_BUFSZ,
-	.buf = { [0 ... CHGR_RX_BUFSZ-1] = 0 }
-};
-
-volatile unsigned char chgr_txcnt = 0;		// Count of bytes transmitted
-volatile unsigned char chgr_rxcnt = 0;		// Count of bytes received
-		 unsigned char chgr_lastrx[12];		// Buffer for the last received charger message
-		 unsigned char chgr_lastrxidx = 0;	// Index into the above
-static	 unsigned char chgr_txbuf[12];		// A buffer for a charger packet
-
-// BMU buffers and variables
-queue bmu_tx_q = {
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      BMU_TX_BUFSZ,
-	.buf = { [0 ... BMU_TX_BUFSZ-1] = 0 }
-};
-
-queue bmu_rx_q = {
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      BMU_RX_BUFSZ,
-	.buf = { [0 ... BMU_RX_BUFSZ-1] = 0 }
-};
-
-volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
-volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
-volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
-volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
-		 unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
-		 unsigned char bmu_lastrxidx = 0;	// Index into the above
-
-
-
 
 
 void fault() {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
 										//	(but beware the compiler may well inline it)
-}
-
-void makeVoltCmd(unsigned char* cmd, int bmu_curr_cell)
-{
-	unsigned char* p; p = cmd;
-	int n = bmu_curr_cell;
-	int h = n / 100;
-	if (h) {
-		*p++ = h + '0';
-		n -= h * 100;
-	}
-	int t = n / 10;
-	if (t) {
-		*p++ = t + '0';
-		n -= t * 10;
-	}
-	*p++ = n + '0';
-	*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';
 }
 
 // Main routine
@@ -209,24 +133,15 @@ int main( void )
 	
 	// Init gauges
 	gauge_init();
+	
+	// Init BMS
+	bms_init();
 
 	// Enable interrupts
 	eint();
 
-#if USE_CKSUM	
-	// Turn on checksumming in BMUs.
-	// The "k" packet is ignored if BMU checksumming is on (bad checksum), but toggles BMU
-	// checksumming on if it was off.
-	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket as it would insert a
-												// checksum giving "kk\r" and having opposite effect
-#else
-	// Turn off checksumming in BMUs.
-	// The "kk" packet toggles BMU checksumming off if it was on (single k command with good checksum),
-	// but toggles BMU checksumming twice if it was off, thereby leaving it off.
-	bmu_sendPacket("kk\r");						// DCU checksumming is off, so it won't change the pkt
-#endif
-
 	// Check switch inputs and generate command packets to motor controller
+	// and control charging while monitoring BMUs.
 	while(TRUE){
 		// Monitor switch positions & analog inputs
 		if( events & EVENT_TIMER ) {
@@ -340,18 +255,7 @@ int main( void )
 				events |= EVENT_REQ_SLEEP;
 			}
 
-			// Control gear switch backlighting
-//			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON))
-			P5OUT |= LED_GEAR_BL;	// DCK: Supplies power to charger and BMS isolated TX
-//			else P5OUT &= ~LED_GEAR_BL;
-			
-			// Control front panel fault indicator
-			// MVE: this is handled with EVENT_FAULT now
-//			if(switches & (SW_ACCEL_FAULT | SW_CAN_FAULT | SW_BRAKE_FAULT | SW_REV_FAULT))
-//				LED_PORT &= ~LED_REDn;
-//			else LED_PORT |= LED_REDn;
-			
-
+			// Check for charge soak time exceeded
             if (chgr_events & CHGR_SOAKING) {
                 if (++ chgr_soaking >= CHGR_EOC_SOAKT) {
                     chgr_events &= ~CHGR_SOAKING;
@@ -360,38 +264,10 @@ int main( void )
                 }
             }
 			
-			{	unsigned char ch;
-
-				// Read incoming bytes from BMUs
-				while (bmu_getByte(&ch)) {			// Get a byte from the BMU receive queue
-					if (ch >= 0x80) {
-						bmu_events |= BMU_BADNESS;
-						bmu_badness = ch;
-					} else {
-						if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
-							fault();
-							break;
-						}
-						bmu_lastrx[bmu_lastrxidx++] = ch; // !!! Need to check for buffer overflow
-						if (ch == '\r')	{				// All BMU responses end with a carriage return
-							bmu_events |= BMU_REC;		// We've received a BMU response
-							break;
-						}
-					}
-				}
-
-				// Read incoming bytes from charger
-				while (chgr_getByte(&ch)) {
-					chgr_lastrx[chgr_lastrxidx++] = ch;
-					if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
-						chgr_events |= CHGR_REC;	// We've received a charger response
-						chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
-						break;
-					}
-				}
-			}
+			readBMUbytes();
+			readChargerBytes();
 			
-		}		// End of processing EVENT_TIMER
+		} // End if( events & EVENT_TIMER )
 		
 		// Handle outgoing communications events (to motor controller)
 		if(events & EVENT_COMMS){
@@ -468,28 +344,13 @@ int main( void )
 		// Process badness events before sending charger packets
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
-			if (bmu_badness > 0x80)					// Simple algorithm:
-				chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
-																	// what the BMUs can bypass
-			if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
-				// Send a voltage check for the current cell
-//				sprintf(cmd, "%dsv\r", bmu_curr_cell);		// FIXME: send checksum
-				// Note that sprintf uses a lot of stack, and seems to prepend a leading zero
-				unsigned char cmd[8];
-				makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
-				bmu_sendPacket(cmd);
-				++bmu_curr_cell;
-				if (bmu_curr_cell > NUMBER_OF_BMUS)
-					bmu_curr_cell = 1;
-			}
+			handleBMUbadnessEvent(&bmu_curr_cell);
 		}
 		
 		// Send voltage request if required for min/max while driving or max V when charging
 		if (bmu_events & BMU_VOLTREQ) {
 			bmu_events &= ~BMU_VOLTREQ;
-			unsigned char cmd[8];
-			makeVoltCmd(cmd, bmu_curr_cell);			// cmd := "XXsv\r"
-			bmu_sendPacket(cmd);
+			bmu_sendVoltReq(bmu_curr_cell);
 		}
 
 		// MVE: send packets to charger
@@ -528,18 +389,7 @@ int main( void )
 			chgr_events &= ~CHGR_REC;
 			chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 													//	(starting next timer interrupt)
-			// Do something with the packet
-#if 1
-			{
-				int nVolt = (chgr_lastrx[4] << 8) + chgr_lastrx[5];
-				szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
-				szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
-				szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
-				szChgrVolt[10] = (chgr_lastrx[7] / 10) + '0';	// Current units
-				szChgrVolt[12] = (chgr_lastrx[7] % 10) + '0';	//	tenths
-				bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
-			}
-#endif
+			// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
 		}
 		
 		if (bmu_events & BMU_REC) {
@@ -601,8 +451,9 @@ int main( void )
 									// This cell is in bypass; we must be starting a new string of bypassed BMUs
 									first_bmu_in_bypass = bmu_id;
 								}
-							}
-						}
+							} // End if (rxvolts < 359)
+						} // End if (command.state == MODE_CHARGE)
+						
 						// Charging or driving. We use the voltage measurements to find the min and
 						//	max cell voltages
 						// Get the whole 4-digit number
@@ -617,28 +468,23 @@ int main( void )
 						}
 						if (bmu_id >= NUMBER_OF_BMUS) {
 							// We have the min and max information. Send a CAN packet so the telemetry
-							//	software can display them. Use CAN id 0x266, as the IQcell BMS would
-							can.identifier = 0x266;
-							can.data.data_u16[0] = bmu_min_mV;
-							can.data.data_u16[1] = bmu_max_mV;
-							can.data.data_u16[2] = bmu_min_id;
-							can.data.data_u16[3] = bmu_max_id;
-							can_transmit();
+							//	software can display them.
+							can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
 
 							// Reset the min/max data
 							bmu_min_mV = 9999;	bmu_max_mV = 0;
 							bmu_min_id = 0;		bmu_max_id = 0;
 						}
-					}		// bmu_id == curr_cell
-				}
+					} // End if (bmu_id == curr_cell)
+				} // End if valid voltage response
 
 				// Move to the next BMU (driving or charging)
 				if (++bmu_curr_cell > NUMBER_OF_BMUS)
 					bmu_curr_cell = 1;
 				bmu_events |= BMU_VOLTREQ;			// Schedule another voltage request
 					
-			}		// chgr_events & CHGR_SOAKING) == 0
-		}			// bmu_events & BMU_REC
+			} // End if ((chgr_events & CHGR_SOAKING) == 0)
+		} // End if (bmu_events & BMU_REC)
 #if USE_CKSUM
 no_bmu_received:
 #endif
@@ -683,13 +529,7 @@ no_bmu_received:
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
-/*					case EL_CAN_ID_H:		// MVE: shouldn't this be EL_CAN_ID_L?
-						// MVE: update some globals with charger info
-						charger_volt = can.data.data_u16[0];
-						charger_curr = can.data.data_u16[1];
-						charger_status = can.data.data_u8[4];
-						break;
-*/				}
+				}
 			}
 			if(can.status == CAN_RTR){
 				// Remote request packet received - reply to it
@@ -739,8 +579,8 @@ no_bmu_received:
 			can_sleep();
 			P4OUT &= ~LED_PWM;
 			__bis_SR_register(LPM3_bits);     // Enter LPM3
-		}*/
-	} // End of while(True) do
+		}
+*/	} // End of while(True) do
 	
 	// Will never get here, keeps compiler happy
 	return(1);
