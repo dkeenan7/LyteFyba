@@ -135,27 +135,12 @@
 #define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
 #define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
 
-// Charger constants
-#define NUMBER_OF_CELLS		73
-#define NUMBER_OF_BMUS		18		// FIXME: testing with 18 BMUs
-#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 34.0))	// Charger voltage limit in tenths of a volt
-#define CHGR_CURR_LIMIT		60					// Charger current limit in tenths of an amp
-#define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
-#define CHGR_EOC_SOAKT		(5 * 60 * TICK_RATE)// Number of ticks from first detect of all bypass to
-												//	turning off the charger
-#define CHGR_SOAK_CURR		5					// Soak mode current in tenths of an ampere
-												//	Should be about 1/2 of BMU bypass capacity
-
-// BMU constants
-#define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
-#define USE_CKSUM 1								// Set non-zero to send and expect checksums
-
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
 #define ENGAGE_VEL_R		-50					// Don't allow drive direction change above this speed, rpm
 #define REGEN_THRESHOLD		-5					// Brake lights come on above this motor current, A
 
-// Device serial number
+// Device serial number   ??? What device is this ??? -- DCK
 #define DEVICE_SERIAL		5197
 
 // Public variables
