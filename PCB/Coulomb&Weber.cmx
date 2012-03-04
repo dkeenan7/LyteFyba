@@ -1,5 +1,6 @@
 Dual diode||#SOL=3||@=
 Dual LED||#SM=4
+Dual LED (shine thru PCB)||#SM=4
 FUSE IEC||#SM=2
 IFO LED||#MISC=5
 IFO PT||#MISC=5
