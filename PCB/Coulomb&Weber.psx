@@ -1,7 +1,11 @@
 BUZZER-17mm-10mm pins||2
 Dual LED 0805||4
 Dual LED 0805 (shine thru PCB)||4
-IFO transceiver||5
+IFO transceiver normal||5
+IFO transceiver RA||3
 QFN80P500X500-17VN||17
 S-PQFP-N16||17
+SMD capacitor 6.3mm dia||2
+SMD resistor 2512||2
 SO-4||4
+Terminal Phoenix 2.5mm 3way||3
