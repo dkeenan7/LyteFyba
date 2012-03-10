@@ -7,6 +7,7 @@ IFO PT||#MISC=3
 MSP430G2xx2IRSA||#QFN=17||@=
 OPTO||#SM=4
 PIEZO||#BUZZER-17mm=2||@=
+R||#SML=2||@=||#USER=2||@=
 SMD capacitor 6.3mm dia||#SM=2
 Terminal Phoenix 2.5mm 3way||#MISC=3
 TVS||#SM=3
