@@ -84,10 +84,6 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
-	// Charger end-of-charge test
-	signed	 int first_bmu_in_bypass = -1;
-	// Current cell in the current end-of-charge test (send voltage request to this cell next)
-	unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -344,150 +340,47 @@ int main( void )
 		// Process badness events before sending charger packets
 		if (bmu_events & BMU_BADNESS) {
 			bmu_events &= ~BMU_BADNESS;
-			handleBMUbadnessEvent(&bmu_curr_cell);
+			handleBMUbadnessEvent();
 		}
 		
 		// Send voltage request if required for min/max while driving or max V when charging
 		if (bmu_events & BMU_VOLTREQ) {
 			bmu_events &= ~BMU_VOLTREQ;
-			bmu_sendVoltReq(bmu_curr_cell);
+			bmu_sendVoltReq();
 		}
 
 		// MVE: send packets to charger
 		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {
+			int current, chargerOff;
 			events &= ~EVENT_CHARGER;
 			events |= EVENT_ACTIVITY;
 
-			// Charger is on the UART in UCI0
-			chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
-			chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
-			chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
-			chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
-			chgr_txbuf[4] = CHGR_VOLT_LIMIT >> 8;
-			chgr_txbuf[5] = CHGR_VOLT_LIMIT & 0xFF;
-			chgr_txbuf[6] = 0;
 			if (chgr_events & CHGR_END_CHARGE) {
-				chgr_txbuf[7] = 0;					// Request no current now
-				chgr_txbuf[8] = 1;					// Turn off charger
+				current = 0;					// Request no current now
+				chargerOff = 1;					// Turn off charger
 			} else if (chgr_events & CHGR_SOAKING) {
-				chgr_txbuf[7] = CHGR_SOAK_CURR;		// Soak at the soak current level (< bypass capacity)
-				chgr_txbuf[8] = 0;					// Keep charger on
+				current = CHGR_SOAK_CURR;		// Soak at the soak current level (< bypass capacity)
+				chargerOff = 0;					// Keep charger on
 			} else {
 				chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
 				if (chgr_current > CHGR_CURR_LIMIT)
 					chgr_current = CHGR_CURR_LIMIT;
-				chgr_txbuf[7] = chgr_current;
-				chgr_txbuf[8] = 0;
+				current = chgr_current;
+				chargerOff = 0;
 			}
-			chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-			chgr_sendPacket(chgr_txbuf);
-			chgr_lastrxidx = 0;						// Expect receive packet in response
+			chgr_sendRequest(CHGR_VOLT_LIMIT, current, chargerOff);
 		}
 
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
-			chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
-													//	(starting next timer interrupt)
-			// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
+			chgr_processPacket();
 		}
 		
 		if (bmu_events & BMU_REC) {
 			bmu_events &= ~BMU_REC;
-			bmu_lastrxidx = 0;						// Ready for next BMU response to overwrite this one
-													//	(starting next timer interrupt)
-
-#if USE_CKSUM
-			{	unsigned char sum = 0, j = 0;
-				while (bmu_lastrx[j] != '\r')
-					sum ^= bmu_lastrx[j++];
-				if (sum != 0) {
-					// Checksum error; set the error LED and resend the last command
-					fault();
-					bmu_resendLastPacket();				// Resend
-					goto no_bmu_received;			// Don't process this packet
-				}
-			}
-#endif
-
-			if ((chgr_events & CHGR_SOAKING) == 0) {
-				// Check for a voltage response
-				// Expecting \123:1234 V  ret
-				//           0   45    10 11  (note space before the 'V'
-				if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'V') {
-					int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
-						bmu_lastrx[3] - '0';
-					if (bmu_id == bmu_curr_cell) {
-						bmu_events &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
-						unsigned int rxvolts =
-#if 0
-							(bmu_lastrx[5] - '0') * 100 +
-#else
-							// The *50 and << 1 below are to work around a mspgcc bug! See
-							// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
-							(((bmu_lastrx[5] - '0') * 50) << 1) +
-#endif
-							(bmu_lastrx[6] - '0') * 10 +
-							(bmu_lastrx[7] - '0');
-						// We expect voltage responses during charging and driving; split the logic here
-						if (command.state == MODE_CHARGE) {
-							if (rxvolts < 359)
-								// This cell is not bypassing. So the string of cells known to be in bypass
-								// is zero length. Flag this
-								first_bmu_in_bypass = -1;
-							else {
-								// This cell is in bypass. Check if the first bmu in bypass is the next one
-								int next_bmu_id = bmu_id+1;
-								if (next_bmu_id > NUMBER_OF_BMUS)
-									next_bmu_id = 1;
-								if (next_bmu_id == first_bmu_in_bypass) {
-									// We have detected all cells in bypass. Now we enter the soak phase
-									// The idea is to allow the last cell to have gone into bypass some
-									// time to stay at that level and balance with the others
-									chgr_events |= CHGR_SOAKING;
-								}
-								else {
-									if (first_bmu_in_bypass == -1)
-									// This cell is in bypass; we must be starting a new string of bypassed BMUs
-									first_bmu_in_bypass = bmu_id;
-								}
-							} // End if (rxvolts < 359)
-						} // End if (command.state == MODE_CHARGE)
-						
-						// Charging or driving. We use the voltage measurements to find the min and
-						//	max cell voltages
-						// Get the whole 4-digit number
-						rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
-						if (rxvolts < bmu_min_mV) {
-							bmu_min_mV = rxvolts;
-							bmu_min_id = bmu_id;
-						}
-						if (rxvolts > bmu_max_mV) {
-							bmu_max_mV = rxvolts;
-							bmu_max_id = bmu_id;
-						}
-						if (bmu_id >= NUMBER_OF_BMUS) {
-							// We have the min and max information. Send a CAN packet so the telemetry
-							//	software can display them.
-							can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-
-							// Reset the min/max data
-							bmu_min_mV = 9999;	bmu_max_mV = 0;
-							bmu_min_id = 0;		bmu_max_id = 0;
-						}
-					} // End if (bmu_id == curr_cell)
-				} // End if valid voltage response
-
-				// Move to the next BMU (driving or charging)
-				if (++bmu_curr_cell > NUMBER_OF_BMUS)
-					bmu_curr_cell = 1;
-				bmu_events |= BMU_VOLTREQ;			// Schedule another voltage request
-					
-			} // End if ((chgr_events & CHGR_SOAKING) == 0)
+			bmu_processPacket(command.state == MODE_CHARGE);
 		} // End if (bmu_events & BMU_REC)
-#if USE_CKSUM
-no_bmu_received:
-#endif
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){

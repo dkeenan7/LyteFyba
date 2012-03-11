@@ -151,26 +151,6 @@ extern volatile unsigned char bmu_badness;		// BMU badness
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
-// Define a queue type for serial transmit and receive (charger and BMUs)
-typedef struct {
-      unsigned char rd;		 // Read index
-      unsigned char wr;		 // Write index
-      unsigned char bufSize; // Buffer size must be a power of 2
-      unsigned char buf[];	 // Circular buffer (size determined when initialised)
-} queue;
-
-// Charger buffers
-#define CHGR_TX_BUFSZ	16
-queue chgr_tx_q;
-#define CHGR_RX_BUFSZ 	16
-queue chgr_rx_q;
-
-// BMU buffers and variables
-#define BMU_TX_BUFSZ	64
-queue bmu_tx_q;
-#define BMU_RX_BUFSZ	64
-queue bmu_rx_q;
-
 void fault() __attribute__ ((noinline));			// Single flash the error LED
 
 
@@ -203,6 +183,3 @@ typedef union _group_16 {
 	int data_16;
 } group_16;
 
-typedef unsigned char bool;			// C does not define type bool
-#define true 1
-#define false 0
