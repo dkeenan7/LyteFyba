@@ -1,6 +1,6 @@
 # makfile configuration
 NAME            = tri86
-OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o bms.o
+OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o bms.o queue.o
 CPU             = msp430x247
 
 ASFLAGS         = -mmcu=${CPU} -x assembler-with-cpp -D_GNU_ASSEMBLER_ -c
@@ -29,6 +29,12 @@ ${NAME}.lst: ${NAME}.elf
 
 %.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
+
+# Dependencies
+usci.o bms.o: queue.h							# queue functions used in usci and also bms
+bms.o can.o gauge.o pedal.o usci.o: tri86.h		# Nearly everything depends on tri86.h
+tri86.o bms.o: can.h
+tri86.o can.o: usci.h
 
 clean:
 	rm -f ${NAME}.elf ${NAME}.hex ${NAME}.lst ${OBJECTS}
