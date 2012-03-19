@@ -5,6 +5,7 @@ Dual LED (shine thru PCB)||#SM=4
 FUSE IEC||#SM=2
 IFO LED||#MISC=3
 IFO PT||#MISC=3
+LED (shine thru PCB)||#SM=2
 MSP430G2xx2IRSA||#QFN=17||@=
 OPTO||#SM=4
 PIEZO||#BUZZER-17mm=2||@=
