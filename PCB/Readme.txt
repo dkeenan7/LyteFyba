@@ -33,7 +33,28 @@ Rotation Procedure
 Context menu in space and select Clear Copper
 Hover over the left terminal pad; context menu Group / Select Group
 Press R twice
-Press "+" and enter 2440 into the X field
+Press shift-"+" and enter 2440 into the X field
 Click in space; context menu Pour Copper
 
+Panelisation Procedure
+======================
+Copy or Save As the .pcb file to a suitable name
+Zoom out; rectangle select the whole board
+Deselect board outline; copy; paste
+When the Paste Net dialog comes up, select All No
+Drag the selected board until the dx coordinate near the right end of the status bar
+reads zero, and the dy coordinate reads 1810
+Using the Z key (zoom) may help with mouse creep
+Avoid "mouse creep"; click to place second board
+Click in space to deselect all
+Apply the rotation procedure to the bottom board only
+Zoom out; select the two boards; deselect outline; copy paste; All No
+Drag the selected two boards until dx = 0 and dy = 3620
+Avoid creep; click to place next 2 boards
+Zoom out; select all 4 boards; deselect outline; copy; paste; All No
+Drag the selected 4 boards until dx = 0 and dy = 7240
+Avoid creep; click to place next 4 boards
+Zoom in near the top of the 8 boards
+Select around the top squiggle join; delete
+Remove dangling tracks and via; repour all copper
 
