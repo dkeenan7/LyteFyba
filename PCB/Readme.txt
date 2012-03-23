@@ -23,3 +23,17 @@ To check that you've done it right, choose the "Components" tab, and in the
 "Libraries" drop down list, you should see near the top "Coulomb&Weber.cml in
 ..."; select it. Now you should see a handful of components, including "Dual
 diode", which we did not find in the standard DesignSpark libraries. Click "Close".
+
+Group Selection Procedure
+=========================
+To be advised
+
+Rotation Procedure
+==================
+Context menu in space and select Clear Copper
+Hover over the left terminal pad; context menu Group / Select Group
+Press R twice
+Press "+" and enter 2440 into the X field
+Click in space; context menu Pour Copper
+
+
