@@ -26,7 +26,18 @@ diode", which we did not find in the standard DesignSpark libraries. Click "Clos
 
 Group Selection Procedure
 =========================
-To be advised
+Make a rectangular selection from -1600,300 to 1600,-300. Using the arrow keys allows
+better accuracy and will (mostly) snap to grid
+Add the large red GND track north of the processor, and if necessary a blue Vdd track
+south of R7
+Remove C6 from the selection
+Add 6 bypass resistors to the selection (easier with red layers off)
+Add 6 copper pour outlines to the selection (not the copper interior, just the outlines)
+Remove the outline from the selection
+From the bottom silkscreen, remove "Weber &", "Coulomb", "Digital", "BMU"
+Remove everything from the top documentation layer
+Using the layers tab in the interaction bar, check each layer for items to remove
+Context menu select "Group" and give the group a name such as "Rotatables"
 
 Rotation Procedure
 ==================
@@ -35,6 +46,7 @@ Hover over the left terminal pad; context menu Group / Select Group
 Press R twice
 Press shift-"+" and enter 2440 into the X field
 Click in space; context menu Pour Copper
+Invert the arrows near the terminal pads
 
 Panelisation Procedure
 ======================
