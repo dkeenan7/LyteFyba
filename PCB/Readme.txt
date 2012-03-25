@@ -41,17 +41,23 @@ Context menu select "Group" and give the group a name such as "Rotatables"
 
 Rotation Procedure
 ==================
-Context menu in space and select Clear Copper
-Hover over the left terminal pad; context menu Group / Select Group
+Click in space to deselect all
+Context menu in space and choose Clear Copper
+Context menu on the left cell-terminal pad and choose Group / Select Group
 Press R twice
-Press shift-"+" and enter 2440 into the X field
-Click in space; context menu Pour Copper
-Invert the arrows near the terminal pads
+Press shift-"+" and enter 2440 into the X field and OK
+Click in space to deselect all
+Context menu in space and choose Pour Copper
+Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group
+Press F
+Press shift-"+" and enter 1780 into the X field and OK
+
 
 Panelisation Procedure
 ======================
 Copy or Save As the .pcb file to a suitable name
-Zoom out; leave room below; ensure all layers are visible; frame select the whole board
+Zoom out; leave room below; ensure all layers are visible
+Frame select the whole board including the squiggle-join cutouts above
 Deselect board outline; copy; paste
 When the Paste Net dialog comes up, select All No
 Drag the selected board south until the dx coordinate near the right end of the
