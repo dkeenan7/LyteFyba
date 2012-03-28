@@ -24,8 +24,8 @@ To check that you've done it right, choose the "Components" tab, and in the
 ..."; select it. Now you should see a handful of components, including "Dual
 diode", which we did not find in the standard DesignSpark libraries. Click "Close".
 
-Group Selection Procedure
-=========================
+Rotatables Grouping Procedure
+=============================
 Make a rectangular selection from -1600,300 to 1600,-300. Using the arrow keys allows
 better accuracy and will (mostly) snap to grid
 Add the large red GND track north of the processor, and if necessary a blue Vdd track
@@ -33,11 +33,11 @@ south of R7
 Remove C6 from the selection
 Add 6 bypass resistors to the selection (easier with red layers off)
 Add 6 copper pour outlines to the selection (not the copper interior, just the outlines)
-Remove the outline from the selection
-From the bottom silkscreen, remove "Weber &", "Coulomb", "Digital", "BMU"
-Remove everything from the top documentation layer
-Using the layers tab in the interaction bar, check each layer for items to remove
-Context menu select "Group" and give the group a name such as "Rotatables"
+Remove the board outline from the selection
+From the bottom silkscreen, deselect "Weber &", "Coulomb", "Digital", "BMU"
+Deselect everything from the top documentation layer
+Using the layers tab in the interaction bar, check each layer for items to deselect
+Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
 
 Rotation Procedure
 ==================
@@ -57,22 +57,19 @@ Panelisation Procedure
 ======================
 Copy or Save As the .pcb file to a suitable name
 Zoom out; leave room below; ensure all layers are visible
-Frame select the whole board including the squiggle-join cutouts above
-Deselect board outline; copy; paste
+Frame select the whole BMU including the squiggle-join cutouts above
+Deselect board outline by Ctrl-Shift-click; copy; paste
 When the Paste Net dialog comes up, select All No
-Drag the selected board south until the dx coordinate near the right end of the
-status bar reads zero, and the dy coordinate reads -1810
-Using the Z key (zoom) may help with mouse creep
-Avoid "mouse creep"; click to place second board
+Press shift-"+" and enter 0 into the X field and -1810 into the Y field. OK
 Click in space to deselect all
+Delete the IFO daughter-board tab from the copy.
 Apply the rotation procedure to the north (original) board only
-Zoom out; select the two boards; deselect outline; copy paste; All No
-Drag the selected two boards north until dx = 0 and dy = 3620
-Avoid creep; click to place next 2 boards
-Zoom out; select all 4 boards; deselect outline; copy; paste; All No
-Drag the selected 4 boards north until dx = 0 and dy = 7240
-Avoid creep; click to place next 4 boards
-Zoom in near the top of the 8 boards
+Zoom out; select the two BMUs; deselect outline; copy paste; All No
+Press shift-"+" and enter X = 0 and Y = 3620
+Zoom out; select all 4 BMUs; deselect outline; copy; paste; All No
+Press shift-"+" and enter X = 0 and Y = 7240
+Zoom in near the top of the 8 BMUs
 Select around the top squiggle join; delete
-Remove dangling tracks and via; repour all copper
+Remove dangling tracks and via at top and dangling tracks at bottom.
+Deselect all; Context menu in space Pour copper
 
