@@ -30,11 +30,7 @@ ${NAME}.lst: ${NAME}.elf
 %.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
 
-# Dependencies
-usci.o bms.o: queue.h							# queue functions used in usci and also bms
-bms.o can.o gauge.o pedal.o usci.o: tri86.h		# Nearly everything depends on tri86.h
-tri86.o bms.o: can.h
-tri86.o can.o: usci.h
+# Dependencies: use "make depend" (and until fixed, "make depencies.in")
 
 clean:
 	rm -f ${NAME}.elf ${NAME}.hex ${NAME}.lst ${OBJECTS}
