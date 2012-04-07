@@ -26,16 +26,18 @@ diode", which we did not find in the standard DesignSpark libraries. Click "Clos
 
 Rotatables Grouping Procedure
 =============================
+Ungroup any previous Rotatables group.
+Show all layers except Top Documentation, and ensure copper-pour-area outlines are displayed.
 Make a rectangular selection from -1600,300 to 1600,-300. Using the arrow keys allows
 better accuracy and will (mostly) snap to grid
-Add the large red GND track north of the processor, and if necessary a blue Vdd track
-south of R7
-Remove C6 from the selection
+Add the thick red GND track north of the processor, and the thin red Vdd track
+south of R7, if necessary.
+Remove C6 from the selection, if necessary.
 Add 6 bypass resistors to the selection (easier with red layers off)
 Add 6 copper pour outlines to the selection (not the copper interior, just the outlines)
 Remove the board outline from the selection
 From the bottom silkscreen, deselect "Weber &", "Coulomb", "Digital", "BMU"
-Deselect everything from the top documentation layer
+Deselect everything from the top documentation layer, if necessary.
 Using the layers tab in the interaction bar, check each layer for items to deselect
 Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
 
