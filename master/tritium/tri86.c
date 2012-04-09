@@ -387,8 +387,8 @@ int main( void )
 			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
 		}
 
-		if (bmu_events & CHGR_RESEND) {
-			bmu_events &= ~CHGR_RESEND;
+		if (bmu_events & BMU_RESEND) {
+			bmu_events &= ~BMU_RESEND;
 			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 
@@ -712,7 +712,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if (bmu_events & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-			bmu_events |= BMU_SENT;
+			bmu_events |= BMU_RESEND;
 		}
 	}
 
