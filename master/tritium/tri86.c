@@ -381,6 +381,16 @@ int main( void )
 			bmu_events &= ~BMU_REC;
 			bmu_processPacket(command.state == MODE_CHARGE);
 		} // End if (bmu_events & BMU_REC)
+		
+		if (chgr_events & CHGR_RESEND) {
+			chgr_events &= ~CHGR_RESEND;
+			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
+		}
+
+		if (bmu_events & CHGR_RESEND) {
+			bmu_events &= ~CHGR_RESEND;
+			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
+		}
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -695,13 +705,14 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if (chgr_events & CHGR_SENT) {
 		if (--chgr_sent_timeout == 0) {
 			fault();				// Turn on fault LED (eventually)
-			chgr_resendLastPacket();	// Resend; will loop until a complete packet is recvd
+			chgr_events |= CHGR_RESEND;	// Tell the main loop to resend
 		}
 	}
+
 	if (bmu_events & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-			bmu_resendLastPacket();				// Resend
+			bmu_events |= BMU_SENT;
 		}
 	}
 
