@@ -30,10 +30,13 @@ ${NAME}.lst: ${NAME}.elf
 %.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
 
-# Dependencies: use "make depend" (and until fixed, "make depencies.in")
+# Dependencies: use "make depend"
+
 
 clean:
 	rm -f ${NAME}.elf ${NAME}.hex ${NAME}.lst ${OBJECTS}
+
+
 
 #automatic collection of dependencies in the source files.
 #it's only updated the first time, after that it must be done maually
@@ -41,10 +44,16 @@ clean:
 #the dependecies are included from a separate file:
 -include dependencies.in
 #target to update the file, it's removed first
-depend: rmdepend dependencies.in
+# MVE: Don't do as below; the order of the prerequisites is not guaranteed! For now, copy the actions here:
+#depend: rmdepend dependencies.in
+depend:
+	rm -f dependencies.in
+	$(CC) -MM ${CFLAGS} $(patsubst %.o,%.c,$(OBJECTS)) >dependencies.in
+
 #remove the file
 rmdepend:
 	rm -f dependencies.in
+
 #build the file that contains the dependencies. no deps in this rule.
 #if there were deps it would be rebuilt every chnage, which is unneded:
 dependencies.in:
