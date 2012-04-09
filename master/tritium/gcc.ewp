@@ -58,7 +58,7 @@
         </option>
         <option>
           <name>RTConfigPath</name>
-          <state>$TOOLKIT_DIR$\LIB\DLIB\dl430fn.h</state>
+          <state>$TOOLKIT_DIR$\LIB\DLIB\dl430dn.h</state>
         </option>
         <option>
           <name>RTLibraryPath</name>
@@ -1885,6 +1885,9 @@
     </settings>
   </configuration>
   <file>
+    <name>$PROJ_DIR$\bms.c</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\can.c</name>
   </file>
   <file>
@@ -1901,6 +1904,9 @@
   </file>
   <file>
     <name>$PROJ_DIR$\pedal.h</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\queue.c</name>
   </file>
   <file>
     <name>$PROJ_DIR$\readme.txt</name>
