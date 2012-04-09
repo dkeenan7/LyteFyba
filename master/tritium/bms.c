@@ -323,12 +323,12 @@ void bmu_processPacket(bool bCharging) {
 					bmu_min_mV = 9999;	bmu_max_mV = 0;
 					bmu_min_id = 0;		bmu_max_id = 0;
 				}
+				// Move to the next BMU (driving or charging, but only if packet valid)
+				if (++bmu_curr_cell > NUMBER_OF_BMUS)
+					bmu_curr_cell = 1;
 			} // End if (bmu_id == curr_cell)
 		} // End if valid voltage response
 
-		// Move to the next BMU (driving or charging)
-		if (++bmu_curr_cell > NUMBER_OF_BMUS)
-			bmu_curr_cell = 1;
 		bmu_events |= BMU_VOLTREQ;			// Schedule another voltage request
 			
 	} // End if ((chgr_events & CHGR_SOAKING) == 0)
