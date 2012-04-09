@@ -26,8 +26,8 @@ volatile unsigned int bmu_sent_timeout;
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
-unsigned int chgr_current = 9 - CHGR_CURR_DELTA;	// Charger present current; initially 0.9 A
-										// (incremented before first use)
+unsigned int chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// Charger present current; initially equal
+							// to bypass capability (incremented before first use)
 unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
 unsigned int chgr_soaking = 0;			// Counter for soak phase
 
@@ -165,13 +165,15 @@ void handleBMUbadnessEvent()
 {
 	if (bmu_badness > 0x80)					// Simple algorithm:
 		chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
-															// what the BMUs can bypass
+									                        // what the BMUs can bypass
+#if 0   // ? Likely was when driven by badness bytes; now driven by events
 	if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
 		// Send a voltage check for the current cell
 		bmu_sendVoltReq();
 		if (++bmu_curr_cell > NUMBER_OF_BMUS)
 			bmu_curr_cell = 1;
 	}
+#endif
 }
 
 // Read incoming bytes from BMUs
