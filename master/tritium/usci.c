@@ -35,7 +35,8 @@
 
 #include "tri86.h"					// For CAN_MOSI etc
 #include "usci.h"
-#include "bms.h"					// For the BMU and charger queues
+#include "bms.h"					// For the BMU and 
+#include "charger.h"				//	charger queues
 #include "queue.h"
 
 #ifdef __ICC430__					// MVE: attempt to make the source code more IAR friendly

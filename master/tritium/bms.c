@@ -5,6 +5,7 @@
 //#include "usci.h"
 //#include "can.h"
 #include "bms.h"
+#include "charger.h"
 #include "queue.h"
 #include "can.h"			// For can_transmit(), but also general definitions
 
@@ -12,24 +13,11 @@
 bool bmu_sendByte(unsigned char ch);
 bool bmu_sendPacket(const unsigned char* ptr);
 
-bool chgr_sendByte(unsigned char ch);
-bool chgr_sendPacket(const unsigned char* ptr);
-void chgr_processPacket();
-
 // Public variables
-volatile unsigned int chgr_events = 0;
 volatile unsigned int bmu_events = 0;
+		 unsigned int bmu_state = 0;
 volatile unsigned char bmu_badness = 0;		// Zero says we have received no badness so far
-volatile unsigned int chgr_sent_timeout;
 volatile unsigned int bmu_sent_timeout;
-
-unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
-unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
-unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
-unsigned int chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// Charger present current; initially equal
-							// to bypass capability (incremented before first use)
-unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
-unsigned int chgr_soaking = 0;			// Counter for soak phase
 
 // BMU buffers
 queue bmu_tx_q = {
@@ -46,21 +34,6 @@ queue bmu_rx_q = {
 	.buf = { [0 ... BMU_RX_BUFSZ-1] = 0 }
 };
 
-// Charger buffers
-queue chgr_tx_q = {						// Initialise structure members and size of
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_TX_BUFSZ,
-	.buf = { [0 ... CHGR_TX_BUFSZ-1] = 0 }
-};
-
-queue chgr_rx_q = {
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_RX_BUFSZ,
-	.buf = { [0 ... CHGR_RX_BUFSZ-1] = 0 }
-};
-
 // BMU private variables
 volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
 volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
@@ -68,18 +41,12 @@ volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 // Current cell in the current end-of-charge test (send voltage request to this cell next)
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
-
-
-// Charger private variables
-unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
-unsigned char	chgr_lastrxidx;			// Index into the above
 signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
-unsigned char chgr_txbuf[12];			// A buffer for a charger packet
+
 
 void bms_init()
 {
 	bmu_lastrxidx = 0;
-	chgr_lastrxidx = 0;
 #if USE_CKSUM	
 	// Turn on checksumming in BMUs.
 	// The "k" packet is ignored if BMU checksumming is on (bad checksum), but toggles BMU
@@ -169,7 +136,7 @@ void handleBMUbadnessEvent()
 		chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
 									                        // what the BMUs can bypass
 #if 0   // ? Likely was when driven by badness bytes; now driven by events
-	if ((chgr_events & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
+	if ((chgr_state & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
 		// Send a voltage check for the current cell
 		bmu_sendVoltReq();
 		if (++bmu_curr_cell > NUMBER_OF_BMUS)
@@ -179,7 +146,7 @@ void handleBMUbadnessEvent()
 }
 
 // Read incoming bytes from BMUs
-void readBMUbytes()
+void readBMUbytes(bool bCharging)
 {	unsigned char ch;
 	while (	dequeue(&bmu_rx_q, &ch)) {		// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
@@ -192,7 +159,7 @@ void readBMUbytes()
 			}
 			bmu_lastrx[bmu_lastrxidx++] = ch; // !!! Need to check for buffer overflow
 			if (ch == '\r')	{				// All BMU responses end with a carriage return
-				bmu_events |= BMU_REC;		// We've received a BMU response
+				bmu_processPacket(bCharging);
 				break;
 			}
 		}
@@ -237,7 +204,7 @@ bool bmu_resendLastPacket(void)
 	}
 	for (i=0; i < len; ++i)							// Send the bytes of the packet
 		bmu_sendByte(bmu_lastSentPacket[i]);
-	bmu_events |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
+	bmu_state |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
 	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
 	return true;
 }
@@ -260,7 +227,7 @@ void bmu_processPacket(bool bCharging) {
 	}
 #endif
 
-	if ((chgr_events & CHGR_SOAKING) == 0) {
+	if ((chgr_state & CHGR_SOAKING) == 0) {
 		// Check for a voltage response
 		// Expecting \123:1234 V  ret
 		//           0   45    10 11  (note space before the 'V'
@@ -268,7 +235,7 @@ void bmu_processPacket(bool bCharging) {
 			int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
 				bmu_lastrx[3] - '0';
 			if (bmu_id == bmu_curr_cell) {
-				bmu_events &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
+				bmu_state &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
 				unsigned int rxvolts =
 #if 0
 					(bmu_lastrx[5] - '0') * 100 +
@@ -294,7 +261,7 @@ void bmu_processPacket(bool bCharging) {
 							// We have detected all cells in bypass. Now we enter the soak phase
 							// The idea is to allow the last cell to have gone into bypass some
 							// time to stay at that level and balance with the others
-							chgr_events |= CHGR_SOAKING;
+							chgr_state |= CHGR_SOAKING;
 						}
 						else {
 							if (first_bmu_in_bypass == -1)
@@ -333,81 +300,15 @@ void bmu_processPacket(bool bCharging) {
 
 		bmu_sendVoltReq();								// Send another voltage request
 			
-	} // End if ((chgr_events & CHGR_SOAKING) == 0)
+	} // End if ((chgr_state & CHGR_SOAKING) == 0)
 }
 
-//	//	//	//	//	//	//	//	//
-//	Charger related functions	//
-//	//	//	//	//	//	//	//	//
-
-unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
-
-bool chgr_sendPacket(const unsigned char* ptr)
-{
-	memcpy(chgr_lastSentPacket, ptr, 12);				// Copy the data to the last message buffer
-	return chgr_resendLastPacket();						// Call the main transmit function
-}
-
-// chgr_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
-// Returns true on success
-bool chgr_resendLastPacket(void)
-{
-	int i;
-	if (queue_space(&chgr_tx_q) < 12) {
-		// Need 12 bytes of space in the queue
-		// If not, best to abort the whole command, rather than sending a partial message
-		fault();
-		return false;
-	}
-	for (i=0; i < 12; ++i)
-		chgr_sendByte(chgr_lastSentPacket[i]);
-	chgr_events |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
-	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
-	return true;
-}
-
-
-bool chgr_sendByte(unsigned char ch) {
-	if (enqueue(&chgr_tx_q, ch)) {
-    	IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
-		events |= EVENT_ACTIVITY;						// Turn on activity light
-		return true;
-	}
-	return false;
-}
-
-// Read incoming bytes from charger
-void readChargerBytes()
-{	unsigned char ch;
-	while (	dequeue(&chgr_rx_q, &ch)) {
-		chgr_lastrx[chgr_lastrxidx++] = ch;
-		if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
-			chgr_events |= CHGR_REC;	// We've received a charger response
-			chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
-			break;
+void bmu_timer() {							// Called every timer tick, for BMU related processing
+	if (bmu_state & BMU_SENT) {
+		if (--bmu_sent_timeout == 0) {
+			fault();
+			bmu_events |= BMU_RESEND;
 		}
 	}
 }
 
-void chgr_sendRequest(int voltage, int current, bool chargerOff) {
-	// Charger is on the UART in UCI0
-	chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
-	chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
-	chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
-	chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
-	chgr_txbuf[4] = voltage >> 8;
-	chgr_txbuf[5] = voltage & 0xFF;
-	chgr_txbuf[6] = 0;
-	chgr_txbuf[7] = current;		// Soak at the soak current level (< bypass capacity)
-	chgr_txbuf[8] = chargerOff;
-	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-	chgr_sendPacket(chgr_txbuf);
-	chgr_lastrxidx = 0;						// Expect receive packet in response
-}
-
-void chgr_processPacket() {
-
-	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
-													//	(starting next timer interrupt)
-	bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
-}

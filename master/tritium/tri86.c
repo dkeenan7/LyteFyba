@@ -29,6 +29,7 @@
 #include "pedal.h"
 #include "gauge.h"
 #include "bms.h"
+#include "charger.h"
 
 #ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
 #define __inline__								//	press F7, and so that "go to definition of X" works better
@@ -129,8 +130,9 @@ int main( void )
 	// Init gauges
 	gauge_init();
 	
-	// Init BMS
+	// Init BMS and charger
 	bms_init();
+	chgr_init();
 
 	// Enable interrupts
 	eint();
@@ -251,15 +253,15 @@ int main( void )
 			}
 
 			// Check for charge soak time exceeded
-            if (chgr_events & CHGR_SOAKING) {
-                if (++ chgr_soaking >= CHGR_EOC_SOAKT) {
-                    chgr_events &= ~CHGR_SOAKING;
-                    chgr_soaking = 0;
-                    chgr_events |= CHGR_END_CHARGE;
+            if (chgr_state & CHGR_SOAKING) {
+                if (++ chgr_soakCnt >= CHGR_EOC_SOAKT) {
+                    chgr_state &= ~CHGR_SOAKING;
+                    chgr_soakCnt = 0;
+                    chgr_state |= CHGR_END_CHARGE;
                 }
             }
 			
-			readBMUbytes();
+			readBMUbytes(command.state == MODE_CHARGE);
 			readChargerBytes();
 			
 		} // End if( events & EVENT_TIMER )
@@ -340,36 +342,16 @@ int main( void )
 		// MVE: send packets to charger
 		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {
-			int current, chargerOff;
 			events &= ~EVENT_CHARGER;
-			events |= EVENT_ACTIVITY;
-
-			if (chgr_events & CHGR_END_CHARGE) {
-				current = 0;					// Request no current now
-				chargerOff = 1;					// Turn off charger
-			} else if (chgr_events & CHGR_SOAKING) {
-				current = CHGR_SOAK_CURR;		// Soak at the soak current level (< bypass capacity)
-				chargerOff = 0;					// Keep charger on
-			} else {
-				chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
-				if (chgr_current > CHGR_CURR_LIMIT)
-					chgr_current = CHGR_CURR_LIMIT;
-				current = chgr_current;
-				chargerOff = 0;
-			}
-			chgr_sendRequest(CHGR_VOLT_LIMIT, current, chargerOff);
+			handleChargerEvent();
 		}
 
 		if (chgr_events & CHGR_REC) {
 			chgr_events &= ~CHGR_REC;
 			chgr_processPacket();
 		}
-		
-		if (bmu_events & BMU_REC) {
-			bmu_events &= ~BMU_REC;
-			bmu_processPacket(command.state == MODE_CHARGE);
-		} // End if (bmu_events & BMU_REC)
-		
+	
+	
 		if (chgr_events & CHGR_RESEND) {
 			chgr_events &= ~CHGR_RESEND;
 			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
@@ -690,20 +672,9 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		events |= EVENT_CHARGER;
 	}
 	
-	if (chgr_events & CHGR_SENT) {
-		if (--chgr_sent_timeout == 0) {
-			fault();				// Turn on fault LED (eventually)
-			chgr_events |= CHGR_RESEND;	// Tell the main loop to resend
-		}
-	}
-
-	if (bmu_events & BMU_SENT) {
-		if (--bmu_sent_timeout == 0) {
-			fault();
-			bmu_events |= BMU_RESEND;
-		}
-	}
-
+	chgr_timer();
+	bmu_timer();
+	
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){
 		events &= ~EVENT_ACTIVITY;
