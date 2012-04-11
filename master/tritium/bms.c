@@ -93,6 +93,7 @@ void makeVoltCmd(unsigned char* cmd, int cellNo)
 }														// and terminate with return and null
 
 // Send a request for a voltage reading, to a specific BMU
+// Returns true on success
 bool bmu_sendVoltReq()
 {
 	unsigned char cmd[8];
@@ -168,6 +169,7 @@ void readBMUbytes(bool bCharging)
 	
 unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
 
+// Returns true on success
 bool bmu_sendPacket(const unsigned char* ptr)
 {
 #if USE_CKSUM
@@ -213,6 +215,8 @@ bool bmu_resendLastPacket(void)
 void bmu_processPacket(bool bCharging) {
 	bmu_lastrxidx = 0;								// Ready for next BMU response to overwrite this one
 													//	(starting next timer interrupt)
+	if (chgr_state & CHGR_SOAKING)
+		return;										// While soaking, ignore packets
 
 #if USE_CKSUM
 	{	unsigned char sum = 0, j = 0;
@@ -227,80 +231,79 @@ void bmu_processPacket(bool bCharging) {
 	}
 #endif
 
-	if ((chgr_state & CHGR_SOAKING) == 0) {
-		// Check for a voltage response
-		// Expecting \123:1234 V  ret
-		//           0   45    10 11  (note space before the 'V'
-		if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'V') {
-			int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
-				bmu_lastrx[3] - '0';
-			if (bmu_id == bmu_curr_cell) {
-				bmu_state &= ~BMU_SENT;		// Call this valid and no longer unacknowledged
-				unsigned int rxvolts =
+	// Check for a voltage response
+	// Expecting \123:1234 V  ret
+	//           0   45    10 11  (note space before the 'V'
+	if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'V') {
+		int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
+			bmu_lastrx[3] - '0';
+		if (bmu_id == bmu_curr_cell) {
+			bmu_state &= ~BMU_SENT;				// Call this valid and no longer unacknowledged
+			unsigned int rxvolts =
 #if 0
-					(bmu_lastrx[5] - '0') * 100 +
+				(bmu_lastrx[5] - '0') * 100 +
 #else
-					// The *50 and << 1 below are to work around a mspgcc bug! See
-					// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
-					(((bmu_lastrx[5] - '0') * 50) << 1) +
+				// The *50 and << 1 below are to work around a mspgcc bug! See
+				// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
+				(((bmu_lastrx[5] - '0') * 50) << 1) +
 #endif
-					(bmu_lastrx[6] - '0') * 10 +
-					(bmu_lastrx[7] - '0');
-				// We expect voltage responses during charging and driving; split the logic here
-				if (bCharging) {
-					if (rxvolts < 359)
-						// This cell is not bypassing. So the string of cells known to be in bypass
-						// is zero length. Flag this
-						first_bmu_in_bypass = -1;
+				(bmu_lastrx[6] - '0') * 10 +
+				(bmu_lastrx[7] - '0');
+			// We expect voltage responses during charging and driving; split the logic here
+			if (bCharging) {
+				// FIXME: get rid of this constant. Hopefully, BMUs will encode this with badness soon
+				if (rxvolts < 359)
+					// This cell is not bypassing. So the string of cells known to be in bypass
+					// is zero length. Flag this
+					first_bmu_in_bypass = -1;
+				else {
+					// This cell is in bypass. Check if the first bmu in bypass is the next one
+					int next_bmu_id = bmu_id+1;
+					if (next_bmu_id > NUMBER_OF_BMUS)
+						next_bmu_id = 1;
+					if (next_bmu_id == first_bmu_in_bypass) {
+						// We have detected all cells in bypass. Now we enter the soak phase
+						// The idea is to allow the last cell to have gone into bypass some
+						// time to stay at that level and balance with the others
+						chgr_state |= CHGR_SOAKING;
+					}
 					else {
-						// This cell is in bypass. Check if the first bmu in bypass is the next one
-						int next_bmu_id = bmu_id+1;
-						if (next_bmu_id > NUMBER_OF_BMUS)
-							next_bmu_id = 1;
-						if (next_bmu_id == first_bmu_in_bypass) {
-							// We have detected all cells in bypass. Now we enter the soak phase
-							// The idea is to allow the last cell to have gone into bypass some
-							// time to stay at that level and balance with the others
-							chgr_state |= CHGR_SOAKING;
-						}
-						else {
-							if (first_bmu_in_bypass == -1)
-							// This cell is in bypass; we must be starting a new string of bypassed BMUs
-							first_bmu_in_bypass = bmu_id;
-						}
-					} // End if (rxvolts < 359)
-				} // End if (command.state == MODE_CHARGE)
-				
-				// Charging or driving. We use the voltage measurements to find the min and
-				//	max cell voltages
-				// Get the whole 4-digit number
-				rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
-				if (rxvolts < bmu_min_mV) {
-					bmu_min_mV = rxvolts;
-					bmu_min_id = bmu_id;
-				}
-				if (rxvolts > bmu_max_mV) {
-					bmu_max_mV = rxvolts;
-					bmu_max_id = bmu_id;
-				}
-				if (bmu_id >= NUMBER_OF_BMUS) {
-					// We have the min and max information. Send a CAN packet so the telemetry
-					//	software can display them.
-					can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-
-					// Reset the min/max data
-					bmu_min_mV = 9999;	bmu_max_mV = 0;
-					bmu_min_id = 0;		bmu_max_id = 0;
-				}
-				// Move to the next BMU (driving or charging, but only if packet valid)
-				if (++bmu_curr_cell > NUMBER_OF_BMUS)
-					bmu_curr_cell = 1;
-			} // End if (bmu_id == curr_cell)
-		} // End if valid voltage response
-
-		bmu_sendVoltReq();								// Send another voltage request
+						if (first_bmu_in_bypass == -1)
+						// This cell is in bypass; we must be starting a new string of bypassed BMUs
+						first_bmu_in_bypass = bmu_id;
+					}
+				} // End if (rxvolts < 359)
+			} // End if (command.state == MODE_CHARGE)
 			
-	} // End if ((chgr_state & CHGR_SOAKING) == 0)
+			// Charging or driving. We use the voltage measurements to find the min and
+			//	max cell voltages
+			// Get the whole 4-digit number
+			rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
+			if (rxvolts < bmu_min_mV) {
+				bmu_min_mV = rxvolts;
+				bmu_min_id = bmu_id;
+			}
+			if (rxvolts > bmu_max_mV) {
+				bmu_max_mV = rxvolts;
+				bmu_max_id = bmu_id;
+			}
+			if (bmu_id >= NUMBER_OF_BMUS) {
+				// We have the min and max information. Send a CAN packet so the telemetry
+				//	software can display them.
+				can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+
+				// Reset the min/max data
+				bmu_min_mV = 9999;	bmu_max_mV = 0;
+				bmu_min_id = 0;		bmu_max_id = 0;
+			}
+			// Move to the next BMU (driving or charging, but only if packet valid)
+			if (++bmu_curr_cell > NUMBER_OF_BMUS)
+				bmu_curr_cell = 1;
+		} // End if (bmu_id == curr_cell)
+	} // End if valid voltage response
+
+	bmu_sendVoltReq();								// Send another voltage request
+			
 }
 
 void bmu_timer() {							// Called every timer tick, for BMU related processing
