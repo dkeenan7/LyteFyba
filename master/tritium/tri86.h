@@ -100,10 +100,10 @@
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
 #define FAULT_SPEED			200					// LED sustain period for FAULT led: 200 ticks = 2 seconds
 #define CHARGER_SPEED		100					// Charger update speed: 1 per second
-#define CHGR_TIMEOUT		50					// Charger timeout in timer ticks; absolute minumum is
-													// about 13*4*2 = 104 ms
-#define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minumum is
-													// about 250 ms
+#define CHGR_TIMEOUT		50					// Charger timeout in timer ticks; absolute minimum is
+													// about 13*4*2 = 104 ms = 11 ticks
+#define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minimum is
+													// about 250 ms = 25 ticks
 
 // Event definitions
 #define EVENT_TIMER			0x0001				// Timer went off

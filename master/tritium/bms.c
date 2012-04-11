@@ -224,7 +224,7 @@ bool bmu_sendPacket(const unsigned char* ptr)
 	return bmu_resendLastPacket();					// Call the main transmit function
 }
 
-// bmu_resendLastPacket is used for resending after a timeout.
+// bmu_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
 // Returns true on success
 bool bmu_resendLastPacket(void)
 {
@@ -346,7 +346,7 @@ bool chgr_sendPacket(const unsigned char* ptr)
 	return chgr_resendLastPacket();						// Call the main transmit function
 }
 
-// chgr_resendLastPacket is used for resending after a timeout.
+// chgr_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
 // Returns true on success
 bool chgr_resendLastPacket(void)
 {
