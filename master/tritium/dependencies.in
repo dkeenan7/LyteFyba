@@ -1,7 +1,9 @@
-tri86.o: tri86.c tri86.h can.h usci.h pedal.h gauge.h bms.h queue.h
-usci.o: usci.c tri86.h usci.h bms.h queue.h
+tri86.o: tri86.c tri86.h can.h usci.h pedal.h gauge.h bms.h queue.h \
+ charger.h
+usci.o: usci.c tri86.h usci.h bms.h queue.h charger.h
 can.o: can.c tri86.h can.h usci.h
 gauge.o: gauge.c tri86.h gauge.h
 pedal.o: pedal.c tri86.h pedal.h can.h
-bms.o: bms.c tri86.h bms.h queue.h can.h
+bms.o: bms.c tri86.h bms.h queue.h charger.h can.h
+charger.o: charger.c charger.h queue.h bms.h tri86.h
 queue.o: queue.c queue.h

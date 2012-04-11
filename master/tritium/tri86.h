@@ -117,7 +117,7 @@
 #define EVENT_ACTIVITY		0x0100				// CAN controller or UART just transmitted a packet
 #define EVENT_REQ_SLEEP		0x0200				// Request sleep mode
 #define EVENT_FAULT			0x0400				// MVE: turn on fault light
-#define EVENT_CHARGER		0x0800				// MVE: time to send voltage and current command to CAN charger
+#define EVENT_CHARGER		0x0800				// MVE: time to send voltage/current cmd to "CAN" charger
 #define EVENT_GAUGE1		0x1000				// Signal that gauge 1 has been recalculated and requires update
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update
@@ -126,16 +126,19 @@
 // Charger events
 #define CHGR_SENT			0x0001				// We have sent the charger a packet, not replied to yet
 #define	CHGR_REC			0x0002				// We have received a packet from the charger
+#define CHGR_RESEND			0x0010				// Resend the last charger packet from main loop
+
+// Charger state
 #define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
 #define CHGR_END_CHARGE		0x0008				// The charger is turned off; end of charge
-#define CHGR_RESEND			0x0010				// Resend the last charger packet from main loop
+
 
 // BMU events
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
-#define	BMU_REC				0x0002				// We have received a response from the BMU string
+//#define	BMU_REC				0x0002				// We have received a response from the BMU string
 //#define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
 //#define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
-#define BMU_RESEND			0x0010				// Resent the last BMU packet from main loop
+#define BMU_RESEND			0x0010				// Resend the last BMU packet from main loop
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm
