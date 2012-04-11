@@ -125,7 +125,6 @@ int main( void )
 	command.flags = 0x00;
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
-	bmu_events |= BMU_VOLTREQ;		// Kick off the first voltage request packet while driving or charging
 	
 	// Init gauges
 	gauge_init();
@@ -337,18 +336,7 @@ int main( void )
 			}
 		}
 			
-		// Process badness events before sending charger packets
-		if (bmu_events & BMU_BADNESS) {
-			bmu_events &= ~BMU_BADNESS;
-			handleBMUbadnessEvent();
-		}
 		
-		// Send voltage request if required for min/max while driving or max V when charging
-		if (bmu_events & BMU_VOLTREQ) {
-			bmu_events &= ~BMU_VOLTREQ;
-			bmu_sendVoltReq();
-		}
-
 		// MVE: send packets to charger
 		// Using switches gives a small amount of debouncing
 		if (events & EVENT_CHARGER) {

@@ -133,8 +133,8 @@
 // BMU events
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
 #define	BMU_REC				0x0002				// We have received a response from the BMU string
-#define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
-#define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
+//#define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
+//#define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
 #define BMU_RESEND			0x0010				// Resent the last BMU packet from main loop
 
 // Control parameters

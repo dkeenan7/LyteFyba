@@ -90,8 +90,10 @@ void bms_init()
 	// Turn off checksumming in BMUs.
 	// The "kk" packet toggles BMU checksumming off if it was on (single k command with good checksum),
 	// but toggles BMU checksumming twice if it was off, thereby leaving it off.
-	bmu_sendPacket("kk\r");						// DCU checksumming is off, so it won't change the pkt
+	bmu_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
 #endif
+	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
+	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
 }
 
 bool bmu_sendByte(unsigned char ch) {
@@ -181,8 +183,8 @@ void readBMUbytes()
 {	unsigned char ch;
 	while (	dequeue(&bmu_rx_q, &ch)) {		// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			bmu_events |= BMU_BADNESS;
 			bmu_badness = ch;
+			handleBMUbadnessEvent();
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
@@ -329,7 +331,7 @@ void bmu_processPacket(bool bCharging) {
 			} // End if (bmu_id == curr_cell)
 		} // End if valid voltage response
 
-		bmu_events |= BMU_VOLTREQ;			// Schedule another voltage request
+		bmu_sendVoltReq();								// Send another voltage request
 			
 	} // End if ((chgr_events & CHGR_SOAKING) == 0)
 }
