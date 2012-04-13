@@ -138,7 +138,7 @@
 //#define	BMU_REC				0x0002				// We have received a response from the BMU string
 //#define BMU_BADNESS			0x0004				// We have received a badness value from the BMU string
 //#define BMU_VOLTREQ			0x0008				// Time to send a voltage request to BMUs
-#define BMU_RESEND			0x0010				// Resend the last BMU packet from main loop
+//#define BMU_RESEND			0x0010				// Resend the last BMU packet from main loop
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm

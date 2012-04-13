@@ -261,10 +261,13 @@ int main( void )
                 }
             }
 			
-			readBMUbytes(command.state == MODE_CHARGE);
-			readChargerBytes();
+			chgr_timer();
+			bmu_timer();
 			
 		} // End if( events & EVENT_TIMER )
+		
+		readBMUbytes(command.state == MODE_CHARGE);
+		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
 		if(events & EVENT_COMMS){
@@ -355,11 +358,6 @@ int main( void )
 		if (chgr_events & CHGR_RESEND) {
 			chgr_events &= ~CHGR_RESEND;
 			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
-		}
-
-		if (bmu_events & BMU_RESEND) {
-			bmu_events &= ~BMU_RESEND;
-			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 
 		// Check for CAN packet reception
@@ -671,9 +669,6 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
-	
-	chgr_timer();
-	bmu_timer();
 	
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){
