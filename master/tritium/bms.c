@@ -225,7 +225,7 @@ void bmu_processPacket(bool bCharging) {
 		if (sum != 0) {
 			// Checksum error; set the error LED and resend the last command
 			fault();
-			bmu_resendLastPacket();					// Resend
+	;		bmu_resendLastPacket();					// Resend
 			return;									// Don't process this packet
 		}
 	}
@@ -310,7 +310,7 @@ void bmu_timer() {							// Called every timer tick, for BMU related processing
 	if (bmu_state & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-			bmu_events |= BMU_RESEND;
+			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
 }
