@@ -292,12 +292,11 @@ void bmu_processPacket(bool bCharging) {
 			// Move to the next BMU (driving or charging, but only if packet valid)
 			if (++bmu_curr_cell > NUMBER_OF_BMUS)
 				bmu_curr_cell = 1;
-		} // End if (bmu_id == curr_cell)
-	} // End if valid voltage response
-
-	bmu_sendVoltReq();								// Send another voltage request
-			
+			bmu_sendVoltReq();								// Send another voltage request
+		} // End if (bmu_id == bmu_curr_cell)
+	} // End if valid voltage response		
 }
+
 
 void bmu_timer() {							// Called every timer tick, for BMU related processing
 	if (bmu_state & BMU_SENT) {
