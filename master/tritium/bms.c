@@ -128,8 +128,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
 	szChgrVolt[10] = (nAmp / 10) + '0';	// Current units
 	szChgrVolt[12] = (nAmp % 10) + '0';	//	tenths
-//	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
-	return true;
+	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
 }
 
 void handleBMUbadnessEvent()
