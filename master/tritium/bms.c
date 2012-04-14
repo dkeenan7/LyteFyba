@@ -302,7 +302,7 @@ void bmu_timer() {							// Called every timer tick, for BMU related processing
 	if (bmu_state & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-	//		bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
+			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
 }
