@@ -122,13 +122,14 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	// Packet to announce the charger's meas of total voltage and current
 	// \ C H G _ n n n V _ n . n A \r
 	// 0 1 2 3 4 5 6 7 8 9 a b c d e
-	unsigned char szChgrVolt[16] = "\\CHG nnnV n.nA\r";
+	static unsigned char szChgrVolt[16] = "\\CHG nnnV n.nA\r";
 	szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
 	szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
 	szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
 	szChgrVolt[10] = (nAmp / 10) + '0';	// Current units
 	szChgrVolt[12] = (nAmp % 10) + '0';	//	tenths
-	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
+//	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
+	return true;
 }
 
 void handleBMUbadnessEvent()
@@ -136,14 +137,6 @@ void handleBMUbadnessEvent()
 	if (bmu_badness > 0x80)					// Simple algorithm:
 		chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
 									                        // what the BMUs can bypass
-#if 0   // ? Likely was when driven by badness bytes; now driven by events
-	if ((chgr_state & (CHGR_SOAKING | CHGR_END_CHARGE)) == 0) {
-		// Send a voltage check for the current cell
-		bmu_sendVoltReq();
-		if (++bmu_curr_cell > NUMBER_OF_BMUS)
-			bmu_curr_cell = 1;
-	}
-#endif
 }
 
 // Read incoming bytes from BMUs
@@ -225,7 +218,7 @@ void bmu_processPacket(bool bCharging) {
 		if (sum != 0) {
 			// Checksum error; set the error LED and resend the last command
 			fault();
-	;		bmu_resendLastPacket();					// Resend
+	//		bmu_resendLastPacket();					// Resend
 			return;									// Don't process this packet
 		}
 	}
@@ -310,7 +303,7 @@ void bmu_timer() {							// Called every timer tick, for BMU related processing
 	if (bmu_state & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
-			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
+	//		bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
 }
