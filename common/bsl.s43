@@ -12,12 +12,21 @@ BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
 MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
 ; Bits in i/o port 1
-BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
 TXDm		EQU		1<<1			; Code requires TXDm bit somewhere to right of TXDp bit
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
-LED			EQU		1<<6			; LED on P1.6
+#if PCBVERSION < 57
+BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
+ACTLED		EQU		1<<6			; Actvity LED on P1.6
+ERRLED		EQU		1<<6			; Error LED on P1.6
+ERRBYPPORT	EQU		P1OUT
+#else
+BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
+ACTLED		EQU		1<<3			; Actvity LED on P1.3
+ERRLED		EQU		1<<7			; Error LED on P2.7
+ERRBYPPORT	EQU		P2OUT
+#endif
 
 #define		Rstate	R15				// Register holding the state of the password checking FSM
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
@@ -28,7 +37,8 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	#DIVM_1,&BCSCTL2		; Set MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz			
 			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
+			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
+;			bis.b	#ERRLED+BYPASS,&P2DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
 			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
 			
 			mov		#$280,SP
@@ -157,7 +167,7 @@ write_next							; (Number of cycles)
 #if LEDWITHTX
 			; The below will turn the LED on for every bit sent. It's not how it was meant to be
 			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
-			and.b	#TXDp+TXDm+LED,R11 ; (2) Ensure only TXD and LED bits can be toggled below
+			and.b	#TXDp+TXDm+ACTLED,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
 #else // not LEDWITHTX
 			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
 #endif // LEDWITHTX
