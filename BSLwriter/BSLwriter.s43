@@ -60,6 +60,7 @@
 
 ; Conditional assembly parameters which may be changed for special purposes
 
+PCBVERSION  EQU		57				; Before ver 57 there was no Activity LED or Piezo. Different pinouts
 LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
 CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
 									;	(all BMUs) in addition to BSL-programming
@@ -80,7 +81,11 @@ ADCBUF		EQU		0				; 0 for no ADC sample buffer; 1 for buffer
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
+#if PCBVERSION < 57
 LinkVChan	EQU		$3				; ADC channel number for link voltage
+#else
+LinkVChan	EQU		$6				; ADC channel number for link voltage
+#endif
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
@@ -215,7 +220,7 @@ dummyInterpretByte:
 noWaitID
 #endif
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-			bic.b	#LED,&P1OUT				; Turn off the error LED
+			bic.b	#ERRLED,&ERRBYPPORT		; Turn off the error LED
 			ret								; Return to the BSL
 
 anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"?
@@ -252,7 +257,7 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
 			clr		rERR					; Clear error register
 
@@ -281,7 +286,7 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
-			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
+			bic.b	#ACTLED,&P1OUT			; Clear LED set by WriteByte
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
 			mov.b	R12,&mainID				; Flash write our ID
 #endif
@@ -496,7 +501,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
 			; main-flash!
 			;
-			bis.b	#LED,&P1OUT				; Turn on LED briefly (BSL will revert) to indicate success
+			bis.b	#ACTLED,&P1OUT			; Turn on LED briefly (BSL will revert) to indicate success
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			rra.b	&$FFFF					; Dummy write: erase segment
@@ -523,7 +528,7 @@ errorFlash: ; !!! needs cleanup after removing 1 MHz option. -- DCK
 
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
 			; ??? Should R12 be cleared here? -- DCK
-errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
+errFlashLp	xor.b	#ERRLED,&ERRBYPPORT			; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
@@ -592,8 +597,9 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 			mov		#$280,SP
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
-			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
-			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
+			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and ACTLED off
+			bis.b	#TXDp+TXDm+ACTLED,&P1DIR ; Set TXDs and ACTLED as outputs
+;			bis.b	#BYPASS+ERRLED,&P2DIR ; Set TXDs, LED and BYPASS as outputs
 			mov.b	#DIVM_1,&BCSCTL2		; Set for MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set for 8 MHz DCOCLK
 			mov.b	&info8MHzCalD,&DCOCTL
@@ -605,7 +611,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 ; or 4000/14 = 285.7 kHz @ 4 MHz
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 fastFlash
-			xor.b	#LED+TXDp+TXDm,&P1OUT	; Toggle the LED and both transmit outputs at the same time
+			xor.b	#ACTLED+TXDp+TXDm,&P1OUT	; Toggle the ACTLED and both transmit outputs at the same time
 											; This won't upset the next BMU, if in-situ, and the
 											; frequency can be tested from above the board
 ;			mov		#30000,R12				; Longer delay (slower flash)
@@ -614,7 +620,7 @@ fastFlash
 			jmp		fastFlash
 
 flash20		mov		#20,R11
-first		xor.b	#LED,&P1OUT
+first		xor.b	#ACTLED,&P1OUT
 			mov		#20000,R12				; Longer delay (slow flash)
 delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			dec		R12						; 7 cycle loop

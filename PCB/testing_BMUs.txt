@@ -7,8 +7,7 @@ connector), and ground to Vdd (left pin of JTAG and right pin of FAN output). Fi
 
 Connect up the set of boards to the test rig. If you have a set of 5 that doesn't match the orintation of the test jig
 (i.e. you have R5), it should be OK to rotate the set so that RX is at the top, and remember to rotate the RX and TX
-plugs. Otherwise, make sure that you can read that text, and that RX is at the top right. Test with resistors installed
-and downwards (component side up).
+plugs. Otherwise, make sure that you can read that text, and that RX is at the top right. Test with bypass resistors installed and downwards (component side up).
 
 Make sure that the power supply is at 3.60 V, or as close as is practical. Periodically check the temperature of the
 boards; adjust the CALTEMP value if needed and recompile (F7).
