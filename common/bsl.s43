@@ -17,15 +17,19 @@ RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
 #if PCBVERSION < 57
-BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
 ACTLED		EQU		1<<6			; Actvity LED on P1.6
 ERRLED		EQU		1<<6			; Error LED on P1.6
-ERRBYPPORT	EQU		P1OUT
+BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
+ERRBYPOUT	EQU		P1OUT
+ERRBYPDIR	EQU		P1DIR
+ERRBYPSEL	EQU		P1SEL
 #else
-BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
-ACTLED		EQU		1<<3			; Actvity LED on P1.3
+ACTLED		EQU		1<<3			; Actvity LED inverted on P1.3
 ERRLED		EQU		1<<7			; Error LED on P2.7
-ERRBYPPORT	EQU		P2OUT
+BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
+ERRBYPOUT	EQU		P2OUT
+ERRBYPDIR	EQU		P2DIR
+ERRBYPSEL	EQU		P2SEL
 #endif
 
 #define		Rstate	R15				// Register holding the state of the password checking FSM
@@ -37,9 +41,11 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	#DIVM_1,&BCSCTL2		; Set MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz			
 			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
-;			bis.b	#ERRLED+BYPASS,&P2DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
-			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
+			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off, Vref output off
+;			bic.b	#ERRLED+BYPASS,&ERRBYPSEL ; Set BYPASS and ERRLED to not be clock pins
+;			bis.b	#ERRLED+BYPASS,&ERRBYPDIR ; Set BYPASS and ERRLED as outputs
+;			mov.b	#0,&ERRBYPOUT	; Set BYPASS and error LED off
 			
 			mov		#$280,SP
 mainLoop:							; Start of the main BSL loop
@@ -165,9 +171,13 @@ write_next							; (Number of cycles)
 									; Note: R11 must be guaranteed clear in advance
 			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
 #if LEDWITHTX
-			; The below will turn the LED on for every bit sent. It's not how it was meant to be
-			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
-			and.b	#TXDp+TXDm+ACTLED,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
+			; For PCB revisions before 57, the below will turn the activity LED on for every bit sent.
+			; It's not how it was meant to be but it works well enough. It would be as intended if the
+			; activity LED had a lower bit number than TXDp.
+			; For PCB revision 57, the activity LED does have a bit number lower than TXDp and
+			; the below will turn the (inverted) activity LED off when a zero bit or start bit is sent,
+			; and on when a one bit or stop bit is sent.
+			and.b	#TXDp+ACTLED+TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
 #else // not LEDWITHTX
 			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
 #endif // LEDWITHTX
@@ -180,9 +190,7 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 			jnz		write_next		; (2)
 			ret
 			
-;			ORG		for1000+$F4
-; Saved space by making the password a simple function of (equal to) Rstate instead of storing it
-; mainPWtable	db		0,1,2,3			; The password backwards: ^@ ^A ^B ^C
+			; Any free info-flash space is between this line and the next
 			ORG		for1000+$F8
 			; Calibration data
 mainDataStart						; Used when copying between ram and info-flash

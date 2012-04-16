@@ -220,7 +220,7 @@ dummyInterpretByte:
 noWaitID
 #endif
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-			bic.b	#ERRLED,&ERRBYPPORT		; Turn off the error LED
+			bis.b	#ACTLED,&P1OUT			; Turn off the (inverted) activity LED
 			ret								; Return to the BSL
 
 anInit:		cmp		#$55AA,R15				; Does R15 have the code for "just finished writing"?
@@ -254,11 +254,11 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			_ENDIF
 	#endif
 
-			; Set P1.4 as an output as well as the LED. This will put 0V at the bottom of the link
+			; Set P1.4 as an output as well as the Activity LED. This will put 0V at the bottom of the link
 			; voltage divider, so we can test with paralleled boards, and not have > Vcc on any
 			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
-			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
+			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set ActLED, P1.4, and TX bits to output
+			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp
 			clr		rERR					; Clear error register
 
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
@@ -286,7 +286,7 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
-			bic.b	#ACTLED,&P1OUT			; Clear LED set by WriteByte
+			bis.b	#ACTLED,&P1OUT			; Turn off (inverted) Activity LED turned on by WriteByte
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
 			mov.b	R12,&mainID				; Flash write our ID
 #endif
@@ -501,7 +501,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
 			; main-flash!
 			;
-			bis.b	#ACTLED,&P1OUT			; Turn on LED briefly (BSL will revert) to indicate success
+			bic.b	#ACTLED,&P1OUT			; Turn on ActLED briefly to show success (BSL will revert)
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			rra.b	&$FFFF					; Dummy write: erase segment
@@ -528,7 +528,7 @@ errorFlash: ; !!! needs cleanup after removing 1 MHz option. -- DCK
 
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
 			; ??? Should R12 be cleared here? -- DCK
-errFlashLp	xor.b	#ERRLED,&ERRBYPPORT			; The best we can do is freeze and flash LED
+errFlashLp	xor.b	#ERRLED,&ERRBYPOUT			; The best we can do is freeze and flash LED
 delay		dec		R12
 			jnz		delay
 count		dec		R11
@@ -597,9 +597,9 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 			mov		#$280,SP
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
-			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and ACTLED off
+			mov.b	#ACTLED,&P1OUT			; Set TXD outputs the same, bypass and (inverted) ACTLED off
 			bis.b	#TXDp+TXDm+ACTLED,&P1DIR ; Set TXDs and ACTLED as outputs
-;			bis.b	#BYPASS+ERRLED,&P2DIR ; Set TXDs, LED and BYPASS as outputs
+;			bis.b	#BYPASS+ERRLED,&ERRBYPPORT+1	; Set ERRLED and BYPASS as outputs
 			mov.b	#DIVM_1,&BCSCTL2		; Set for MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set for 8 MHz DCOCLK
 			mov.b	&info8MHzCalD,&DCOCTL
@@ -611,7 +611,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 ; or 4000/14 = 285.7 kHz @ 4 MHz
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 fastFlash
-			xor.b	#ACTLED+TXDp+TXDm,&P1OUT	; Toggle the ACTLED and both transmit outputs at the same time
+			xor.b	#ACTLED+TXDp+TXDm,&P1OUT ; Toggle the ACTLED and both transmit outputs at the same time
 											; This won't upset the next BMU, if in-situ, and the
 											; frequency can be tested from above the board
 ;			mov		#30000,R12				; Longer delay (slower flash)
