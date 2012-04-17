@@ -35,18 +35,26 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz			
 			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 #if PCBVERSION < 57
-			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
+			mov.b	#TXDp,&P1OUT	; Set TXDs to idle state. Set BYPASS, error LED and Vref outputs off
 			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
 #else
-			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off, Vref output off
+			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
 			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
-			; so the BSL can avoid consuming flash space with the following code.
+
 			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
 			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
 			; This is safe, as the bypass MOSFET has a pulldown on its gate,
-;			mov.b	#0,&P2SEL ; Set BYPASS and ERRLED to not be crystal osc pins
-;			mov.b	#0,&P2OUT	; Set BYPASS and ERRLED off
-;			mov.b	#$FF,&P2DIR ; Set BYPASS and ERRLED as outputs
+			; so the BSL can avoid consuming flash space with the following code.
+;			mov.b	#0,&P2SEL 		; Set BYPASS and ERRLED to not be crystal osc pins
+;			mov.b	#0,&P2OUT		; Set BYPASS and ERRLED off
+;			mov.b	#$FF,&P2DIR 	; Set BYPASS and ERRLED as outputs
+
+			; Can't fit the code below, so we wait to receive and echo a character
+			; to end the break.
+;			clr		R11				; 65536 * 3 / 4 MHz = 49 ms
+;breakDelay	dec		R11
+;			jnz		breakDelay
+;			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXDs to idle state, (inverted) ACTLED off, Vref output off
 #endif			
 			mov		#$280,SP
 mainLoop:							; Start of the main BSL loop
@@ -55,7 +63,8 @@ mainLoop:							; Start of the main BSL loop
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
 									;	to initialise the main-flash code
 			call	#testNoInterp-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
-mainInitRetAddr:	; Used by BSL-writer and interpreter to tell if the byte in R8 should be echoed
+mainInitRetAddr:	; Used by BSL-writer or interpreter in main flash
+					; to tell if the byte in R8 should be echoed
 
 			; Password-checking finite-state-machine (FSM)
 			; After decrementing Rstate below, 3 = waiting for 1st pwd char,
@@ -171,20 +180,16 @@ write_next							; (Number of cycles)
 			subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 									; Note: R11 must be guaranteed clear in advance
 			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
-#if LEDWITHTX
 #if PCBVERSION < 57
 			; The below will turn the LED on for every bit sent. It's not how it was meant to be
 			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
-			and.b	#TXDp+TXDm+LED,R11 ; (2) Ensure only TXD and LED bits can be toggled below			; activity LED had a lower bit number than TXDp.
+			and.b	#LED+TXDp+TXDm,R11 ; (2) Ensure only TXD and LED bits can be toggled below			; activity LED had a lower bit number than TXDp.
 #else // not PCBVERSION < 57
 			; The activity LED has a bit number lower than TXDp so
 			; the below will turn the (inverted) activity LED off when a zero bit or start bit is sent,
 			; and on when a one bit or stop bit is sent.
 			and.b	#TXDp+ACTLED+TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
 #endif // PCBVERSION < 57
-#else // not LEDWITHTX
-			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
-#endif // LEDWITHTX
 			xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 			mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
