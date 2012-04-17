@@ -60,8 +60,7 @@
 
 ; Conditional assembly parameters which may be changed for special purposes
 
-PCBVERSION  EQU		56				; Before ver 57 there was no Activity LED or Piezo. Different pinouts
-LEDWITHTX	EQU		1				; Set to 1 for LED flashing with each TX byte
+PCBVERSION  EQU		57				; Before ver 57 there was no Activity LED or Piezo. Different pinouts
 CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
 									;	(all BMUs) in addition to BSL-programming
 CALONLYONE	EQU		0				; Set to 1 to calibrate volts and temp on only 1 BMU
