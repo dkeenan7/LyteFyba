@@ -17,19 +17,12 @@ RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
 #if PCBVERSION < 57
-ACTLED		EQU		1<<6			; Actvity LED on P1.6
-ERRLED		EQU		1<<6			; Error LED on P1.6
+LED			EQU		1<<6			; LED (red) on P1.6 used for both error and activity
 BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
-ERRBYPOUT	EQU		P1OUT
-ERRBYPDIR	EQU		P1DIR
-ERRBYPSEL	EQU		P1SEL
 #else
-ACTLED		EQU		1<<3			; Actvity LED inverted on P1.3
-ERRLED		EQU		1<<7			; Error LED on P2.7
+ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
+ERRLED		EQU		1<<7			; Error LED (red) on P2.7
 BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
-ERRBYPOUT	EQU		P2OUT
-ERRBYPDIR	EQU		P2DIR
-ERRBYPSEL	EQU		P2SEL
 #endif
 
 #define		Rstate	R15				// Register holding the state of the password checking FSM
@@ -41,12 +34,20 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	#DIVM_1,&BCSCTL2		; Set MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz			
 			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+#if PCBVERSION < 57
+			mov.b	#TXDp,&P1OUT	; Set TXD to idle state. Set BYPASS, error LED and Vref outputs off
+			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
+#else
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off, Vref output off
-;			bic.b	#ERRLED+BYPASS,&ERRBYPSEL ; Set BYPASS and ERRLED to not be clock pins
-;			bis.b	#ERRLED+BYPASS,&ERRBYPDIR ; Set BYPASS and ERRLED as outputs
-;			mov.b	#0,&ERRBYPOUT	; Set BYPASS and error LED off
-			
+			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+			; so the BSL can avoid consuming flash space with the following code.
+			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
+			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
+			; This is safe, as the bypass MOSFET has a pulldown on its gate,
+;			mov.b	#0,&P2SEL ; Set BYPASS and ERRLED to not be crystal osc pins
+;			mov.b	#0,&P2OUT	; Set BYPASS and ERRLED off
+;			mov.b	#$FF,&P2DIR ; Set BYPASS and ERRLED as outputs
+#endif			
 			mov		#$280,SP
 mainLoop:							; Start of the main BSL loop
 
@@ -171,13 +172,16 @@ write_next							; (Number of cycles)
 									; Note: R11 must be guaranteed clear in advance
 			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
 #if LEDWITHTX
-			; For PCB revisions before 57, the below will turn the activity LED on for every bit sent.
-			; It's not how it was meant to be but it works well enough. It would be as intended if the
-			; activity LED had a lower bit number than TXDp.
-			; For PCB revision 57, the activity LED does have a bit number lower than TXDp and
+#if PCBVERSION < 57
+			; The below will turn the LED on for every bit sent. It's not how it was meant to be
+			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
+			and.b	#TXDp+TXDm+LED,R11 ; (2) Ensure only TXD and LED bits can be toggled below			; activity LED had a lower bit number than TXDp.
+#else // not PCBVERSION < 57
+			; The activity LED has a bit number lower than TXDp so
 			; the below will turn the (inverted) activity LED off when a zero bit or start bit is sent,
 			; and on when a one bit or stop bit is sent.
 			and.b	#TXDp+ACTLED+TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
+#endif // PCBVERSION < 57
 #else // not LEDWITHTX
 			and.b	#TXDp+TXDm,R11	; (alt 2) Ensure only TXD bits can be toggled below
 #endif // LEDWITHTX
