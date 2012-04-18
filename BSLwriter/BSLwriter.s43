@@ -177,21 +177,6 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 #endif
 
 
-#if 0
-; ByteCodeInterpreter2 variables
-
-base			DS	1				; Number base, 10 or 16
-CHKSUM			DS	1				; Packet xor checksum
-Checksumming 	DS	1				; Boolean
-dontInterpret	DS	1				; Boolean; for 'x' command
-TXCksum			DS	1				; Transmit checksum
-passWordState	DS	1				; State of the password detection logic; 3 = start
-
-			ALIGNRAM 1
-ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
-TIB			DS		1				; Start of Text Input Buffer, grows towards stack
-#endif
-
 ; BSL-writer code in main-flash.
 ; This code copies any existing calibration data from info-flash to the image of the new BSL
 ; in main-flash, then erases info-flash and copies the new BSL there from its main-flash image.
@@ -619,6 +604,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 ; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
 			ORG		$FD00
 			mov		#$280,SP
+			dint							; Disable interrupts
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
 #if PCBVERSION < 57
@@ -639,7 +625,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 
 ;
 ; Fastest possible toggle: 7 cycles, or 1000/14 = 71.4 kHz @ 1 MHz, or 2000/14 = 142.9 kHz @ 2 MHz
-; or 4000/14 = 285.7 kHz @ 4 MHz
+; or 4000/14 = 285.7 kHz @ 4 MHz or 285.3 kHz @ (9600 * 416) Hz
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 fastFlash
 #if PCBVERSION < 57

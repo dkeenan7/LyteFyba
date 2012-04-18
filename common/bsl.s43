@@ -37,9 +37,11 @@ for1000:	; This will be relocated to info-flash at $1000.
 #if PCBVERSION < 57
 			mov.b	#TXDp,&P1OUT	; Set TXDs to idle state. Set BYPASS, error LED and Vref outputs off
 			bis.b	#TXDp+TXDm+BYPASS+LED+VREFp,&P1DIR ; Set TXDs, BYPASS, LED and VREFp as outputs
+			mov		#$280,SP		; Initialise the stack pointer
 #else
 			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
 			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+			mov		#$280,SP		; Initialise the stack pointer
 
 			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
 			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
@@ -49,14 +51,13 @@ for1000:	; This will be relocated to info-flash at $1000.
 ;			mov.b	#0,&P2OUT		; Set BYPASS and ERRLED off
 ;			mov.b	#$FF,&P2DIR 	; Set BYPASS and ERRLED as outputs
 
-			; Can't fit the code below, so we wait to receive and echo a character
-			; to end the break.
-;			clr		R11				; 65536 * 3 / 4 MHz = 49 ms
-;breakDelay	dec		R11
-;			jnz		breakDelay
-;			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXDs to idle state, (inverted) ACTLED off, Vref output off
-#endif			
-			mov		#$280,SP
+			; Send a 27 ms break
+			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
+			clr		R9				; Bit values (all zeros so it's a break)
+			call	#WriteBreak-for1000+$1000 ; WriteByte without init part and w/o needing R11 clear
+									; Address adjusted for BSL's relocation to info-flash
+#endif
+
 mainLoop:							; Start of the main BSL loop
 
 			; Initialise the interpreter (or BSL-writer), if possible
@@ -171,32 +172,45 @@ testNoInterp
 WriteByte:
 			mov		R8,R9			; Allow R8 to be preserved for password compare
 			
-			mov.b	#10,R10			; 8 data + 1 start and 1 stop
-			rla		R9				; Add a start bit
-			bis		#1<<9,R9		; Add a stop bit
+			mov.b	#8,R10			; Loop counter, 1 start + 8 data (decrements to -1)
+			rla		R9				; Add the start bit
+			; Stop bit was bis#1<<9,R9, but it's done after the loop now
+			; to allow sending a break
 		
 write_next							; (Number of cycles)
-			rrc		R9				; (1) Next bit to C.
+			rra		R9				; (1) Next bit to C.
 			subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 									; Note: R11 must be guaranteed clear in advance
 			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
 #if PCBVERSION < 57
 			; The below will turn the LED on for every bit sent. It's not how it was meant to be
 			; but it works well enough. It would be as intended if LED had a lower bit number than TXDp.
-			and.b	#LED+TXDp+TXDm,R11 ; (2) Ensure only TXD and LED bits can be toggled below			; activity LED had a lower bit number than TXDp.
-#else // not PCBVERSION < 57
-			; The activity LED has a bit number lower than TXDp so
-			; the below will turn the (inverted) activity LED off when a zero bit or start bit is sent,
-			; and on when a one bit or stop bit is sent.
+			and.b	#LED+TXDp+TXDm,R11 ; (2) Ensure only TXD and LED bits can be toggled below
+#else
+			; The activity LED has a lower bit number than TXDp so the below will
+			; turn off the (inverted) activity LED when a zero bit or start bit is sent,
+			; and turn it on when a one bit or stop bit is sent.
 			and.b	#TXDp+ACTLED+TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
-#endif // PCBVERSION < 57
+#endif
 			xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
-			mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
+WriteBreak:	mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
 write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next above
 			jnz		write_dly		; (2)
-			dec		R10				; (1)
-			jnz		write_next		; (2)
+
+			dec		R10				; (1) Decrement the bit counter
+			jc		write_next		; (2) Loop if not -1
+			
+#if PCBVERSION < 57
+			mov.b	#TXDp+LED,&P1OUT ; Send a stop bit and leave the LED on
+			; Also rudely turns off bypass, and harmlessly the Vref+ pin if it is still a digital output
+#else
+			mov.b	#TXDp,&P1OUT	; Send a stop bit and leave the (inverted) ACTLED on
+			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output
+#endif
+			; To ensure the stop bit has sufficient duration we rely in the fact that
+			; calls to WriteByte must be at least 2 byte-times apart
+			; to allow any receiving BMU's BSL time to both read and echo the byte.
 			ret
 			
 			; Any free info-flash space is between this line and the next
