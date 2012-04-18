@@ -97,7 +97,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 interpretByte EQU	$F800			; Where to call the main flash code
 
 ; Locations in info-flash, of routines and calibration data
-; These addresses must be manually exported to the interpreter.
+; These addresses must be manually exported to the interpreter and monitor.
 ; Assemble this file with listing-generation enabled, then look at the listing file
 ; to determine the absolute addresses to put into the interpreter.
 
@@ -106,7 +106,7 @@ infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpr
 infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
 infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
-; infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
+
 infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
 infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset calibration byte
 infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset cal byte

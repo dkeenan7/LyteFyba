@@ -14,10 +14,10 @@
 
 
 ; Addresses manually imported from the BSL-writer or debugger. Version 6. Keep up to date!
-InitRetAddr	EQU		$1028		; Return address when interpretByte is called for initialisation
-ReadByte	EQU		$108E		; Calling-address to receive byte in R8
-WriteByte	EQU		$10C6		; Calling-address to transmit byte in R8
-BSLErase	EQU		$103A		; Jump-in-address for erasing flash and continuing a download
+InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
+ReadByte	EQU		$1094		; Calling-address to receive byte in R8
+WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
+BSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a download
 VoltCal		EQU		$10F8		; Address of Voltage scale calibration word
 TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
