@@ -86,7 +86,6 @@ infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
 infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
 
-; infoPWtable		EQU		mainPWtable	-for1000+$1000		; Address of BSL password in reverse-order
 infoDataStart	EQU		mainDataStart-for1000+$1000		; Used when copying between ram and info-flash
 infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
 infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset calibration byte
