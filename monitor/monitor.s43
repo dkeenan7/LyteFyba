@@ -33,23 +33,36 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define 	Rw		R8				// Working register - temporary - anyone can use
 
 ; Conditional assembly
-#define		WATCHDOG	1			; True if watchdog timer is to be used (only turn off for debugging)
-#define		ADCBUF		0			; 0 for no ADC sample buffer; 1 for buffer
-#define		LEDWITHTX	1			; True to have LED come on with any transmit byte
+#define 	PCBVERSION  57			// Before ver 57 there was no Activity LED or Piezo. Different pinouts
+#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
+#define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 minLEDBad	EQU			1			; Minimum badness to light error LED
 
-BYPASS		EQU		1<<0			; P1.0
+; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; SCLK/P1.5
-LED			EQU		1<<6			; LED on bit 6
+#if PCBVERSION < 57
+LED			EQU		1<<6			; LED (red) on P1.6 used for both error and activity
+BYPASS		EQU		1<<0			; Bypass transistor on pin P1.0
+#else
+PIEZO		EQU		1<<0			; Piezo on P1.0
+ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
+; Port 2 bits
+BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
+ERRLED		EQU		1<<7			; Error LED (red) on P2.7
+#endif
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
+#if PCBVERSION < 57
 LinkVChan	EQU		$3				; ADC channel number for link voltage
+#else
+LinkVChan	EQU		$6				; ADC channel number for link voltage
+#endif
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; Serialio definitions
@@ -142,7 +155,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
 
-			; Initialise clocks. SMCLK is only used by timer.
+			; Initialise clocks. SMCLK is only used by comms timer and watchdog timer.
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
@@ -166,8 +179,16 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; We don't use the shift register of the USI because there is
 			; no way to get differential outputs from that without external hardware.
 			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
-			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
-			clr.b	&P1OUT						; Clear LED and bypass
+#if PCBVERSION < 57
+			clr.b	&P1OUT						; Turn off LED and bypass
+			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, VREFp TX, and BYPASS bits to output
+#else
+			mov.b	#ACTLED,&P1OUT				; Turn off (inverted) ActLED
+			mov.b	#ACTLED+VREFp+TXDp+TXDm,&P1DIR ; Set ActLED, VREFp, and TX bits to output
+			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
+			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off
+			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
+#endif
 
 			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
 			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
@@ -288,7 +309,11 @@ measures:
 			_ENDIF
 			cmp		R10,R8					; Compare current cell voltage (R10) to the bypass threshold (R8)
 			NCtoAllBits	R8					; If voltage > threshold then $FF else $00
+#if PCBVERSION < 57
 			movBits_B	R8,#BYPASS,&P1OUT	; Move only the #BYPASS bit from R8 to &P1OUT. Trashes R8
+#else
+			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
+#endif
 
 			; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
 			mov		R10,R9					; Measurement
@@ -404,7 +429,11 @@ measures:
 
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
 			CtoAllBits	R8
+#if PCBVERSION < 57
 			movBits_B	R8,#LED,&P1OUT
+#else
+			movBits_B	R8,#ERRLED,&P2OUT
+#endif
 			
 			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
 			_IF		_Z			
@@ -509,7 +538,12 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
+#if PCBVERSION < 57
 			mov.b	#TXDp,&P1OUT		; Set TXD to idle, bypass and error LED off
+#else
+			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
+			clr.b	&P2OUT				; Set bypass and error LED off
+#endif
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		R15					; The BSL uses R15 as its FSM state variable

@@ -97,7 +97,7 @@
         </option>
         <option>
           <name>OGChipSelectMenu</name>
-          <state>MSP430F2012	MSP430F2012</state>
+          <state>MSP430G2231	MSP430G2231</state>
         </option>
         <option>
           <name>GStackHeapOverride</name>
@@ -105,11 +105,11 @@
         </option>
         <option>
           <name>GStackSize2</name>
-          <state>80</state>
+          <state>50</state>
         </option>
         <option>
           <name>GHeapSize2</name>
-          <state>80</state>
+          <state>0</state>
         </option>
         <option>
           <name>RadioDataModelType</name>

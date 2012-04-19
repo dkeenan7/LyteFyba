@@ -105,8 +105,12 @@ TX_ByteNW:
 						_ENDIF ; _NN				; Endif existing TACCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit and enable compare ints
-					
-					bis.b	#LED,&P1OUT			; Set the LED for visual feedback.
+
+#if PCBVERSION < 57
+					bis.b	#LED,&P1OUT			; Turn on the LED for visual feedback.
+#else
+					bic.b	#ACTLED,&P1OUT		; Turn on the (inverted) activity LED for visual feedback.
+#endif
 				_ENDIF 						; Endif transmit interrupts disabled
 				
 				clrz						; Indicate char was accepted
@@ -164,7 +168,11 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
 					cmp.b	#minLEDBad,&localBadness; Leave the LED on if we have badness >= minLEDBad
 					_IF		_LO						; If localBadness < 2
-						bic.b	#LED,&P1OUT				; (5) Clear the LED at the end of the transmit
+#if PCBVERSION < 57					
+						bic.b	#LED,&P1OUT				; (5) Turn off the LED at the end of the transmit
+#else
+						bis.b	#ACTLED,&P1OUT			; (5) Turn off the activity LED at the end of the transmit
+#endif
 					_ENDIF
 				_ELSE							; Else TX queue is not empty
 					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK P1.5)
@@ -172,7 +180,11 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits
 					mov.w	#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit
 					
-					bis.b	#LED,&P1OUT				; Set the LED for visual feedback.
+#if PCBVERSION < 57					
+					bis.b	#LED,&P1OUT				; Turn on the LED for visual feedback.
+#else
+					bic.b	#ACTLED,&P1OUT			; Turn on the activity LED for visual feedback.
+#endif
 				_ENDIF							; Endif TX queue is not empty
 			_ENDIF							; Endif Stop bit initiated
 			reti

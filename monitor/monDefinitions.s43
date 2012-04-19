@@ -60,10 +60,11 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			mov		#'\r',R8				; Carriage return to R8
 			call	#TX_Byte				; Emit
 
-			mov.b	#'X',Rthd				; 'X' for XOR checksum
-			mov.b	&worstBadType,Rsec		; Residual checksum
-			; mov		#3,Rtos				; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print and return
+		;	mov.b	#'X',Rthd				; 'X' for XOR checksum
+		;	mov.b	&worstBadType,Rsec		; Residual checksum
+		;	; mov		#3,Rtos				; Print 3 digits
+		;	jmp		_prettyPrint3			; Tail-call pretty-print and return
+
 //			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
 //			mov		&worstBadMeas,Rsec		; Result
 //			mov		#4,Rtos					; Print 4 digits

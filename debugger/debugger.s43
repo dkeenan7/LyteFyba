@@ -55,11 +55,11 @@
 ;   data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#define		WATCHDOG	1			; True if watchdog timer is to be used (only turn off for debugging)
-									; Turning it off doesn't work because BSL will still clear and restart
-									; the watchdog timer on every call to readByte.
-#define		ADCBUF		0			; 0 for no ADC sample buffer; 1 for buffer
-#define		LEDWITHTX	1			; Set to 1 for LED flashing with each TX byte
+#define 	PCBVERSION  57			// Before ver 57 there was no Activity LED or Piezo. Different pinouts
+#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
+									// Turning it off doesn't work because BSL will still clear and restart
+									// the watchdog timer on every call to ReadByte.
+#define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 minLEDBad	EQU		1				; Minimum badness to light error LED
 
@@ -67,7 +67,11 @@ minLEDBad	EQU		1				; Minimum badness to light error LED
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
+#if PCBVERSION < 57
 LinkVChan	EQU		$3				; ADC channel number for link voltage
+#else
+LinkVChan	EQU		$6				; ADC channel number for link voltage
+#endif
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
@@ -193,7 +197,11 @@ interpretByte:
 											;	without calling WriteByte (don't echo wrong ID)
 noWaitID
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-			bic.b	#LED,&P1OUT				; Turn off the error LED to show successful download
+#if PCBVERSION < 57
+			bic.b	#LED,&P1OUT				; Turn off the error LED
+#else
+			bis.b	#ACTLED,&P1OUT			; Turn off the (inverted) activity LED
+#endif
 			call	#ACCEPT					; Process the byte
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
@@ -217,11 +225,19 @@ initialise:
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
 			
-			; Set VREFp (P1.4) as an output as well as the LED. This will put 0V at the bottom of the
-			; link voltage divider, so we can test with paralleled boards, and not have > Vcc on any
-			; analogue input (trust me, you get meaningless conversions)
-			mov.b	#LED+VREFp+TXDp+TXDm+BYPASS,&P1DIR ; Set LED, P1.4, TX, and bypass bits to output
+#if PCBVERSION < 57
+			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
+			; bottom of the link voltage divider, so we can test with paralleled boards,
+			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
+			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+#else
+			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp
+			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set ActLED, P1.4, and TX bits to output
+			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
+			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off
+			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
+#endif
 
 			cmp.b	#DATAVERS,&infoDataVers
 			jnc		unknownVersBSL					; Can't handle version 5 data layout; use BSLwriter
@@ -310,6 +326,9 @@ currVersBSL
 ; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
 main:										; For IAR Embedded Workbench IDE debugger
+
+
+
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
 ;			br		#_updateInfoFlash		; Update info flash and establish a BSL
@@ -390,7 +409,12 @@ errorFlash:	mov		rERR,R11
 			rla		R11						; And quadruple for 4 MHz
 			; ??? Should we clear R12 here? -- DCK
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
-errFlashLp	xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
+errFlashLp	
+#if PCBVERSION < 57
+			xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
+#else
+			xor.b	#ERRLED,&P2OUT			; The best we can do is freeze and flash ERRLED
+#endif
 delay		dec		R12
 			jnz		delay
 count		dec		R11
@@ -422,8 +446,8 @@ pauseL		dec		R12
 ;		Size: 1 byte, Alignment: 1
 ;		CRC Polynomial: 0x101
 ; 		Complement: As is
-;		Bit order: MSB first, Initial value: 0x50
-; The initial value of 0x50 is required because the reset vector of $F8A8 at $FFFE is not transmitted
+;		Bit order: MSB first, Initial value: 0x56
+; The initial value of 0x56 is required because the reset vector of $F8AE at $FFFE is not transmitted
 ; and so the BSL does not include it in its checksum, but the linker does.
 ; If the reset vector changes, this initial value will need to be changed to keep it as
 ; the XOR of its two bytes.

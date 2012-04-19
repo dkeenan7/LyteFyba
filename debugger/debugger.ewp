@@ -97,7 +97,7 @@
         </option>
         <option>
           <name>OGChipSelectMenu</name>
-          <state>MSP430F2012	MSP430F2012</state>
+          <state>MSP430G2231	MSP430G2231</state>
         </option>
         <option>
           <name>GStackHeapOverride</name>
@@ -714,7 +714,7 @@
         </option>
         <option>
           <name>XclFile</name>
-          <state>$TOOLKIT_DIR$\CONFIG\lnk430F2012.xcl</state>
+          <state>$TOOLKIT_DIR$\CONFIG\lnk430G2231.xcl</state>
         </option>
         <option>
           <name>XclFileSlave</name>
@@ -726,7 +726,7 @@
         </option>
         <option>
           <name>FillerByte</name>
-          <state>0xFF</state>
+          <state>0x56</state>
         </option>
         <option>
           <name>DoCrc</name>

@@ -200,7 +200,7 @@ sendMyBadness		mov		R9,R8				; then we are worse; send our badness
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 			; Initialise the timer
-			; DIVS_3 = divide MCLK by 8 for SMCK
+			; DIVS_3 = divide DCOCLK by 8 for SMCK
 			mov.b		#DIVS_3, &BCSCTL2
 			; TASSEL_2 = SMCK clock source; ID_3 = divide SMCK by 8; MC_1 = up mode
 			; TACLR = clear clock count
