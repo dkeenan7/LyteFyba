@@ -20,11 +20,11 @@
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
-		DB		'v' , ramVoltCal  & $7F			; High bit clear to indicate word quantity,
-		DB		't' , ramTempCal  & $7F | $80	; set for byte quantity
-		DB		'l' , ramLinkCal  & $7F | $80
-		DB		'f' , ram8MHzCalD & $7F
-		DB		'i' , ramID       & $7F | $80
+		DB		'v' , ramVoltCal  & $7F	| $80	; High bit set to indicate word quantity,
+		DB		't' , ramTempCal  & $7F | $00	; clear for byte quantity
+		DB		'l' , ramLinkCal  & $7F | $00
+		DB		'f' , ram8MHzCalD & $7F	| $80
+		DB		'i' , ramID       & $7F | $00
 		; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -134,7 +134,7 @@ realCal
 			bis		#$200,Rsec
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
-				_IF		_L						; If high bit set
+				_IF		_NN						; If high bit set
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit clear so
@@ -166,7 +166,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BM
 			bis		#$200,R9
 			tst.b	Rtos
 			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_L						; If high bit set
+				_IF		_NN						; If high bit set
 					mov.b	Rsec,0(R9)				; Set byte sized cal value
 				_ELSE							; Else high bit clear so
 					mov.w	Rsec,0(R9)				; Set word sized cal value
@@ -194,7 +194,11 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
+#if PCBVERSION < 57
 			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
+#else
+			bis.b	#ACTLED,&P1OUT			; Clear (inverted) activity LED set by WriteByte
+#endif
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
 
@@ -326,12 +330,37 @@ failCompare mov		#3,rERR
 			br		R8			; Tail-call the code at addr and return
 #endif
 			
+			
+#if 1 // Assembly of 'e' command can be turned off if desperate for space		
+;
+; Turn on or off the error LED (bool -- )
+;
+		xCODE	'e',errorLed,_errorLed
+#if PCBVERSION < 57
+		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
+#endif
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+#if PCBVERSION < 57
+		movBits_B	Rtos,#LED,&P1OUT ; Move only the #LED bit from Rtos to &P1OUT. Trashes Rtos.
+#else
+		movBits_B	Rtos,#ERRLED,&P2OUT ; Move only the #ERRLED bit from Rtos to &P2OUT. Trashes Rtos.
+#endif
+
+;		pop		Rtos				; Remove operand
+		ret
+#endif
+
+
 ;
 ; Turn on or off bypass resistors ( bool -- )
 ;
 		xCODE	'y',bypass,_bypass
 		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+#if PCBVERSION < 57
 		movBits_B	Rtos,#BYPASS,&P1OUT ; Move only the #BYPASS bit from Rtos to &P1OUT. Trashes Rtos.
+#else
+		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
+#endif
 ;		pop		Rtos				; Remove operand
 		ret
 
@@ -357,13 +386,22 @@ failCompare mov		#3,rERR
 doBurst		
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		R10
+#if PCBVERSION < 57
 			clr.b	&P1OUT					; LED off, transmit outputs at same low level
 burstLp		xor.b	#LED+TXDp+TXDm,&P1OUT	; (5) Toggle all 3 bits
+#else
+			mov.b	#ACTLED,&P1OUT			; activity LED off, transmit outputs at same low level
+burstLp		xor.b	#TXDp+ACTLED+TXDm,&P1OUT ; (5) Toggle all 3 bits
+#endif
 			dec		R10						; (1)
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
+#if PCBVERSION < 57
 			mov.b	#TXDp,&P1OUT			; Restore TXDp
+#else
+			mov.b	#TXDp+ACTLED,&P1OUT			; Restore TXDp and turn activity LED off
+#endif
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			ret
 jBurstLp	br		#burstLp				;	(alt2 3)

@@ -79,19 +79,6 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		_ENDIF						; Endif
 		ret
 		
-#if 0 // FIXME!!!		
-;
-; Turn on or off the error LED (bool -- )
-;
-		xCODE	'e',errorLed,_errorLed
-		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#LED,&P1OUT ; Move only the #LED bit from Rtos to &P1OUT. Trashes Rtos.
-
-;		pop		Rtos				; Remove operand
-		ret
-#endif
-
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
@@ -235,9 +222,14 @@ _prettyPrint:
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit
 		
+#if PCBVERSION < 57
 		call	#waitTxCmpl			; Wait for transmit complete
 		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
 									; Identifies the BMU that sent a response
+#else
+		bic.b	#ACTLED,&P1OUT		; Set the (inverted) activity LED here to mimic old behaviour
+									; Identifies the BMU that sent a response
+#endif
 		ret
 		
 ;

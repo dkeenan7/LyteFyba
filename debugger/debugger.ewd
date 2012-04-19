@@ -57,7 +57,7 @@
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$TOOLKIT_DIR$\config\MSP430F2012.ddf</state>
+          <state>$TOOLKIT_DIR$\config\MSP430G2231.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>
@@ -195,7 +195,7 @@
         </option>
         <option>
           <name>EMUAttach</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>AttachOptionSlave</name>
