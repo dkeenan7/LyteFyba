@@ -254,7 +254,13 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			jnz		failCompare
 			
 			;
-			; Compares successfully.
+			; Compares successfully. Point the reset vector at the new BSL.
+			; No flash erase is done. It relies on only having to change 1 bits to 0 bits.
+			mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			mov		#FWKEY+WRT,&FCTL1		; Enable write
+			mov		#$1000,&$FFFE			; Re-point reset vector
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
+
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
 			br		#$1000					; Start the new BSL
 
@@ -355,7 +361,7 @@ failCompare mov		#3,rERR
 		ret
 #endif
 
-
+#if 0	// Commented out to save space
 ;
 ; Turn on or off bypass resistors ( bool -- )
 ;
@@ -368,6 +374,7 @@ failCompare mov		#3,rERR
 #endif
 ;		pop		Rtos				; Remove operand
 		ret
+#endif
 
 ;
 ; f command ( -- )

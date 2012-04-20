@@ -503,7 +503,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			tst		rERR
 			jnz		errorFlash
 			;
-			; Compares successfully. Point reset vector to new code.
+			; Compares successfully. Point the reset vector at the new BSL.
 			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
 			; main-flash!
 			;
