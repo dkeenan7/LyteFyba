@@ -177,10 +177,10 @@ TIBEnd
 ; Must leave room for stack (about 36 bytes)
 
 ;
-; BSL-writer code in main-flash.
-; This code copies any existing calibration data from info-flash to the image of the new BSL
-; in main-flash, then erases info-flash and copies the new BSL there from its main-flash image.
-			ORG		$F800
+; Debugger code in main-flash.
+; If you change this to < $F000 you need to ensure JTAGstart is still >= $F000
+; so, as the initial value of the reset vector, it can still be changed to $1000 without an erase.
+			ORG		$F800				
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
 ; will call this when any bytes are received by the serial port, including "password" bytes.
@@ -320,20 +320,6 @@ currVersBSL
 			_mLOOP	#1,R15							; Decrement loop counter by 1, loop if non zero
 			ret
 
-;
-; Start of the actual debugger, when not started from the BSL
-; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
-;
-main:										; For IAR Embedded Workbench IDE debugger
-
-
-
-JTAGstart:	mov		#$280,SP
-			call	#initialise				; Do most of the initialisation
-;			br		#_updateInfoFlash		; Update info flash and establish a BSL
-			br		#$1000					; Branch to the start of the BSL for the readline loop
-											; We need an explicit u command to write a new BSL
-			
 DELAY_IF_NEEDED MACRO
 			_DO		#1390,R11			; Delay for approx ...
 			_LOOP	R11					;	... 1.04 ms
@@ -435,6 +421,25 @@ pauseL		dec		R12
 ; Command character definitions
 #include "debDefinitions.s43"
 
+;
+; Start of the actual debugger, when not started from the BSL
+; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
+;
+main:										; For IAR Embedded Workbench IDE debugger
+
+; This address (JTAGstart) is the initial value of the reset vector, and we need to change the
+; reset vector to $1000 once we have established a BootStrap Loader (BSL) there.
+; We want to do this without having to erase the reset vector, as we would have to erase the whole
+; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
+; Therefore JTAGstart must be in the range $F000 to $FFFF, not $E000 to $EFFF.
+
+JTAGstart:	mov		#$280,SP
+			call	#initialise				; Do most of the initialisation
+			br		#_updateInfoFlash		; Update info flash, establish a BSL and change the reset vector to point to it
+			br		#$1000					; Branch to the start of the BSL, for its readByte loop
+			
+
+
 ; The linker puts a checksum of the used code memory in the first available unused space,
 ; when asked for one.
 ; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
@@ -466,5 +471,4 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 			ORG		$FFFE			; The reset vector
 			dw		JTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
 									;	to it directly. For example, a new chip has no BSL at all.
-
 			END
