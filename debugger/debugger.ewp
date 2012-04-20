@@ -726,7 +726,7 @@
         </option>
         <option>
           <name>FillerByte</name>
-          <state>0x56</state>
+          <state>0xFF</state>
         </option>
         <option>
           <name>DoCrc</name>
@@ -908,7 +908,7 @@
         </option>
         <option>
           <name>CrcInitialValue</name>
-          <state>0x50</state>
+          <state>0x42</state>
         </option>
         <option>
           <name>XLibraryHeap20</name>

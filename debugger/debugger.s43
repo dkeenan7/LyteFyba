@@ -230,10 +230,10 @@ initialise:
 			; bottom of the link voltage divider, so we can test with paralleled boards,
 			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
 			mov.b	#TXDp,&P1OUT			; Turn off LED and bypass; set TXDp
-			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
+			mov.b	#LED+VREFp+TXDp+TXDm,&P1DIR ; Set LED, VREFp, and TX bits to output
 #else
-			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp
-			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set ActLED, P1.4, and TX bits to output
+			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
+			mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ActLED, VREFp, TX bits and PIEZO to output
 			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
@@ -246,10 +246,9 @@ initialise:
 			; Works for version 6 data or new chip, not other versions
 			mov.b	&info8MHzCalB,&BCSCTL1			; 8 MHz cal data from info-flash
 			mov.b	&info8MHzCalD,&DCOCTL
-			; Experiment with piezo on P1.0 driven by 3 kHz square wave
-;			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
-;			bis.b	#DIVA_2,&BCSCTL1		; Set ACLK = VLOCLK/4
-;			bis.b	#1,&P1SEL			; Select special function ACLK for P1.0
+			; Prepare ACLK for piezo drive -- 3 kHz square wave
+			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
+			bis.b	#DIVA_2,&BCSCTL1		; Set ACLK = VLOCLK/4 = 3 kHz
 
 			clr		rERR					; Clear error register
 
@@ -446,8 +445,8 @@ pauseL		dec		R12
 ;		Size: 1 byte, Alignment: 1
 ;		CRC Polynomial: 0x101
 ; 		Complement: As is
-;		Bit order: MSB first, Initial value: 0x56
-; The initial value of 0x56 is required because the reset vector of $F8AE at $FFFE is not transmitted
+;		Bit order: MSB first, Initial value: 0x42
+; The initial value of 0x42 is required because the reset vector of $F8BA at $FFFE is not transmitted
 ; and so the BSL does not include it in its checksum, but the linker does.
 ; If the reset vector changes, this initial value will need to be changed to keep it as
 ; the XOR of its two bytes.
