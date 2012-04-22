@@ -298,7 +298,7 @@ initialise:
 unknownVersBSL
 ; Version number is higher or lower than this BSL-writer knows about,
 ; so we should leave it alone and raise an error.
-			mov		#4,rERR
+			mov		#b'01010101,rERR			; 4 flashes
 			jmp		errorFlash
 			
 
@@ -386,36 +386,34 @@ justRet		ret
 
 
 ; ----------------------------------------------------------------------------
-; This error processing code should be near the middle of the image
-; !!! Needs cleaning up after removing 1 MHz option -- DCK
-errorFlash:	mov		rERR,R11
-			add		R11,R11					; Double
-			rla		R11
-			rla		R11						; And quadruple for 4 MHz
-			; ??? Should we clear R12 here? -- DCK
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte may have reset)
-errFlashLp	
+; errorFlash
+; Takes a 16 bit pattern in rERR and repeatedly flashes the error LED in that pattern
+; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
+; This error processing code should be near the middle of the image.
+errorFlash:	
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer (ReadByte may have reset it)
+			; We could end up here after the DCO calibration has been set to $FFFF,
+			;	so the processor could be running very fast.
+			mov.b	#$8D,&BCSCTL1				; Typical 8 MHz DCO calibration value
+			mov.b	#$81,&DCOCTL				;	so we can count the flashes
+			mov		rERR,R9
+			_BEGIN
+				mov		#16,R10					; Bit loop counter
+				rra		R9						; LSB into carry
+				subc.b	R11,R11					; Zero if carry was set, $FF otherwise
+				inv.b	R11
 #if PCBVERSION < 57
-			xor.b	#LED,&P1OUT				; The best we can do is freeze and flash LED
+				movBits_B R11,#LED,&P1OUT		; Trashes R11
 #else
-			xor.b	#ERRLED,&P2OUT			; The best we can do is freeze and flash ERRLED
+				movBits_B R11,#ERRLED,&P2OUT	; Trashes R11
 #endif
-delay		dec		R12
-			jnz		delay
-count		dec		R11
-			bit		#3,R11
-			jnz		delay					; Extra delays for 4 MHz
-			tst		R11
-			jnz		errFlashLp
-			;
-			; Pause between rErr flashes
-pause		mov		#20,R11
-pauseL		dec		R12
-			jnz		pauseL
-			dec		R11
-			jnz		pauseL
-			jmp		errorFlash
-
+				_DO		#8,R11					; 8 * 49 = 392 ms delay
+					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
+					_LOOP	R12
+				_LOOP	R11
+				dec		R10
+			_UNTIL	_Z							; Until 16 bits sent
+			jmp		errorFlash					; Infinite loop
 
 
 ; Command character definitions
@@ -435,8 +433,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
-			br		#_updateInfoFlash		; Update info flash, establish a BSL and change the reset vector to point to it
-			br		#$1000					; Branch to the start of the BSL, for its readByte loop
+			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
+											; vector to point to the BSL, then branch to it.
 			
 
 
