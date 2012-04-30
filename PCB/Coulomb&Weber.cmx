@@ -14,7 +14,7 @@ PIEZO||#BUZZER-17mm=2||@=
 R||#0805=2||@=||#1206=2||#2512=2||#0805 HV=2
 Schottky SOD123||#SOD123=2
 SMD capacitor 6.3mm dia||#SM=2
-Supercap||#DSCV=2||@=
+Supercap||#8mm=2||#DSCV=2||@=
 Terminal Phoenix 2.5mm 3way||#MISC=3
 TVS||#SM=3
 VREG||#SOT23-5=5||@=||@=||@=||@=||@=
