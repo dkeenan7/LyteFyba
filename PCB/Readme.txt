@@ -58,7 +58,8 @@ Press shift-"+" and enter 1780 into the X field and OK
 Panelisation Procedure
 ======================
 Copy or Save As the .pcb file to a suitable name
-Zoom out; leave room below; ensure all layers are visible
+Zoom out; leave room below; 
+Ensure all layers are visible
 Frame select the whole BMU including the squiggle-join cutouts above
 Deselect board outline by Ctrl-Shift-click; copy; paste
 When the Paste Net dialog comes up, select All No
@@ -66,6 +67,7 @@ Press shift-"+" and enter 0 into the X field and -1810 into the Y field. OK
 Click in space to deselect all
 Delete the IFO daughter-board tab from the copy.
 Apply the rotation procedure to the north (original) board only
+Make all layers visible
 Zoom out; select the two BMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 3620
 Zoom out; select all 4 BMUs; deselect outline; copy; paste; All No
