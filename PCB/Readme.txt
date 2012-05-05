@@ -1,7 +1,9 @@
 In February 2012, the PCB design documents for the Battery Management Units (BMUs)
 changed from Protel format to DesignSpark format. DesignSpark runs on Windows and
 is free, and can be downloaded from http://www.designspark.com/knowledge/pcb .
-Activation is required, free, and low pain.
+Versions of DesignSpark earlier than 3.0 can be run in Linux under Wine.
+Activation is required, free, and fairly low pain; just install and run the
+software, and follow the prompts.
 
 We want to keep the BMU-specific library files with the other design documents, so
 it's unfortunately necessary to do the following if you want to make detailed
