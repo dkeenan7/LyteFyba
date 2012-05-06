@@ -51,10 +51,11 @@ Context menu on the left cell-terminal pad and choose Group / Select Group
 Press R twice
 Press shift-"+" and enter 2440 into the X field and OK
 Click in space to deselect all
-Context menu in space and choose Pour Copper
 Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group
 Press F
 Press shift-"+" and enter 1780 into the X field and OK
+Click in space to deselect all
+Context menu in space and choose Pour Copper
 
 
 Panelisation Procedure
@@ -63,12 +64,14 @@ Copy or Save As the .pcb file to a suitable name
 Zoom out; leave room below; 
 Ensure all layers are visible
 Frame select the whole BMU including the squiggle-join cutouts above
-Deselect board outline by Ctrl-Shift-click; copy; paste
+Deselect board outline by Ctrl-Shift-click; Copy; Paste
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -1810 into the Y field. OK
 Click in space to deselect all
-Delete the IFO daughter-board tab from the copy.
+Delete the IFO daughter-board tab (a tight group) from the copy.
+Delete the mounting hole and its keepout circle (a tight group) from the original.
 Apply the rotation procedure to the north (original) board only
+Now is a good time for a design rule check.
 Make all layers visible
 Zoom out; select the two BMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 3620
@@ -77,5 +80,6 @@ Press shift-"+" and enter X = 0 and Y = 7240
 Zoom in near the top of the 8 BMUs
 Select around the top squiggle join; delete
 Remove dangling tracks and via at top and dangling tracks at bottom.
-Deselect all; Context menu in space Pour copper
+Deselect all; Context menu in space Pour copper (may not be necessary)
+Save. Output manufacturing plots.
 
