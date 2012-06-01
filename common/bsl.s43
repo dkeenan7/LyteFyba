@@ -99,7 +99,7 @@ mainBSLErase:
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-			mov		#$F800+2,R12	; Start of main flash +2. The +2 saves a 2-word compare at the end
+			mov		FLASH_START+2,R12	; Start of main flash +2. The +2 saves a 2-word compare at the end
 			mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
 			rra		@R12			; Dummy write: erase segments
 			

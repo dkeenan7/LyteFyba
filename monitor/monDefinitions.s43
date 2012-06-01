@@ -18,7 +18,8 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			xCODE	'k',checksumming,_checksumming
 			xor.b	#bChecksumming,&intFlags ; Toggle bChecksumming bit in intFlags
 			ret
-#if 0 // FIXME!!!
+
+#if FLASH_START < $F000		// Commented out if need to save space
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
 			mov		#'R',Rthd				; Type is Rx state
@@ -79,7 +80,7 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 						mov.b	#'\r',&worstBadMeas ; Carriage return for empty packet
 				ret
 			
-#if 0			// FIXME!!!
+#if FLASH_START < $F000		// Commented out if need to save space
 ; Alarm ( boolean -- )
 			xCODE	'a',Alarm,_Alarm
 	#if 1
