@@ -55,10 +55,7 @@
 ;   data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#define 	PCBVERSION  57			// Before ver 57 there was no Activity LED or Piezo. Different pinouts
-#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
-									// Turning it off doesn't work because BSL will still clear and restart
-									// the watchdog timer on every call to ReadByte.
+#include "../common/common.h"		// Common definitions such as FLASH_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 minLEDBad	EQU		1				; Minimum badness to light error LED
@@ -180,7 +177,7 @@ TIBEnd
 ; Debugger code in main-flash.
 ; If you change this to < $F000 you need to ensure JTAGstart is still >= $F000
 ; so, as the initial value of the reset vector, it can still be changed to $1000 without an erase.
-			ORG		$F800				
+			ORG		FLASH_START				
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
 ; will call this when any bytes are received by the serial port, including "password" bytes.
@@ -431,6 +428,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
 ; Therefore JTAGstart must be in the range $F000 to $FFFF, not $E000 to $EFFF.
 
+#if		FLASH_START < $F000
+		ORG		$F000
+#endif
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset

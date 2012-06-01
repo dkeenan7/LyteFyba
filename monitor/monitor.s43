@@ -6,6 +6,7 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
+#include "../common/common.h"				// Common definitions such as FLASH_START
 			LSTOUT+
 		
 			NAME	main		; Module name
@@ -33,7 +34,6 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define 	Rw		R8				// Working register - temporary - anyone can use
 
 ; Conditional assembly
-#define 	PCBVERSION  57			// Before ver 57 there was no Activity LED or Piezo. Different pinouts
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
@@ -142,7 +142,7 @@ TIBEnd
 ; Must leave room for stack (about 36 bytes)
 
 ;-------------------------------------------------------------------------------
-			ORG		$F800					; Reset vector points here
+			ORG		FLASH_START				; Reset vector points here
 ;-------------------------------------------------------------------------------
 
 main:										; For IAR Embedded Workbench IDE debugger
