@@ -4,4 +4,4 @@
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 									// Turning it off doesn't work because BSL will still clear and restart
 									// the watchdog timer on every call to ReadByte.
-#define		FLASH_START	$E000		// Start of flash memory. Always ends at $FFFF
+#define		FLASH_START	$F800		// Start of flash memory. Always ends at $FFFF
