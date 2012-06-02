@@ -53,11 +53,11 @@
         </option>
         <option>
           <name>DdfOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$TOOLKIT_DIR$\config\MSP430G2231.ddf</state>
+          <state>C:\Users\David Keenan\Documents\EV\celltopbmu\common\msp430g2452half.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>

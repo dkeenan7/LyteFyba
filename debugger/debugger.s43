@@ -428,7 +428,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
 ; Therefore JTAGstart must be in the range $F000 to $FFFF, not $E000 to $EFFF.
 
-#if		FLASH_START < $F000
+#if		FLASH_START < $F000		; Should be #if $ < $F000 but this is considered a forward reference
 		ORG		$F000
 #endif
 JTAGstart:	mov		#$280,SP
