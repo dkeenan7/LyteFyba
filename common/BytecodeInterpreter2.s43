@@ -94,7 +94,8 @@ MinusROT	MACRO
 ; It contains one word per bytecode from $60 to $7F, which is the address of the code that implements
 ; the operation.
 
-_OPCODETBL	EQU		$FFF0-$40				; Immediately below lowest used interrupt vector
+_OPCODETBL	EQU		$FFEC-$40				; Immediately below lowest used interrupt vector
+											; (FFEC is used for the JTAGstart "vector")
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.

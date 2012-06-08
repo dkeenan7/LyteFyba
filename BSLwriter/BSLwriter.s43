@@ -59,7 +59,7 @@
 ; The BSL serial input code does not check for false start bits or do majority voting on data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Common definitions such as FLASH_START and PCBVERSION
+#include "../common/common.h"		// Common definitions such as IMAGE_START and PCBVERSION
 
 CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
 									;	(all BMUs) in addition to BSL-programming
@@ -181,7 +181,7 @@ sampleBuf	ds		NumSamples*2	; Room for 4 or 16, 10-bit samples
 ; BSL-writer code in main-flash.
 ; This code copies any existing calibration data from info-flash to the image of the new BSL
 ; in main-flash, then erases info-flash and copies the new BSL there from its main-flash image.
-			ORG		FLASH_START
+			ORG		IMAGE_START
 ;
 ; We need a dummy interpret-byte here; the BSL will call this when
 ; any bytes are received by the serial port, including "password" bytes.
