@@ -99,9 +99,11 @@ mainBSLErase:
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-			mov		#$F000+2,R12	; Start of main flash +2. The +2 saves a 2-word compare at the end
+			mov		#BSL_IMAGE_START+2,R12	; Start of image in main flash +2.
+											; The +2 saves a 2-word compare at the end
+; FIXME: we are using a bulk erase here; eventually need a loop to erase only part of flash space
 			mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
-			rra		@R12			; Dummy write: erase segments
+			rra		@R12				; Dummy write: erase segments
 			
 			; Immediately replace reset vector to this boot loader
 			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
@@ -167,8 +169,9 @@ waitNextR	dec		R11				; (1) Delay loop
 testNoInterp
 			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
 			jnz		WriteByte		; Jump around call, if set
-			br		#interpretByte	; tail-call interpretByte in main flash
+			br		#jInterpretByte	; tail-call interpretByte in main flash
 									; It must preserve at least R8, Rstate(=R15)
+									; Get there via the IMAGE_START independent vector
 
 ; WriteByte ( R8 R11 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output. R11 must be clear on entry.

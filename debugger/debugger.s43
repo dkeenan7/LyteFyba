@@ -55,7 +55,7 @@
 ;   data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Common definitions such as FLASH_START
+#include "../common/common.h"		// Common definitions such as IMAGE_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 minLEDBad	EQU		1				; Minimum badness to light error LED
@@ -177,7 +177,7 @@ TIBEnd
 ; Debugger code in main-flash.
 ; If you change this to < $F000 you need to ensure JTAGstart is still >= $F000
 ; so, as the initial value of the reset vector, it can still be changed to $1000 without an erase.
-			ORG		FLASH_START				
+			ORG		IMAGE_START				
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
 ; will call this when any bytes are received by the serial port, including "password" bytes.
@@ -428,9 +428,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
 ; Therefore JTAGstart must be in the range $F000 to $FFFF, not $E000 to $EFFF.
 
-#if		FLASH_START < $F000		; Should be #if $ < $F000 but this is considered a forward reference
-		ORG		$F000
-#endif
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
@@ -466,7 +463,17 @@ freespace		EQU		_OPCODETBL-$
 spaceaspercent	EQU		BCD( (100*freespace)/2048)
 
 
+			ORG		$FFEC
+jJTAGstart:	br		#JTAGstart		; A branch to JTAGstart, independent of IMAGE_START
+			ORG		$FFF8
+jInterpretByte br	#interpretByte	; Likewise for interpretByte
 			ORG		$FFFE			; The reset vector
-			dw		JTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
+			dw		jJTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
 									;	to it directly. For example, a new chip has no BSL at all.
+									;	This happens in _updateInfoFlash (u command, also called directly)
+; We need to change the reset vector to $1000 once we have established a BootStrap Loader (BSL) there.
+; We want to do this without having to erase the reset vector, as we would have to erase the whole
+; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
+; But this is guaranteed, since jJTAGstart has a 1 in the same position as $1000 does.
+; This means that JTAGstart is no longer constrained to be above $F800
 			END

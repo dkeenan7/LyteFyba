@@ -6,7 +6,7 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
-#include "../common/common.h"				// Common definitions such as FLASH_START
+#include "../common/common.h"				// Common definitions such as IMAGE_START
 			LSTOUT+
 		
 			NAME	main		; Module name
@@ -142,7 +142,7 @@ TIBEnd
 ; Must leave room for stack (about 36 bytes)
 
 ;-------------------------------------------------------------------------------
-			ORG		FLASH_START				; Reset vector points here
+			ORG		IMAGE_START				; Reset vector points here
 ;-------------------------------------------------------------------------------
 
 main:										; For IAR Embedded Workbench IDE debugger
