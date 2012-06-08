@@ -175,8 +175,6 @@ TIBEnd
 
 ;
 ; Debugger code in main-flash.
-; If you change this to < $F000 you need to ensure JTAGstart is still >= $F000
-; so, as the initial value of the reset vector, it can still be changed to $1000 without an erase.
 			ORG		IMAGE_START				
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
@@ -421,12 +419,6 @@ errorFlash:
 ; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
 main:										; For IAR Embedded Workbench IDE debugger
-
-; This address (JTAGstart) is the initial value of the reset vector, and we need to change the
-; reset vector to $1000 once we have established a BootStrap Loader (BSL) there.
-; We want to do this without having to erase the reset vector, as we would have to erase the whole
-; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
-; Therefore JTAGstart must be in the range $F000 to $FFFF, not $E000 to $EFFF.
 
 JTAGstart:	mov		#$280,SP
 			call	#initialise				; Do most of the initialisation
