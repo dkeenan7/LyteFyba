@@ -5,7 +5,7 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and debugger
 												
-#if IMAGE_START < $F000							; Comment out if short of space
+#if IMAGE_START < $F800							; Comment out if short of space
 ;
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
 ; "channel" has channel number shifted left 12 bits.
@@ -192,8 +192,8 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BM
 ; we simply read the ID from the serial port, and echo the next ID downstream.
 
 			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
-											; Not echoed because of logic in dummyInterpretByte
-waitingIDAddr								; This address will be on the stack in dummyInterpretByte
+											; Not echoed because of logic in interpretByte
+waitingIDAddr								; This address will be on the stack in interpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
@@ -270,7 +270,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 failCompare mov		#3,rERR
 			jmp		errorFlash
 
-#if IMAGE_START < $F000			// Commented out when need to save space
+#if IMAGE_START < $F800			// Commented out when need to save space
 ;
 ; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
 ; When testing with BMUs powered up in parallel, link inputs are at +3.6 V.
@@ -311,7 +311,7 @@ failCompare mov		#3,rERR
 			ret
 #endif
 
-#if IMAGE_START < $F000		// Commented out if need to save space
+#if IMAGE_START < $F800		// Commented out if need to save space
 ;
 ; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
 ;
@@ -322,7 +322,7 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 #endif
 
-#if IMAGE_START < $F000		// Commented out if need to save space
+#if IMAGE_START < $F800		// Commented out if need to save space
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;
@@ -364,7 +364,7 @@ failCompare mov		#3,rERR
 		ret
 #endif
 
-#if IMAGE_START < $F000	// Commented out if need to save space
+#if IMAGE_START < $F800	// Commented out if need to save space
 ;
 ; Turn on or off bypass resistors ( bool -- )
 ;
