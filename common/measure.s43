@@ -33,8 +33,9 @@ measure:
 ;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/2
 			; We find that the below distributes noise particularly from SMCLK better, for more consistent
 			; ADC readings
-//			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
-			bis			#SHS_0+ADC10DIV_7+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/8
+			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
+// The below seems to cause the monitor to lose transmit characters, and doesn't seem to improve jitter
+//			bis			#SHS_0+ADC10DIV_7+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/8
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
@@ -182,7 +183,8 @@ linkV:
 			_IF			_EQ				; If link calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				mov			#LinkVChan<<12,R8	; Shifted ADC channel for link voltage divider
+				; In the below, add ADC10DIV_7, which forces the link measurement to use the slowest (/8) clock
+				mov			#LinkVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
 				call		#measAndScale
 				; Link voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.
