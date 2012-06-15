@@ -26,13 +26,15 @@ measure:
 
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
 			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
+            ; ADC10DIV_7 = divide input clock by 8 for ADC10CLK
 			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
 			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
 			; CONSEQ_0	= single channel single conversion
 ;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/2
 			; We find that the below distributes noise particularly from SMCLK better, for more consistent
 			; ADC readings
-			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
+//			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
+			bis			#SHS_0+ADC10DIV_7+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/8
 			mov			R8,&ADC10CTL1
 			
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
