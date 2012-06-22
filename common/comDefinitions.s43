@@ -50,16 +50,6 @@ dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
 		ret
 
 ;
-; EMIT ( c -- )	; Emit the character on top of stack
-;
-		xCODE	'm',EMIT,_EMIT
-		mov.b	Rtos,R8
-		call	#TX_Byte
-;		pop		Rtos
-;		DROP
-		ret
-
-;
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
 ;
 		xCODE	'x',eXclusive,_eXclusive

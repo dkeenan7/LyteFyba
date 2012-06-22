@@ -392,6 +392,17 @@ failCompare mov		#3,rERR
 			ret
 
 ;
+; EMIT ( c -- )	; Emit the character on top of stack
+;
+		xCODE	'm',EMIT,_EMIT
+		mov.b	Rtos,R8
+		call	#TX_Byte
+;		pop		Rtos
+;		DROP
+		ret
+
+
+;
 ; Toggle LED, TXDm, and TXDp with an 11 cycle loop,
 ; or 4000/2/11 = 181.8 kHz (@ 4 MHz) or 181.5 kHz (@ 9600*416 Hz).
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the

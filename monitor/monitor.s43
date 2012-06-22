@@ -6,8 +6,8 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
-#include "../common/common.h"				// Common definitions such as IMAGE_START
 			LSTOUT+
+#include "../common/common.h"				// Common definitions such as IMAGE_START
 		
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible
@@ -73,7 +73,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
-txsz		EQU		4				; Transmit queue size. Must be a power of 2 no greater than 256
+txsz		EQU		8//FIXME				; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped badness to less than one a minute
 
 ; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
@@ -145,6 +145,7 @@ TIBEnd
 			ORG		IMAGE_START				; Reset vector points here
 ;-------------------------------------------------------------------------------
 
+interpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
 			mov.w	#$280,SP				; Initialize stackpointer
 #if !WATCHDOG
@@ -568,6 +569,20 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
+            ; This table was ORG'd at $FF04 to save space earlier. Now we need $FFF8 for a jump to what the BSL
+            ; thinks will be interpretByte, but is in fact our main
+			; Encoded badness table. The badness information is transmitted in one byte,
+			; with no checksum correction. To counter this, badness is encoded, so that only
+			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
+			; are treated as a corrupted attempt to send badness information; current badness
+			; for this BMU is sent instead.
+			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
+			; the encoded badness byte).
+badnessTable DB		$80					; $80 is least badness
+			DB		$91,$A2,$B3,$C4,$D5,$E6
+			DB		$F7					; $F7 is the worst badness
+
+
 ; The linker puts a checksum of the used code memory in the first available unused space,
 ; when asked for one.
 ; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
@@ -601,18 +616,11 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 			ORG		0FFF0h				; Timer A Vectors
 			DW		RX_TIOV_ISR			; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
+	
 			
-			; Encoded badness table. The badness information is transmitted in one byte,
-			; with no checksum correction. To counter this, badness is encoded, so that only
-			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
-			; are treated as a corrupted attempt to send badness information; current badness
-			; for this BMU is sent instead.
-			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
-			; the encoded badness byte).
-badnessTable DB		$80					; $80 is least badness
-			DB		$91,$A2,$B3,$C4,$D5,$E6
-			DB		$F7					; $F7 is the worst badness
-			
+			ORG		$FFF8
+jInterpretByte:
+            br      #interpretByte      ; BSL will call here expecting interpretByte
 			ORG		0FFFEh				; MSP430 RESET Vector
 			DW		0x1000				; Reset to BSL in case there is a crash
 
