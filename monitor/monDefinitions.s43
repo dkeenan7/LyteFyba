@@ -28,12 +28,14 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
+#if IMAGE_START < $F000
 ; Badness ( -- )
 			xCODE	'b',Badness,_Badness
 			mov		#'B',Rthd				; Type is badness
 			mov.b	&localBadness,Rsec		; Result in badness levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+#endif
 
 ; Query worst badness ( -- )
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
@@ -97,3 +99,4 @@ BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-b
 	#endif
 			ret
 #endif
+
