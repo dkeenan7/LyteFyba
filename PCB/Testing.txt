@@ -1,0 +1,13 @@
+                           Testing Procedure for New BMUs
+                           ==============================
+
+1) Prepare the power supply with about 3.58 V and perhaps 1A of current limit.
+2) Connect power to each BMU. Have a multimeter on 10A range monitoring current. As each BMU is clipped on,
+it should draw around 0.25 A charging the supercapacitor. If the red LED lights, suspect a short from pins 1 to 4
+of the LED.
+3) For each BMU, JTAG the debugger program into it. For maximum speed, use ^D to start the debugger and
+flash the chip, use mouse button hovered over the break toolbar button (hand icon) to break, note 0x10FF going
+from $86 to $06, use Ctrl-shift-D to exit the debugger. The memory window should be open at $10F0.
+4) When all 8 BMUs are flashed, connect comms and run TeraTerm. Often, comms won't get through all the boards
+(no echo on Teraterm). Use Del chars and see how far the blue flashes go. Use "u" chars and a DSO on the north west
+corner of the opto to make sure the comms chars look clean and slightly rounded. 
