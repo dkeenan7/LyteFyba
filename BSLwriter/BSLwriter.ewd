@@ -57,7 +57,7 @@
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>C:\Users\David Keenan\Documents\EV\celltopbmu\common\msp430g2452half.ddf</state>
+          <state>$PROJ_DIR$\..\common\msp430g2452half.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>

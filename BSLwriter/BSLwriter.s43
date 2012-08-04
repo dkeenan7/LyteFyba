@@ -71,8 +71,8 @@ CALVOLTS	EQU		3600			; Put the exact test voltage (in millivolts) here
 CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
-FORCEFCAL	EQU		0				; 1 to force 8 MHz calibration frequency
-FREQCAL		EQU		$8D8B			; Value to force 8 MHz frequency calibration to
+FORCEFCAL	EQU		1				; 1 to force 8 MHz calibration frequency
+FREQCAL		EQU		$8D99			; Value to force 8 MHz frequency calibration to
 FREQ4TO8	EQU		$3B				; Subtract from low byte of 4 MHz DCO cal to estimate 8 MHz cal
 ADCBUF		EQU		0				; 0 for no ADC sample buffer; 1 for buffer
 
@@ -677,7 +677,8 @@ delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 ;	BSLWriter.bin
 ;	Output format: raw-binary
 
-
+			ORG		$FFF8
+jInterpretByte br	#interpretByte	; The BSL needs this vector
 			ORG		$FFFE			; The reset vector
 ;			dw		$1000			; If this BSL-writer is bootstrap-loaded
 									; the reset vector will remain pointing to the BSL

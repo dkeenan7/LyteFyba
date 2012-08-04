@@ -243,7 +243,6 @@ initialise:
 			mov.b	&info8MHzCalD,&DCOCTL
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
-			bis.b	#DIVA_2,&BCSCTL1		; Set ACLK = VLOCLK/4 = 3 kHz
 
 			clr		rERR					; Clear error register
 
@@ -304,6 +303,7 @@ newChip
 			mov.w	#$FFFF,&ramVoltCal
 			mov.w	#$FFFF,&ramTempCal			; Includes ramLinkCal
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
+			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
 			ret
 			
