@@ -322,12 +322,26 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 #endif
 
-#if IMAGE_START < $F800		// Commented out if need to save space
+#if 0 && IMAGE_START < $F800		// Commented out if need to save space
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;
-			xCODE	'o',stOreWord,_stOreWord
+			xCODE	'O',stOreWord,_stOreWord
 			mov.w	Rsec,0(Rtos)
+			ret
+
+;
+; Change Octave of piezo alarm.
+;
+			xCODE	'o',octave,_octave
+			mov.b	&ram8MHzCalD+1,R8
+			mov.b	R8,R9
+			bic		#$30,R9					; Clear the octave bits (bits 5 and 4)
+			add		#$10,R8					; Next octave
+			and		#$30,R8					; Just the octave bits
+			or		R8,R9					; New value in R9
+			mov.b	R9,&ram8MHzCalD+1		; Update RAM
+			mov.b	R9,&BCSCTL1				; Make it "live"
 			ret
 
 ;
