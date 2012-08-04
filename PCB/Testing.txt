@@ -1,7 +1,9 @@
                            Testing Procedure for New BMUs
                            ==============================
 
-1) Prepare the power supply with about 3.58 V and perhaps 1A of current limit.
+
+1) Prepare the power supply with about 3.58 V and perhaps 1A of current limit. Set DSO to 1V/Div, 100uS/div,
+normal trigger, trigger at about 1.7 V.
 2) Connect power to each BMU. Have a multimeter on 10A range monitoring current. As each BMU is clipped on,
 it should draw around 0.25 A charging the supercapacitor. If the red LED lights, suspect a short from pins 1 to 4
 of the LED.
@@ -10,4 +12,19 @@ flash the chip, use mouse button hovered over the break toolbar button (hand ico
 from $86 to $06, use Ctrl-shift-D to exit the debugger. The memory window should be open at $10F0.
 4) When all 8 BMUs are flashed, connect comms and run TeraTerm. Often, comms won't get through all the boards
 (no echo on Teraterm). Use Del chars and see how far the blue flashes go. Use "u" chars and a DSO on the north west
-corner of the opto to make sure the comms chars look clean and slightly rounded. 
+corner of the opto to make sure the comms chars look clean and slightly rounded.
+5) When you get echo, use the I command to set the IDs. Send the $80'lw command to turn off link voltage measurement
+for all BMUs. IMPORTANT: use the 'u' command to update these changes.
+6) For each BMU:
+  a) Use the nnx command to address the BMU on its own
+  b) Use the nnnn'vc command to calibrate the voltage. Check that the calibration value is in the ranges
+     -31500 to -32768 or 31500 to 32767. Check the voltage reading with 'v'.
+  c) Use the nn'tc command to calibrate the temperature. Check with 't'.
+  d) Use 1y to turn on bypass. Current should go to 0.40 A, yellow LED should light.
+  e) Use 0y1e to turn on error. Red LED should light, piezo should sound.
+  f) If the piezo is too quiet, use the 'o' command to change octaves. Repeat if necessary.
+     Use 0e to turn off the error alarm.
+  g) Update with the 'u' command. Note: there will probably be some strange characters emitted as following BMUs
+     are reset.
+  e) Type ESC and return to exit the x command (actually only for BMUs before the currently updated one).
+
