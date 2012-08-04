@@ -28,7 +28,8 @@ k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective o
 l l LinkVoltage
 m m e(M)itCharacter
 n n emit(N)um
-  o StOre wOrd (poke wOrd) [disabled to save space]
+  o Change Octave of piezo alarm
+  O StOre wOrd (poke wOrd) [disabled to save space]
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
