@@ -2,29 +2,51 @@
                            ==============================
 
 
-1) Prepare the power supply with about 3.58 V and perhaps 1A of current limit. Set DSO to 1V/Div, 100uS/div,
-normal trigger, trigger at about 1.7 V.
-2) Connect power to each BMU. Have a multimeter on 10A range monitoring current. As each BMU is clipped on,
-it should draw around 0.25 A charging the supercapacitor. If the red LED lights, suspect a short from pins 1 to 4
-of the LED.
-3) For each BMU, JTAG the debugger program into it. For maximum speed, use ^D to start the debugger and
-flash the chip, use mouse button hovered over the break toolbar button (hand icon) to break, note 0x10FF going
-from $86 to $06, use Ctrl-shift-D to exit the debugger. The memory window should be open at $10F0.
-4) When all 8 BMUs are flashed, connect comms and run TeraTerm. Often, comms won't get through all the boards
-(no echo on Teraterm). Use Del chars and see how far the blue flashes go. Use "u" chars and a DSO on the north west
-corner of the opto to make sure the comms chars look clean and slightly rounded.
-5) When you get echo, use the I command to set the IDs. Send the $80'lw command to turn off link voltage measurement
-for all BMUs. IMPORTANT: use the 'u' command to update these changes.
-6) For each BMU:
-  a) Use the nnx command to address the BMU on its own
-  b) Use the nnnn'vc command to calibrate the voltage. Check that the calibration value is in the ranges
-     -31500 to -32768 or 31500 to 32767. Check the voltage reading with 'v'.
-  c) Use the nn'tc command to calibrate the temperature. Check with 't'.
-  d) Use 1y to turn on bypass. Current should go to 0.40 A, yellow LED should light.
-  e) Use 0y1e to turn on error. Red LED should light, piezo should sound.
-  f) If the piezo is too quiet, use the 'o' command to change octaves. Repeat if necessary.
-     Use 0e to turn off the error alarm.
-  g) Update with the 'u' command. Note: there will probably be some strange characters emitted as following BMUs
-     are reset.
-  e) Type ESC and return to exit the x command (actually only for BMUs before the currently updated one).
-
+0) Prepare the power supply with between 3.40 and 3.48 V and about 1A of current
+limit. Have a multimeter on 10A range monitoring current. Set DSO to 1V/Div,
+100uS/div, normal trigger, trigger at about 1.7 V.
+1) Connect power to each BMU. As each BMU is clipped on, it should draw around
+0.25 A charging the supercapacitor, but it's not worth looking for this. If the
+red LED lights, suspect a short from pins 1 to 4 of the LED.
+2) For each BMU, check the voltage across the JTAG port. It should read between
+2.47 and 2.53 V.
+3) For each BMU, JTAG the debugger program into it. Use ^D to start the debugger
+and flash the chip. The memory window should be open at $10F0; note $86 or $87
+at 0x10FF. Start the program (F5), break. Keyboard users should use the mouse
+button hovered over the break toolbar button (hand icon), since there is no
+keyboard command for break.Note 0x10FF going to $06. Re-run the program, and
+exit the debugger  (Ctrl-shift-D). 
+4) When all 8 BMUs are JTAGed, connect comms and run TeraTerm. Sometimes, comms
+won't get through all the boards (no echo on Teraterm). Use Del chars and see how
+far the blue flashes go. Whether you get echo or not, use "U" chars and a DSO on
+the north west corner of the opto to make sure the comms chars look clean and
+slightly rounded.
+5) When you get echo, use the I command to set the IDs. Send the 0'lw command to
+turn on link voltage measurement for all BMUs, if needed. IMPORTANT: use the 'u'
+command to update these changes.
+6) Use the v command to check that the last ID is correct, and that all blue LEDs
+are working. 
+7) For each BMU:
+  a) Use the <nn>x command to address the BMU on its own
+  b) Use the v command to verify that only the current BMU's blue light comes on.
+     If not, escape enter and re-do the x command.
+  c) Use the <nnnn>'vc command to calibrate the voltage. Check that the calibration
+     value is in the ranges -31500 to -32768 or 31500 to 32767. Check the voltage
+     reading with 'v'.
+  d) Use the <nn>'tc command to calibrate the temperature. Check with 't'.
+  e) Use the l command to read link voltage; it should read 1500 +- 100. You may
+     need 0p.
+  f) Short the LI (Link In) pin to ground and run another l command. It should
+     read -500 +- 100.
+  g) Use 1y to turn on bypass. Current should go to 0.35-0.39 A, yellow LED should
+     light.
+  h) Use 0y1e to turn on error. Red LED should light, piezo should sound.
+  i) If the piezo is too quiet, use the 'o' command to change octaves. Repeat if
+     necessary. Use 0e to turn off the error alarm.
+  j) Update with the 'u' command. Note: there will probably be some strange
+     characters emitted as following BMUs are reset.
+  k) Type ESC to exit the x command (actually only for BMUs before the
+     currently updated one).
+8) Test the break on reset with 1e then alt-B (send break)
+9) Turn off the power supply; use 1e to discharge the supercaps (will take
+minutes).
