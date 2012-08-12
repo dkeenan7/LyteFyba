@@ -354,30 +354,6 @@ failCompare mov		#3,rERR
 #endif
 			
 			
-#if 1 // Assembly of 'e' command can be turned off if desperate for space		
-;
-; Turn on or off the error LED (bool -- )
-;
-		xCODE	'e',errorLed,_errorLed
-#if PCBVERSION < 57
-		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#LED,&P1OUT ; Move only the #LED bit from Rtos to &P1OUT. Trashes Rtos.
-#else
-		tst		Rtos
-		_IF		_Z
-			bic.b	#ERRLED,&P2OUT			; Turn off the error LED
-			bic.b	#PIEZO,&P1SEL			; Short out the piezo
-		_ELSE
-			bis.b	#ERRLED,&P2OUT			; Turn on the error LED
-			bis.b	#PIEZO,&P1SEL			; Make the piezo squeal
-		_ENDIF
-#endif
-
-;		pop		Rtos				; Remove operand
-		ret
-#endif
-
 #if IMAGE_START < $F800	// Commented out if need to save space
 ;
 ; Turn on or off bypass resistors ( bool -- )
