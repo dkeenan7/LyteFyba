@@ -7,8 +7,7 @@
 ;
 ; Kill badness sending ( boolean -- )	; 1 for no badness, 0 for badness
 ;
-			xCODE	'}',BadnessAutonomy_,_BadnessAutonomy
-BadnessAutonomy	EQU		'K'					; Interpreter treats K as synonym for right-curly-brace
+			xCODE	'K',BadnessAutonomy,_BadnessAutonomy
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bNotSendBad,&monFlags ; Move only bNotSendBad bit from Rtos to monFlags
 			ret
