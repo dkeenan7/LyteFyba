@@ -15,7 +15,7 @@ and flash the chip. The memory window should be open at $10F0; note $86 or $87
 at 0x10FF. Start the program (F5), break. Keyboard users should use the mouse
 button hovered over the break toolbar button (hand icon), since there is no
 keyboard command for break.Note 0x10FF going to $06. Re-run the program, and
-exit the debugger  (Ctrl-shift-D). 
+exit the debugger  (Ctrl-shift-D).
 4) When all 8 BMUs are JTAGed, connect comms and run TeraTerm. Sometimes, comms
 won't get through all the boards (no echo on Teraterm). Use Del chars and see how
 far the blue flashes go. Whether you get echo or not, use "U" chars and a DSO on
@@ -25,7 +25,7 @@ slightly rounded.
 turn on link voltage measurement for all BMUs, if needed. IMPORTANT: use the 'u'
 command to update these changes.
 6) Use the v command to check that the last ID is correct, and that all blue LEDs
-are working. 
+are working.
 7) For each BMU:
   a) Use the <nn>x command to address the BMU on its own
   b) Use the v command to verify that only the current BMU's blue light comes on.
@@ -47,6 +47,9 @@ are working.
      characters emitted as following BMUs are reset.
   k) Type ESC to exit the x command (actually only for BMUs before the
      currently updated one).
-8) Test the break on reset with 1e then alt-B (send break)
-9) Turn off the power supply; use 1e to discharge the supercaps (will take
+8) Test break-to-reset with 1e then alt-B (send break). All red LEDs should go off.
+9) Test for false break-to-reset with 1e then using TeraTerm's Send File command
+   in binary mode and with no delays between characters, to send the file "PCB/NullsTest.txt".
+   All red LEDs should stay on. Use 0e to turn them off.
+10) Turn off the power supply; use 1e to discharge the supercaps (will take
 minutes).
