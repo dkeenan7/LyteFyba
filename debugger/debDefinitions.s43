@@ -429,8 +429,11 @@ jBurstLp	br		#burstLp				;	(alt2 3)
 ;			This is to test for false positives on the break-to-reset circuitry of the following BMU.
 ;
 			xCODE	'z',sendNulls,_sendNulls ; 'z' for send Zeros
-			mov.b	$00,R8					; Null to be sent
-			clr		R11						; Required by BSL WriteByte to save space
+			mov		#100,R11					; Ensure a proper stop bit
+bitDelay	dec		R11						
+			jnz		bitDelay				; Also clears R11 which is required by BSL WriteByte to save space
+
+			mov.b	#$00,R8					; Null to be sent
 			call	#WriteByte				; Send the null
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
