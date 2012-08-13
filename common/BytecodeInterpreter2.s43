@@ -136,12 +136,28 @@ _NEXT
 _RUN	rla.b	Rw			; Multiply bytecode by 2
 FncOPCD mov _OPCODETBL-(_LOW_OPCODE*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
 							;	the code address
-		cmp		#$FFFF,Rw	; Check for undefined bytecodes
-		jne		FncLIT		; If undefined and >= _LOW_OPCODE
-							;   Attempt to interpret undefined bytecodes as hex/decimal digits,
-							;     otherwise treat them as literal-separating no-ops.
+
+		cmp		#$FFFF,Rw	; Check for undefined bytecodes, either $FFFF or $0000
+		jge		DoUNDEF		; Note: Will fail on processors with > 32K of flash and code below $8000
 							
-DoUNDEF	sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
+FncLIT	tst		SR			; Check for an implied push-literal
+		jge		DoOPCD		; If there's an operand-in-progress
+							;	there's an implied LIT now
+		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
+;		push	Rtos		;	Push the operand now, before doing the
+;		mov		Rlit,Rtos	;	operation
+		DPUSH	Rlit
+
+DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
+							; It must end with an RET
+		jmp		_NEXT
+
+
+DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
+		; otherwise treat them as literal-separating no-ops.
+        dec		Rip			; Decrement the instruction pointer to
+		mov.b	@Rip+,Rw	;  re-fetch the bytecode
+        sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		jn		NotDigit	; Ignore undefined bytecodes below '0'
 		cmp.b	#$0A,Rw
 		_IF		_GE
@@ -173,19 +189,7 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 DatEnd4 jmp		_NEXT		; Endif
 		
 NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
-
-FncLIT	tst		SR			; Check for an implied push-literal
-		jge		DoOPCD		; If there's an operand-in-progress
-							;	there's an implied LIT now
-		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
-;		push	Rtos		;	Push the operand now, before doing the
-;		mov		Rlit,Rtos	;	operation
-		DPUSH	Rlit
-
-DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
-							; It must end with an RET
-		jmp		_NEXT
-
+		jmp		FncLIT
 
 
 ;-------------------------------------------------------------------------------
