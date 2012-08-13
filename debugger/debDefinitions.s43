@@ -306,7 +306,7 @@ failCompare mov		#3,rERR
 ;
 ; ZtoreByte - store a byte (a la CStore) ( ch addr -- )
 ;
-			xCODE	'z',ZtoreByte,_ZtoreByte
+			xCODE	'Z',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
 #endif
@@ -421,3 +421,20 @@ burstLp		xor.b	#TXDp+ACTLED+TXDm,&P1OUT ; (5) Toggle all 3 bits
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			ret
 jBurstLp	br		#burstLp				;	(alt2 3)
+
+
+;
+; send Nulls ( n -- )	; n is the number of nulls to send without a gap
+;			Only low byte of n is used. Max of 256 nulls when n is zero.
+;			This is to test for false positives on the break-to-reset circuitry of the following BMU.
+;
+			xCODE	'z',sendNulls,_sendNulls ; 'z' for send Zeros
+			mov.b	$00,R8					; Null to be sent
+			clr		R11						; Required by BSL WriteByte to save space
+			call	#WriteByte				; Send the null
+#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
+#endif
+			dec.b 	Rtos					; Do it n times, max 256 when n is zero
+			jnz		_sendNulls
+			ret

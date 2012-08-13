@@ -1,6 +1,6 @@
 List of single-character commands implemented in either the monitor or the debugger or both.
 
-In ASCII order:
+In ASCII/alphabetical order:
 
 M D
 o e
@@ -11,8 +11,7 @@ t g Name or description
 <ESC> ESCape from eXclusive mode
 $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
-K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
-` ` characterLiteral (not to be typed. Single-quote ' is converted to grave ` internally)
+- - change-sign (postfix negate)
   a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 b   Badness (local to each BMU)
@@ -24,6 +23,7 @@ e e ErrorLED
 h h Hex output
   i set(I)Ds
   j JumpToSubroutine (call) [disabled to save space]
+K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 l l LinkVoltage
 m m e(M)itCharacter
@@ -42,12 +42,10 @@ v v cell(V)oltage
   w WriteCalValue
 x x e(X)clusive     (singleBMU interaction mode)
   y b(Y)pass (Yellow)
-  z Ztore byte (poke byte)
+  Z Ztore byte (poke byte)
+  z send nulls (send (Z)eros)
 {   resetWorstBadness :-{
-| | exit or comment
-}   KillBadnessSending (not to be typed. Uppercase 'K' is converted to '}' internally)
-~ ~ change-sign (postfix negate)
-<DEL> (not to be typed. '$' is converted to <DEL> internally)
+\ \ exit or comment
 
 In logical groupings:
 
@@ -59,11 +57,12 @@ t g Name or description
 --------------------------------------------
 ' ' characterLiteral
 m m e(M)itCharacter
+  z send nulls (send (Z)eros)
 
 $ $ dollarHex (set number input mode to hex for next literal)
 d d Decimal output
 h h Hex output
-~ ~ change-sign (postfix negate)
+- - change-sign (postfix negate)
 n n emit(N)um       was e(M)itDec
 
 e e ErrorLED
@@ -81,7 +80,7 @@ b   Badness
 s s Select
 x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
-| | exit or comment
+\ \ exit or comment
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
@@ -90,9 +89,9 @@ q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
 {   resetWorstBadness :-{
 
   j JumpToSubroutine (call) [disabled to save space]
-  z Ztore byte (poke byte)
+  Z Ztore byte (poke byte)
   g Get byte   (peek byte)
-  o St(O)re word (poke word) [disabled to save space]
+  O St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
 
   f FrequencyBurst (puts MCLK/22 = 181.5 kHz on TX+, TX- and activity LED)
