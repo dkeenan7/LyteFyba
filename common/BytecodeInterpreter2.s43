@@ -91,11 +91,13 @@ MinusROT	MACRO
 ; Opcode-table Macros
 
 ; The opcode lookup table is in high memory.
-; It contains one word per bytecode from $60 to $7F, which is the address of the code that implements
-; the operation.
+; It contains one word per bytecode from $21 to $7F.
+; That word is the address of the code that implements the operation.
 
-_OPCODETBL	EQU		$FFEC-$40				; Immediately below lowest used interrupt vector
-											; (FFEC is used for the JTAGstart "vector")
+_LOW_OPCODE	EQU	' '+1						; Lowest definable opcode is the char after space
+
+_OPCODETBL	EQU	$FFEC-(2*($80-_LOW_OPCODE))	; Table ends immediately below lowest used
+											; interrupt vector (FFEC is used for the JTAGstart "vector")
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.
@@ -109,7 +111,7 @@ xCODE	MACRO	OPCODE,OPCODENAM,_ADDRLBL
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
 OPCODENAM EQU	OPCODE						; Define the opcode name
-		ORG		_OPCODETBL-($60*2)+(OPCODE)*2	; Point to correct opcode-table entry
+		ORG		_OPCODETBL-(_LOW_OPCODE*2)+(OPCODE)*2	; Point to correct opcode-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
@@ -120,16 +122,6 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 ;-------------------------------------------------------------------------------
 ; The inner (bytecode) interpreter
 
-; Some bytecodes below $60 need to be translated into the range $60 to $7F
-; so they can have an opcode table entry.
-		ALIGN	1
-translateTable
-		DB		'K' , '}'		; Shift-K (for Kill Badness Sending) becomes right curly brace
-		DB		'\'', '`'		; Tick (single-quote) (for character literal) becomes tock (back-quote)
-		DB		'$' , $7F		; Dollar sign (for hex number literal) becomes <DEL>
-		DB		'\\', '|'		; Slosh (backslash) (for comment or EXIT) becomes vertical bar
-sizeTranslateTable	EQU	$-translateTable
-
 ; Bytecode interpreter for 7 bit bytecodes
 _ENTER
 _NEXT	
@@ -138,44 +130,18 @@ _NEXT
 #endif
 		mov.b	@Rip+,Rw	; Fetch the next bytecode
 		
-		; Do the bytecode translations using the table above
-		mov		#sizeTranslateTable,R9 ; Initialise the loop counter and table index
-		_BEGIN				; Begin loop
-			mov.w	translateTable-2(R9),R10 ; Get two bytes from the table
-			cmp.b	R10,Rw		; Compare the bytecode with the low byte from the table
-			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
-				decd	R9			; Decrement loop-counter/table-index by 2
-		_UNTIL	_Z			; Until loop counter is zero
-			_ELSE				; Else there is a match so
-				swpb	R10			; Get the high byte from the table
-				mov.b	R10,Rw		; Substitute it for the bytecode
-			_ENDIF				; Endif match
-
-		cmp.b	#$60,Rw		; Treat all bytecodes other than `a-z{|}<DEL>
-		jlo		DoUNDEF		;	as undefined, and try to interpret as digits
+		cmp.b	#_LOW_OPCODE,Rw	; Treat all undefinable bytecodes, including space,
+		jlo		NotDigit	; as literal-separator no-ops
 		
 _RUN	rla.b	Rw			; Multiply bytecode by 2
-FncOPCD mov _OPCODETBL-($60*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
+FncOPCD mov _OPCODETBL-(_LOW_OPCODE*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
 							;	the code address
 		cmp		#$FFFF,Rw	; Check for undefined bytecodes
-		jne		FncLIT		; If undefined and >= $60
-NotDigit mov	#_Space,Rw	;	Treat as literal-separator no-op
-
-FncLIT	tst		SR			; Check for an implied push-literal
-		jge		DoOPCD		; If there's an operand-in-progress
-							;	there's an implied LIT now
-		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
-;		push	Rtos		;	Push the operand now, before doing the
-;		mov		Rlit,Rtos	;	operation
-		DPUSH	Rlit
-
-DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
-							; It must end with an RET
-		jmp		_NEXT
-
-DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
-		; otherwise treat them as literal-separating no-ops.
-		sub.b	#'0',Rw	; '0'-'9','A'-'F' -> $0-$9,$11-$16
+		jne		FncLIT		; If undefined and >= _LOW_OPCODE
+							;   Attempt to interpret undefined bytecodes as hex/decimal digits,
+							;     otherwise treat them as literal-separating no-ops.
+							
+DoUNDEF	sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		jn		NotDigit	; Ignore undefined bytecodes below '0'
 		cmp.b	#$0A,Rw
 		_IF		_GE
@@ -205,6 +171,21 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		_ENDIF				; Endif
 		add		Rw,Rlit		;	Add data into operand reg
 DatEnd4 jmp		_NEXT		; Endif
+		
+NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
+
+FncLIT	tst		SR			; Check for an implied push-literal
+		jge		DoOPCD		; If there's an operand-in-progress
+							;	there's an implied LIT now
+		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
+;		push	Rtos		;	Push the operand now, before doing the
+;		mov		Rlit,Rtos	;	operation
+		DPUSH	Rlit
+
+DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
+							; It must end with an RET
+		jmp		_NEXT
+
 
 
 ;-------------------------------------------------------------------------------

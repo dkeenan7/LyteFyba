@@ -6,8 +6,7 @@
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
 ; Causes any characters following to be treated as comments only (Forth "\").
 
-		xCODE	'|',EXIT_,_EXIT
-EXIT	EQU		'\\'		; Interpreter treats slosh (backslash) as synonym for vertical bar
+		xCODE	'\\',EXIT,_EXIT	; Slosh (backslash)
 		incd	SP			; Drop the return address within the interpreter
 		ret					; Return to whoever called the interpreter (_ENTER)
 		
@@ -26,26 +25,22 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
 ; Treat the next character in a command sequence as a literal character.
 
-		xCODE	'`',CLIT_,_CLIT
-CLIT	EQU		'\''			; Interpreter treats tick (single-quote) as synonym for tock
+		xCODE	'\'',CLIT,_CLIT	; Tick (single-quote)
 ;		PUSH	Rtos
 ;		MOV.B	@Rip+,Rtos
 		DPUSHb	@Rip+
 		ret
 
-#if 0 // FIXME!!!
 ; changeSign ( n -- -n )
 ;
-		xCODE	'~',changeSign,_changeSign
+		xCODE	'-',changeSign,_changeSign	; Postfix unary minus
 		inv		Rtos
 		inc		Rtos
 		ret
-#endif
 
 ; dollarHex ( -- )
 ;
-		xCODE	$7F,dollarHex_,_dollarHex	; $ gets converted to <DEL> for starting hex number input
-dollarHex	EQU	'$'							; Interpreter treats dollar-sign as synonym for <DEL>
+		xCODE	'$',dollarHex,_dollarHex	; $ for starting hex number input
 		bis		#1<<14,SR					; Set the hex flag
 		ret
 
