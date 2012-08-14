@@ -242,7 +242,7 @@ initialise:
 			mov.b	&info8MHzCalB,&BCSCTL1			; 8 MHz cal data from info-flash
 			mov.b	&info8MHzCalD,&DCOCTL
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
-			mov.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
+			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 
 			clr		rERR					; Clear error register
 

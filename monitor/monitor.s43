@@ -162,6 +162,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
 			mov.b	&MHz8CalB,&BCSCTL1		; 8 MHz DCO cal data
 			mov.b	&MHz8CalD,&DCOCTL
+			; Prepare ACLK for piezo drive -- 3 kHz square wave
+			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 
 ;
 ;	Initialise timer and interrupt comms
