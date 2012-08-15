@@ -1,6 +1,6 @@
 			COL		150			; Wide listings
 			
-#define COUNTCKSM 1							// 1 to count checksum errors instead of badness
+#define COUNTCKSM 0							// 1 to count checksum errors instead of badness
 
 			LSTOUT-
 #include "msp430.h"
