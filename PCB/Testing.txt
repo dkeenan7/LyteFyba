@@ -41,15 +41,17 @@ are working.
   g) Use 1y to turn on bypass. Current should go to 0.35-0.39 A, yellow LED should
      light.
   h) Use 0y1e to turn on error. Red LED should light, piezo should sound.
-  i) If the piezo is too quiet, use the 'o' command to change octaves. Repeat if
-     necessary. Use 0e to turn off the error alarm.
+  i) Put a DSO lead on the active piezo pin and use Measure mode to find the piezo 
+     frequency. Use the 'o' for 'octave' command, repeated as necessary, to place 
+     the piezo frequency in one of two ranges: 1.2 to 1.6 kHz or 3.2 to 4.8 kHz. 
+     Use 0e to turn off the error alarm.
   j) Update with the 'u' command. Note: there will probably be some strange
      characters emitted as following BMUs are reset.
   k) Type ESC to exit the x command (actually only for BMUs before the
      currently updated one).
 8) Test break-to-reset with 1e then alt-B (send break). All red LEDs should go off.
 9) Test for false break-to-reset with 1e then using TeraTerm's Send File command
-   in binary mode and with no delays between characters, to send the file "PCB/NullsTest.txt".
-   All red LEDs should stay on. Use 0e to turn them off.
+   in binary mode and with no delays between characters, to send the file 
+   "PCB/NullsTest.txt". All red LEDs should stay on. Use 0e to turn them off.
 10) Turn off the power supply; use 1e to discharge the supercaps (will take
 minutes).
