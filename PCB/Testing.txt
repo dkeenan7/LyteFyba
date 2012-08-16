@@ -43,7 +43,7 @@ are working.
   h) Use 0y1e to turn on error. Red LED should light, piezo should sound.
   i) Put a DSO lead on the active piezo pin and use Measure mode to find the piezo 
      frequency. Use the 'o' for 'octave' command, repeated as necessary, to place 
-     the piezo frequency in one of two ranges: 1.2 to 1.6 kHz or 3.2 to 4.8 kHz. 
+     the piezo frequency in one of two ranges: 1.15 to 1.4 kHz or 2.8 to 4.6 kHz. 
      Use 0e to turn off the error alarm.
   j) Update with the 'u' command. Note: there will probably be some strange
      characters emitted as following BMUs are reset.
