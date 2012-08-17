@@ -59,7 +59,7 @@
 ; The BSL serial input code does not check for false start bits or do majority voting on data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Common definitions such as IMAGE_START and PCBVERSION
+#include "../common/common.h"		// Common definitions such as IMAGE_START
 
 CALIBRATE	EQU		0				; Set to 1 to perform volts and temperature calibration
 									;	(all BMUs) in addition to BSL-programming
@@ -80,11 +80,7 @@ ADCBUF		EQU		0				; 0 for no ADC sample buffer; 1 for buffer
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
-#if PCBVERSION < 57
-LinkVChan	EQU		$3				; ADC channel number for link voltage
-#else
 LinkVChan	EQU		$6				; ADC channel number for link voltage
-#endif
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
@@ -205,11 +201,7 @@ dummyInterpretByte:
 noWaitID
 #endif
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-#if PCBVERSION < 57
-			bic.b	#LED,&P1OUT				; Turn off the error LED
-#else
 			bis.b	#ACTLED,&P1OUT			; Turn off the (inverted) activity LED
-#endif
 			ret								; Return to the BSL
 
 anInit:		cmp		#$FFFF,&main8MHzCalD	; Have we already run once?
@@ -244,19 +236,11 @@ StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			_ENDIF
 	#endif
 
-#if PCBVERSION < 57
-			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
-			; bottom of the link voltage divider, so we can test with paralleled boards,
-			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
-			mov.b	#TXDp,&P1OUT				; Turn off LED and bypass; set TXDp
-			mov.b	#LED+(1<<4)+TXDp+TXDm,&P1DIR ; Set LED, P1.4, and TX bits to output
-#else
 			mov.b	#ACTLED+TXDp,&P1OUT			; Turn off (inverted) ActLED and set TXDp
 			mov.b	#ACTLED+(1<<4)+TXDp+TXDm,&P1DIR ; Set ActLED, P1.4, and TX bits to output
 			mov.b	#0,&P2SEL 					; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off
 			mov.b	#$FF,&P2DIR 				; Set BYPASS and ERRLED as outputs
-#endif
 			clr		rERR						; Clear error register
 
 ; Prepare to flash-program over some $FFs in the BSL image in main flash
@@ -284,11 +268,7 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream BMU's ID
-#if PCBVERSION < 57
-			bic.b	#LED,&P1OUT				; Clear LED set by WriteByte
-#else
 			bis.b	#ACTLED,&P1OUT			; Turn off (inverted) Activity LED turned on by WriteByte
-#endif
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (ReadByte has re-set)
 			mov.b	R12,&mainID				; Flash write our ID
 #endif // RESETIDS
@@ -508,11 +488,7 @@ pifLoop		mov.w	@R9+,$1000(R12)			; Program word
 			; NOTE: this will erase all other interrupt vectors, and the last 512 bytes (quarter) of
 			; main-flash!
 			;
-#if PCBVERSION < 57
-			bis.b	#LED,&P1OUT				; Turn on LED briefly (BSL will revert) to indicate success
-#else
 			bic.b	#ACTLED,&P1OUT			; Turn on ActLED briefly to show success (BSL will revert)
-#endif
 			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			rra.b	&$FFFF					; Dummy write: erase segment
@@ -542,11 +518,7 @@ errorFlash:
 				rra		R9						; LSB into carry
 				subc.b	R11,R11					; Zero if carry was set, $FF otherwise
 				inv.b	R11
-#if PCBVERSION < 57
-				movBits_B R11,#LED,&P1OUT		; Trashes R11
-#else
 				movBits_B R11,#ERRLED,&P2OUT	; Trashes R11
-#endif
 				_DO		#8,R11					; 8 * 49 = 392 ms delay
 					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
 					_LOOP	R12
@@ -607,16 +579,11 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 			dint							; Disable interrupts
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
-#if PCBVERSION < 57
-			mov.b	#0,&P1OUT				; Set TXD outputs the same, bypass and LED off
-			bis.b	#TXDp+TXDm+BYPASS+LED,&P1DIR ; Set TXDs, LED and BYPASS as outputs
-#else
 			mov.b	#ACTLED,&P1OUT			; Set TXD outputs same, bypass and (inverted) ACTLED off
 			bis.b	#TXDp+TXDm+ACTLED,&P1DIR ; Set TXDs and ACTLED as outputs
 			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
 			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
 			; This is safe, as the bypass MOSFET has a pulldown on its gate.
-#endif
 			mov.b	#DIVM_1,&BCSCTL2		; Set for MCLK = DCOCLK/2
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set for 8 MHz DCOCLK
 			mov.b	&info8MHzCalD,&DCOCTL
@@ -628,11 +595,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 ; or 4000/14 = 285.7 kHz @ 4 MHz or 285.3 kHz @ (9600 * 416) Hz
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 fastFlash
-#if PCBVERSION < 57
-			xor.b	#LED+TXDp+TXDm,&P1OUT	; Toggle the LED and both transmit outputs at the same time
-#else
 			xor.b	#ACTLED+TXDp+TXDm,&P1OUT ; Toggle the ACTLED and both transmit outputs at the same time
-#endif
 											; This won't upset the next BMU, if in-situ, and the
 											; frequency can be tested from above the board
 ;			mov		#30000,R12				; Longer delay (slower flash)
@@ -642,11 +605,7 @@ fastFlash
 
 flash20		mov		#20,R11
 first		
-#if PCBVERSION < 57
-			xor.b	#LED,&P1OUT
-#else
 			xor.b	#ACTLED,&P1OUT
-#endif
 			mov		#20000,R12				; Longer delay (slow flash)
 delay1		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			dec		R12						; 7 cycle loop
