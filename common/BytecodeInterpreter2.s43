@@ -222,21 +222,6 @@ ACCEPT
 							mov		#TIB,Rip		; Interpret the packet as bytecode
 							call	#_ENTER
 						_ENDIF					; Endif dont-interpret flag is clear
-#if COUNTCKSM
-					_ELSE
-						inc.b	&worstBadness
-						mov.b	&RXCksum,&worstBadType ; Save the residual checksum
-						
-						mov		#TIB,R8			; Save the packet that had the bad checksum
-						mov		#worstBadMeas,R10
-						_BEGIN
-							cmp		R8,R9
-						_WHILE		_NE
-							mov.b	@R8+,0(R10)
-							inc		R10
-						_REPEAT
-						mov.b	#'\r',0(R10)
-#endif
 					_ENDIF					; Endif good checksum
 				_ENDIF					; Endif packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer

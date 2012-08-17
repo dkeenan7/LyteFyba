@@ -40,46 +40,22 @@
 			xCODE	'q',queryWorstBadness,_queryWorstBadness
 			mov.b	#'Q',Rthd				; Type is worst badness level
 			mov.b	&worstBadness,Rsec		; Result
-		;	mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Pretty-print of 3 digits
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst badness
-			mov.b	#EXIT,R8				; Slosh
-			call	#TX_ByteCk
-			clr		R10
-			
-			_BEGIN
-				mov.b	worstBadMeas(R10),R8	; next char of packet
-				cmp		#'\r',R8
-			_WHILE	_NE
-				call	#TX_ByteCk
-				inc		R10
-			_REPEAT
-			
-			call	#TX_Cksum				; Transmit checksum if required, then clear checksum.
-			mov		#'\r',R8				; Carriage return to R8
-			call	#TX_Byte				; Emit
-
-			mov.b	#'X',Rthd				; 'X' for XOR checksum
-			mov.b	&worstBadType,Rsec		; Residual checksum
-			; mov		#3,Rtos				; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print and return
-
-//			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
-//			mov		&worstBadMeas,Rsec		; Result
-//			mov		#4,Rtos					; Print 4 digits
-//			jmp		_prettyPrint			; Tail-call pretty-print and return
+			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
+			mov		&worstBadMeas,Rsec		; Result
+			mov		#4,Rtos					; Print 4 digits
+			jmp		_prettyPrint			; Tail-call pretty-print and return
 		
 ; Reset worst badness ( -- )
 			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
 			clr.b	&worstBadness
-//			mov.b	#' ',&worstBadType
-//			clr		&worstBadMeas
-						clr.b	&worstBadType
-						mov.b	#'\r',&worstBadMeas ; Carriage return for empty packet
-				ret
+			mov.b	#' ',&worstBadType
+			clr		&worstBadMeas
+			ret
 			
 #if IMAGE_START < $F000		// Commented out if need to save space
 ; Alarm ( boolean -- )
