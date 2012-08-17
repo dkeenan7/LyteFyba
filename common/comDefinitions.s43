@@ -207,14 +207,7 @@ _prettyPrint:
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit
 		
-#if PCBVERSION < 57
-		call	#waitTxCmpl			; Wait for transmit complete
-		bis.b	#LED,&P1OUT			; Set the LED here to mimic old behaviour
-									; Identifies the BMU that sent a response
-#else
 		bic.b	#ACTLED,&P1OUT		; Set the (inverted) activity LED here to mimic old behaviour
-									; Identifies the BMU that sent a response
-#endif
 		ret
 		
 ;
@@ -256,11 +249,6 @@ _prettyPrint:
 ; Turn on or off the error LED (bool -- )
 ;
 		xCODE	'e',errorLed,_errorLed
-#if PCBVERSION < 57
-		call	#waitTxCmpl			; If this is called interactively, wait for CR to completely echo
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#LED,&P1OUT ; Move only the #LED bit from Rtos to &P1OUT. Trashes Rtos.
-#else
 		tst		Rtos
 		_IF		_Z
 			bic.b	#ERRLED,&P2OUT			; Turn off the error LED
@@ -269,7 +257,6 @@ _prettyPrint:
 			bis.b	#ERRLED,&P2OUT			; Turn on the error LED
 			bis.b	#PIEZO,&P1SEL			; Make the piezo squeal
 		_ENDIF
-#endif
 
 ;		pop		Rtos				; Remove operand
 		ret
