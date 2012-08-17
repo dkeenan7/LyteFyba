@@ -86,11 +86,12 @@ bAlarmForBad EQU	1				; A BMU can be told to raise an alarm instead of sending b
 bNotSendBad	 EQU	2				; Zero if sending badness bytes at all
 bNotMeasureTime EQU	4				; Zero if time to measure
 
-localBadness DS		1				; Local badness
+localBadness DS		1				; Local badness and bypass status (0-2 badness, 3 some in bypass,
+										; 4 all in bypass)
 ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
 ticksSinceLastRx DS	1				; Timer overflow events since last badness received
 passWordState DS	1				; State machine for password recogniser
-lastSentBad	DS		1				; Last sent badness
+lastSentBad	DS		1				; Last sent badness and bypass bits
 
 ; Serialio variables
 
@@ -214,27 +215,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
-;			clr.b	&RXCksum				; Clear the receive checksum
-;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
-;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
-;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
 ;
 ; Miscellaneous initialisation
 ;
-;			clr		&bypassVolts			; No special bypass voltage as yet
-;			bic.b	#bNotSendBad,&monFlags		; Default to sending badness
-;			bic.b	#bNotMeasureTime,&monFlags	; Make it measure time immediately
-;			bic.b	#bAlarmForBad,&monFlags		; Just pass badness on, don't raise alarm
-;			clr.b	&localBadness			; Local badness is none
-;			clr		&worstBadMeas			; Value of measurement causing worstBadness is zero
-;			clr.b	&worstBadType			; Type of measurement causing worst badness is null
-;			clr.b	&worstBadness			; Worst local badness is none
-;			clr.b	&ticksSinceLastSend
-;			clr.b	&ticksSinceLastRx
 			mov.b	#4,&passWordState		; Waiting for first byte of ^C ^B ^A ^@ sequence
-;			clr.b	&lastSentBad			; Last badness we sent was zero
 
 ; Main loop
 			_BEGIN
@@ -398,7 +384,8 @@ measures:
 				_ENDIF
 			_ENDIF
 
-			mov.b	R9,&localBadness		; Record this for later use
+			mov.b	R9,R8					; Local badness
+			movBits_B R8,#7,&localBadness	; Record for later use, preserving bypass bits
 			cmp.b	&worstBadness,R9
 			_IF		_HS						; If localBadness equal or higher than worstBadness
 				mov.b	R9,&worstBadness		; Update worstBadness
@@ -412,36 +399,51 @@ measures:
 			
 			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
 			_IF		_Z			
-				mov.b	badnessTable(R9),R9		; Look up the encoded badness
-				cmp.b	R9,&lastSentBad			; Is this worse than the last badness we sent?
+				mov.b	&lastSentBad,R8			; Get last badness and bypass bits we sent
+				and		#7,R8					; Clear other than badness bits
+				cmp.b	R9,R8					; Is the current badness worse than the last badness we sent?
 				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
 				;	about a new lower badness (as well as higher).
 				;	However, it's possible that these messages could overwhelm
 				;	the communications system, in the situation of a sudden series of high power pulses.
-;				_IF		_C						; [Equiv to jnc below, when _CS_SWAPs and _ENDIF also used]
 				jnc		sendBadnessNow			; Jump if so to send the badness immediately
 	
-					; We don't want to send badness unless we are a (temporary) master.
-					; We are a temporary master if there have been 10+ ticks since our last Rx
-					cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-					_IF		_C
-;				_CS_SWAP
-						cmp.b	#4,&ticksSinceLastSend
-						_IF		_C
-;				_CS_SWAP
-							; If we don't have ID one, report that we haven't heard from anyone
-//	FIXME!!!				cmp.b	#1,&ID
-//							_IF		_NE
-//								call	#_RxState
-//							_ENDIF
-;				_ENDIF
+				; We don't want to send badness unless we are a (temporary) master, and it is time to send.
+				; We are a temporary master if there have been 10+ ticks since our last Rx
+				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+				_IF		_NC						; If no carry, then no, we are not a master
+					ret								; So exit, no send
+				cmp.b	#4,&ticksSinceLastSend	; We are a master, but is it time to send?
+				_IF		_NC
+					ret								; Not time to send, so do nothing
+				_ENDIF
 sendBadnessNow
-							clr.b	&ticksSinceLastSend
-							mov.b	R9,&lastSentBad			; Update remembered value
-							mov.b	R9,R8
-							call	#SendBadness
-						_ENDIF							; Endif >= 4 ticks since last send
-					_ENDIF							; Endif >= 10 ticks since last Rx
+				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
+				_IF		_C						; If carry, then yes, we are a master
+					; Master bypass logic: if we are bypassing, set the some- and all-in-bypass bits
+					bit.b	#BYPASS,&P2OUT		; Are we bypassing?
+					_IF		_NZ
+						bis		#$18,R9				; Yes, set both bypass bits
+					_ENDIF
+				_ELSE							; Else, we are not a master
+					; Non-master logic: if bypassing, set some-in-bypass, copy all-in-bypass from incoming
+					; else (not bypassing) copy some-in-bypass from incoming, leave all-in-bypass clear
+					bit.b		#BYPASS,&P2OUT		; Are we bypassing?
+					_IF		_NZ
+						bis		#1<<3,R9			; Yes, set some-in-bypass bit
+						mov.b	&localBadness,R8	; Incoming bypass bits
+						and		#1<<4,R8			; Incoming all-in-bypass bit
+						bis		R8,R9				; Copy to R9
+					_ELSE
+						mov.b	&localBadness,R8	; Incoming bypass bits
+						and		#1<<3,R8			; Incoming some-in-bypass bit
+						bis		R8,R9				; Copy to R9
+					_ENDIF
+				_ENDIF
+				clr.b	&ticksSinceLastSend
+				mov.b	R9,&lastSentBad			; Update remembered value
+				mov.b	badnessTable(R9),R8		; Encode the present badness and bypass bits
+				call	#TX_ByteNW
 			_ENDIF							; Endif bNotSendBad is false
 			ret
 ; End of measurement
@@ -449,41 +451,43 @@ sendBadnessNow
 
 ;
 ;	Callback routine for received badness byte.
-;	Process received badness byte in R8. Trashes R9
+;	Process received badness byte in R8. Trashes R9, R10
 ;
 DoBadness:
 			clr		&ticksSinceLastRx		; Now no time since last received badness
-			mov.b	R8,R9					; Copy incoming badness
-			and		#7,R9					; Consider only raw badness bits
+			mov.b	R8,R9					; Copy incoming badness to R9
+			mov.b	R8,R10					; And R10
+			and		#$1F,R9					; Consider only badness and bypass bits in R9
+			and		#7,R10					; Consider only badness bits in R10
 			cmp.b	R8,badnessTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&localBadness,R9		; Current badness into R9
-			mov.b	badnessTable(R9),R9		; Present encoded badness
+			mov.b	&localBadness,R9		; Current badness and bypass into R9
+			bic		#$18,R9					; Clean off bypass bits (does not affect flags)
 			_IF		_EQ						; If incoming is a valid badness byte
-				cmp.b	R8,R9					; Compare incoming badness to ours
+				cmp.b	R10,R9					; Compare incoming badness (R10) to ours (R9)
 				_IF		_HS						; If we (R9) are worse than incoming (R8)
 			_CS_SWAP						; [ Make the next _ENDIF apply to the _IF _EQ ]
 			_ENDIF							; Endif incoming valid
-					mov		R9,R8					; Incoming not valid or we are worse; use our badness
+					mov		R9,R10					; Incoming not valid or we are worse; use our badness
 				_ENDIF							; Endif we are worse
-			mov.b	R8,&lastSentBad			; Remember that we sent this
-			; Fall through to SendBadness
-
+				
 ;
-;	Send badness byte or BELL character depending on &AlarmForBad.
-;	Badness byte in R8. Trashes R9
+; Process incoming bypass bits
 ;
-SendBadness:
-			bit.b	#bAlarmForBad,&monFlags
-			_IF		_NZ						; If told to raise alarm
-				cmp.b	#$80,R8
-				_IF		_NE						; If nonzero badness
-					mov.b	#7,R8					; Send a BELL character
-			_CS_SWAP						; [ Make next _ENDIF apply to the _IF _NZ ]
-			_ENDIF							; Endif told to raise alarm
-					call	#TX_ByteNW				; Send the encoded badness (or BELL) if buffer not full
-				_ENDIF							; Endif nonzero badness
+			bit.b	#BYPASS,&P2OUT			; Test if we are in bypass now
+			_IF		_Z						; If bit is zero (i.e. we are not bypassing)
+				mov.b	R8,R9					; then copy incoming some-in-bypass bit from R8
+				and		#1<<3,R9
+				bis		R9,R10					; to R10
+			_ELSE								; Else we are in bypass
+				bis		#1<<3,R10				; so set the some-in-bypass bit
+				mov		R8,R9					; and copy
+				and		#1<<4,R9				; the all-in-bypass bit from incoming
+				bis		R9,R10					; to R10
+			_ENDIF
+			mov.b	R10,&lastSentBad		; Remember that we sent this
+			mov.b	badnessTable(R10),R8	; Encode the present badness and bypass bits
+			call	#TX_ByteNW				; Send this encoded data if buffer not full
 			ret
-			
 			
 ;
 ; Check for a password character
@@ -539,18 +543,39 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
-            ; This table was ORG'd at $FF04 to save space earlier. Now we need $FFF8 for a jump to what the BSL
-            ; thinks will be interpretByte, but is in fact our main
 			; Encoded badness table. The badness information is transmitted in one byte,
 			; with no checksum correction. To counter this, badness is encoded, so that only
-			; eight of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
+			; 24 of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
 			; are treated as a corrupted attempt to send badness information; current badness
 			; for this BMU is sent instead.
-			; The table is indexed by raw badness value (i.e. the least significant 3 bits of
-			; the encoded badness byte).
-badnessTable DB		$80					; $80 is least badness
-			DB		$91,$A2,$B3,$C4,$D5,$E6
-			DB		$F7					; $F7 is the worst badness
+			; The table is indexed by raw badness plus bypass bits
+badnessTable DB		$80					; $80 is no badness
+			DB		$80 + 1<<5 + 1		; Just badness 1
+			DB		$80 + 1<<5 + 2		; Just badness 2
+			DB		$80 + 2<<5 + 3		; Just badness 3 (two active bits)
+			DB		$80 + 1<<5 + 4		; Just badness 4
+			DB		$80 + 2<<5 + 5		; Just badness 5 (2 active bits)
+			DB		$80 + 2<<5 + 6		; Just badness 6 (2 active bits)
+			DB		$80 + 3<<5 + 7		; Just badness 7
+			DB		$80 + 1<<5 + 1<<3 + 0	; Some in bypass, no badness
+			DB		$80 + 2<<5 + 1<<3 + 1	; Some in bypass, badness 1
+			DB		$80 + 2<<5 + 1<<3 + 2	; Some in bypass, badness 2
+			DB		$80 + 3<<5 + 1<<3 + 3	; Some in bypass, badness 3
+			DB		$80 + 2<<5 + 1<<3 + 4	; Some in byoass, badness 4
+			DB		$80 + 3<<5 + 1<<3 + 5	; Some in bypass, badness 5
+			DB		$80 + 3<<5 + 1<<3 + 6	; Some in bypass, badness 6
+			DB		$80 + 0<<5 + 1<<3 + 7	; Some in bypass, badness 7 (4 active bits)
+			; These 8 entries are invalid. Being zero ensures that they will fail a compare test against
+			; any valid badness
+			DB		0,0,0,0,0,0,0,0			; All in bypass with not (some in bypass) = invalid
+			DB		$80 + 2<<5 + 3<<3 + 0	; All in bypass, badness 0
+			DB		$80 + 3<<5 + 3<<3 + 1	; All in bypass, badness 1
+			DB		$80 + 3<<5 + 3<<3 + 2	; All in bypass, badness 2
+			DB		$80 + 0<<5 + 3<<3 + 3	; All in bypass, badness 3 (4 active bits)
+			DB		$80 + 3<<5 + 3<<3 + 4	; All in byoass, badness 4
+			DB		$80 + 0<<5 + 3<<3 + 5	; All in bypass, badness 5
+			DB		$80 + 0<<5 + 3<<3 + 6	; All in bypass, badness 6
+			DB		$80 + 1<<5 + 3<<3 + 7	; All in bypass, badness 7 (5 active bits)
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
