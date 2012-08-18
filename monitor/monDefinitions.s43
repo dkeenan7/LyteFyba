@@ -45,7 +45,7 @@
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst badness
-			mov		&worstBadType,Rthd		; Type of measurement that caused worst badness
+			mov.b	&worstBadType,Rthd		; Type of measurement that caused worst badness
 			mov		&worstBadMeas,Rsec		; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return

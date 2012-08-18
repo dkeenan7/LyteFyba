@@ -388,9 +388,12 @@ measures:
 			movBits_B R8,#7,&localBadness	; Record for later use, preserving bypass bits
 			cmp.b	&worstBadness,R9
 			_IF		_HS						; If localBadness equal or higher than worstBadness
-				mov.b	R9,&worstBadness		; Update worstBadness
-				mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
-				mov.b	Rtype,&worstBadType		; Update type of measurement causing worst badness
+                tst.b   R9                      ; and if it's an actual, nonzero error
+                _IF     _NZ
+				    mov.b	R9,&worstBadness		; Update worstBadness
+				    mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
+				    mov.b	Rtype,&worstBadType		; Update type of measurement causing worst badness
+                _ENDIF
 			_ENDIF
 
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
