@@ -1,12 +1,12 @@
 			COL		150			; Wide listings
-			
+
 			LSTOUT-
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
 			LSTOUT+
 #include "../common/common.h"				// Common definitions such as IMAGE_START
-		
+
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible
 
@@ -161,7 +161,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; MC: 2 = continuous mode 1 = up mode
 			; TAIE = interrupt enable (for timer overflow)
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
-			
+
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
@@ -227,7 +227,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				dint
 				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
-				_IF		_NZ						
+				_IF		_NZ
 					eint
 					tst.b	R8
 					_IF		_NN
@@ -309,7 +309,7 @@ measures:
 			_IF		_LO
 				mov		R8,R9				; Worst to R9
 			_ENDIF
-			
+
 			; Temperature measurement
 			push	R9						; Save badness_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
@@ -396,9 +396,9 @@ measures:
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
 			CtoAllBits	R8
 			movBits_B	R8,#ERRLED,&P2OUT
-			
+
 			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
-			_IF		_Z			
+			_IF		_Z
 				mov.b	&lastSentBad,R8			; Get last badness and bypass bits we sent
 				and		#7,R8					; Clear other than badness bits
 				cmp.b	R9,R8					; Is the current badness worse than the last badness we sent?
@@ -407,12 +407,13 @@ measures:
 				;	However, it's possible that these messages could overwhelm
 				;	the communications system, in the situation of a sudden series of high power pulses.
 				jnc		sendBadnessNow			; Jump if so to send the badness immediately
-	
+
 				; We don't want to send badness unless we are a (temporary) master, and it is time to send.
 				; We are a temporary master if there have been 10+ ticks since our last Rx
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_NC						; If no carry, then no, we are not a master
 					ret								; So exit, no send
+				_ENDIF
 				cmp.b	#4,&ticksSinceLastSend	; We are a master, but is it time to send?
 				_IF		_NC
 					ret								; Not time to send, so do nothing
@@ -469,7 +470,7 @@ DoBadness:
 			_ENDIF							; Endif incoming valid
 					mov		R9,R10					; Incoming not valid or we are worse; use our badness
 				_ENDIF							; Endif we are worse
-				
+
 ;
 ; Process incoming bypass bits
 ;
@@ -488,7 +489,7 @@ DoBadness:
 			mov.b	badnessTable(R10),R8	; Encode the present badness and bypass bits
 			call	#TX_ByteNW				; Send this encoded data if buffer not full
 			ret
-			
+
 ;
 ; Check for a password character
 ; After decrementing passWordState below, 3 = waiting for ^C, 2 = waiting for ^B, 1 = waiting for ^A,
@@ -526,13 +527,13 @@ DoPassword:
 			br		#BSLErase			; Jump into the BSL to finish the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
-	
+
 exitOnRx	ret
 
 			EVEN
 
 
-DELAY_IF_NEEDED MACRO		
+DELAY_IF_NEEDED MACRO
 			; No delay needed
 			ENDM
 
@@ -611,8 +612,8 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 			ORG		0FFF0h				; Timer A Vectors
 			DW		RX_TIOV_ISR			; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
-	
-			
+
+
 			ORG		$FFF8
 jInterpretByte:
             br      #interpretByte      ; BSL will call here expecting interpretByte
