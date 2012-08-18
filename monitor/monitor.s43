@@ -549,34 +549,35 @@ DELAY_IF_NEEDED MACRO
 			; 24 of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
 			; are treated as a corrupted attempt to send badness information; current badness
 			; for this BMU is sent instead.
+			; Use 2 MSBs of badness as "parity" bits
 			; The table is indexed by raw badness plus bypass bits
-badnessTable DB		$80					; $80 is no badness
-			DB		$80 + 1<<5 + 1		; Just badness 1
-			DB		$80 + 1<<5 + 2		; Just badness 2
-			DB		$80 + 2<<5 + 3		; Just badness 3 (two active bits)
-			DB		$80 + 1<<5 + 4		; Just badness 4
-			DB		$80 + 2<<5 + 5		; Just badness 5 (2 active bits)
-			DB		$80 + 2<<5 + 6		; Just badness 6 (2 active bits)
-			DB		$80 + 3<<5 + 7		; Just badness 7
-			DB		$80 + 1<<5 + 1<<3 + 0	; Some in bypass, no badness
-			DB		$80 + 2<<5 + 1<<3 + 1	; Some in bypass, badness 1
-			DB		$80 + 2<<5 + 1<<3 + 2	; Some in bypass, badness 2
-			DB		$80 + 3<<5 + 1<<3 + 3	; Some in bypass, badness 3
-			DB		$80 + 2<<5 + 1<<3 + 4	; Some in byoass, badness 4
-			DB		$80 + 3<<5 + 1<<3 + 5	; Some in bypass, badness 5
-			DB		$80 + 3<<5 + 1<<3 + 6	; Some in bypass, badness 6
-			DB		$80 + 0<<5 + 1<<3 + 7	; Some in bypass, badness 7 (4 active bits)
+badnessTable DB		$80							; $80 is no badness
+			DB		$80 + (0<<5) + 1			; Just badness 1
+			DB		$80 + (1<<5) + 2			; Just badness 2
+			DB		$80 + (1<<5) + 3			; Just badness 3 (two active bits)
+			DB		$80 + (2<<5) + 4			; Just badness 4
+			DB		$80 + (2<<5) + 5			; Just badness 5 (2 active bits)
+			DB		$80 + (3<<5) + 6			; Just badness 6 (2 active bits)
+			DB		$80 + (3<<5) + 7			; Just badness 7
+			DB		$80 + (0<<5) + (1<<3) + 0	; Some in bypass, no badness
+			DB		$80 + (0<<5) + (1<<3) + 1	; Some in bypass, badness 1
+			DB		$80 + (1<<5) + (1<<3) + 2	; Some in bypass, badness 2
+			DB		$80 + (1<<5) + (1<<3) + 3	; Some in bypass, badness 3
+			DB		$80 + (2<<5) + (1<<3) + 4	; Some in byoass, badness 4
+			DB		$80 + (2<<5) + (1<<3) + 5	; Some in bypass, badness 5
+			DB		$80 + (3<<5) + (1<<3) + 6	; Some in bypass, badness 6
+			DB		$80 + (3<<5) + (1<<3) + 7	; Some in bypass, badness 7 (4 active bits)
 			; These 8 entries are invalid. Being zero ensures that they will fail a compare test against
 			; any valid badness
-			DB		0,0,0,0,0,0,0,0			; All in bypass with not (some in bypass) = invalid
-			DB		$80 + 2<<5 + 3<<3 + 0	; All in bypass, badness 0
-			DB		$80 + 3<<5 + 3<<3 + 1	; All in bypass, badness 1
-			DB		$80 + 3<<5 + 3<<3 + 2	; All in bypass, badness 2
-			DB		$80 + 0<<5 + 3<<3 + 3	; All in bypass, badness 3 (4 active bits)
-			DB		$80 + 3<<5 + 3<<3 + 4	; All in byoass, badness 4
-			DB		$80 + 0<<5 + 3<<3 + 5	; All in bypass, badness 5
-			DB		$80 + 0<<5 + 3<<3 + 6	; All in bypass, badness 6
-			DB		$80 + 1<<5 + 3<<3 + 7	; All in bypass, badness 7 (5 active bits)
+			DB		0,0,0,0,0,0,0,0				; All in bypass with not (some in bypass) = invalid
+			DB		$80 + (0<<5) + (3<<3) + 0	; All in bypass, badness 0
+			DB		$80 + (0<<5) + (3<<3) + 1	; All in bypass, badness 1
+			DB		$80 + (1<<5) + (3<<3) + 2	; All in bypass, badness 2
+			DB		$80 + (1<<5) + (3<<3) + 3	; All in bypass, badness 3 (4 active bits)
+			DB		$80 + (2<<5) + (3<<3) + 4	; All in byoass, badness 4
+			DB		$80 + (2<<5) + (3<<3) + 5	; All in bypass, badness 5
+			DB		$80 + (3<<5) + (3<<3) + 6	; All in bypass, badness 6
+			DB		$80 + (3<<5) + (3<<3) + 7	; All in bypass, badness 7 (5 active bits)
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
