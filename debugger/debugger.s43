@@ -286,9 +286,10 @@ unknownVersBSL
 newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
 
-			; Set the ID, voltage, temperature and link calibration to $FF
+			; Set the ID, voltage, temperature and link calibration
 			mov.w	#$8000,&ramVoltCal
-			mov.w	#$8000,&ramTempCal			; Includes ramLinkCal
+			mov.b	#$00,&ramTempCal
+			mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
 			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
