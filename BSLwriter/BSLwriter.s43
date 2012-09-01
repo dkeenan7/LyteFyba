@@ -72,7 +72,7 @@ CALTEMP		EQU		19				; Ambient temperature in degrees Celsius
 DEBUG		EQU		0				; 1 for debug, e.g. copy voltage reading to $FFF0
 RESETIDS	EQU		0				; 1 to generate new IDs starting from byte read serially
 FORCEFCAL	EQU		1				; 1 to force 8 MHz calibration frequency
-FREQCAL		EQU		$8D99			; Value to force 8 MHz frequency calibration to
+FREQCAL		EQU		$AD90			; Value to force 8 MHz frequency calibration to
 FREQ4TO8	EQU		$3B				; Subtract from low byte of 4 MHz DCO cal to estimate 8 MHz cal
 ADCBUF		EQU		0				; 0 for no ADC sample buffer; 1 for buffer
 
