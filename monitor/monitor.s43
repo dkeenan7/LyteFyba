@@ -4,6 +4,7 @@
 #include "msp430.h"
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
+#define Rtos   R7                           // Defined in BytecodeInterpreter2.s43
 			LSTOUT+
 #include "../common/common.h"				// Common definitions such as IMAGE_START
 
@@ -171,7 +172,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; no way to get differential outputs from that without external hardware.
 			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
 			mov.b	#ACTLED,&P1OUT				; Turn off (inverted) ActLED
-			mov.b	#ACTLED+VREFp+TXDp+TXDm,&P1DIR ; Set ActLED, VREFp, and TX bits to output
+			mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ActLED, VREFp, TX bits and piezo to output
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
@@ -397,8 +398,8 @@ measures:
 			_ENDIF
 
 			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
-			CtoAllBits	R8
-			movBits_B	R8,#ERRLED,&P2OUT
+			CtoAllBits	Rtos
+            call        #_errorLed          ; Use this function so it optionally turns on the piezo as well
 
 			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
 			_IF		_Z
