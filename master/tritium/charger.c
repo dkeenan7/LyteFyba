@@ -88,7 +88,7 @@ void readChargerBytes()
 	while (	dequeue(&chgr_rx_q, &ch)) {
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
-			chgr_events |= CHGR_REC;	// We've received a charger response
+			chgr_processPacket();		// We've received a charger response
 			chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
 			break;
 		}
@@ -120,10 +120,19 @@ void chgr_processPacket() {
 
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
+	// Check for charge soak time exceeded
+	if (chgr_state & CHGR_SOAKING) {
+		if (++ chgr_soakCnt >= CHGR_EOC_SOAKT) {
+			chgr_state &= ~CHGR_SOAKING;
+			chgr_soakCnt = 0;
+			chgr_state |= CHGR_END_CHARGE;
+		}
+	}
+			
 	if (chgr_events & CHGR_SENT) {
 		if (--chgr_sent_timeout == 0) {
-			fault();				// Turn on fault LED (eventually)
-			chgr_events |= CHGR_RESEND;	// Tell the main loop to resend
+			fault();						// Turn on fault LED (eventually)
+			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
 		}
 	}
 }

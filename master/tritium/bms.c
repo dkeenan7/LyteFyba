@@ -2,8 +2,6 @@
 #include <msp430x24x.h>		// For UC1IE etc
 
 #include "tri86.h"
-//#include "usci.h"
-//#include "can.h"
 #include "bms.h"
 #include "charger.h"
 #include "queue.h"

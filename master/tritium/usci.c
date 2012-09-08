@@ -18,14 +18,14 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * - Implements the following SPI interface functions
+ * - Implements the following SPI interface functions (for talking to/from CAN chip and hence motor controller)
  *	- init
  *	- transmit
  *	- exchange
  *
- *	Also now UART functions
- *	- chgr_transmit
+ *  - 4 interrupt routines (for talking to/from BMUs and chargers)
  *
+ *  Higher level UART functions are in charger.c and bms.c now
  */
 
 // Include files
@@ -38,14 +38,6 @@
 #include "bms.h"					// For the BMU and 
 #include "charger.h"				//	charger queues
 #include "queue.h"
-
-#ifdef __ICC430__					// MVE: attempt to make the source code more IAR friendly
-#define __inline__					//	in case press F7, and so definitions might work
-#define __volatile__
-#define interrupt(x) void
-void eint();
-void dint();
-#endif
 
 
 /*
