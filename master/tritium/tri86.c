@@ -252,15 +252,6 @@ int main( void )
 				events |= EVENT_REQ_SLEEP;
 			}
 
-			// Check for charge soak time exceeded
-            if (chgr_state & CHGR_SOAKING) {
-                if (++ chgr_soakCnt >= CHGR_EOC_SOAKT) {
-                    chgr_state &= ~CHGR_SOAKING;
-                    chgr_soakCnt = 0;
-                    chgr_state |= CHGR_END_CHARGE;
-                }
-            }
-			
 			chgr_timer();
 			bmu_timer();
 			
@@ -347,17 +338,6 @@ int main( void )
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			handleChargerEvent();
-		}
-
-		if (chgr_events & CHGR_REC) {
-			chgr_events &= ~CHGR_REC;
-			chgr_processPacket();
-		}
-	
-	
-		if (chgr_events & CHGR_RESEND) {
-			chgr_events &= ~CHGR_RESEND;
-			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
 		}
 
 		// Check for CAN packet reception

@@ -4,6 +4,20 @@
  *
  */
 
+#ifdef __ICC430__					// MVE: in case press F7
+#warning Compile with GCC, not IAR!
+#define __inline__					//	in case press F7, and so definitions might work
+#define __volatile__
+#define __attribute__
+#define NOINLINE
+#define interrupt(x) void
+void eint();
+void dint();
+#else	// GCC
+#define NOINLINE ((noinline))
+#endif
+
+
 // Pin Definitions
 // Port 1
 #define IN_FUEL				0x01
@@ -125,8 +139,6 @@
 
 // Charger events
 #define CHGR_SENT			0x0001				// We have sent the charger a packet, not replied to yet
-#define	CHGR_REC			0x0002				// We have received a packet from the charger
-#define CHGR_RESEND			0x0010				// Resend the last charger packet from main loop
 
 // Charger state
 #define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
@@ -156,7 +168,7 @@ extern volatile unsigned char bmu_badness;		// BMU badness
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
-void fault() __attribute__ ((noinline));			// Single flash the error LED
+void fault() __attribute__ NOINLINE;			// Single flash the error LED
 
 
 // Typedefs for quickly joining multiple bytes/ints/etc into larger values
