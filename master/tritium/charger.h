@@ -31,7 +31,6 @@ void handleChargerEvent();
 // Public variables
 extern volatile unsigned int chgr_events;
 extern 			unsigned int chgr_state;
-extern volatile unsigned int chgr_sent_timeout;
 extern unsigned int charger_volt;			// MVE: charger voltage in tenths of a volt
 extern unsigned int charger_curr;			// MVE: charger current in tenths of an ampere
 extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = overtemp)

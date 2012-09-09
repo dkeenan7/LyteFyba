@@ -13,7 +13,7 @@ void chgr_processPacket();
 // Public variables
 volatile unsigned int chgr_events = 0;
 		 unsigned int chgr_state = 0;
-volatile unsigned int chgr_sent_timeout;
+		 int chgr_rx_timeout = CHGR_TIMEOUT;// MVE: counts to zero; reset when see any output from the charger
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
@@ -54,7 +54,7 @@ void chgr_init() {
 	chgr_lastrxidx = 0;
 }
 
-// chgr_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
+// chgr_resendLastPacket could be used for resending, but also used for sending the first time.
 // Returns true on success
 bool chgr_resendLastPacket(void)
 {
@@ -67,8 +67,6 @@ bool chgr_resendLastPacket(void)
 	}
 	for (i=0; i < 12; ++i)
 		chgr_sendByte(chgr_lastSentPacket[i]);
-	chgr_state |= CHGR_SENT;						// Flag that packet is sent but not yet ack'd
-	chgr_sent_timeout = CHGR_TIMEOUT;				// Initialise timeout counter
 	return true;
 }
 
@@ -87,9 +85,9 @@ void readChargerBytes()
 {	unsigned char ch;
 	while (	dequeue(&chgr_rx_q, &ch)) {
 		chgr_lastrx[chgr_lastrxidx++] = ch;
-		if (chgr_lastrxidx == 12)	{	// All charger messages are 12 bytes long
-			chgr_processPacket();		// We've received a charger response
-			chgr_events &= ~CHGR_SENT;	// No longer unacknowledged
+		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
+			chgr_processPacket();			// We've received a charger response
+			chgr_rx_timeout = CHGR_TIMEOUT;	// Reset received anything counter
 			break;
 		}
 	}
@@ -129,11 +127,8 @@ void chgr_timer() {							// Called every timer tick, for charger related proces
 		}
 	}
 			
-	if (chgr_events & CHGR_SENT) {
-		if (--chgr_sent_timeout == 0) {
-			fault();						// Turn on fault LED (eventually)
-			chgr_resendLastPacket();		// Resend; will loop until a complete packet is recvd
-		}
+	if (--chgr_rx_timeout <= 0) {
+		fault();						// Turn on fault LED (eventually)
 	}
 }
 
