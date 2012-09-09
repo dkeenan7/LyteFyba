@@ -14,7 +14,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 - - change-sign (postfix negate)
   a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
-b   Badness (local to each BMU)
+b   Pain (local to each BMU)   (Maybe move to 'p' now)
   c Calibrate
 d d Decimal output
 e e ErrorLED
@@ -23,7 +23,7 @@ e e ErrorLED
 h h Hex output
   i set(I)Ds
   j JumpToSubroutine (call) [disabled to save space]
-K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
+K   KillPainSending, 1K to kill pain sending, 0K to restore it
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 l l LinkVoltage
 m m e(M)itCharacter
@@ -31,8 +31,8 @@ n n emit(N)um
   o Change Octave of piezo alarm
   O StOre wOrd (poke wOrd) [disabled to save space]
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
-  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
-q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
+  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstPain in monitor)
+q   QueryWorstPain (monitor only. 'q' is Pee(Q)Word in debugger)
   r ReadCalValue (debugger only. 'r' is RxState in monitor)
 r 	RxState (monitor only. 'r' is ReadCalValue in debugger)
 s s Select
@@ -44,7 +44,7 @@ x x e(X)clusive     (singleBMU interaction mode)
   y b(Y)pass (Yellow)
   Z Ztore byte (poke byte)
   z send nulls (send (Z)eros)
-{   resetWorstBadness :-{
+{   resetWorstPain :-{
 \ \ exit or comment
 
 In logical groupings:
@@ -74,7 +74,7 @@ v v cell(V)oltage
 l l LinkVoltage
 t t Temperature
 r 	RxState (monitor only. 'r' is ReadCalValue in debugger)
-b   Badness
+b   Pain
 
   i set(I)Ds
 s s Select
@@ -82,17 +82,17 @@ x x e(X)clusive     (singleBMU interaction mode)
 <ESC> ESCape from eXclusive mode
 \ \ exit or comment
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
-K   KillBadnessSending, 1K to kill badness sending, 0K to restore it
+K   KillPainSending, 1K to kill pain sending, 0K to restore it
 a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 
-q   QueryWorstBadness (monitor only. 'q' is Pee(Q)Word in debugger)
-{   resetWorstBadness :-{
+q   QueryWorstPain (monitor only. 'q' is Pee(Q)Word in debugger)
+{   resetWorstPain :-{
 
   j JumpToSubroutine (call) [disabled to save space]
   Z Ztore byte (poke byte)
   g Get byte   (peek byte)
   O St(O)re word (poke word) [disabled to save space]
-  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstBadness in monitor)
+  q Pee(Q)Word (peek word) (debugger only. 'q' is QueryWorstPain in monitor)
 
   f FrequencyBurst (puts MCLK/22 = 181.5 kHz on TX+, TX- and activity LED)
 

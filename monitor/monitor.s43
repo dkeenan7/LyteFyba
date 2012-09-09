@@ -36,7 +36,7 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
-minLEDBad	EQU			1			; Minimum badness to light error LED
+minLEDBad	EQU			1			; Minimum pain to light error LED
 
 ; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -64,7 +64,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
 txsz		EQU		8//FIXME				; Transmit queue size. Must be a power of 2 no greater than 256
-									; 4 is sufficient to reduce dropped badness to less than one a minute
+									; 4 is sufficient to reduce dropped pain to less than one a minute
 
 ; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
@@ -82,56 +82,56 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 
-monFlags	DS		1				; Monitor flags, bitmask definitions follow
-bAlarmForBad EQU	1				; A BMU can be told to raise an alarm instead of sending badness on
-bNotSendBad	 EQU	2				; Zero if sending badness bytes at all
-bNotMeasureTime EQU	4				; Zero if time to measure
+monFlags		DS		1			; Monitor flags, bitmask definitions follow
+bAlarmForBad 	EQU		1			; A BMU can be told to raise an alarm instead of sending pain on
+bNotSendBad	 	EQU		2			; Zero if sending pain bytes at all
+bNotMeasureTime EQU		4			; Zero if time to measure
 
-localBadness DS		1				; Local badness and bypass status (0-2 badness, 3 some in bypass,
-										; 4 all in bypass)
-ticksSinceLastSend DS 1				; Timer overflow events (~1/4 seconds) since last badness send
-ticksSinceLastRx DS	1				; Timer overflow events since last badness received
-passWordState DS	1				; State machine for password recogniser
-lastSentBad	DS		1				; Last sent badness and bypass bits
+localPain 		DS		1			; Local pain and bypass status (0-2 pain, 3 some in bypass,
+									; 4 all in bypass)
+ticksSinceLastSend DS	1			; Timer overflow events (~1/4 seconds) since last pain send
+ticksSinceLastRx DS		1			; Timer overflow events since last pain received
+passWordState	DS		1			; State machine for password recogniser
+lastSentPain	DS		1			; Last sent pain and bypass bits
 
 ; Serialio variables
 
-			ALIGNRAM 1
-TXData		DS		2				; Byte to transmit in lower byte; always $FF in high byte
-RXData		DS		1				; Received char
-BitCntTx	DS		1				; Bit count 10 -> 1
-BitCntRx	DS		1				; Bit count 8 -> 1
-TXCksum		DS		1				; Transmit checksum
+				ALIGNRAM 1
+TXData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
+RXData			DS		1			; Received char
+BitCntTx		DS		1			; Bit count 10 -> 1
+BitCntRx		DS		1			; Bit count 8 -> 1
+TXCksum			DS		1			; Transmit checksum
 
-			ALIGNRAM 1
-rxbuf		DS		rxsz			; Receive queue buffer
-rxwr		DS		1				; Receive queue write index
-rxrd		DS		1				; Receive queue read index
-txbuf		DS		txsz			; Transmit queue buffer
-txwr		DS		1				; Transmit queue write index
-txrd		DS		1				; Transmit queue read index
+				ALIGNRAM 1
+rxbuf			DS		rxsz		; Receive queue buffer
+rxwr			DS		1			; Receive queue write index
+rxrd			DS		1			; Receive queue read index
+txbuf			DS		txsz		; Transmit queue buffer
+txwr			DS		1			; Transmit queue write index
+txrd			DS		1			; Transmit queue read index
 
 ; ByteCodeInterpreter2 variables
 
-RXCksum		DS		1				; Received packet xor checksum
-intFlags	DS		1				; Interpreter flags, bitmask definitions follow
-bHexOutput	EQU		1				; Should numeric output be in hexadecimal, not decimal?
-bChecksumming EQU	2				; Are we sending checksums and checking received checksums?
-bDontInterpret EQU	4				; Are we interpreting?
+RXCksum			DS		1			; Received packet xor checksum
+intFlags		DS		1			; Interpreter flags, bitmask definitions follow
+bHexOutput		EQU		1			; Should numeric output be in hexadecimal, not decimal?
+bChecksumming 	EQU		2			; Are we sending checksums and checking received checksums?
+bDontInterpret 	EQU		4			; Are we interpreting?
 
-			ALIGNRAM 1
-worstBadness DS		1				; Worst local badness since last resetWorstBadness command
-worstBadType DS		1				; Character giving type of measurement that caused worst badness
-worstBadMeas DS		2				; Value of measurement that caused worst badness
+				ALIGNRAM 1
+worstPain 		DS		1			; Worst local pain since last resetWorstPain command
+worstPainType 	DS		1			; Character giving type of measurement that caused worst pain
+worstPainMeas 	DS		2			; Value of measurement that caused worst pain
 
-			ALIGNRAM 1
-ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
-TIB			DS		48				; Text Input Buffer (packet buffer)
+				ALIGNRAM 1
+ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
+TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes)
 
 ;-------------------------------------------------------------------------------
-			ORG		IMAGE_START				; Reset vector points here
+				ORG		IMAGE_START	; Reset vector points here
 ;-------------------------------------------------------------------------------
 
 interpretByte:
@@ -140,8 +140,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
-			; Clear all variables in RAM except worstBadness (and ToIN/TIB)
-			_DO		#worstBadness-$200,R8
+			; Clear all variables in RAM except worstPain (and ToIN/TIB)
+			_DO		#worstPain-$200,R8
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
 
@@ -236,14 +236,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
-						call	#DoBadness				; Process badness bytes
+						call	#DoPain					; Process pain bytes
 					_ENDIF
 				_ELSE
-					bit.b	#bNotMeasureTime,&monFlags ; Check if time to measure
-					_IF		_Z						; If not, skip measurement and set/clear of bypass
+					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
+					_IF		_Z							; If not, skip measurement and set/clear of bypass
 						eint
 						bis.b	#bNotMeasureTime,&monFlags
-						call	#measures				; May send badness
+						call	#measures				; May send pain
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
 						;eint							; Interrupts are enabled by following bis instr:
@@ -259,10 +259,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 measures:
 ;
-; Regular measurement. Called BadnessFreq times per second (4-32 times per second)
+; Regular measurement. Called PainFreq times per second (4-32 times per second)
 ;
-#define Rmeas R15				// Tentative measurement causing worst badness
-#define Rtype R14				// Tentative type of measurement causing worst badness
+#define Rmeas R15				// Tentative measurement causing worst pain
+#define Rtype R14				// Tentative type of measurement causing worst pain
 
 			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
@@ -272,8 +272,8 @@ measures:
 
 			; Cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			mov		R10,Rmeas				; Tentative measurement causing worst badness
-			mov.b	#'V',Rtype				; Tentative type of measurement causing worst badness
+			mov		R10,Rmeas				; Tentative measurement causing worst pain
+			mov.b	#'V',Rtype				; Tentative type of measurement causing worst pain
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -283,7 +283,7 @@ measures:
 			NCtoAllBits	R8					; If voltage > threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage badness: for every 50 mV over 3.60 V, we add one level of badness, to a maximum of 7 for > 3.95 V
+			; Overvoltage pain: for every 50 mV over 3.60 V, we add one level of pain, to a maximum of 7 for > 3.95 V
 			mov		R10,R9					; Measurement
 			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
 			_IF		_L
@@ -294,9 +294,9 @@ measures:
 			mov		#50,R8
 			call	#UMSlashMod				; (meas - 3.6) / 50 -> R9
 
-			; Undervoltage badness: for every 100 mv below 2.5 V, we add one level of badness, to a maximum of 7 for < 1.9 V
+			; Undervoltage pain: for every 100 mv below 2.5 V, we add one level of pain, to a maximum of 7 for < 1.9 V
 			pop		R10						; Restore original measurement
-			push	R9						; Save badness_so_far
+			push	R9						; Save pain_so_far
 			mov		#2500+99,R9
 			sub		R10,R9					; R9 has 2.5 V - meas plus 99 for rounding
 			clr		R10						; R10:R9 has this
@@ -305,43 +305,43 @@ measures:
 			_ENDIF
 			mov		#100,R8
 			call	#UMSlashMod				; (2.5 V - meas) / 100 -> R9
-			pop		R8						; Restore Badness_so_far
-			cmp		R8,R9					; Which badness is worse?
+			pop		R8						; Restore Pain_so_far
+			cmp		R8,R9					; Which pain is worse?
 			_IF		_LO
 				mov		R8,R9				; Worst to R9
 			_ENDIF
 
 			; Temperature measurement
-			push	R9						; Save badness_so_far
+			push	R9						; Save pain_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; Temperature badness: 1 for every 2 degrees over 45
+			; Temperature pain: 1 for every 2 degrees over 45
 			sub		#45-1,R10				; -1 for rounding
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
 			rra		R10
 			pop		R8						; Restore measurement
-			pop		R9						; Restore badness_so_far
-			cmp		R10,R9					; Is temp badness worse than badness_so_far?
+			pop		R9						; Restore pain_so_far
+			cmp		R10,R9					; Is temp pain worse than pain_so_far?
 			_IF		_LO
-				mov		R10,R9					; Yes, new badness_so_far
-				mov		R8,Rmeas				; Tentative measurement causing worst badness
-				mov.b	#'T',Rtype				; Tentative type of measurement causing worst badness
+				mov		R10,R9					; Yes, new pain_so_far
+				mov		R8,Rmeas				; Tentative measurement causing worst pain
+				mov.b	#'T',Rtype				; Tentative type of measurement causing worst pain
 			_ENDIF
 
 			; Link measurement, if appropriate
-			push	R9						; Save badness_so_far
+			push	R9						; Save pain_so_far
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
-			_IF		_NE						; Only calculate link badness if not this value
+			_IF		_NE						; Only calculate link pain if not this value
 				push	R10						; Save linkV measurement
 				tst		R10
 				_IF		_L						; Get absolute value
 					inv		R10
 					inc		R10
 				_ENDIF
-				; Link badness: 1 for every 50 mV over 100 mV
+				; Link pain: 1 for every 50 mV over 100 mV
 				sub		#100-49,R10
 				_IF		_L
 					clr		R10						; Minimum of 0
@@ -350,69 +350,69 @@ measures:
 				clr		R10
 				mov		#50,R8
 				call	#UMSlashMod
-				mov		R9,R8					; Link badness in R8
+				mov		R9,R8					; Link pain in R8
 				pop		R10						; Restore linkV measurement
-				pop		R9						; Restore badness_so_far
-				cmp		R8,R9					; Is badness_so_far less than link badness?
+				pop		R9						; Restore pain_so_far
+				cmp		R8,R9					; Is pain_so_far less than link pain?
 				_IF		_LO
-					mov		R8,R9					; Yes, new badness_so_far
-					mov		R10,Rmeas				; Tentative measurement causing worst badness
+					mov		R8,R9					; Yes, new pain_so_far
+					mov		R10,Rmeas				; Tentative measurement causing worst pain
 					mov.b	#'L',Rtype				; Tentative type of measurement causing worst bad
 				_ENDIF
 			_ELSE
-				pop		R9						; Restore badness_so_far
+				pop		R9						; Restore pain_so_far
 			_ENDIF
 
-			cmp		#7,R9					; Is the badness_so_far worse than 7?
+			cmp		#7,R9					; Is the pain_so_far worse than 7?
 			_IF		_GE
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
 
-			; Receive (comms) badness: 1 if no badness RX for 10 ticks and we are not ID 1
-			bit.b	#bNotSendBad,&monFlags	; Are we sending badness?
-			_IF		_Z						; If not, there can't be a receive badness
+			; Receive (comms) pain: 1 if no pain RX for 10 ticks and we are not ID 1
+			bit.b	#bNotSendBad,&monFlags	; Are we sending pain?
+			_IF		_Z						; If not, there can't be a receive pain
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
 					cmp.b	#1,&ID					; Only if ID
 					_IF		_NE						;	is not 1 ...
-						tst		R9						; Yes, are we at badness zero?
+						tst		R9						; Yes, are we at pain zero?
 						_IF		_Z
 							mov		#1,R9					; Yes, make it 1 for the comms error
-							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst badness
+							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst pain
 							mov.b	#'R',Rtype				; Tentative type of measurement causing worst bad
 						_ENDIF
 					_ENDIF
 				_ENDIF
 			_ENDIF
 
-			mov.b	R9,R8					; Local badness
-			movBits_B R8,#7,&localBadness	; Record for later use, preserving bypass bits
-			cmp.b	&worstBadness,R9
-			_IF		_HS						; If localBadness equal or higher than worstBadness
+			mov.b	R9,R8					; Local pain
+			movBits_B R8,#7,&localPain		; Record for later use, preserving bypass bits
+			cmp.b	&worstPain,R9
+			_IF		_HS						; If localPain equal or higher than worstPain
                 tst.b   R9                      ; and if it's an actual, nonzero error
                 _IF     _NZ
-				    mov.b	R9,&worstBadness		; Update worstBadness
-				    mov		Rmeas,&worstBadMeas		; Update value of measurement causing worst badness
-				    mov.b	Rtype,&worstBadType		; Update type of measurement causing worst badness
+				    mov.b	R9,&worstPain			; Update worstPain
+				    mov		Rmeas,&worstPainMeas	; Update value of measurement causing worst pain
+				    mov.b	Rtype,&worstPainType	; Update type of measurement causing worst pain
                 _ENDIF
 			_ENDIF
 
-			cmp.b		#minLEDBad,R9		; Turn on the error LED if badness is minLEDBad or more
+			cmp.b		#minLEDBad,R9		; Turn on the error LED if pain is minLEDBad or more
 			CtoAllBits	Rtos
             call        #_errorLed          ; Use this function so it optionally turns on the piezo as well
 
 			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
 			_IF		_Z
-				mov.b	&lastSentBad,R8			; Get last badness and bypass bits we sent
-				and		#7,R8					; Clear other than badness bits
-				cmp.b	R9,R8					; Is the current badness worse than the last badness we sent?
+				mov.b	&lastSentPain,R8		; Get last pain and bypass bits we sent
+				and		#7,R8					; Clear other than pain bits
+				cmp.b	R9,R8					; Is the current pain worse than the last pain we sent?
 				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
-				;	about a new lower badness (as well as higher).
+				;	about a new lower pain (as well as higher).
 				;	However, it's possible that these messages could overwhelm
 				;	the communications system, in the situation of a sudden series of high power pulses.
-				jnc		sendBadnessNow			; Jump if so to send the badness immediately
+				jnc		sendPainNow				; Jump if so to send the pain immediately
 
-				; We don't want to send badness unless we are a (temporary) master, and it is time to send.
+				; We don't want to send pain unless we are a (temporary) master, and it is time to send.
 				; We are a temporary master if there have been 10+ ticks since our last Rx
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_NC						; If no carry, then no, we are not a master
@@ -422,7 +422,7 @@ measures:
 				_IF		_NC
 					ret								; Not time to send, so do nothing
 				_ENDIF
-sendBadnessNow
+sendPainNow
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C						; If carry, then yes, we are a master
 					; Master bypass logic: if we are bypassing, set the some- and all-in-bypass bits
@@ -436,18 +436,18 @@ sendBadnessNow
 					bit.b		#BYPASS,&P2OUT		; Are we bypassing?
 					_IF		_NZ
 						bis		#1<<3,R9			; Yes, set some-in-bypass bit
-						mov.b	&localBadness,R8	; Incoming bypass bits
+						mov.b	&localPain,R8		; Incoming bypass bits
 						and		#1<<4,R8			; Incoming all-in-bypass bit
 						bis		R8,R9				; Copy to R9
 					_ELSE
-						mov.b	&localBadness,R8	; Incoming bypass bits
+						mov.b	&localPain,R8		; Incoming bypass bits
 						and		#1<<3,R8			; Incoming some-in-bypass bit
 						bis		R8,R9				; Copy to R9
 					_ENDIF
 				_ENDIF
 				clr.b	&ticksSinceLastSend
-				mov.b	R9,&lastSentBad			; Update remembered value
-				mov.b	badnessTable(R9),R8		; Encode the present badness and bypass bits
+				mov.b	R9,&lastSentPain		; Update remembered value
+				mov.b	painTable(R9),R8		; Encode the present pain and bypass bits
 				call	#TX_ByteNW
 			_ENDIF							; Endif bNotSendBad is false
 			ret
@@ -455,24 +455,24 @@ sendBadnessNow
 
 
 ;
-;	Callback routine for received badness byte.
-;	Process received badness byte in R8. Trashes R9, R10
+;	Callback routine for received pain byte.
+;	Process received pain byte in R8. Trashes R9, R10
 ;
-DoBadness:
-			clr		&ticksSinceLastRx		; Now no time since last received badness
-			mov.b	R8,R9					; Copy incoming badness to R9
+DoPain:
+			clr		&ticksSinceLastRx		; Now no time since last received pain
+			mov.b	R8,R9					; Copy incoming pain to R9
 			mov.b	R8,R10					; And R10
-			and		#$1F,R9					; Consider only badness and bypass bits in R9
-			and		#7,R10					; Consider only badness bits in R10
-			cmp.b	R8,badnessTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&localBadness,R9		; Current badness and bypass into R9
+			and		#$1F,R9					; Consider only pain and bypass bits in R9
+			and		#7,R10					; Consider only pain bits in R10
+			cmp.b	R8,painTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
+			mov.b	&localPain,R9			; Current pain and bypass into R9
 			bic		#$18,R9					; Clean off bypass bits (does not affect flags)
-			_IF		_EQ						; If incoming is a valid badness byte
-				cmp.b	R10,R9					; Compare incoming badness (R10) to ours (R9)
+			_IF		_EQ						; If incoming is a valid pain byte
+				cmp.b	R10,R9					; Compare incoming pain (R10) to ours (R9)
 				_IF		_HS						; If we (R9) are worse than incoming (R8)
 			_CS_SWAP						; [ Make the next _ENDIF apply to the _IF _EQ ]
 			_ENDIF							; Endif incoming valid
-					mov		R9,R10					; Incoming not valid or we are worse; use our badness
+					mov		R9,R10					; Incoming not valid or we are worse; use our pain
 				_ENDIF							; Endif we are worse
 
 ;
@@ -489,8 +489,8 @@ DoBadness:
 				and		#1<<4,R9				; the all-in-bypass bit from incoming
 				bis		R9,R10					; to R10
 			_ENDIF
-			mov.b	R10,&lastSentBad		; Remember that we sent this
-			mov.b	badnessTable(R10),R8	; Encode the present badness and bypass bits
+			mov.b	R10,&lastSentPain		; Remember that we sent this
+			mov.b	painTable(R10),R8		; Encode the present pain and bypass bits
 			call	#TX_ByteNW				; Send this encoded data if buffer not full
 			ret
 
@@ -514,7 +514,7 @@ DoPassword:
 										;	Just exit this callback and wait for more
 			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
 			;	without using interrupts.
-			; May be important: it could be bad to have receive interrupts sending badness bytes after
+			; May be important: it could be bad to have receive interrupts sending pain bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
@@ -548,40 +548,41 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
-			; Encoded badness table. The badness information is transmitted in one byte,
-			; with no checksum correction. To counter this, badness is encoded, so that only
-			; 24 of the 128 possible raw badness codes ($80 - $FF) are valid. Other codes
-			; are treated as a corrupted attempt to send badness information; current badness
+
+			; Encoded pain table. The pain information is transmitted in one byte,
+			; with no checksum correction. To counter this, pain is encoded, so that only
+			; 24 of the 128 possible raw pain codes ($80 - $FF) are valid. Other codes
+			; are treated as a corrupted attempt to send pain information; current pain
 			; for this BMU is sent instead.
-			; Use 2 MSBs of badness as "parity" bits
-			; The table is indexed by raw badness plus bypass bits
-badnessTable DB		$80							; $80 is no badness
-			DB		$80 + (0<<5) + 1			; Just badness 1
-			DB		$80 + (1<<5) + 2			; Just badness 2
-			DB		$80 + (1<<5) + 3			; Just badness 3 (two active bits)
-			DB		$80 + (2<<5) + 4			; Just badness 4
-			DB		$80 + (2<<5) + 5			; Just badness 5 (2 active bits)
-			DB		$80 + (3<<5) + 6			; Just badness 6 (2 active bits)
-			DB		$80 + (3<<5) + 7			; Just badness 7
-			DB		$80 + (0<<5) + (1<<3) + 0	; Some in bypass, no badness
-			DB		$80 + (0<<5) + (1<<3) + 1	; Some in bypass, badness 1
-			DB		$80 + (1<<5) + (1<<3) + 2	; Some in bypass, badness 2
-			DB		$80 + (1<<5) + (1<<3) + 3	; Some in bypass, badness 3
-			DB		$80 + (2<<5) + (1<<3) + 4	; Some in byoass, badness 4
-			DB		$80 + (2<<5) + (1<<3) + 5	; Some in bypass, badness 5
-			DB		$80 + (3<<5) + (1<<3) + 6	; Some in bypass, badness 6
-			DB		$80 + (3<<5) + (1<<3) + 7	; Some in bypass, badness 7 (4 active bits)
+			; Use 2 MSBs of pain as "parity" bits
+			; The table is indexed by raw pain plus bypass bits
+painTable DB		$80							; $80 is no pain
+			DB		$80 + (0<<5) + 1			; Just pain 1
+			DB		$80 + (1<<5) + 2			; Just pain 2
+			DB		$80 + (1<<5) + 3			; Just pain 3 (two active bits)
+			DB		$80 + (2<<5) + 4			; Just pain 4
+			DB		$80 + (2<<5) + 5			; Just pain 5 (2 active bits)
+			DB		$80 + (3<<5) + 6			; Just pain 6 (2 active bits)
+			DB		$80 + (3<<5) + 7			; Just pain 7
+			DB		$80 + (0<<5) + (1<<3) + 0	; Some in bypass, no pain
+			DB		$80 + (0<<5) + (1<<3) + 1	; Some in bypass, pain 1
+			DB		$80 + (1<<5) + (1<<3) + 2	; Some in bypass, pain 2
+			DB		$80 + (1<<5) + (1<<3) + 3	; Some in bypass, pain 3
+			DB		$80 + (2<<5) + (1<<3) + 4	; Some in byoass, pain 4
+			DB		$80 + (2<<5) + (1<<3) + 5	; Some in bypass, pain 5
+			DB		$80 + (3<<5) + (1<<3) + 6	; Some in bypass, pain 6
+			DB		$80 + (3<<5) + (1<<3) + 7	; Some in bypass, pain 7 (4 active bits)
 			; These 8 entries are invalid. Being zero ensures that they will fail a compare test against
-			; any valid badness
+			; any valid pain
 			DB		0,0,0,0,0,0,0,0				; All in bypass with not (some in bypass) = invalid
-			DB		$80 + (0<<5) + (3<<3) + 0	; All in bypass, badness 0
-			DB		$80 + (0<<5) + (3<<3) + 1	; All in bypass, badness 1
-			DB		$80 + (1<<5) + (3<<3) + 2	; All in bypass, badness 2
-			DB		$80 + (1<<5) + (3<<3) + 3	; All in bypass, badness 3 (4 active bits)
-			DB		$80 + (2<<5) + (3<<3) + 4	; All in byoass, badness 4
-			DB		$80 + (2<<5) + (3<<3) + 5	; All in bypass, badness 5
-			DB		$80 + (3<<5) + (3<<3) + 6	; All in bypass, badness 6
-			DB		$80 + (3<<5) + (3<<3) + 7	; All in bypass, badness 7 (5 active bits)
+			DB		$80 + (0<<5) + (3<<3) + 0	; All in bypass, pain 0
+			DB		$80 + (0<<5) + (3<<3) + 1	; All in bypass, pain 1
+			DB		$80 + (1<<5) + (3<<3) + 2	; All in bypass, pain 2
+			DB		$80 + (1<<5) + (3<<3) + 3	; All in bypass, pain 3 (4 active bits)
+			DB		$80 + (2<<5) + (3<<3) + 4	; All in byoass, pain 4
+			DB		$80 + (2<<5) + (3<<3) + 5	; All in bypass, pain 5
+			DB		$80 + (3<<5) + (3<<3) + 6	; All in bypass, pain 6
+			DB		$80 + (3<<5) + (3<<3) + 7	; All in bypass, pain 7 (5 active bits)
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,

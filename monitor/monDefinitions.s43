@@ -5,9 +5,9 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and debugger
 ;
-; Kill badness sending ( boolean -- )	; 1 for no badness, 0 for badness
+; Kill pain sending ( boolean -- )	; 1 for no pain, 0 for pain
 ;
-			xCODE	'K',BadnessAutonomy,_BadnessAutonomy
+			xCODE	'K',PainAutonomy,_PainAutonomy
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bNotSendBad,&monFlags ; Move only bNotSendBad bit from Rtos to monFlags
 			ret
@@ -27,34 +27,32 @@
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
-#if IMAGE_START < $F000
-; Badness ( -- )
-			xCODE	'b',Badness,_Badness
-			mov		#'B',Rthd				; Type is badness
-			mov.b	&localBadness,Rsec		; Result in badness levels, 0 to 7
+; Pain ( -- )
+			xCODE	'b',Pain,_Pain
+			mov		#'B',Rthd				; Type is pain
+			mov.b	&localPain,Rsec			; Result in pain levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
-#endif
 
-; Query worst badness ( -- )
-			xCODE	'q',queryWorstBadness,_queryWorstBadness
-			mov.b	#'Q',Rthd				; Type is worst badness level
-			mov.b	&worstBadness,Rsec		; Result
+; Query worst pain ( -- )
+			xCODE	'q',queryWorstPain,_queryWorstPain
+			mov.b	#'Q',Rthd				; Type is worst pain level
+			mov.b	&worstPain,Rsec			; Result
 			call	#_prettyPrint3			; Pretty-print of 3 digits
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
-			; Now prettyPrint the reason for the worst badness
-			mov.b	&worstBadType,Rthd		; Type of measurement that caused worst badness
-			mov		&worstBadMeas,Rsec		; Result
+			; Now prettyPrint the reason for the worst pain
+			mov.b	&worstPainType,Rthd		; Type of measurement that caused worst pain
+			mov		&worstPainMeas,Rsec		; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
 		
-; Reset worst badness ( -- )
-			xCODE	'{',resetWorstBadness,_resetWorstBadness ; Frowny mouth :-{ because irreversible
-			clr.b	&worstBadness
-			mov.b	#' ',&worstBadType
-			clr		&worstBadMeas
+; Reset worst pain ( -- )
+			xCODE	'{',resetWorstPain,_resetWorstPain ; Frowny mouth :-{ because irreversible
+			clr.b	&worstPain
+			mov.b	#' ',&worstPainType
+			clr		&worstPainMeas
 			ret
 			
 #if IMAGE_START < $F000		// Commented out if need to save space
