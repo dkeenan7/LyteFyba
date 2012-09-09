@@ -27,9 +27,9 @@
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
-; Pain ( -- )
-			xCODE	'b',Pain,_Pain
-			mov		#'B',Rthd				; Type is pain
+; Pain ( -- )								; report local pain
+			xCODE	'p',Pain,_Pain
+			mov		#'P',Rthd				; Type is pain
 			mov.b	&localPain,Rsec			; Result in pain levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
@@ -55,7 +55,6 @@
 			clr		&worstPainMeas
 			ret
 			
-#if IMAGE_START < $F000		// Commented out if need to save space
 ; Alarm ( boolean -- )
 			xCODE	'a',Alarm,_Alarm
 	#if 1
@@ -71,5 +70,4 @@
 			_ENDIF
 	#endif
 			ret
-#endif
 
