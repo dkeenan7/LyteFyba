@@ -35,9 +35,9 @@
 DCOfreq		EQU		8000000					; DCO clock in Hz
 DCOckPerMck	EQU		2						; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
 DCOckPerSMck EQU	8						; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
-BadnessFreq	EQU		16						; Badness frequency in hertz
-											; Only sent every fourth time if badness not increased
-SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/BadnessFreq+(1<<15))/(1<<16)
+PainFreq	EQU		16						; Pain frequency in hertz
+											; Only sent every fourth time if pain not increased
+SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/PainFreq+(1<<15))/(1<<16)
 											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
 MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
@@ -162,8 +162,8 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 				cmp.b 	&txwr,&txrd				; Test if TX queue is empty
 				_IF		_EQ						; If TX queue is empty
 					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
-					cmp.b	#minLEDBad,&localBadness; Leave the LED on if we have badness >= minLEDBad
-					_IF		_LO						; If localBadness < 2
+					cmp.b	#minLEDBad,&localPain	; Leave the LED on if we have pain >= minLEDBad
+					_IF		_LO						; If localPain < 2
 						bis.b	#ACTLED,&P1OUT			; (5) Turn off the activity LED at the end of the transmit
 					_ENDIF
 				_ELSE							; Else TX queue is not empty
@@ -237,9 +237,9 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 ;--------------------------------------------------
 #if 0
 ;
-; Get a non-badness character from the receive queue into R8.
+; Get a non-pain character from the receive queue into R8.
 ; If necessary, wait until the queue is not empty.
-; Process any badness bytes before returning. Trashes R9.
+; Process any pain bytes before returning. Trashes R9.
 ; NOT USED, and probably never will be
 ;
 RX_Byte:
@@ -248,9 +248,9 @@ RX_Byte:
 			_UNTIL	_NZ
 			ret
 ;
-; Attempt to get a non-badness character from the receive queue into R8.
+; Attempt to get a non-pain character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
-; Process any badness bytes before returning. Trashes R9
+; Process any pain bytes before returning. Trashes R9
 ; Currently NOT USED, except by RX_Byte above, which is currently unused
 ;
 RX_ByteNW:
@@ -259,7 +259,7 @@ RX_ByteNW:
 				_WHILE	_NZ				; Exit when not _NZ
 					tst.b	R8
 					_WHILE	_L			; Additional exit when not _L
-						call	#DoBadness
+						call	#DoPain
 			_AGAIN						; For branch back to begin
 					_ENDIF
 				_ENDIF
