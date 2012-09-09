@@ -114,8 +114,7 @@ void dint();
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
 #define FAULT_SPEED			200					// LED sustain period for FAULT led: 200 ticks = 2 seconds
 #define CHARGER_SPEED		100					// Charger update speed: 1 per second
-#define CHGR_TIMEOUT		50					// Charger timeout in timer ticks; absolute minimum is
-													// about 13*4*2 = 104 ms = 11 ticks
+#define CHGR_TIMEOUT		150					// Charger timeout in timer ticks; should receive something every second
 #define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minimum is
 													// about 250 ms = 25 ticks
 
@@ -138,7 +137,7 @@ void dint();
 #define EVENT_GAUGE4		0x8000				// Signal that gauge 4 has been recalculated and requires update
 
 // Charger events
-#define CHGR_SENT			0x0001				// We have sent the charger a packet, not replied to yet
+// 	None at present
 
 // Charger state
 #define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
