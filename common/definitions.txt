@@ -2,18 +2,17 @@ List of single-character commands implemented in either the monitor or the debug
 
 In ASCII/alphabetical order:
 
-M D
-o e
-n b
-i u
-t g Name or description
+M T
+o '
+n c
+i a
+t l Name or description
 --------------------------------------------
 <ESC> ESCape from eXclusive mode
 $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
 - - change-sign (postfix negate)
-  a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
-a	Alarm (monitor only. 'a' is ADCScaled in debugger)
+  a ADCScaled or r(A)wVoltage (debugger only)
   c Calibrate
 d d Decimal output
 e e ErrorLED
@@ -49,11 +48,11 @@ x x e(X)clusive     (singleBMU interaction mode)
 
 In logical groupings:
 
-M D
-o e
-n b
-i u
-t g Name or description
+M T
+o '
+n c
+i a
+t l Name or description
 --------------------------------------------
 ' ' characterLiteral
 m m e(M)itCharacter
@@ -68,7 +67,7 @@ n n emit(N)um       was e(M)itDec
 e e ErrorLED
   y b(Y)pass (Yellow)
 
-  a ADCScaled or r(A)wVoltage (debugger only. 'a' is Alarm in monitor)
+  a ADCScaled or r(A)wVoltage (debugger only)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
 l l LinkVoltage
@@ -83,7 +82,6 @@ x x e(X)clusive     (singleBMU interaction mode)
 \ \ exit or comment
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 K   KillStatusSending, 1K to kill status sending, 0K to restore it
-a	Alarm (monitor only. 'a' is ADCScaled in debugger)
 
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in debugger)
 {   resetWorstStress :-{
