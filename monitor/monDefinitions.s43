@@ -55,19 +55,3 @@
 			clr		&worstStressMeas
 			ret
 			
-; Alarm ( boolean -- )
-			xCODE	'a',Alarm,_Alarm
-	#if 1
-			; Relies on bAlarmForBad being in bit 0
-		;	allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#bAlarmForBad,&monFlags ; Move only bAlarmForBad bit from Rtos to monFlags
-	#else								; Trashes Rtos
-			tst		Rtos
-			_IF		_NZ
-				bic.b		#bAlarmForBad,&monFlags
-			_ELSE
-				bis.b		#bAlarmForBad,&monFlags
-			_ENDIF
-	#endif
-			ret
-
