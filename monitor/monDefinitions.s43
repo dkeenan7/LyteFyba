@@ -9,7 +9,7 @@
 ;
 			xCODE	'K',PainAutonomy,_PainAutonomy
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#bNotSendBad,&monFlags ; Move only bNotSendBad bit from Rtos to monFlags
+			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 		
 ; checKsumming ( -- )						; Toggle bChecksumming
@@ -27,32 +27,32 @@
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
-; Pain ( -- )								; report local pain
-			xCODE	'p',Pain,_Pain
-			mov		#'P',Rthd				; Type is pain
-			mov.b	&localPain,Rsec			; Result in pain levels, 0 to 7
+; Stress ( -- )								; report local stress
+			xCODE	'p',Stress,_Stress
+			mov		#'S',Rthd				; Type is stress
+			mov.b	&localStatus,Rsec		; Result in stress levels, 0 to 7
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
-; Query worst pain ( -- )
-			xCODE	'q',queryWorstPain,_queryWorstPain
-			mov.b	#'Q',Rthd				; Type is worst pain level
-			mov.b	&worstPain,Rsec			; Result
+; Query worst stress ( -- )
+			xCODE	'q',queryWorstStress,_queryWorstStress
+			mov.b	#'Q',Rthd				; Type is worst stress level
+			mov.b	&worstStress,Rsec		; Result
 			call	#_prettyPrint3			; Pretty-print of 3 digits
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst pain
-			mov.b	&worstPainType,Rthd		; Type of measurement that caused worst pain
-			mov		&worstPainMeas,Rsec		; Result
+			mov.b	&worstStressType,Rthd	; Type of measurement that caused worst pain
+			mov		&worstStressMeas,Rsec	; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
 		
 ; Reset worst pain ( -- )
 			xCODE	'{',resetWorstPain,_resetWorstPain ; Frowny mouth :-{ because irreversible
-			clr.b	&worstPain
-			mov.b	#' ',&worstPainType
-			clr		&worstPainMeas
+			clr.b	&worstStress
+			mov.b	#' ',&worstStressType
+			clr		&worstStressMeas
 			ret
 			
 ; Alarm ( boolean -- )

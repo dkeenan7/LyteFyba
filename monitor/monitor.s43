@@ -36,7 +36,8 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
-minLEDBad	EQU			1			; Minimum pain to light error LED
+minLEDStress EQU		5			; Minimum stress to light error LED
+minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
 
 ; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -63,8 +64,8 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
-txsz		EQU		8//FIXME				; Transmit queue size. Must be a power of 2 no greater than 256
-									; 4 is sufficient to reduce dropped pain to less than one a minute
+txsz		EQU		8				; Transmit queue size. Must be a power of 2 no greater than 256
+									; 4 is sufficient to reduce dropped status to less than one a minute
 
 ; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
 ; It is valid for the domain 1-64, and range 0-6.
@@ -83,16 +84,17 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
-bAlarmForBad 	EQU		1			; A BMU can be told to raise an alarm instead of sending pain on
-bNotSendBad	 	EQU		2			; Zero if sending pain bytes at all
+// CHECKME: surely the next one is obsolete now?
+bAlarmForBad 	EQU		1			; A BMU can be told to raise an alarm instead of sending stress on
+bNotSendStatus 	EQU		2			; Zero if sending status bytes at all
 bNotMeasureTime EQU		4			; Zero if time to measure
 
-localPain 		DS		1			; Local pain and bypass status (0-2 pain, 3 some in bypass,
-									; 4 all in bypass)
-ticksSinceLastSend DS	1			; Timer overflow events (~1/4 seconds) since last pain send
-ticksSinceLastRx DS		1			; Timer overflow events since last pain received
+localStatus		DS		1			; Local stress, comms error and bypass status (0-2 stress,
+									;	6 comms error, 5 all-in-bypass)
+ticksSinceLastSend DS	1			; Timer overflow events (~1/4 seconds) since last status send
+ticksSinceLastRx DS		1			; Timer overflow events since last status received
 passWordState	DS		1			; State machine for password recogniser
-lastSentPain	DS		1			; Last sent pain and bypass bits
+lastSentStatus	DS		1			; Last sent status byte
 
 ; Serialio variables
 
@@ -120,9 +122,9 @@ bChecksumming 	EQU		2			; Are we sending checksums and checking received checksu
 bDontInterpret 	EQU		4			; Are we interpreting?
 
 				ALIGNRAM 1
-worstPain 		DS		1			; Worst local pain since last resetWorstPain command
-worstPainType 	DS		1			; Character giving type of measurement that caused worst pain
-worstPainMeas 	DS		2			; Value of measurement that caused worst pain
+worstStress 		DS		1		; Worst local stress since last resetWorstStatus command
+worstStressType 	DS		1		; Character giving type of measurement that caused worst stress
+worstStressMeas 	DS		2		; Value of measurement that caused worst stress
 
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
@@ -140,8 +142,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
-			; Clear all variables in RAM except worstPain (and ToIN/TIB)
-			_DO		#worstPain-$200,R8
+			; Clear all variables in RAM except worstStress (and ToIN/TIB)
+			_DO		#worstStress-$200,R8
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
 
@@ -236,14 +238,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
-						call	#DoPain					; Process pain bytes
+						call	#DoStatus					; Process status bytes
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
 					_IF		_Z							; If not, skip measurement and set/clear of bypass
 						eint
 						bis.b	#bNotMeasureTime,&monFlags
-						call	#measures				; May send pain
+						call	#measures				; May send status
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
 						;eint							; Interrupts are enabled by following bis instr:
@@ -259,10 +261,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 measures:
 ;
-; Regular measurement. Called PainFreq times per second (4-32 times per second)
+; Regular measurement. Called StatusFreq times per second (4-32 times per second)
 ;
-#define Rmeas R15				// Tentative measurement causing worst pain
-#define Rtype R14				// Tentative type of measurement causing worst pain
+#define Rmeas R15				// Tentative measurement causing worst stress
+#define Rtype R14				// Tentative type of measurement causing worst stress
 
 			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
@@ -272,8 +274,8 @@ measures:
 
 			; Cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			mov		R10,Rmeas				; Tentative measurement causing worst pain
-			mov.b	#'V',Rtype				; Tentative type of measurement causing worst pain
+			mov		R10,Rmeas				; Tentative measurement causing worst stress
+			mov.b	#'V',Rtype				; Tentative type of measurement causing worst stress
 			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
 			tst		R8
 			_IF		_Z
@@ -283,7 +285,7 @@ measures:
 			NCtoAllBits	R8					; If voltage > threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage pain: for every 50 mV over 3.60 V, we add one level of pain, to a maximum of 7 for > 3.95 V
+			; Overvoltage stress: for every 50 mV over 3.60 V, we add one level of stress, to a maximum of 7 for > 3.95 V
 			mov		R10,R9					; Measurement
 			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
 			_IF		_L
@@ -294,9 +296,9 @@ measures:
 			mov		#50,R8
 			call	#UMSlashMod				; (meas - 3.6) / 50 -> R9
 
-			; Undervoltage pain: for every 100 mv below 2.5 V, we add one level of pain, to a maximum of 7 for < 1.9 V
+			; Undervoltage stress: for every 100 mv below 2.5 V, we add one level of stress, to a maximum of 7 for < 1.9 V
 			pop		R10						; Restore original measurement
-			push	R9						; Save pain_so_far
+			push	R9						; Save stress_so_far
 			mov		#2500+99,R9
 			sub		R10,R9					; R9 has 2.5 V - meas plus 99 for rounding
 			clr		R10						; R10:R9 has this
@@ -305,43 +307,43 @@ measures:
 			_ENDIF
 			mov		#100,R8
 			call	#UMSlashMod				; (2.5 V - meas) / 100 -> R9
-			pop		R8						; Restore Pain_so_far
-			cmp		R8,R9					; Which pain is worse?
+			pop		R8						; Restore stress_so_far
+			cmp		R8,R9					; Which stress is worse?
 			_IF		_LO
 				mov		R8,R9				; Worst to R9
 			_ENDIF
 
 			; Temperature measurement
-			push	R9						; Save pain_so_far
+			push	R9						; Save stress_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; Temperature pain: 1 for every 2 degrees over 45
+			; Temperature stress: 1 for every 2 degrees over 45
 			sub		#45-1,R10				; -1 for rounding
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
 			rra		R10
 			pop		R8						; Restore measurement
-			pop		R9						; Restore pain_so_far
-			cmp		R10,R9					; Is temp pain worse than pain_so_far?
+			pop		R9						; Restore stress_so_far
+			cmp		R10,R9					; Is temp stress worse than stress_so_far?
 			_IF		_LO
-				mov		R10,R9					; Yes, new pain_so_far
-				mov		R8,Rmeas				; Tentative measurement causing worst pain
-				mov.b	#'T',Rtype				; Tentative type of measurement causing worst pain
+				mov		R10,R9					; Yes, new stress_so_far
+				mov		R8,Rmeas				; Tentative measurement causing worst stress
+				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
 			_ENDIF
 
 			; Link measurement, if appropriate
-			push	R9						; Save pain_so_far
+			push	R9						; Save stress_so_far
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
-			_IF		_NE						; Only calculate link pain if not this value
+			_IF		_NE						; Only calculate link stress if not this value
 				push	R10						; Save linkV measurement
 				tst		R10
 				_IF		_L						; Get absolute value
 					inv		R10
 					inc		R10
 				_ENDIF
-				; Link pain: 1 for every 50 mV over 100 mV
+				; Link stress: 1 for every 50 mV over 100 mV
 				sub		#100-49,R10
 				_IF		_L
 					clr		R10						; Minimum of 0
@@ -350,69 +352,69 @@ measures:
 				clr		R10
 				mov		#50,R8
 				call	#UMSlashMod
-				mov		R9,R8					; Link pain in R8
+				mov		R9,R8					; Link stress in R8
 				pop		R10						; Restore linkV measurement
-				pop		R9						; Restore pain_so_far
-				cmp		R8,R9					; Is pain_so_far less than link pain?
+				pop		R9						; Restore stress_so_far
+				cmp		R8,R9					; Is stress_so_far less than link stress?
 				_IF		_LO
-					mov		R8,R9					; Yes, new pain_so_far
-					mov		R10,Rmeas				; Tentative measurement causing worst pain
+					mov		R8,R9					; Yes, new stress_so_far
+					mov		R10,Rmeas				; Tentative measurement causing worst stress
 					mov.b	#'L',Rtype				; Tentative type of measurement causing worst bad
 				_ENDIF
 			_ELSE
-				pop		R9						; Restore pain_so_far
+				pop		R9						; Restore stress_so_far
 			_ENDIF
 
-			cmp		#7,R9					; Is the pain_so_far worse than 7?
+			cmp		#7,R9					; Is the stress_so_far worse than 7?
 			_IF		_GE
 				mov		#7,R9					; Yes, use 7
 			_ENDIF
 
-			; Receive (comms) pain: 1 if no pain RX for 10 ticks and we are not ID 1
-			bit.b	#bNotSendBad,&monFlags	; Are we sending pain?
-			_IF		_Z						; If not, there can't be a receive pain
+			; Receive (comms) stress: 1 if no status RX for 10 ticks and we are not ID 1
+			bit.b	#bNotSendStatus,&monFlags ; Are we sending status?
+			_IF		_Z						; If not, there can't be a receive stress
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C
 					cmp.b	#1,&ID					; Only if ID
 					_IF		_NE						;	is not 1 ...
-						tst		R9						; Yes, are we at pain zero?
+						tst		R9						; Yes, are we at stress zero?
 						_IF		_Z
 							mov		#1,R9					; Yes, make it 1 for the comms error
-							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst pain
+							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst stress
 							mov.b	#'R',Rtype				; Tentative type of measurement causing worst bad
 						_ENDIF
 					_ENDIF
 				_ENDIF
 			_ENDIF
 
-			mov.b	R9,R8					; Local pain
-			movBits_B R8,#7,&localPain		; Record for later use, preserving bypass bits
-			cmp.b	&worstPain,R9
-			_IF		_HS						; If localPain equal or higher than worstPain
+			mov.b	R9,R8					; Local stress
+			movBits_B R8,#7,&localStatus	; Record for later use, preserving bypass bits
+			cmp.b	&worstStress,R9
+			_IF		_HS						; If localStatus equal or higher than worstStress
                 tst.b   R9                      ; and if it's an actual, nonzero error
                 _IF     _NZ
-				    mov.b	R9,&worstPain			; Update worstPain
-				    mov		Rmeas,&worstPainMeas	; Update value of measurement causing worst pain
-				    mov.b	Rtype,&worstPainType	; Update type of measurement causing worst pain
+				    mov.b	R9,&worstStress			; Update worstStress
+				    mov		Rmeas,&worstStressMeas	; Update value of measurement causing worst stress
+				    mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
                 _ENDIF
 			_ENDIF
 
-			cmp.b		#minLEDBad,R9		; Turn on the error LED if pain is minLEDBad or more
+			cmp.b		#minLEDStress,R9	; Turn on the error LED if stress is minLEDStress or more
 			CtoAllBits	Rtos
             call        #_errorLed          ; Use this function so it optionally turns on the piezo as well
 
-			bit.b	#bNotSendBad,&monFlags		; If bNotSendBad is false
+			bit.b	#bNotSendStatus,&monFlags ; If bNotSendStatus is false
 			_IF		_Z
-				mov.b	&lastSentPain,R8		; Get last pain and bypass bits we sent
-				and		#7,R8					; Clear other than pain bits
-				cmp.b	R9,R8					; Is the current pain worse than the last pain we sent?
+				mov.b	&lastSentStatus,R8		; Get last stress and bypass bits we sent
+				and		#7,R8					; Clear other than stress bits
+				cmp.b	R9,R8					; Is the current stress worse than the last stress we sent?
 				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
-				;	about a new lower pain (as well as higher).
+				;	about a new lower stress (as well as higher).
 				;	However, it's possible that these messages could overwhelm
 				;	the communications system, in the situation of a sudden series of high power pulses.
-				jnc		sendPainNow				; Jump if so to send the pain immediately
+				jnc		sendStatusNow				; Jump if so to send the stress immediately
 
-				; We don't want to send pain unless we are a (temporary) master, and it is time to send.
+				; We don't want to send status unless we are a (temporary) master, and it is time to send.
 				; We are a temporary master if there have been 10+ ticks since our last Rx
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_NC						; If no carry, then no, we are not a master
@@ -422,7 +424,7 @@ measures:
 				_IF		_NC
 					ret								; Not time to send, so do nothing
 				_ENDIF
-sendPainNow
+sendStatusNow
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C						; If carry, then yes, we are a master
 					; Master bypass logic: if we are bypassing, set the some- and all-in-bypass bits
@@ -436,43 +438,47 @@ sendPainNow
 					bit.b		#BYPASS,&P2OUT		; Are we bypassing?
 					_IF		_NZ
 						bis		#1<<3,R9			; Yes, set some-in-bypass bit
-						mov.b	&localPain,R8		; Incoming bypass bits
+						mov.b	&localStatus,R8		; Incoming bypass bits
 						and		#1<<4,R8			; Incoming all-in-bypass bit
 						bis		R8,R9				; Copy to R9
 					_ELSE
-						mov.b	&localPain,R8		; Incoming bypass bits
+						mov.b	&localStatus,R8		; Incoming bypass bits
 						and		#1<<3,R8			; Incoming some-in-bypass bit
 						bis		R8,R9				; Copy to R9
 					_ENDIF
 				_ENDIF
 				clr.b	&ticksSinceLastSend
-				mov.b	R9,&lastSentPain		; Update remembered value
-				mov.b	painTable(R9),R8		; Encode the present pain and bypass bits
+				mov.b	R9,&lastSentStatus		; Update remembered value
+				mov.b	R9,R10
+				and.b	#7,R10					; Just stress bits in R10
+				mov.b	stressTable(R10),R8		; Encode the present stress and bypass bits
+				and.b	#$60,R9					; Just comms error and bypass bits in R9
+				bis.b	R9,R8					; Copy comms error and bypass bits to R8
 				call	#TX_ByteNW
-			_ENDIF							; Endif bNotSendBad is false
+			_ENDIF							; Endif bNotSendStatus is false
 			ret
 ; End of measurement
 
 
 ;
-;	Callback routine for received pain byte.
-;	Process received pain byte in R8. Trashes R9, R10
+;	Callback routine for received stress byte.
+;	Process received stress byte in R8. Trashes R9, R10
 ;
-DoPain:
-			clr		&ticksSinceLastRx		; Now no time since last received pain
-			mov.b	R8,R9					; Copy incoming pain to R9
+DoStatus:
+			clr		&ticksSinceLastRx		; Now no time since last received stress
+			mov.b	R8,R9					; Copy incoming stress to R9
 			mov.b	R8,R10					; And R10
-			and		#$1F,R9					; Consider only pain and bypass bits in R9
-			and		#7,R10					; Consider only pain bits in R10
-			cmp.b	R8,painTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&localPain,R9			; Current pain and bypass into R9
+			and		#$1F,R9					; Consider only stress and bypass bits in R9
+			and		#7,R10					; Consider only stress bits in R10
+			cmp.b	R8,stressTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
+			mov.b	&localStatus,R9			; Current stress and bypass into R9
 			bic		#$18,R9					; Clean off bypass bits (does not affect flags)
-			_IF		_EQ						; If incoming is a valid pain byte
-				cmp.b	R10,R9					; Compare incoming pain (R10) to ours (R9)
+			_IF		_EQ						; If incoming is a valid stress byte
+				cmp.b	R10,R9					; Compare incoming stress (R10) to ours (R9)
 				_IF		_HS						; If we (R9) are worse than incoming (R8)
 			_CS_SWAP						; [ Make the next _ENDIF apply to the _IF _EQ ]
 			_ENDIF							; Endif incoming valid
-					mov		R9,R10					; Incoming not valid or we are worse; use our pain
+					mov		R9,R10					; Incoming not valid or we are worse; use our stress
 				_ENDIF							; Endif we are worse
 
 ;
@@ -489,8 +495,8 @@ DoPain:
 				and		#1<<4,R9				; the all-in-bypass bit from incoming
 				bis		R9,R10					; to R10
 			_ENDIF
-			mov.b	R10,&lastSentPain		; Remember that we sent this
-			mov.b	painTable(R10),R8		; Encode the present pain and bypass bits
+			mov.b	R10,&lastSentStatus		; Remember that we sent this
+			mov.b	stressTable(R10),R8		; Encode the present stress and bypass bits
 			call	#TX_ByteNW				; Send this encoded data if buffer not full
 			ret
 
@@ -514,7 +520,7 @@ DoPassword:
 										;	Just exit this callback and wait for more
 			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
 			;	without using interrupts.
-			; May be important: it could be bad to have receive interrupts sending pain bytes after
+			; May be important: it could be bad to have receive interrupts sending stress bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
@@ -548,42 +554,42 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
+/*	From email from DK 16/Sep/2012:
+Stress  5 bit code
+------------------
+0   1 0 0 0 0
+1   1 1 0 0 1
+2   1 1 0 1 0
+3   1 0 0 1 1
+4   0 1 1 0 0
+5   0 0 1 0 1
+6   0 0 1 1 0
+7   0 1 1 1 1
 
-			; Encoded pain table. The pain information is transmitted in one byte,
-			; with no checksum correction. To counter this, pain is encoded, so that only
-			; 24 of the 128 possible raw pain codes ($80 - $FF) are valid. Other codes
-			; are treated as a corrupted attempt to send pain information; current pain
+Neither 00000 nor 11111 are valid codes. It requires at least 2 bit flips to change any valid code to
+any other valid code. It requires at least 3 bit flips to change any code less than 3.5 to any code
+greater than 3.5 or vice versa.
+It requires 5 bit flips to change between 3 and 4, or between 2 and 5, or 1 and 6, or 0 and 7.
+*/
+			; Encoded stress table. The stress and other information is transmitted in one status byte,
+			; with no checksum correction. To counter this, stress is encoded, so that only
+			; some of the 128 possible raw status codes ($80 - $FF) are valid. Other codes
+			; are treated as a corrupted attempt to send status information; current status
 			; for this BMU is sent instead.
-			; Use 2 MSBs of pain as "parity" bits
-			; The table is indexed by raw pain plus bypass bits
-painTable DB		$80							; $80 is no pain
-			DB		$80 + (0<<5) + 1			; Just pain 1
-			DB		$80 + (1<<5) + 2			; Just pain 2
-			DB		$80 + (1<<5) + 3			; Just pain 3 (two active bits)
-			DB		$80 + (2<<5) + 4			; Just pain 4
-			DB		$80 + (2<<5) + 5			; Just pain 5 (2 active bits)
-			DB		$80 + (3<<5) + 6			; Just pain 6 (2 active bits)
-			DB		$80 + (3<<5) + 7			; Just pain 7
-			DB		$80 + (0<<5) + (1<<3) + 0	; Some in bypass, no pain
-			DB		$80 + (0<<5) + (1<<3) + 1	; Some in bypass, pain 1
-			DB		$80 + (1<<5) + (1<<3) + 2	; Some in bypass, pain 2
-			DB		$80 + (1<<5) + (1<<3) + 3	; Some in bypass, pain 3
-			DB		$80 + (2<<5) + (1<<3) + 4	; Some in byoass, pain 4
-			DB		$80 + (2<<5) + (1<<3) + 5	; Some in bypass, pain 5
-			DB		$80 + (3<<5) + (1<<3) + 6	; Some in bypass, pain 6
-			DB		$80 + (3<<5) + (1<<3) + 7	; Some in bypass, pain 7 (4 active bits)
-			; These 8 entries are invalid. Being zero ensures that they will fail a compare test against
-			; any valid pain
-			DB		0,0,0,0,0,0,0,0				; All in bypass with not (some in bypass) = invalid
-			DB		$80 + (0<<5) + (3<<3) + 0	; All in bypass, pain 0
-			DB		$80 + (0<<5) + (3<<3) + 1	; All in bypass, pain 1
-			DB		$80 + (1<<5) + (3<<3) + 2	; All in bypass, pain 2
-			DB		$80 + (1<<5) + (3<<3) + 3	; All in bypass, pain 3 (4 active bits)
-			DB		$80 + (2<<5) + (3<<3) + 4	; All in byoass, pain 4
-			DB		$80 + (2<<5) + (3<<3) + 5	; All in bypass, pain 5
-			DB		$80 + (3<<5) + (3<<3) + 6	; All in bypass, pain 6
-			DB		$80 + (3<<5) + (3<<3) + 7	; All in bypass, pain 7 (5 active bits)
-
+			; Note that bit 7 is always set for status bytes; bit 6 represents comms error
+			; Bit 5 represents all-in-bypass
+			; Note that raw encoded stress values are no longer monotonic; we used to rely on
+			;	monotonicity but no longer do
+			; The table is indexed by raw stress bits
+stressTable	DB		$80 + (2<<3) + 0			; $80 is no stress
+			DB		$80 + (3<<3) + 1			; Stress 1
+			DB		$80 + (3<<3) + 2
+			DB		$80 + (2<<3) + 3
+			DB		$80 + (1<<3) + 4
+			DB		$80 + (0<<3) + 5
+			DB		$80 + (0<<3) + 6
+			DB		$80 + (1<<3) + 7
+			
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
 ; when asked for one.

@@ -112,7 +112,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			;		clrc						; Because dadd is always done with carry on MSP430
 					dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 					dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
-			;		and.b	#$7F,R8				; Ensure nothing can be misinterpreted as pain
+			;		and.b	#$7F,R8				; Ensure nothing can be misinterpreted as status
 					mov		R9,Rthd				; Save R9
 					call	#TX_ByteCk			; Transmit byte (accumulating checksum). Trashes R9
 					mov		Rthd,R9				; Restore R9
@@ -156,7 +156,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			clrc						; Because dadd is always done with carry on MSP430
 			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
-			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as pain
+			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as status
 			call	#TX_ByteCk
 			dec		Rtos
 		_WHILE	_NN
