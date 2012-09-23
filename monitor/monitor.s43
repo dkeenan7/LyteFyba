@@ -36,6 +36,9 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
+; Constants
+BYPLEV		EQU			3550		// Bypass level in millivolts
+
 minLEDStress EQU		5			; Minimum stress to light error LED
 minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
 
@@ -81,11 +84,8 @@ txsz		EQU		8				; Transmit queue size. Must be a power of 2 no greater than 256
 			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
-bypassVolts	DS		2				; If non-zero, this is the bypass threshold in mV
 
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
-// CHECKME: surely the next one is obsolete now?
-bAlarmForBad 	EQU		1			; A BMU can be told to raise an alarm instead of sending stress on
 bNotSendStatus 	EQU		2			; Zero if sending status bytes at all
 bNotMeasureTime EQU		4			; Zero if time to measure
 
@@ -276,27 +276,24 @@ measures:
 			call	#cellV					; Get cell voltage in mV in R10
 			mov		R10,Rmeas				; Tentative measurement causing worst stress
 			mov.b	#'V',Rtype				; Tentative type of measurement causing worst stress
-			mov		&bypassVolts,R8			; Get the current bypass threshold, if any
-			tst		R8
-			_IF		_Z
-				mov		#3600,R8				; Default of 3.6 V
-			_ENDIF
-			cmp		R10,R8					; Compare current cell voltage (R10) to the bypass threshold (R8)
-			NCtoAllBits	R8					; If voltage > threshold then $FF else $00
+			cmp		#BYPLEV,R10				; Compare current cell voltage (R10) to the bypass threshold
+			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage stress: for every 50 mV over 3.60 V, we add one level of stress, to a maximum of 7 for > 3.95 V
+			; Overvoltage stress: for every 50 mV over 3.40 V, we add one level of stress, to a maximum of 7 for > 3.75 V
+			; The set point will be 3.5, which will be 3.60 V
 			mov		R10,R9					; Measurement
-			sub		#3650-49,R9				; Cell voltage - 3.6 V + 49 mV for rounding
+			sub		#3400,R9				; Cell voltage - 3.40 V
 			_IF		_L
 				clr		R9						; Minimum of zero
 			_ENDIF
 			push	R10						; Save measurement
-			clr		R10						; R10:R9 has meas - 3.6
+			clr		R10						; R10:R9 has meas - 3.40
 			mov		#50,R8
-			call	#UMSlashMod				; (meas - 3.6) / 50 -> R9
+			call	#UMSlashMod				; (meas - 3.40) / 50 -> R9
 
-			; Undervoltage stress: for every 100 mv below 2.5 V, we add one level of stress, to a maximum of 7 for < 1.9 V
+			; Undervoltage stress: for every 100 mv below 2.90 V, we add one level of stress, to a maximum of 7 for < 2.2 V
+			; The set point will be 3.5, which will be 2.50 V
 			pop		R10						; Restore original measurement
 			push	R9						; Save stress_so_far
 			mov		#2500+99,R9
@@ -317,8 +314,8 @@ measures:
 			push	R9						; Save stress_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; Temperature stress: 1 for every 2 degrees over 45
-			sub		#45-1,R10				; -1 for rounding
+			; High temperature stress: 1 for every 2 degrees over 40 C
+			sub		#40,R10
 			_IF		_L
 				clr		R10					; Minimum of 0
 			_ENDIF
@@ -330,6 +327,20 @@ measures:
 				mov		R10,R9					; Yes, new stress_so_far
 				mov		R8,Rmeas				; Tentative measurement causing worst stress
 				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
+			_ENDIF
+			; Low temperature stress: 1 for every 2 degrees below 10 C
+			mov.b	R8,R10					; Save measurement
+			mov.b	#10,R8
+			sub.b	R10,R8					; 10 - measurement
+			_IF		_L
+				clr		R8						; Min of 0
+			_ENDIF
+			rra		R8
+			cmp		R8,R9					; Is low temp stress worse than stress_so_far?
+			_IF		_LO
+				mov		R8,R9					; Yes, new stress_so_far
+				mov		R10,Rmeas				; Tentative measurement causing worst stress
+				mov		#'t',Rtype				; Low temperature (lower case 't') is type
 			_ENDIF
 
 			; Link measurement, if appropriate
@@ -461,42 +472,52 @@ sendStatusNow
 
 
 ;
-;	Callback routine for received stress byte.
-;	Process received stress byte in R8. Trashes R9, R10
+;	Process received status byte in R8. Trashes R9, R10
+;	Status byte:
+;	 Bit 7: Always 1 for status byte
+;	 Bit 6: Comms error: status information is incomplete
+;	 Bit 5: All in bypass (will be some in bypass for bottom balancing)
+;	 Bits 4-3: check bits
+;	 Bits 2-0: stress level 0-7
 ;
 DoStatus:
-			clr		&ticksSinceLastRx		; Now no time since last received stress
+			clr		&ticksSinceLastRx		; Now no time since last received status
 			mov.b	R8,R9					; Copy incoming stress to R9
 			mov.b	R8,R10					; And R10
-			and		#$1F,R9					; Consider only stress and bypass bits in R9
 			and		#7,R10					; Consider only stress bits in R10
-			cmp.b	R8,stressTable(R9)		; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&localStatus,R9			; Current stress and bypass into R9
-			bic		#$18,R9					; Clean off bypass bits (does not affect flags)
+			and		#$1F,R8					; Only stress and check bits in R8
+			cmp.b	R8,stressTable(R10)		; Is it valid? (Tested after 2 intervening instructions)
+			mov.b	&localStatus,R8			; Get local status to R8
+			bic.b	#$F8,R8					; Clear off non-stress bits (does not affect flags)
 			_IF		_EQ						; If incoming is a valid stress byte
-				cmp.b	R10,R9					; Compare incoming stress (R10) to ours (R9)
-				_IF		_HS						; If we (R9) are worse than incoming (R8)
+				cmp.b	R10,R8					; Compare incoming stress (R10) to ours (R8)
+				_IF		_HS						; If we (R10) are worse than incoming (R8)
 			_CS_SWAP						; [ Make the next _ENDIF apply to the _IF _EQ ]
 			_ENDIF							; Endif incoming valid
-					mov		R9,R10					; Incoming not valid or we are worse; use our stress
+					mov		R8,R10					; Incoming not valid or we are worse; use our stress
 				_ENDIF							; Endif we are worse
 
 ;
-; Process incoming bypass bits
+; Process incoming bypass bit
 ;
 			bit.b	#BYPASS,&P2OUT			; Test if we are in bypass now
-			_IF		_Z						; If bit is zero (i.e. we are not bypassing)
-				mov.b	R8,R9					; then copy incoming some-in-bypass bit from R8
-				and		#1<<3,R9
-				bis		R9,R10					; to R10
-			_ELSE								; Else we are in bypass
-				bis		#1<<3,R10				; so set the some-in-bypass bit
-				mov		R8,R9					; and copy
-				and		#1<<4,R9				; the all-in-bypass bit from incoming
-				bis		R9,R10					; to R10
+			_IF		_NZ						; If bit is nonzero (i.e. we are bypassing)
+				mov		R9,R8					; copy
+				and		#1<<5,R8				; the all-in-bypass bit from incoming
+				bis		R8,R10					; to R10
 			_ENDIF
+;
+; Process incoming comms error bit. Since we received a status byte, we are not generating a local
+;	comms error, so just copy incoming comms error bit
+;
+			mov.b	R9,R8
+			and		#1<<4,R8				; Incoming comms error bit
+			bis.b	R8,R10
+
 			mov.b	R10,&lastSentStatus		; Remember that we sent this
-			mov.b	stressTable(R10),R8		; Encode the present stress and bypass bits
+			mov.b	R10,R8
+			and.b	#7,R10					; Just stress bits for index
+			bis.b	stressTable(R10),R8		; Encode the present stress and bypass bits
 			call	#TX_ByteNW				; Send this encoded data if buffer not full
 			ret
 
@@ -581,14 +602,14 @@ It requires 5 bit flips to change between 3 and 4, or between 2 and 5, or 1 and 
 			; Note that raw encoded stress values are no longer monotonic; we used to rely on
 			;	monotonicity but no longer do
 			; The table is indexed by raw stress bits
-stressTable	DB		$80 + (2<<3) + 0			; $80 is no stress
+stressTable	DB		$80 + (2<<3) + 0			; $90 is lowest stress level, level 0
 			DB		$80 + (3<<3) + 1			; Stress 1
 			DB		$80 + (3<<3) + 2
 			DB		$80 + (2<<3) + 3
 			DB		$80 + (1<<3) + 4
 			DB		$80 + (0<<3) + 5
 			DB		$80 + (0<<3) + 6
-			DB		$80 + (1<<3) + 7
+			DB		$80 + (1<<3) + 7			; Stress 7
 			
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
