@@ -25,7 +25,8 @@ void chgr_sendRequest(int voltage, int current, bool chargerOff);
 void chgr_processPacket();
 bool chgr_resendLastPacket(void);
 void chgr_timer();
-void handleChargerEvent();
+void chgr_off();
+//void handleChargerEvent();
 
 
 // Public variables

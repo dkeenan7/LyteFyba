@@ -7,6 +7,7 @@
  */
 
 #include "queue.h"
+#include "control.h"
 
 // BMU constants
 #define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
@@ -19,7 +20,7 @@ bool bmu_sendVoltReq();
 bool bmu_sendVAComment(int nVolt, int nAmp);
 void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 							unsigned int bmu_min_id, unsigned int bmu_max_id);
-void handleBMUbadnessEvent();
+void handleBMUstatusByte(unsigned char status, bool bCharging);
 void readBMUbytes(bool bCharging);
 void bmu_processPacket(bool bCharging);
 bool bmu_resendLastPacket(void);
@@ -29,8 +30,9 @@ void bmu_timer();
 
 // Public variables
 extern volatile unsigned int bmu_events;
-extern volatile unsigned char bmu_badness;		// Zero says we have received no badness so far
 extern volatile unsigned int bmu_sent_timeout;
+extern ctl_state hCtlCharge;
+extern ctl_state hCtlDrive;
 
 // BMU buffers
 #define BMU_TX_BUFSZ	64

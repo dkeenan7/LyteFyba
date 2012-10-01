@@ -14,7 +14,6 @@ bool bmu_sendPacket(const unsigned char* ptr);
 // Public variables
 volatile unsigned int bmu_events = 0;
 		 unsigned int bmu_state = 0;
-volatile unsigned char bmu_badness = 0;		// Zero says we have received no badness so far
 volatile unsigned int bmu_sent_timeout;
 
 // BMU buffers
@@ -40,6 +39,18 @@ volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 // Current cell in the current end-of-charge test (send voltage request to this cell next)
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
+
+// Stress table with check bits
+static int stressTable[8] = {
+			0x80 + (2<<3) + 0,		// $90 is lowest stress level, level 0
+			0x80 + (3<<3) + 1,		// Stress 1
+			0x80 + (3<<3) + 2,
+			0x80 + (2<<3) + 3,
+			0x80 + (1<<3) + 4,
+			0x80 + (0<<3) + 5,
+			0x80 + (0<<3) + 6,
+			0x80 + (1<<3) + 7		// Stress 7
+};
 
 
 void bms_init()
@@ -129,11 +140,32 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
 }
 
-void handleBMUbadnessEvent()
+void handleBMUstatusByte(unsigned char status, bool bCharging)
 {
-	if (bmu_badness > 0x80)					// Simple algorithm:
-		chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// On any badness, cut back to
-									                        // what the BMUs can bypass
+	int output;
+	int stress = status & 0x07;			// Isolate stress bits
+	int encoded = status & 0x9F;		// All but bypass and comms error bits
+	bool bValid;
+	
+	
+	// Check for validity
+	bValid = stressTable[stress] == encoded;
+
+	if (bCharging) {
+		if (bValid)
+			output = ctl_tick(&hCtlCharge, stress);
+		else
+			// We have to insert a dummy measurement tick so the integral term still integrates
+			// Use the last known good measurement, = set_point + prev_error
+			output = ctl_tick(&hCtlCharge, hCtlCharge.set_point + hCtlCharge.prev_error);
+		// Apply the output. We will have to tune the "gain" later. For now, let's try one whole
+		// stress level = almost full current, so an output of 16 should represent a current of 55 (5.5 A)
+		// 55/16 ~= 4
+		chgr_sendRequest(CHGR_VOLT_LIMIT, output << 2, false);
+	} else {
+		// Not charging, assume driving.
+		// TO BE COMPLETED
+	}
 }
 
 // Read incoming bytes from BMUs
@@ -141,8 +173,7 @@ void readBMUbytes(bool bCharging)
 {	unsigned char ch;
 	while (	dequeue(&bmu_rx_q, &ch)) {		// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			bmu_badness = ch;
-			handleBMUbadnessEvent();
+			handleBMUstatusByte(ch, bCharging);
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();

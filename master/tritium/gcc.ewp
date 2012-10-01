@@ -1897,6 +1897,9 @@
     <name>$PROJ_DIR$\charger.c</name>
   </file>
   <file>
+    <name>$PROJ_DIR$\control.c</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\gauge.c</name>
   </file>
   <file>

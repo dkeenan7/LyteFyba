@@ -30,6 +30,7 @@
 #include "gauge.h"
 #include "bms.h"
 #include "charger.h"
+#include "control.h"
 
 #ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
 #define __inline__								//	press F7, and so that "go to definition of X" works better
@@ -57,6 +58,8 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
+ctl_state hCtlDrive;						// State for the control algorithm for drive current
+ctl_state hCtlCharge;						// State for the control algorithm for charge current
 
 // Data from controller
 float motor_rpm = 0;
@@ -133,6 +136,12 @@ int main( void )
 	// Init BMS and charger
 	bms_init();
 	chgr_init();
+	ctl_init(&hCtlCharge,			// Initialise the control code for charge current
+		(int)((3.5) * 16),			// Set point will be 3.5, left shifted by 8 bits
+		15,							// Kp
+		8,							// Ki
+		4,							// Kd
+		0);							// Initial "measure"
 
 	// Enable interrupts
 	eint();
@@ -215,6 +224,10 @@ int main( void )
 					if(!(switches & SW_CHARGE_CABLE)) next_state = MODE_N;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
+					if (next_state != MODE_CHARGE) {
+						// Coming out of charge mode, because the cable is pulled, or the ignition is on
+						chgr_off();
+					}
 					// Flash N LED in charge mode
 					charge_flash_count--;
 					P5OUT &= ~(LED_GEAR_4);
@@ -333,12 +346,14 @@ int main( void )
 		}
 			
 		
+#if 0
 		// MVE: send packets to charger
-		// Using switches gives a small amount of debouncing
+		// Using switches gives a small amount of debouncing	// FIXME: this doesn't seem relevant!
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			handleChargerEvent();
 		}
+#endif
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -629,7 +644,7 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
-	static unsigned char charger_count = CHARGER_SPEED;		// MVE
+//	static unsigned char charger_count = CHARGER_SPEED;		// MVE
 	static unsigned char activity_count;
 	static unsigned char fault_count;
 
@@ -644,12 +659,15 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		comms_count = COMMS_SPEED;
 		events |= EVENT_COMMS;
 	}
+
+#if 0	
 	// MVE: Trigger charger events (command packet transmission)
 	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
-	
+#endif
+
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){
 		events &= ~EVENT_ACTIVITY;

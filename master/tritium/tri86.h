@@ -130,7 +130,7 @@ void dint();
 #define EVENT_ACTIVITY		0x0100				// CAN controller or UART just transmitted a packet
 #define EVENT_REQ_SLEEP		0x0200				// Request sleep mode
 #define EVENT_FAULT			0x0400				// MVE: turn on fault light
-#define EVENT_CHARGER		0x0800				// MVE: time to send voltage/current cmd to "CAN" charger
+//#define EVENT_CHARGER		0x0800				// MVE: time to send voltage/current cmd to "CAN" charger
 #define EVENT_GAUGE1		0x1000				// Signal that gauge 1 has been recalculated and requires update
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update
@@ -163,7 +163,6 @@ void dint();
 extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
 extern volatile unsigned int bmu_events;		// BMU events
-extern volatile unsigned char bmu_badness;		// BMU badness
 extern unsigned int chgr_current;				// Charger present current
 extern unsigned int chgr_report_volt;			// Charger reported voltage
 
