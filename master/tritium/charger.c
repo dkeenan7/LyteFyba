@@ -132,6 +132,9 @@ void chgr_timer() {							// Called every timer tick, for charger related proces
 	}
 }
 
+#if 0
+// Obsolete: this code was called once per second, and handed part of the charger algorithm
+// Although the change to CHGR_SOAKING was determined by examining voltage responses in bmu_processPacket()
 void handleChargerEvent() {
 	int current, chargerOff;
 	events |= EVENT_ACTIVITY;			// Not strictly CAN bus, but we'll call this activity
@@ -150,5 +153,10 @@ void handleChargerEvent() {
 		chargerOff = 0;
 	}
 	chgr_sendRequest(CHGR_VOLT_LIMIT, current, chargerOff);
+}
+#endif
+
+void chgr_off() {
+	chgr_sendRequest(0, 0, true);			// Zero volts, zero amps, and turn charger off
 }
 
