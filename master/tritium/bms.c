@@ -142,7 +142,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 
 void handleBMUstatusByte(unsigned char status, bool bCharging)
 {
-	int output;
+	int current, output;
 	int stress = status & 0x07;			// Isolate stress bits
 	int encoded = status & 0x9F;		// All but bypass and comms error bits
 	bool bValid;
@@ -152,6 +152,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 	bValid = stressTable[stress] == encoded;
 
 	if (bCharging) {
+		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
@@ -160,20 +161,29 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 					// Terminate charging
 					chgr_off();
-					// FIXME: What status?
 				}
 				else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 					--chgr_bypCount;					// Saturate at zero
 			}
 		}
-		else
-			// We have to insert a dummy measurement tick so the integral term still integrates
+		else {
+			// We have to insert a dummy measurement tick so the derivatives still work
 			// Use the last known good measurement, = set_point + prev_error
 			output = ctl_tick(&hCtlCharge, hCtlCharge.set_point + hCtlCharge.prev_error);
+		}
 		// Apply the output. We will have to tune the "gain" later. For now, let's try one whole
-		// stress level = almost full current, so an output of 16 should represent a current of 55 (5.5 A)
+		// stress level = about full current, so an output of 16 should represent a current of 55 (5.5 A)
 		// 55/16 ~= 4
-		chgr_sendRequest(CHGR_VOLT_LIMIT, output << 2, false);
+		current = output << 2;
+		if (current < 0) current = 0;
+		// We don't need to saturate the current to the charger maximum for the charger's sake; it will
+		// saturate for us. But I believe that it is important to saturate the stored result, so the
+		// velocity algorithm will properly prevent integral wind-up.
+		if (current > CHGR_CURR_LIMIT) {
+			current = CHGR_CURR_LIMIT;
+			hCtlCharge.prev_result = current >> 2;
+		}
+		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
 	} else {
 		// Not charging, assume driving.
 		// TO BE COMPLETED
