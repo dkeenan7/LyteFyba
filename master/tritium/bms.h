@@ -10,8 +10,8 @@
 #include "control.h"
 
 // BMU constants
-#define BMU_BYPASS_CAP		9					// BMU bypass capability in tenths of an amp
 #define USE_CKSUM 1								// Set non-zero to send and expect checksums to BMUs
+#define BMU_TICK_RATE		4					// Number of BMU status bytes per second
 
 
 // Public Function prototypes

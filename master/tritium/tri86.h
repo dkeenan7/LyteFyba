@@ -113,7 +113,7 @@ void dint();
 #define CHARGE_FLASH_SPEED	20					// LED flash rate in charge mode: 20 ticks = 200ms = 5 Hz
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
 #define FAULT_SPEED			200					// LED sustain period for FAULT led: 200 ticks = 2 seconds
-#define CHARGER_SPEED		100					// Charger update speed: 1 per second
+#define CHARGER_SPEED		500					// Charger update speed: 1 per 5 seconds
 #define CHGR_TIMEOUT		150					// Charger timeout in timer ticks; should receive something every second
 #define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minimum is
 													// about 250 ms = 25 ticks
@@ -130,7 +130,7 @@ void dint();
 #define EVENT_ACTIVITY		0x0100				// CAN controller or UART just transmitted a packet
 #define EVENT_REQ_SLEEP		0x0200				// Request sleep mode
 #define EVENT_FAULT			0x0400				// MVE: turn on fault light
-//#define EVENT_CHARGER		0x0800				// MVE: time to send voltage/current cmd to "CAN" charger
+#define EVENT_CHARGER		0x0800				// MVE: time to send voltage/current cmd to "CAN" charger
 #define EVENT_GAUGE1		0x1000				// Signal that gauge 1 has been recalculated and requires update
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update
@@ -163,8 +163,6 @@ void dint();
 extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
 extern volatile unsigned int bmu_events;		// BMU events
-extern unsigned int chgr_current;				// Charger present current
-extern unsigned int chgr_report_volt;			// Charger reported voltage
 
 void fault() __attribute__ NOINLINE;			// Single flash the error LED
 
