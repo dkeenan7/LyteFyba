@@ -17,10 +17,8 @@ volatile unsigned int chgr_events = 0;
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
-unsigned int chgr_current = BMU_BYPASS_CAP - CHGR_CURR_DELTA;	// Charger present current; initially equal
-							// to bypass capability (incremented before first use)
-unsigned int chgr_report_volt = 0;		// Charger reported voltage in tenths of a volt
-unsigned int chgr_soakCnt = 0;			// Counter for soak phase
+//unsigned int chgr_soakCnt = 0;		// Counter for soak phase
+unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
 
 // Charger buffers
 queue chgr_tx_q = {						// Initialise structure members and size of
@@ -41,6 +39,7 @@ queue chgr_rx_q = {
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
 unsigned char chgr_txbuf[12];			// A buffer for a charger packet
+unsigned int chgr_lastCurrent = 9999;	// Last commanded current sent to the charger
 
 unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
 
@@ -52,7 +51,20 @@ bool chgr_sendPacket(const unsigned char* ptr)
 
 void chgr_init() {
 	chgr_lastrxidx = 0;
+	ctl_init(&hCtlCharge,			// Initialise the control code for charge current
+		(int)((3.5) * 16),			// Set point will be 3.5, left shifted by 8 bits
+		15,							// Kp
+		8,							// Ki
+		4,							// Kd
+		0);							// Initial "measure"
 }
+
+void chgr_start() {
+	charger_count = CHARGER_SPEED;
+	chgr_lastCurrent = 9999;		// So first call to chgr_setCurrent will actually send
+	chgr_bypCount = 0;
+}
+
 
 // chgr_resendLastPacket could be used for resending, but also used for sending the first time.
 // Returns true on success
@@ -118,45 +130,34 @@ void chgr_processPacket() {
 
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
-	// Check for charge soak time exceeded
-	if (chgr_state & CHGR_SOAKING) {
-		if (++ chgr_soakCnt >= CHGR_EOC_SOAKT) {
-			chgr_state &= ~CHGR_SOAKING;
-			chgr_soakCnt = 0;
-			chgr_state |= CHGR_END_CHARGE;
-		}
-	}
 			
 	if (--chgr_rx_timeout <= 0) {
 		fault();						// Turn on fault LED (eventually)
 	}
 }
 
-#if 0
-// Obsolete: this code was called once per second, and handed part of the charger algorithm
-// Although the change to CHGR_SOAKING was determined by examining voltage responses in bmu_processPacket()
-void handleChargerEvent() {
-	int current, chargerOff;
-	events |= EVENT_ACTIVITY;			// Not strictly CAN bus, but we'll call this activity
-
-	if (chgr_state & CHGR_END_CHARGE) {
-		current = 0;					// Request no current now
-		chargerOff = 1;					// Turn off charger
-	} else if (chgr_state & CHGR_SOAKING) {
-		current = CHGR_SOAK_CURR;		// Soak at the soak current level (< bypass capacity)
-		chargerOff = 0;					// Keep charger on
-	} else {
-		chgr_current += CHGR_CURR_DELTA;	// Increase charger current by the fixed amount
-		if (chgr_current > CHGR_CURR_LIMIT)
-			chgr_current = CHGR_CURR_LIMIT;
-		current = chgr_current;
-		chargerOff = 0;
-	}
-	chgr_sendRequest(CHGR_VOLT_LIMIT, current, chargerOff);
+// Set the current, but don't send again if it's the same as last time. These chargers don't like too
+// much traffic; more than one per second has been said to crash them.
+void chgr_setCurrent(int iCurr) {
+	if (iCurr == chgr_lastCurrent)
+		return;							// Do nothing; we have a timeout in case nothing is sent
+										// for ~ 5 seconds
+	chgr_sendCurrent(iCurr);			// If it's changed, send it now
 }
-#endif
+
+// Here when we haven't sent anything to the charger for ~ 5 seconds
+void handleChargerEvent() {
+	chgr_sendCurrent(chgr_lastCurrent);	// Resend the last charger current, so the
+										//	charger doesn't stop due to a comms error
+}
+
+// Send the current command now
+void chgr_sendCurrent(int iCurr) {
+	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, 0);
+	charger_count = CHARGER_SPEED;			// Reset the charger timer
+}
 
 void chgr_off() {
 	chgr_sendRequest(0, 0, true);			// Zero volts, zero amps, and turn charger off
+	chgr_state = CHGR_END_CHARGE;			// Reset all other flags, set end charge flag
 }
-

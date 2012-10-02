@@ -58,6 +58,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
+unsigned int charger_count = CHARGER_SPEED;
 ctl_state hCtlDrive;						// State for the control algorithm for drive current
 ctl_state hCtlCharge;						// State for the control algorithm for charge current
 
@@ -136,12 +137,6 @@ int main( void )
 	// Init BMS and charger
 	bms_init();
 	chgr_init();
-	ctl_init(&hCtlCharge,			// Initialise the control code for charge current
-		(int)((3.5) * 16),			// Set point will be 3.5, left shifted by 8 bits
-		15,							// Kp
-		8,							// Ki
-		4,							// Kd
-		0);							// Initial "measure"
 
 	// Enable interrupts
 	eint();
@@ -221,6 +216,9 @@ int main( void )
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
+					if (switches_diff & SW_CHARGE_CABLE)
+						// Just started charging
+						chgr_start();
 					if(!(switches & SW_CHARGE_CABLE)) next_state = MODE_N;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
@@ -346,14 +344,13 @@ int main( void )
 		}
 			
 		
-#if 0
-		// MVE: send packets to charger
-		// Using switches gives a small amount of debouncing	// FIXME: this doesn't seem relevant!
+		// MVE: send packet to charger
+		// Even though the current may not have changed, so we haven't sent a message for a while, the
+		// charger will still time out if it doesn't see any message for ~ 10 seconds
 		if (events & EVENT_CHARGER) {
 			events &= ~EVENT_CHARGER;
 			handleChargerEvent();
 		}
-#endif
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -644,7 +641,6 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 interrupt(TIMERA0_VECTOR) timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
-//	static unsigned char charger_count = CHARGER_SPEED;		// MVE
 	static unsigned char activity_count;
 	static unsigned char fault_count;
 
@@ -660,13 +656,11 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		events |= EVENT_COMMS;
 	}
 
-#if 0	
 	// MVE: Trigger charger events (command packet transmission)
 	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
 		charger_count = CHARGER_SPEED;
 		events |= EVENT_CHARGER;
 	}
-#endif
 
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){

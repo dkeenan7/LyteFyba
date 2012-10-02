@@ -38,7 +38,7 @@ volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 // Current cell in the current end-of-charge test (send voltage request to this cell next)
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
-signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
+//signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
 
 // Stress table with check bits
 static int stressTable[8] = {
@@ -152,8 +152,20 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 	bValid = stressTable[stress] == encoded;
 
 	if (bCharging) {
-		if (bValid)
+		if (chgr_state & CHGR_END_CHARGE)
+			return;
+		if (bValid) {
 			output = ctl_tick(&hCtlCharge, stress);
+			if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
+				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
+					// Terminate charging
+					chgr_off();
+					// FIXME: What status?
+				}
+				else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
+					--chgr_bypCount;					// Saturate at zero
+			}
+		}
 		else
 			// We have to insert a dummy measurement tick so the integral term still integrates
 			// Use the last known good measurement, = set_point + prev_error
@@ -236,8 +248,8 @@ bool bmu_resendLastPacket(void)
 void bmu_processPacket(bool bCharging) {
 	bmu_lastrxidx = 0;								// Ready for next BMU response to overwrite this one
 													//	(starting next timer interrupt)
-	if (chgr_state & CHGR_SOAKING)
-		return;										// While soaking, ignore packets
+	if (chgr_state & CHGR_END_CHARGE)
+		return;										// Ignore when charging completed
 
 #if USE_CKSUM
 	{	unsigned char sum = 0, j = 0;
@@ -270,34 +282,8 @@ void bmu_processPacket(bool bCharging) {
 #endif
 				(bmu_lastrx[6] - '0') * 10 +
 				(bmu_lastrx[7] - '0');
-			// We expect voltage responses during charging and driving; split the logic here
-			if (bCharging) {
-				// FIXME: get rid of this constant. Hopefully, BMUs will encode this with badness soon
-				if (rxvolts < 359)
-					// This cell is not bypassing. So the string of cells known to be in bypass
-					// is zero length. Flag this
-					first_bmu_in_bypass = -1;
-				else {
-					// This cell is in bypass. Check if the first bmu in bypass is the next one
-					int next_bmu_id = bmu_id+1;
-					if (next_bmu_id > NUMBER_OF_BMUS)
-						next_bmu_id = 1;
-					if (next_bmu_id == first_bmu_in_bypass) {
-						// We have detected all cells in bypass. Now we enter the soak phase
-						// The idea is to allow the last cell to have gone into bypass some
-						// time to stay at that level and balance with the others
-						chgr_state |= CHGR_SOAKING;
-					}
-					else {
-						if (first_bmu_in_bypass == -1)
-						// This cell is in bypass; we must be starting a new string of bypassed BMUs
-						first_bmu_in_bypass = bmu_id;
-					}
-				} // End if (rxvolts < 359)
-			} // End if (command.state == MODE_CHARGE)
-			
-			// Charging or driving. We use the voltage measurements to find the min and
-			//	max cell voltages
+			// We expect voltage responses during driving only now
+			// We use the voltage measurements to find the min and max cell voltages
 			// Get the whole 4-digit number
 			rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
 			if (rxvolts < bmu_min_mV) {
@@ -317,11 +303,11 @@ void bmu_processPacket(bool bCharging) {
 				bmu_min_mV = 9999;	bmu_max_mV = 0;
 				bmu_min_id = 0;		bmu_max_id = 0;
 			}
-			// Move to the next BMU (driving or charging, but only if packet valid)
+			// Move to the next BMU, only if packet valid
 			if (++bmu_curr_cell > NUMBER_OF_BMUS)
 				bmu_curr_cell = 1;
 			bmu_sendVoltReq();								// Send another voltage request
-		} // End if (bmu_id == bmu_curr_cell)
+		} // End if (bCharging)
 	} // End if valid voltage response		
 }
 
