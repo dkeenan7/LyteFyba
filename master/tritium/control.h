@@ -10,8 +10,9 @@ typedef struct _ctl_state {
 	int		Kp;				// Proportional control constant
 	int		Ki;				// Integral control constant
 	int		Kd;				// Derivative control constant
-	int		integral;		// Cumulative integral
 	int		prev_error;		// Previous error
+	int		prev_result;	// Previous result
+	int		prev_deriv;		// Previous derivative, to find second derivative
 } ctl_state;
 
 int ctl_tick(ctl_state* pState, int measure);	// Main function every tick of time:
