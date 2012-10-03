@@ -7,11 +7,13 @@
  */
 
 #include "queue.h"
-#include "control.h"
+#include "pid.h"
 
 // BMU constants
 #define USE_CKSUM 1								// Set non-zero to send and expect checksums to BMUs
 #define BMU_TICK_RATE		4					// Number of BMU status bytes per second
+#define BMU_TX_BUFSZ		64
+#define BMU_RX_BUFSZ		64
 
 
 // Public Function prototypes
@@ -27,19 +29,20 @@ bool bmu_resendLastPacket(void);
 void bmu_timer();
 
 
+class bmu_queue : public queue {
+	// Allocate space for the real buffer. Note that the base code will use member buf.
+	char real_buf[BMU_RX_BUFSZ];		// Assume that the rx buffer is no smaller than the tx buffer
+public:
+	bmu_queue(unsigned char sz);
+};
 
 // Public variables
 extern volatile unsigned int bmu_events;
 extern volatile unsigned int bmu_sent_timeout;
-extern ctl_state hCtlCharge;
-extern ctl_state hCtlDrive;
+extern pid_state hCtlCharge;
+extern pid_state hCtlDrive;
 
 // BMU buffers
-#define BMU_TX_BUFSZ	64
-#define BMU_RX_BUFSZ	64
-extern queue bmu_tx_q;
-extern queue bmu_rx_q;
-
-unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
-unsigned char bmu_lastrxidx;			// Index into the above
+extern bmu_queue bmu_tx_q;
+extern bmu_queue bmu_rx_q;
 

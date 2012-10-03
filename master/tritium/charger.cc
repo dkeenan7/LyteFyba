@@ -4,6 +4,7 @@
 #include "charger.h"
 #include "bms.h"
 #include "tri86.h"			// For fault() etc
+#include "assert2.h"		// An assert-like function
 
 // Private function prototypes
 bool chgr_sendByte(unsigned char ch);
@@ -21,19 +22,8 @@ unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overt
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
 
 // Charger buffers
-queue chgr_tx_q = {						// Initialise structure members and size of
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_TX_BUFSZ,
-	.buf = { [0 ... CHGR_TX_BUFSZ-1] = 0 }
-};
-
-queue chgr_rx_q = {
-	.rd = 0,
-	.wr = 0,
-	.bufSize =      CHGR_RX_BUFSZ,
-	.buf = { [0 ... CHGR_RX_BUFSZ-1] = 0 }
-};
+chgr_queue chgr_tx_q(CHGR_TX_BUFSZ);
+chgr_queue chgr_rx_q(CHGR_RX_BUFSZ);
 
 // Charger private variables
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
@@ -49,9 +39,13 @@ bool chgr_sendPacket(const unsigned char* ptr)
 	return chgr_resendLastPacket();						// Call the main transmit function
 }
 
+chgr_queue::chgr_queue(unsigned char sz) : queue(sz) {
+	assert2(sz <= CHGR_RX_BUFSZ, "chgr_queue buffer size");
+};
+
 void chgr_init() {
 	chgr_lastrxidx = 0;
-	ctl_init(&hCtlCharge,			// Initialise the control code for charge current
+	pid_init(&hCtlCharge,			// Initialise the PID code for charge current
 		(int)((3.5) * 16),			// Set point will be 3.5, left shifted by 8 bits
 		15,							// Kp
 		8,							// Ki
@@ -71,7 +65,7 @@ void chgr_start() {
 bool chgr_resendLastPacket(void)
 {
 	int i;
-	if (queue_space(&chgr_tx_q) < 12) {
+	if (chgr_tx_q.queue_space() < 12) {
 		// Need 12 bytes of space in the queue
 		// If not, best to abort the whole command, rather than sending a partial message
 		fault();
@@ -84,7 +78,7 @@ bool chgr_resendLastPacket(void)
 
 
 bool chgr_sendByte(unsigned char ch) {
-	if (enqueue(&chgr_tx_q, ch)) {
+	if (chgr_tx_q.enqueue(ch)) {
     	IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
 		events |= EVENT_ACTIVITY;						// Turn on activity light
 		return true;
@@ -95,7 +89,7 @@ bool chgr_sendByte(unsigned char ch) {
 // Read incoming bytes from charger
 void readChargerBytes()
 {	unsigned char ch;
-	while (	dequeue(&chgr_rx_q, &ch)) {
+	while (	chgr_rx_q.dequeue(ch)) {
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
 			chgr_processPacket();			// We've received a charger response
@@ -138,7 +132,7 @@ void chgr_timer() {							// Called every timer tick, for charger related proces
 
 // Set the current, but don't send again if it's the same as last time. These chargers don't like too
 // much traffic; more than one per second has been said to crash them.
-void chgr_setCurrent(int iCurr) {
+void chgr_setCurrent(unsigned int iCurr) {
 	if (iCurr == chgr_lastCurrent)
 		return;							// Do nothing; we have a timeout in case nothing is sent
 										// for ~ 5 seconds
@@ -152,7 +146,7 @@ void handleChargerEvent() {
 }
 
 // Send the current command now
-void chgr_sendCurrent(int iCurr) {
+void chgr_sendCurrent(unsigned int iCurr) {
 	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, 0);
 	charger_count = CHARGER_SPEED;			// Reset the charger timer
 }

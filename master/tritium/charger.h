@@ -19,6 +19,8 @@
 //#define CHGR_SOAK_CURR		5				// Soak mode current in tenths of an ampere
 												//	Should be about 1/2 of BMU bypass capacity
 #define CHGR_CUT_CURR		20					// Charger cutoff current, usually 0.05C in tenths amp
+#define CHGR_TX_BUFSZ		16
+#define CHGR_RX_BUFSZ 		16
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising
@@ -30,8 +32,8 @@ bool chgr_resendLastPacket(void);
 void chgr_timer();
 void chgr_off();
 void handleChargerEvent();
-void chgr_setCurrent(int iCurr);				// Set the current to a particular value (may not send)
-void chgr_sendCurrent(int iCurr);				// Send the current command now
+void chgr_setCurrent(unsigned int iCurr);		// Set the current to a particular value (may not send)
+void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 
 
 // Public variables
@@ -46,14 +48,17 @@ extern unsigned int chgr_lastCurrent;		// Last current commanded from the charge
 extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
 											//	cutoff current
 
-// Charger buffers
-#define CHGR_TX_BUFSZ	16
-#define CHGR_RX_BUFSZ 	16
-extern queue chgr_tx_q;
-extern queue chgr_rx_q;
-
-
 
 void chgr_timer();						// Called every timer tick, for charger related processing
 
+class chgr_queue : public queue {
+	// Allocate space for the real buffer. Note that the base code will use member buf.
+	char real_buf[CHGR_RX_BUFSZ];		// Assume that the rx buffer is no smaller than the tx buffer
+public:
+	chgr_queue(unsigned char sz);
+};
+
+// Charger buffers
+extern chgr_queue chgr_tx_q;
+extern chgr_queue chgr_rx_q;
 
