@@ -1,6 +1,6 @@
 # makfile configuration
 NAME            = tri86
-OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o bms.o charger.o queue.o control.o
+OBJECTS         = ${NAME}.o usci.o can.o gauge.o pedal.o bms.o charger.o queue.o pid.o
 CPU             = msp430x247
 
 ASFLAGS         = -mmcu=${CPU} -x assembler-with-cpp -D_GNU_ASSEMBLER_ -c
@@ -30,6 +30,10 @@ ${NAME}.lst: ${NAME}.elf
 %.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination
 
+# Use C++ now: .o files depend on .cc files
+%.o: %.cc
+	${CC} ${CFLAGS} -c -o $@ $<
+
 # Dependencies: use "make depend"
 
 
@@ -48,7 +52,7 @@ clean:
 #depend: rmdepend dependencies.in
 depend:
 	rm -f dependencies.in
-	$(CC) -MM ${CFLAGS} $(patsubst %.o,%.c,$(OBJECTS)) >dependencies.in
+	$(CC) -MM ${CFLAGS} $(patsubst %.o,%.cc,$(OBJECTS)) >dependencies.in
 
 #remove the file
 rmdepend:

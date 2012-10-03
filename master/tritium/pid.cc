@@ -5,9 +5,9 @@
 // The charger algorithm would be particularly upset by this, causing overflows and worse delaying
 // essential charge current cut-back when a cell becomes full.
 
-#include "control.h"
+#include "pid.h"
 
-void ctl_init(ctl_state* pState, int iSet_point, int iKp, int iKi, int iKd, int measure)
+void pid_init(pid_state* pState, int iSet_point, int iKp, int iKi, int iKd, int measure)
 {
 	pState->set_point = iSet_point;
 	pState->Kp = iKp;
@@ -18,7 +18,7 @@ void ctl_init(ctl_state* pState, int iSet_point, int iKp, int iKi, int iKd, int 
 	pState->prev_result = iSet_point;
 }
 
-int	ctl_tick(ctl_state* pState, int measure) {
+int	pid_tick(pid_state* pState, int measure) {
 	int error, deriv, deriv2, result;
 	error = pState->set_point - measure;
 	deriv = error - pState->prev_error;

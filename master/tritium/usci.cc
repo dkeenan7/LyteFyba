@@ -90,10 +90,10 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 {
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		unsigned char ch = 0;					// Get byte from the transmit queue
-		dequeue(&chgr_tx_q, &ch);
-		if (chgr_tx_q.rd == chgr_tx_q.wr)		// Queue empty and therefore TX complete?
-			IE2 &= ~UCA0TXIE;					// Disable USCI_A0 TX interrupt
+		unsigned char ch = 0;					// Get byte from the
+		chgr_tx_q.dequeue(ch);					//	transmit queue
+		if (chgr_tx_q.empty())					// Queue empty and therefore TX complete?
+			IE2 &= ~UCA0TXIE;					// Yes, disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}
@@ -105,10 +105,10 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 {
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		unsigned char ch = 0;					// Get byte from the transmit queue
-		dequeue(&bmu_tx_q, &ch);
-		if (bmu_tx_q.rd == bmu_tx_q.wr)			// Queue empty and therefore TX complete?
-			UC1IE &= ~UCA1TXIE;					// Disable USCI_A1 TX interrupt
+		unsigned char ch = 0;					// Get byte from the
+		bmu_tx_q.dequeue(ch);					//	transmit queue
+		if (bmu_tx_q.empty())					// Queue empty and therefore TX complete?
+			UC1IE &= ~UCA1TXIE;					// Yes, disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}
@@ -120,7 +120,7 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 {
 	if (IFG2 & UCA0RXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
-		if (!enqueue(&chgr_rx_q, UCA0RXBUF))
+		if (!chgr_rx_q.enqueue(UCA0RXBUF))
 			fault();							// Fault if queue is full
 		else
 			events |= EVENT_ACTIVITY;			// Turn on activity light
@@ -133,10 +133,15 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 {
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		if (!enqueue(&bmu_rx_q, UCA1RXBUF))
+		if (!bmu_rx_q.enqueue(UCA1RXBUF))
 			fault();							// Fault if queue is full
 		else
 			events |= EVENT_ACTIVITY;			// Turn on activity light
 	}
 }
 
+// This is not as you would expect in queue.cc because inline functions have internal linkage
+//	(visible only in the current file)
+inline bool queue::empty() {
+	return rd == wr;
+}

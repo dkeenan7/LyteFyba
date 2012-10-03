@@ -30,7 +30,7 @@
 #include "gauge.h"
 #include "bms.h"
 #include "charger.h"
-#include "control.h"
+#include "pid.h"
 
 #ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
 #define __inline__								//	press F7, and so that "go to definition of X" works better
@@ -59,8 +59,8 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Status and event flags
 volatile unsigned int events = 0x0000;
 unsigned int charger_count = CHARGER_SPEED;
-ctl_state hCtlDrive;						// State for the control algorithm for drive current
-ctl_state hCtlCharge;						// State for the control algorithm for charge current
+pid_state hCtlDrive;						// State for the control algorithm for drive current
+pid_state hCtlCharge;						// State for the control algorithm for charge current
 
 // Data from controller
 float motor_rpm = 0;
