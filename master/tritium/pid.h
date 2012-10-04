@@ -7,12 +7,12 @@
 
 class pid {
 //	int		set_point;				// Desired set point
+	int		prev_error;				// Previous error
+	int		prev_deriv;				// Previous derivative, to find second derivative
+	int		prev_output;			// Previous output
 	int		Kp;						// Proportional control constant
 	int		Ki;						// Integral control constant
 	int		Kd;						// Derivative control constant
-	int		prev_error;				// Previous error
-	int		prev_output;			// Previous output
-	int		prev_deriv;				// Previous derivative, to find second derivative
 public:
 			pid(/*int iSet_point,*/ int iKp, int iKi, int iKd, int measure);
 	int		tick(int measure);		// Main function every tick of time:
