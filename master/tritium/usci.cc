@@ -140,8 +140,3 @@ interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
 	}
 }
 
-// This is not as you would expect in queue.cc because inline functions have internal linkage
-//	(visible only in the current file)
-inline bool queue::empty() {
-	return rd == wr;
-}

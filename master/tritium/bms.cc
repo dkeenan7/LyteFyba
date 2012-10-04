@@ -152,7 +152,11 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
-			output = pid_tick(&hCtlCharge, stress);
+			// We need to scale the measurement (stress 0-7) to less than 0..1.0 (shift right by 3),
+			// convert to 2.14 fixedpoint (shift left by 14). Overall, shift left by 11 bits.
+			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
+			// to, which is 3.5 << 11 = 3.5 * 2048 = $1C00.
+			output = pidCharge.tick((stress << 11) - 0x1C00);
 			if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 					// Terminate charging
@@ -164,21 +168,15 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		}
 		else {
 			// We have to insert a dummy measurement tick so the derivatives still work
-			// Use the last known good measurement, = set_point + prev_error
-			output = pid_tick(&hCtlCharge, hCtlCharge.set_point + hCtlCharge.prev_error);
+			// Uses the last known good measurement = set_point - prev_error
+			output = pidCharge.dummy();
 		}
-		// Apply the output. We will have to tune the "gain" later. For now, let's try one whole
-		// stress level = about full current, so an output of 16 should represent a current of 55 (5.5 A)
-		// 55/16 ~= 4
-		current = output << 2;
-		if (current < 0) current = 0;
-		// We don't need to saturate the current to the charger maximum for the charger's sake; it will
-		// saturate for us. But I believe that it is important to saturate the stored result, so the
-		// velocity algorithm will properly prevent integral wind-up.
-		if (current > CHGR_CURR_LIMIT) {
-			current = CHGR_CURR_LIMIT;
-			hCtlCharge.prev_result = current >> 2;
-		}
+		// Scale the output. Unity from the pid algorithm has to correspond to maximum charger current,
+		// and -1 from the algorithm to be zero current. This is a range of 32768 (-$4000 .. $4000),
+		// which we want to map to 0 .. CHGR_CURR_LIMIT.
+		// We have a hardware multiplier, so the most efficient way to do this division is with a
+		// 16x16 bit multiply giving a 32-bit result, and taking the upper half.
+		current = (int) ((output + 0x4000) * (long)(65536. / (32768. / CHGR_CURR_LIMIT)));
 		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
 	} else {
 		// Not charging, assume driving.

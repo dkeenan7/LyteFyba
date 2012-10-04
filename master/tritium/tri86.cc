@@ -59,8 +59,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Status and event flags
 volatile unsigned int events = 0x0000;
 unsigned int charger_count = CHARGER_SPEED;
-pid_state hCtlDrive;						// State for the control algorithm for drive current
-pid_state hCtlCharge;						// State for the control algorithm for charge current
+
 
 // Data from controller
 float motor_rpm = 0;
