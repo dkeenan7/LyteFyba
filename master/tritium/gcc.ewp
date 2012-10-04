@@ -1885,46 +1885,49 @@
     </settings>
   </configuration>
   <file>
-    <name>$PROJ_DIR$\bms.c</name>
+    <name>$PROJ_DIR$\bms.cc</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\can.c</name>
+    <name>$PROJ_DIR$\can.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\can.h</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\charger.c</name>
+    <name>$PROJ_DIR$\charger.cc</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\control.c</name>
-  </file>
-  <file>
-    <name>$PROJ_DIR$\gauge.c</name>
+    <name>$PROJ_DIR$\gauge.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\gauge.h</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\pedal.c</name>
+    <name>$PROJ_DIR$\pedal.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\pedal.h</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\queue.c</name>
+    <name>$PROJ_DIR$\pid.cc</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\pid.h</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\queue.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\readme.txt</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\tri86.c</name>
+    <name>$PROJ_DIR$\tri86.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\tri86.h</name>
   </file>
   <file>
-    <name>$PROJ_DIR$\usci.c</name>
+    <name>$PROJ_DIR$\usci.cc</name>
   </file>
   <file>
     <name>$PROJ_DIR$\usci.h</name>

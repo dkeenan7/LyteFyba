@@ -22,12 +22,12 @@
 pid::pid(/*int iSet_point,*/ int iKp, int iKi, int iKd, int measure)
 {
 	// set_point = iSet_point;
+	prev_error = /*iSet_point*/ 0 - measure;
+	prev_deriv = 0;
+	prev_output = 0;
 	Kp = iKp;
 	Ki = iKi;
 	Kd = iKd;
-	prev_deriv = 0;
-	prev_error = /*iSet_point*/ 0 - measure;
-	prev_output = 0;
 }
 
 int pid::tick(int measure) {
