@@ -27,4 +27,10 @@ public:
 
 };
 
+// This is not as you would expect in queue.cc because inline functions have internal linkage
+//	(visible only in the current file). Putting it here makes it avaialble in all source files.
+inline bool queue::empty() {
+	return rd == wr;
+}
+
 #endif		// ifdef __QUEUE_H_

@@ -1,23 +1,26 @@
-//	Control.h
+//	pid.h
 //	Interface for a simple PID controller
 //
 
-#ifndef __CONTROL_H_
-#define __CONTROL_H_
+#ifndef __PID_H_
+#define __PID_H_
 
-typedef struct _pid_state {
-	int		set_point;		// Desired set point
-	int		Kp;				// Proportional control constant
-	int		Ki;				// Integral control constant
-	int		Kd;				// Derivative control constant
-	int		prev_error;		// Previous error
-	int		prev_result;	// Previous result
-	int		prev_deriv;		// Previous derivative, to find second derivative
-} pid_state;
+class pid {
+//	int		set_point;				// Desired set point
+	int		Kp;						// Proportional control constant
+	int		Ki;						// Integral control constant
+	int		Kd;						// Derivative control constant
+	int		prev_error;				// Previous error
+	int		prev_output;			// Previous output
+	int		prev_deriv;				// Previous derivative, to find second derivative
+public:
+			pid(/*int iSet_point,*/ int iKp, int iKi, int iKd, int measure);
+	int		tick(int measure);		// Main function every tick of time:
+									// Use the measurement to produce an output
+	int		dummy();				// As above, when we get an invalid measure
 
-int pid_tick(pid_state* pState, int measure);	// Main function every tick of time:
-												// Use the measurement to produce an output
+};
 
-void pid_init(pid_state* pState, int iSet_point, int iKp, int iKi, int iKd, int measure);
+#define nop()  __asm__ __volatile__("nop"::)
 
-#endif		// ifndef __CONTROL_H_
+#endif		// ifndef __PID_H_

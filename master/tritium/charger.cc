@@ -20,6 +20,12 @@ unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 //unsigned int chgr_soakCnt = 0;		// Counter for soak phase
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
+pid pidCharge(							// State for the control algorithm for charge current
+//		(int)((3.5/8.0) * 4096),	// Set point will be 3.5 out of 8.0, left shifted by 12 bits
+		(int)(1.0*256),				// Kp as 8.8
+		(int)(0.5*256),				// Ki
+		(int)(0.1*256),				// Kd
+		0);							// Initial "measure"
 
 // Charger buffers
 chgr_queue chgr_tx_q(CHGR_TX_BUFSZ);
@@ -45,12 +51,6 @@ chgr_queue::chgr_queue(unsigned char sz) : queue(sz) {
 
 void chgr_init() {
 	chgr_lastrxidx = 0;
-	pid_init(&hCtlCharge,			// Initialise the PID code for charge current
-		(int)((3.5) * 16),			// Set point will be 3.5, left shifted by 8 bits
-		15,							// Kp
-		8,							// Ki
-		4,							// Kd
-		0);							// Initial "measure"
 }
 
 void chgr_start() {

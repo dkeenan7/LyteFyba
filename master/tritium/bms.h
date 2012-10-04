@@ -39,8 +39,6 @@ public:
 // Public variables
 extern volatile unsigned int bmu_events;
 extern volatile unsigned int bmu_sent_timeout;
-extern pid_state hCtlCharge;
-extern pid_state hCtlDrive;
 
 // BMU buffers
 extern bmu_queue bmu_tx_q;
