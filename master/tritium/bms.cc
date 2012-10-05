@@ -152,11 +152,11 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
-			// We need to scale the measurement (stress 0-7) to less than 0..1.0 (shift right by 3),
-			// convert to 2.14 fixedpoint (shift left by 14). Overall, shift left by 11 bits.
+			// We need to scale the measurement (stress 0-7) to less than 0..2.0 (shift right by 2),
+			// convert to 2.14 fixedpoint (shift left by 14). Overall, shift left by 12 bits.
 			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
-			// to, which is 3.5 << 11 = 3.5 * 2048 = $1C00.
-			output = pidCharge.tick((stress << 11) - 0x1C00);
+			// to, which is 3.5 << 12 = 3.5 * 4096 = $3800.
+			output = pidCharge.tick((stress << 12) - 0x3800);
 			if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 					// Terminate charging
@@ -176,7 +176,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
 		// We have a hardware multiplier, so the most efficient way to do this division is with a
 		// 16x16 bit multiply giving a 32-bit result, and taking the upper half.
-		current = (int) ((output + 0x4000) * (long)(65536. / (32768. / CHGR_CURR_LIMIT)));
+		current = (int) (((output + 0x4000) * (long)(65536. / (32768. / CHGR_CURR_LIMIT))) >> 16);
 		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
 	} else {
 		// Not charging, assume driving.
