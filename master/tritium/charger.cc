@@ -22,9 +22,9 @@ unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overt
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
 pid pidCharge(							// State for the control algorithm for charge current
 //		(int)((3.5/8.0) * 4096),	// Set point will be 3.5 out of 8.0, left shifted by 12 bits
-		(int)(1.0*256),				// Kp as 8.8
-		(int)(0.5*256),				// Ki
-		(int)(0.1*256),				// Kd
+		(int)(1.5*256),				// Kp as 8.8
+		(int)(1.0*256),				// Ki
+		(int)(0.3*256),				// Kd
 		0);							// Initial "measure"
 
 // Charger buffers
