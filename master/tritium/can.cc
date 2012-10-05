@@ -249,6 +249,9 @@ void can_receive( void )
 char can_transmit( void )
 {
 	static unsigned int buf_addr[3] = {0xFFFF, 0xFFFF, 0xFFFF};
+
+//	return 1;			// For debugging without an actual CAN bus connected; the software locks up if
+						//	there isn't a CAN bus
 	
 	// Check for busy mailboxes
 //	if(( can_read_status() & 0x54 ) == 0x54){

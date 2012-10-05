@@ -10,8 +10,8 @@
 #include "pid.h"
 
 // Charger constants
-#define NUMBER_OF_CELLS		73
-#define NUMBER_OF_BMUS		19		// FIXME: testing with 19 BMUs
+#define NUMBER_OF_CELLS		60
+#define NUMBER_OF_BMUS		60		// FIXME: testing with 19 BMUs
 #define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 34.0))	// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
