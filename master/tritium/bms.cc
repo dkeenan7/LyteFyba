@@ -1,3 +1,5 @@
+#define USE_VOLT_REQ 0		// 1 to send voltage requests every 45 sec to get min and max cell voltage
+
 #include <string.h>			// For strlen() etc
 #include <msp430x24x.h>		// For UC1IE etc
 
@@ -16,6 +18,7 @@ bool bmu_sendPacket(const unsigned char* ptr);
 volatile unsigned int bmu_events = 0;
 		 unsigned int bmu_state = 0;
 volatile unsigned int bmu_sent_timeout;
+volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 for voltage requests
 
 // BMU buffers
 bmu_queue bmu_tx_q(BMU_TX_BUFSZ);
@@ -65,7 +68,9 @@ void bms_init()
 	bmu_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
 #endif
 	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
+#if USE_VOLT_REQ
 	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
+#endif
 }
 
 bool bmu_sendByte(unsigned char ch) {
@@ -102,7 +107,7 @@ void makeVoltCmd(unsigned char* cmd, int cellNo)
 bool bmu_sendVoltReq()
 {
 	unsigned char cmd[8];
-	makeVoltCmd(cmd, bmu_curr_cell);	// cmd := "XXsv\r"
+	makeVoltCmd(cmd, bmu_curr_cell);	// cmd := "XXXsv\r"
 	return bmu_sendPacket(cmd);
 }
 
@@ -302,26 +307,36 @@ void bmu_processPacket(bool bCharging) {
 				// We have the min and max information. Send a CAN packet so the telemetry
 				//	software can display them.
 				can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-
-				// Reset the min/max data
-				bmu_min_mV = 9999;	bmu_max_mV = 0;
-				bmu_min_id = 0;		bmu_max_id = 0;
 			}
 			// Move to the next BMU, only if packet valid
 			if (++bmu_curr_cell > NUMBER_OF_BMUS)
 				bmu_curr_cell = 1;
-			bmu_sendVoltReq();								// Send another voltage request
+			else {
+				bmu_sendVoltReq();				// Send another voltage request for the next cell
+			}
 		} // End if (bCharging)
 	} // End if valid voltage response		
 }
 
 
-void bmu_timer() {							// Called every timer tick, for BMU related processing
+// Called every timer tick from the mainline, for BMU related processing
+void bmu_timer() {
 	if (bmu_state & BMU_SENT) {
 		if (--bmu_sent_timeout == 0) {
 			fault();
 			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
+#if USE_VOLT_REQ
+	if (--bmu_vr_count == 0) {
+		bmu_vr_count = BMU_VR_SPEED;
+		// Reset the min/max data
+		bmu_min_mV = 9999;	bmu_max_mV = 0;
+		bmu_min_id = 0;		bmu_max_id = 0;
+		bmu_curr_cell = 1;
+		bmu_sendVoltReq();						// Initiate a chain of voltage requests
+	}
+#endif
 }
+
 

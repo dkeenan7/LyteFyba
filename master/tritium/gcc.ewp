@@ -1888,6 +1888,9 @@
     <name>$PROJ_DIR$\bms.cc</name>
   </file>
   <file>
+    <name>$PROJ_DIR$\bms.h</name>
+  </file>
+  <file>
     <name>$PROJ_DIR$\can.cc</name>
   </file>
   <file>
@@ -1895,6 +1898,9 @@
   </file>
   <file>
     <name>$PROJ_DIR$\charger.cc</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\charger.h</name>
   </file>
   <file>
     <name>$PROJ_DIR$\gauge.cc</name>

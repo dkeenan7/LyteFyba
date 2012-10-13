@@ -10,10 +10,12 @@
 #include "pid.h"
 
 // BMU constants
-#define USE_CKSUM 1								// Set non-zero to send and expect checksums to BMUs
-#define BMU_TICK_RATE		4					// Number of BMU status bytes per second
+#define USE_CKSUM 1						// Set non-zero to send and expect checksums to BMUs
+#define BMU_TICK_RATE		4			// Number of BMU status bytes per second
 #define BMU_TX_BUFSZ		64
 #define BMU_RX_BUFSZ		64
+#define BMU_VR_SPEED		4500		// Number of 10 ms ticks per voltage request
+										// Note: it takes > 30s to send a voltage request to 114 BMUs
 
 
 // Public Function prototypes
