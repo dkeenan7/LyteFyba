@@ -180,8 +180,16 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		// and -1 from the algorithm to be zero current. This is a range of 32768 (-$4000 .. $4000),
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
 		// We have a hardware multiplier, so the most efficient way to do this division is with a
-		// 16x16 bit multiply giving a 32-bit result, and taking the upper half.
-		current = (int) (((output + 0x4000) * (long)(65536. / (32768. / CHGR_CURR_LIMIT))) >> 16);
+		// 16x16 bit multiply giving a 32-bit result, and taking the upper half of the result.
+		// Because the range (32768) is half of 2^16 (65536), we will be multiplying the output by
+		// twice the maximum, and taking the upper half. But we also want to shift the output by
+		// $4000, and to avoid overflow, we do this with 32-bit arithmetic, i.e.
+		//  current = ((out + $4000) / $8000) * max
+        //			= ((out + $4000) * max) / $8000		// Do division last so no fractional intermediate results
+        //         =  ((out + $4000) * max) >> 15		// Do division as shifts, for speed
+        //       =  ((out + $4000) * 2*max) >> 16		// So no actual shifts are required -- just take high word of a long
+		// Also add $8000 before the >> 16 for rounding.
+		current = ((output + 0x4000L) * 2*CHGR_CURR_LIMIT + 0x8000) >> 16;
 		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
 	} else {
 		// Not charging, assume driving.
