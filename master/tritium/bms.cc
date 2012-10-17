@@ -158,10 +158,10 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 			return;
 		if (bValid) {
 			// We need to scale the measurement (stress 0-7) to less than 0..2.0 (shift right by 2),
-			// convert to 2.14 fixedpoint (shift left by 14). Overall, shift left by 12 bits.
+			// convert to s0.15 fixedpoint (shift left by 15). Overall, shift left by 13 bits.
 			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
-			// to, which is 3.5 << 12 = 3.5 * 4096 = $3800.
-			output = pidCharge.tick((stress << 12) - 0x3800);
+			// to, which is 3.5 << 13 = 3.5 * 8192 = $7000.
+			output = pidCharge.tick((stress << 13) - 0x7000);
 			if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 					// Terminate charging
@@ -174,22 +174,21 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		else {
 			// We have to insert a dummy measurement tick so the derivatives still work
 			// Uses the last known good measurement = set_point - prev_error
-			output = pidCharge.dummy();
+			output = pidCharge.tick();
 		}
-		// Scale the output. Unity from the pid algorithm has to correspond to maximum charger current,
-		// and -1 from the algorithm to be zero current. This is a range of 32768 (-$4000 .. $4000),
+		// Scale the output. +1.0 has to correspond to maximum charger current,
+		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
-		// We have a hardware multiplier, so the most efficient way to do this division is with a
+		// We have a hardware multiplier, so the most efficient way to do this is with a
 		// 16x16 bit multiply giving a 32-bit result, and taking the upper half of the result.
-		// Because the range (32768) is half of 2^16 (65536), we will be multiplying the output by
-		// twice the maximum, and taking the upper half. But we also want to shift the output by
-		// $4000, and to avoid overflow, we do this with 32-bit arithmetic, i.e.
-		//  current = ((out + $4000) / $8000) * max
-        //			= ((out + $4000) * max) / $8000		// Do division last so no fractional intermediate results
-        //         =  ((out + $4000) * max) >> 15		// Do division as shifts, for speed
-        //       =  ((out + $4000) * 2*max) >> 16		// So no actual shifts are required -- just take high word of a long
+		// But we also want to offset the output by 1.0 ($8000).
+		// To avoid overflow, we do this with 32-bit arithmetic, i.e.
+		//  current = ((out + $8000L) / $10000L) * max
+        //			= ((out + $8000L) * max) / $10000L	// Do division last so no fractional intermediate results
+        //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
+        // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
-		current = ((output + 0x4000L) * 2*CHGR_CURR_LIMIT + 0x8000) >> 16;
+		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
 		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
 	} else {
 		// Not charging, assume driving.
