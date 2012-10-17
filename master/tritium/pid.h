@@ -5,19 +5,23 @@
 #ifndef __PID_H_
 #define __PID_H_
 
+#define fract int		// s0.15 fixed point, range -1.0 to almost +1.0
+#define accum long		// s16.15 fixed point, range -65536.0 to almost +65536.0
+#define short_accum int	// s7.8 fixed point, range -128.0 to almost +128.0
+
 class pid {
-//	int		set_point;				// Desired set point
-	int		prev_error;				// Previous error
-	int		prev_deriv;				// Previous derivative, to find second derivative
-	int		prev_output;			// Previous output
-	int		Kp;						// Proportional control constant
-	int		Ki;						// Integral control constant
-	int		Kd;						// Derivative control constant
+//	fract		set_point;			// Desired set point
+	fract		prev_error;			// Previous error
+	fract		prev_deriv;			// Previous derivative, to find second derivative
+	fract		prev_output;		// Previous output
+	short_accum	Kp;					// Proportional control gain
+	short_accum	Ki;					// Integral control gain / time constant
+	short_accum	Kd;					// Derivative control gain * time constant
 public:
-			pid(/*int iSet_point,*/ int iKp, int iKi, int iKd, int measure);
-	int		tick(int measure);		// Main function every tick of time:
+			pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd, fract measure);
+	fract	tick(fract measure);	// Main function every tick of time:
 									// Use the measurement to produce an output
-	int		dummy();				// As above, when we get an invalid measure
+	fract	tick();					// As above, when we get an invalid measure
 
 };
 

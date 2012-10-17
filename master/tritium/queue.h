@@ -12,25 +12,18 @@ class queue {
 	unsigned char rd;					// Read index
     unsigned char wr;					// Write index
     const unsigned char bufSize;		// Buffer size must be a power of 2
-    unsigned char buf[0];				// Circular buffer (size determined when initialised)  
+    unsigned char buf[0];				// Circular buffer (size determined when initialised)
 public:
 	queue(unsigned char sz);			// Constructor has to supply buffer size
 
 	// Enqueue a byte. Returns true on success (queue not full)
-	bool enqueue(unsigned char ch );		// ch is the byte to enqueue
+	bool enqueue(unsigned char ch );	// ch is the byte to enqueue
 
 	// Dequeue a byte. Returns true on success (queue was not empty).
-	bool dequeue(unsigned char& ch );		// ch is a reference to the char to be read to
+	bool dequeue(unsigned char& ch );	// ch is a reference to the char to be read to
 
-	unsigned int queue_space();				// Amouunt of space in the queue.
-	bool empty();					// True if the queue is empty
-
+	unsigned int queue_space();			// Amount of space in the queue.
+	bool empty() {return rd == wr;}		// True if the queue is empty. Defining it here makes it inline.
 };
-
-// This is not as you would expect in queue.cc because inline functions have internal linkage
-//	(visible only in the current file). Putting it here makes it avaialble in all source files.
-inline bool queue::empty() {
-	return rd == wr;
-}
 
 #endif		// ifdef __QUEUE_H_
