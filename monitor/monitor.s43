@@ -576,14 +576,14 @@ DELAY_IF_NEEDED MACRO
 /*	From email from DK 16/Sep/2012:
 Stress  5 bit code
 ------------------
-0   1 0 0 0 0
+0   0 1 0 0 0
 1   1 1 0 0 1
 2   1 1 0 1 0
-3   1 0 0 1 1
-4   0 1 1 0 0
+3   0 1 0 1 1
+4   1 0 1 0 0
 5   0 0 1 0 1
 6   0 0 1 1 0
-7   0 1 1 1 1
+7   1 0 1 1 1
 
 Neither 00000 nor 11111 are valid codes. It requires at least 2 bit flips to change any valid code to
 any other valid code. It requires at least 3 bit flips to change any code less than 3.5 to any code
@@ -592,22 +592,21 @@ It requires 5 bit flips to change between 3 and 4, or between 2 and 5, or 1 and 
 */
 			; Encoded stress table. The stress and other information is transmitted in one status byte,
 			; with no checksum correction. To counter this, stress is encoded, so that only
-			; some of the 128 possible raw status codes ($80 - $FF) are valid. Other codes
+			; 8 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
 			; are treated as a corrupted attempt to send status information; current status
 			; for this BMU is sent instead.
 			; Note that bit 7 is always set for status bytes; bit 6 represents comms error
 			; Bit 5 represents all-in-bypass
-			; Note that raw encoded stress values are no longer monotonic; we used to rely on
-			;	monotonicity but no longer do
-			; The table is indexed by raw stress bits
-stressTable	DB		(2<<3) + 0			; Stress 0
-			DB		(3<<3) + 1
-			DB		(3<<3) + 2
-			DB		(2<<3) + 3
-			DB		(1<<3) + 4
-			DB		(0<<3) + 5
-			DB		(0<<3) + 6
-			DB		(1<<3) + 7			; Stress 7
+			; Note that encoded stress values are not monotonic
+			; The table is indexed by raw stress values
+stressTable	DB		(1<<3) + 0			; Stress 0   $08
+			DB		(3<<3) + 1			; Stress 1   $19
+			DB		(3<<3) + 2			; Stress 2   $1A
+			DB		(1<<3) + 3			; Stress 3   $0B
+			DB		(2<<3) + 4			; Stress 4   $14
+			DB		(0<<3) + 5			; Stress 5   $05
+			DB		(0<<3) + 6			; Stress 6   $06
+			DB		(2<<3) + 7			; Stress 7   $17
 			
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
