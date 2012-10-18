@@ -38,15 +38,22 @@ unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 
 // Stress table with check bits
 static int stressTable[8] = {
-			0x80 + (2<<3) + 0,		// $90 is lowest stress level, level 0
-			0x80 + (3<<3) + 1,		// Stress 1
-			0x80 + (3<<3) + 2,
-			0x80 + (2<<3) + 3,
-			0x80 + (1<<3) + 4,
-			0x80 + (0<<3) + 5,
-			0x80 + (0<<3) + 6,
-			0x80 + (1<<3) + 7		// Stress 7
+			(1<<3) + 0,		// Stress 0   $08
+			(3<<3) + 1,		// Stress 1   $19
+			(3<<3) + 2,		// Stress 2   $1A
+			(1<<3) + 3,		// Stress 3   $0B
+			(2<<3) + 4,		// Stress 4   $14
+			(0<<3) + 5,		// Stress 5   $05
+			(0<<3) + 6,		// Stress 6   $06
+			(2<<3) + 7		// Stress 7   $17
 };
+
+pid pidCharge(						// State for the PID control algorithm for charge current
+//		(int)((3.5/8.0) * 8192),	// Set point will be 3.5 out of 8.0, left shifted by 13 bits
+		(int)(1.5*256),				// Kp = 1.5 as s7.8 fixed-point
+		(int)(1.0*256),				// Ki = 1.0
+		(int)(0.3*256),				// Kd = 0.3
+		0);							// Initial "measure"
 
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
 	assert2(sz <= BMU_RX_BUFSZ, "bmu::queue buffer size");
@@ -145,7 +152,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 {
 	int current, output;
 	int stress = status & 0x07;			// Isolate stress bits
-	int encoded = status & 0x9F;		// All but bypass and comms error bits
+	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
 	
 	
@@ -157,6 +164,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
+		    // bmu_sendVAComment(stress*10, 99); // for debugging
 			// We need to scale the measurement (stress 0-7) to less than 0..2.0 (shift right by 2),
 			// convert to s0.15 fixedpoint (shift left by 15). Overall, shift left by 13 bits.
 			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
@@ -172,6 +180,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 			}
 		}
 		else {
+		    // bmu_sendVAComment(99, 99); // for debugging
 			// We have to insert a dummy measurement tick so the derivatives still work
 			// Uses the last known good measurement = set_point - prev_error
 			output = pidCharge.tick();

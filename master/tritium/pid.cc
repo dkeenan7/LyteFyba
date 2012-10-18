@@ -15,7 +15,8 @@
 // The charger algorithm would be particularly upset by this, causing overflows and worse delaying
 // essential charge current cut-back when a cell becomes full.
 
-#include <io.h>
+#include <io.h>			// For hardware multiplier special function regs
+sfra(RESLONG, RESLO_);	// Allow accessing multiplier result as a long instead of two ints
 #include <signal.h>		// For dint(), eint()
 #include "pid.h"
 
@@ -71,7 +72,7 @@ fract pid::tick(fract measure) {
 	OP2 = error;
 	MACS = Kd;
 	OP2 = deriv2;
-	output = prev_output + ((((long)RESHI << 16) | RESLO) >> 8);
+	output = prev_output + (RESLONG >> 8);
 	eint();
 #endif
 	// Saturate the output to -1.0 ($8000) and almost +1.0 ($7FFF)

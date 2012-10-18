@@ -7,7 +7,6 @@
  */
 
 #include "queue.h"
-#include "pid.h"
 
 // Charger constants
 #define NUMBER_OF_CELLS		60
@@ -48,8 +47,6 @@ extern unsigned int charger_count;			// Counter to prevent timeout of charger co
 extern unsigned int chgr_lastCurrent;		// Last current commanded from the charger
 extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
 											//	cutoff current
-extern pid pidCharge;						// State for the charger pid algorithm
-
 
 
 void chgr_timer();						// Called every timer tick, for charger related processing
