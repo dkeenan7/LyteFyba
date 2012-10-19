@@ -113,7 +113,7 @@ void chgr_processPacket() {
 
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 													//	(starting next timer interrupt)
-	bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
+	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
 }
 
 

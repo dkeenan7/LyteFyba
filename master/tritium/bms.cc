@@ -50,9 +50,9 @@ static int stressTable[8] = {
 
 pid pidCharge(						// State for the PID control algorithm for charge current
 //		(int)((3.5/8.0) * 8192),	// Set point will be 3.5 out of 8.0, left shifted by 13 bits
-		(int)(1.5*256),				// Kp = 1.5 as s7.8 fixed-point
-		(int)(1.0*256),				// Ki = 1.0
-		(int)(0.3*256),				// Kd = 0.3
+		(int)(3.0*256),				// Kp as s7.8 fixed-point
+		(int)(3.0*2/(4*32)*256),	// Ki as s7.8 fixed-point
+		(int)(0*256),				// Kd as s7.8 fixed-point
 		0);							// Initial "measure"
 
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
@@ -164,23 +164,22 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
-		    // bmu_sendVAComment(stress*10, 99); // for debugging
 			// We need to scale the measurement (stress 0-7) to less than 0..2.0 (shift right by 2),
 			// convert to s0.15 fixedpoint (shift left by 15). Overall, shift left by 13 bits.
 			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
 			// to, which is 3.5 << 13 = 3.5 * 8192 = $7000.
 			output = pidCharge.tick((stress << 13) - 0x7000);
-			if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
+			if (status & 0x20) chgr_off(); // Stop when all in bypass
+		/*	if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 					// Terminate charging
 					chgr_off();
 				}
 				else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 					--chgr_bypCount;					// Saturate at zero
-			}
+			} */
 		}
 		else {
-		    // bmu_sendVAComment(99, 99); // for debugging
 			// We have to insert a dummy measurement tick so the derivatives still work
 			// Uses the last known good measurement = set_point - prev_error
 			output = pidCharge.tick();
@@ -199,6 +198,10 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
 		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
+		if (bValid)
+			bmu_sendVAComment(stress*10, current); // for debugging
+		else
+			bmu_sendVAComment(99, current); // for debugging
 	} else {
 		// Not charging, assume driving.
 		// FIXME: TO BE COMPLETED

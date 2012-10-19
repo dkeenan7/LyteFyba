@@ -16,7 +16,6 @@
 // essential charge current cut-back when a cell becomes full.
 
 #include <io.h>			// For hardware multiplier special function regs
-sfra(RESLONG, RESLO_);	// Allow accessing multiplier result as a long instead of two ints
 #include <signal.h>		// For dint(), eint()
 #include "pid.h"
 
@@ -24,6 +23,12 @@ sfra(RESLONG, RESLO_);	// Allow accessing multiplier result as a long instead of
 // Uses tricky MSP430 assembler
 inline int sat_minus (register int x, register int y)
 {
+#if 0
+	long result = (long)x - y;
+	if (result > 0x7FFFL) result = 0x7FFFL;
+	if (result < -0x8000L) result = -0x8000L;
+	return result;
+#else
 	asm (" sub	%1,%0	\n"
     	 " clrn 		\n" /* Clear N flag so GE condition depends on V flag only (normally N XOR V) */
 		 " jge	1f		\n" /* If no oVerflow, jump to local label 1: forward */
@@ -35,6 +40,7 @@ inline int sat_minus (register int x, register int y)
 	: 					/* no clobbered regs */ );
 	
 	return x;
+#endif
 }
 
 pid::pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd, fract measure)
@@ -72,6 +78,8 @@ fract pid::tick(fract measure) {
 	OP2 = error;
 	MACS = Kd;
 	OP2 = deriv2;
+	// Allow accessing multiplier result as a _signed_ long instead of two unsigned ints.
+	static volatile signed long RESLONG asm("0x013A");
 	output = prev_output + (RESLONG >> 8);
 	eint();
 #endif
