@@ -102,7 +102,7 @@ void chgr_sendRequest(int voltage, int current, bool chargerOff) {
 	chgr_txbuf[4] = voltage >> 8;
 	chgr_txbuf[5] = voltage & 0xFF;
 	chgr_txbuf[6] = 0;
-	chgr_txbuf[7] = current;		// Soak at the soak current level (< bypass capacity)
+	chgr_txbuf[7] = current;
 	chgr_txbuf[8] = chargerOff;
 	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
 	chgr_sendPacket(chgr_txbuf);

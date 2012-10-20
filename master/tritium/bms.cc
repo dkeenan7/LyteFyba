@@ -50,9 +50,9 @@ static int stressTable[8] = {
 
 pid pidCharge(						// State for the PID control algorithm for charge current
 //		(int)((3.5/8.0) * 8192),	// Set point will be 3.5 out of 8.0, left shifted by 13 bits
-		(int)(3.0*256),				// Kp as s7.8 fixed-point
-		(int)(0.1*256),				// Ki as s7.8 fixed-point
-		(int)(0*256),				// Kd as s7.8 fixed-point
+		(int)(0.5*256),				// Kp as s7.8 fixed-point
+		(int)(0.2*256),				// Ki as s7.8 fixed-point
+		(int)(0.0*256),			// Kd as s7.8 fixed-point
 		0);							// Initial "measure"
 
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
@@ -154,7 +154,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 	int stress = status & 0x07;			// Isolate stress bits
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
-	
+#define SET_POINT 3 // stress level
 	
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
@@ -164,11 +164,10 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
-			// We need to scale the measurement (stress 0-7) to less than 0..2.0 (shift right by 2),
-			// convert to s0.15 fixedpoint (shift left by 15). Overall, shift left by 13 bits.
-			// then bias so that the target stress of 3.5 reads as 0 (subtract what 3.5 would come
-			// to, which is 3.5 << 13 = 3.5 * 8192 = $7000.
-			output = pidCharge.tick((stress << 13) - 0x7000);
+			// We need to scale the measurement (stress 0-7) to make good use of the s0.15
+			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+			// (stress 3) maps to 0x0000 and taking care to avoid overflow or underflow.
+			output = pidCharge.tick(sat_minus((stress-4) << 13, (SET_POINT-4) << 13));
 			if (status & 0x20) chgr_off(); // Stop when all in bypass
 		/*	if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
