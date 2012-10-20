@@ -37,7 +37,7 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 ; Constants
-BYPLEV		EQU			3550		// Bypass level in millivolts
+BYPLEV		EQU			3500		// Bypass level in millivolts
 
 minLEDStress EQU		5			; Minimum stress to light error LED
 minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
@@ -278,8 +278,9 @@ measures:
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage stress: for every 50 mV over 3.40 V, we add one level of stress, to a maximum of 7 for > 3.75 V
-			; The set point will be 3.5, which will be 3.60 V
+			; Overvoltage stress: for every 50 mV over 3.35 V, we add one level of stress, to a maximum of 7 for > 3.70 V
+			; The set point will be 3.5 or 4.0, which will be 3.55 V or the range 3.55 -> 3.60 V. Bypass is now at 3.50,
+			;	so stress level 3 will be bypassing
 			mov		R10,R9					; Measurement
 			sub		#3400,R9				; Cell voltage - 3.40 V
 			_IF		_L
