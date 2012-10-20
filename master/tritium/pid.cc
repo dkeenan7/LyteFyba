@@ -19,30 +19,6 @@
 #include <signal.h>		// For dint(), eint()
 #include "pid.h"
 
-// Saturating subtraction of signed ints
-// Uses tricky MSP430 assembler
-inline int sat_minus (register int x, register int y)
-{
-#if 0
-	long result = (long)x - y;
-	if (result > 0x7FFFL) result = 0x7FFFL;
-	if (result < -0x8000L) result = -0x8000L;
-	return result;
-#else
-	asm (" sub	%1,%0	\n"
-    	 " clrn 		\n" /* Clear N flag so GE condition depends on V flag only (normally N XOR V) */
-		 " jge	1f		\n" /* If no oVerflow, jump to local label 1: forward */
-    	 " subc	%0,%0	\n" /* Set all bits = NOT C flag = previous N flag (on overflow) */
-    	 " rrc	%0		\n" /* C flag is unchanged above, shift it into the sign bit */
-		 "1:			\n" /* Local label to jump to */
-	: "=r" (x) 			/* output %0 is any reg and is x */
-	: "r" (y), "0" (x)	/* input %1 is any reg and is y, another input is same reg as output (%0) and is x */
-	: 					/* no clobbered regs */ );
-	
-	return x;
-#endif
-}
-
 pid::pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd, fract measure)
 {
 	// set_point = iSet_point;
