@@ -337,12 +337,12 @@ measures:
             clr     R10
             mov     #OT_STEP,R8
             call    #UMSlashMod             ; (meas - OT_ZERO) / OT_STEP -> R9
-			pop		R8						; Restore measurement
-			pop		R9						; Restore stress_so_far
-			cmp		R10,R9					; Is temp stress worse than stress_so_far?
+			pop		R10						; Restore measurement
+			pop		R8						; Restore stress_so_far
+			cmp		R8,R9					; Is temp stress worse than stress_so_far?
 			_IF		_LO
-				mov		R10,R9					; Yes, new stress_so_far
-				mov		R8,Rmeas				; Tentative measurement causing worst stress
+				mov		R8,R9					; Yes, new stress_so_far
+				mov		R10,Rmeas				; Tentative measurement causing worst stress
 				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
 			_ENDIF
 			; Undertemperature stress: 1 for every UT_STEP degrees below UT_ZERO
