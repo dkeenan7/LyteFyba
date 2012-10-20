@@ -37,21 +37,28 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 ; Constants
-// OV = Over Voltage: Increase stress by 1 for each 25 mV in excess of 3.475 V, to a max of 7 at >= 3.65 V
-OV_ZERO     EQU         3475        ; Threshold between OV stress levels -1 and 0 in mV
-OV_STEP     EQU         25          ; mV difference between one OV stress level and the next
-// UV = Under Voltage: Increase stress by 1 for each 100 mV below 2.500 V, to a maximum of 7 at <= 2.20 V
-UV_ZERO     EQU         2500        ; Threshold between UV stress levels -1 and 0
-UV_STEP     EQU         100         ; mV difference between one UV stress level and the next
-// OT = Over Temperature: Increase stress by 1 for every 2 degrees C above 40C, to a max of 7 at >= 54C
-OT_ZERO     EQU         40          ; Temperature in degrees C between stress levels -1 and 0
-OT_STEP     EQU         2           ; Temperature in degrees C between one OT stress level and the next
-// UT = Under Temperature: Increase stress by 1 for every 1 degrees C below 7C, to a max of 7 at <= 0C
-UT_ZERO     EQU         7           ; Temperature in degrees C between stress levels -1 and 0
+
+; Stress calculations
+; Stress set point is intended to be 3.
+// OV = Over Voltage: Increase stress by 1 for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
+OV_ZERO     EQU         3500        ; Threshold in mV between OV stress levels -1 and 0
+OV_STEP     EQU         10          ; mV difference between one OV stress level and the next
+// UV = Under Voltage: Increase stress by 1 for each 0 mV below 2.500 V, to a maximum of 15 at <= 1.75 V
+UV_ZERO     EQU         2500        ; Threshold in mV between UV stress levels -1 and 0
+UV_STEP     EQU         50         ; mV difference between one UV stress level and the next
+// OT = Over Temperature: Increase stress by 1 for every 1 degree C above 40C, to a max of 15 at >= 55C
+OT_ZERO     EQU         40          ; Threshold in degrees C between OT stress levels -1 and 0
+OT_STEP     EQU         1           ; Temperature in degrees C between one OT stress level and the next
+// UT = Under Temperature: Increase stress by 1 for every 1 degrees C below 9C, to a max of 15 at <= -6C
+UT_ZERO     EQU         9           ; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP     EQU         1           ; Temperature in degrees C between one OT stress level and the next
-BYPLEV  	EQU			3550		; Bypass level in millivolts
-minLEDStress EQU		5			; Minimum stress to light error LED
-minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
+BYPLEV  	EQU			3560		; Bypass level in millivolts
+minLEDStress EQU		11			; Minimum stress to light error LED
+minAlrmStress EQU		11			; Minimum stress to sound alarm  (not in use yet)
+
+; Status byte bit masks
+STRESS_MASK		EQU		$0F
+ENC_STRESS_MASK	EQU		$1F
 
 ; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -290,7 +297,6 @@ measures:
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
 			; Overvoltage stress: for every OV_STEP mV over OV_ZERO, we add one level of stress
-			; The set point will be 3.55 - 3.575 V. Bypass is now at 3.55, so stress level 3 will be bypassing
 			mov		R10,R9					; Measurement
 			sub		#OV_ZERO,R9		        ; Cell voltage - OV_ZERO
 			_IF		_L
@@ -322,14 +328,14 @@ measures:
 			push	R9						; Save stress_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; High temperature stress: 1 for every OT_STEP degrees over OT_ZERO
+			; Overtemperature stress: 1 for every OT_STEP degrees over OT_ZERO
             mov     R10,R9
 			sub		#OT_ZERO,R9
 			_IF		_L
 				clr		R9					; Minimum of 0
 			_ENDIF
             clr     R10
-            mov     #OT_ZERO,R8
+            mov     #OT_STEP,R8
             call    #UMSlashMod             ; (meas - OT_ZERO) / OT_STEP -> R9
 			rra		R10
 			pop		R8						; Restore measurement
@@ -340,7 +346,7 @@ measures:
 				mov		R8,Rmeas				; Tentative measurement causing worst stress
 				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
 			_ENDIF
-			; Low temperature stress: 1 for every UT_STEP degrees below UT_ZERO
+			; Undertemperature stress: 1 for every UT_STEP degrees below UT_ZERO
 			push	R8  					; Save measurement
             push    R9                      ; Save stress_so_far
 			mov.b	#UT_ZERO,R9
@@ -393,9 +399,9 @@ measures:
 				pop		R9						; Restore stress_so_far
 			_ENDIF
 
-			cmp		#7,R9					; Is the stress_so_far worse than 7?
+			cmp		#STRESS_MASK,R9			; Is the stress_so_far worse than we can fit in status byte?
 			_IF		_GE
-				mov		#7,R9					; Yes, use 7
+				mov		#STRESS_MASK,R9			; Yes, use maximum we can fit
 			_ENDIF
 
 			; Receive (comms) stress: 1 if no status RX for 10 ticks and we are not ID 1
@@ -416,7 +422,7 @@ measures:
 			_ENDIF
 
 			mov.b	R9,R8					; Local stress
-			movBits_B R8,#7,&localStatus	; Record for later use, preserving bypass bits
+			movBits_B R8,#STRESS_MASK,&localStatus	; Record for later use, preserving bypass bits
 			cmp.b	&worstStress,R9
 			_IF		_HS						; If localStatus equal or higher than worstStress
                 tst.b   R9                      ; and if it's an actual, nonzero error
@@ -434,7 +440,7 @@ measures:
 			bit.b	#bNotSendStatus,&monFlags ; If bNotSendStatus is false
 			_IF		_Z
 				mov.b	&lastSentStatus,R8		; Get last stress and bypass bits we sent
-				and		#7,R8					; Clear other than stress bits
+				and.b	#STRESS_MASK,R8			; Clear other than stress bits
 				cmp.b	R9,R8					; Is the current stress worse than the last stress we sent?
 				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
 				;	about a new lower stress (as well as higher).
@@ -469,7 +475,7 @@ sendStatusNow
 				_ENDIF
 				mov.b	R9,&lastSentStatus		; Update remembered value
 				mov.b	R9,R10
-				and.b	#7,R10					; Just stress bits in R10
+				and.b	#STRESS_MASK,R10		; Just stress bits in R10
 				mov.b	stressTable(R10),R8		; Encode the present stress and bypass bits in R8
 				and.b	#$60,R9					; Just comms error and bypass bits in R9
 				bis.b	R9,R8					; Copy comms error and bypass bits to R8
@@ -493,8 +499,8 @@ DoStatus:
 			clr		&ticksSinceLastRx		; Now no time since last received status
 			mov.b	R8,R9					; Copy incoming stress to R9
 			mov.b	R8,R10					; And R10
-			and		#7,R10					; Consider only stress bits in R10
-			and		#$1F,R8					; Only stress and check bits in R8
+			and		#STRESS_MASK,R10		; Consider only stress bits in R10
+			and		#ENC_STRESS_MASK,R8		; Only stress and check bits in R8
 			cmp.b	R8,stressTable(R10)		; Is it valid? (Tested after 2 intervening instructions)
 			mov.b	&localStatus,R8			; Get local status to R8
 			bic.b	#$F8,R8					; Clear off non-stress bits (does not affect flags)
@@ -525,7 +531,7 @@ DoStatus:
 
 			mov.b	R10,&lastSentStatus		; Remember that we sent this
 			mov.b	R10,R8
-			and.b	#7,R10					; Just stress bits for index
+			and.b	#STRESS_MASK,R10		; Just stress bits for index
 			bis.b	stressTable(R10),R8		; Encode the present stress and bypass bits
 			bis.b	#$80,R8					; Set the high bit to say it's a status byte
 			call	#TX_ByteNW				; Send this encoded data if buffer not full
@@ -585,40 +591,31 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Bytecode definitions
 
-/*	From email from DK 16/Sep/2012:
-Stress  5 bit code
-------------------
-0   0 1 0 0 0
-1   1 1 0 0 1
-2   1 1 0 1 0
-3   0 1 0 1 1
-4   1 0 1 0 0
-5   0 0 1 0 1
-6   0 0 1 1 0
-7   1 0 1 1 1
-
-Neither 00000 nor 11111 are valid codes. It requires at least 2 bit flips to change any valid code to
-any other valid code. It requires at least 3 bit flips to change any code less than 3.5 to any code
-greater than 3.5 or vice versa.
-It requires 5 bit flips to change between 3 and 4, or between 2 and 5, or 1 and 6, or 0 and 7.
-*/
 			; Encoded stress table. The stress and other information is transmitted in one status byte,
 			; with no checksum correction. To counter this, stress is encoded, so that only
-			; 8 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
-			; are treated as a corrupted attempt to send status information; current status
-			; for this BMU is sent instead.
+			; 16 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
+			; are treated as a corrupted attempt to send status information.
+			; Current status for this BMU is sent instead.
 			; Note that bit 7 is always set for status bytes; bit 6 represents comms error
 			; Bit 5 represents all-in-bypass
 			; Note that encoded stress values are not monotonic
 			; The table is indexed by raw stress values
-stressTable	DB		(1<<3) + 0			; Stress 0   $08
-			DB		(3<<3) + 1			; Stress 1   $19
-			DB		(3<<3) + 2			; Stress 2   $1A
-			DB		(1<<3) + 3			; Stress 3   $0B
-			DB		(2<<3) + 4			; Stress 4   $14
-			DB		(0<<3) + 5			; Stress 5   $05
-			DB		(0<<3) + 6			; Stress 6   $06
-			DB		(2<<3) + 7			; Stress 7   $17
+stressTable	DB		(1<<4) + 0			; Stress 0   $10
+			DB		(1<<4) + 1			; Stress 1   $11
+			DB		(1<<4) + 2			; Stress 2   $12
+			DB		(1<<4) + 3			; Stress 3   $13
+			DB		(1<<4) + 4			; Stress 4   $14
+			DB		(1<<4) + 5			; Stress 5   $15
+			DB		(1<<4) + 6			; Stress 6   $16
+			DB		(1<<4) + 7			; Stress 7   $17
+			DB		(0<<4) + 8			; Stress 8   $08
+			DB		(0<<4) + 9			; Stress 9   $09
+			DB		(0<<4) + 10			; Stress 10  $0A
+			DB		(0<<4) + 11			; Stress 11  $0B
+			DB		(0<<4) + 12			; Stress 12  $0C
+			DB		(0<<4) + 13			; Stress 13  $0D
+			DB		(0<<4) + 14			; Stress 14  $0E
+			DB		(0<<4) + 15			; Stress 15  $0F
 			
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
