@@ -337,7 +337,6 @@ measures:
             clr     R10
             mov     #OT_STEP,R8
             call    #UMSlashMod             ; (meas - OT_ZERO) / OT_STEP -> R9
-			rra		R10
 			pop		R8						; Restore measurement
 			pop		R9						; Restore stress_so_far
 			cmp		R10,R9					; Is temp stress worse than stress_so_far?
