@@ -37,10 +37,10 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 ; Constants
-BYPLEV		EQU			3500		// Bypass level in millivolts
+BYPLEV		EQU			3550		// Bypass level in millivolts
 
-minLEDStress EQU		5			; Minimum stress to light error LED
-minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
+minLEDStress EQU		6			; Minimum stress to light error LED
+minAlrmStress EQU		6			; Minimum stress to sound alarm  (not in use yet)
 
 ; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -278,18 +278,17 @@ measures:
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage stress: for every 50 mV over 3.35 V, we add one level of stress, to a maximum of 7 for > 3.70 V
-			; The set point will be 3.5 or 4.0, which will be 3.55 V or the range 3.55 -> 3.60 V. Bypass is now at 3.50,
-			;	so stress level 3 will be bypassing
+			; Overvoltage stress: for every 25 mV over 3.3475 V, we add one level of stress, to a maximum of 7 for > 3.65 V
+			; The set point will be 3.55 - 3.575 V. Bypass is now at 3.55, so stress level 3 will be bypassing
 			mov		R10,R9					; Measurement
-			sub		#3400,R9				; Cell voltage - 3.40 V
+			sub		#3475,R9				; Cell voltage - 3.475 V
 			_IF		_L
 				clr		R9						; Minimum of zero
 			_ENDIF
 			push	R10						; Save measurement
-			clr		R10						; R10:R9 has meas - 3.40
-			mov		#50,R8
-			call	#UMSlashMod				; (meas - 3.40) / 50 -> R9
+			clr		R10						; R10:R9 has meas - 3.475
+			mov		#25,R8
+			call	#UMSlashMod				; (meas - 3.475) / 25 -> R9
 
 			; Undervoltage stress: for every 100 mv below 2.90 V, we add one level of stress, to a maximum of 7 for < 2.2 V
 			; The set point will be 3.5, which will be 2.50 V
