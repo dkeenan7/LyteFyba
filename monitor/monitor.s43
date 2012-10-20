@@ -37,10 +37,21 @@ ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 ; Constants
-BYPLEV		EQU			3550		// Bypass level in millivolts
-
-minLEDStress EQU		6			; Minimum stress to light error LED
-minAlrmStress EQU		6			; Minimum stress to sound alarm  (not in use yet)
+// OV = Over Voltage: Increase stress by 1 for each 25 mV in excess of 3.475 V, to a max of 7 at >= 3.65 V
+OV_ZERO     EQU         3475        ; Threshold between OV stress levels -1 and 0 in mV
+OV_STEP     EQU         25          ; mV difference between one OV stress level and the next
+// UV = Under Voltage: Increase stress by 1 for each 100 mV below 2.500 V, to a maximum of 7 at <= 2.20 V
+UV_ZERO     EQU         2500        ; Threshold between UV stress levels -1 and 0
+UV_STEP     EQU         100         ; mV difference between one UV stress level and the next
+// OT = Over Temperature: Increase stress by 1 for every 2 degrees C above 40C, to a max of 7 at >= 54C
+OT_ZERO     EQU         40          ; Temperature in degrees C between stress levels -1 and 0
+OT_STEP     EQU         2           ; Temperature in degrees C between one OT stress level and the next
+// UT = Under Temperature: Increase stress by 1 for every 1 degrees C below 7C, to a max of 7 at <= 0C
+UT_ZERO     EQU         7           ; Temperature in degrees C between stress levels -1 and 0
+UT_STEP     EQU         1           ; Temperature in degrees C between one OT stress level and the next
+BYPLEV  	EQU			3550		; Bypass level in millivolts
+minLEDStress EQU		5			; Minimum stress to light error LED
+minAlrmStress EQU		5			; Minimum stress to sound alarm  (not in use yet)
 
 ; Port 1 bits
 TXDm		EQU		1<<1			; TA0/P1.1
@@ -278,30 +289,29 @@ measures:
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 
-			; Overvoltage stress: for every 25 mV over 3.3475 V, we add one level of stress, to a maximum of 7 for > 3.65 V
+			; Overvoltage stress: for every OV_STEP mV over OV_ZERO, we add one level of stress
 			; The set point will be 3.55 - 3.575 V. Bypass is now at 3.55, so stress level 3 will be bypassing
 			mov		R10,R9					; Measurement
-			sub		#3475,R9				; Cell voltage - 3.475 V
+			sub		#OV_ZERO,R9		        ; Cell voltage - OV_ZERO
 			_IF		_L
 				clr		R9						; Minimum of zero
 			_ENDIF
 			push	R10						; Save measurement
-			clr		R10						; R10:R9 has meas - 3.475
-			mov		#25,R8
-			call	#UMSlashMod				; (meas - 3.475) / 25 -> R9
+			clr		R10						; R10:R9 has meas - OV_ZERO
+			mov		#OV_STEP,R8
+			call	#UMSlashMod				; (meas - OV_ZERO) / OV_STEP -> R9
 
-			; Undervoltage stress: for every 100 mv below 2.90 V, we add one level of stress, to a maximum of 7 for < 2.2 V
-			; The set point will be 3.5, which will be 2.50 V
+			; Undervoltage stress: for every UV_STEP mV below UV_ZERO, we add one level of stress
 			pop		R10						; Restore original measurement
 			push	R9						; Save stress_so_far
-			mov		#2500+99,R9
-			sub		R10,R9					; R9 has 2.5 V - meas plus 99 for rounding
+			mov		#UV_ZERO+UV_STEP-1,R9
+			sub		R10,R9					; R9 has UV_ZERO - meas plus UV_STEP-1 for rounding
 			clr		R10						; R10:R9 has this
 			_IF		_L
 				clr		R9						; Minimum of zero
 			_ENDIF
-			mov		#100,R8
-			call	#UMSlashMod				; (2.5 V - meas) / 100 -> R9
+			mov		#UV_STEP,R8
+			call	#UMSlashMod				; (UV_ZERO - meas) / UV_STEP -> R9
 			pop		R8						; Restore stress_so_far
 			cmp		R8,R9					; Which stress is worse?
 			_IF		_LO
@@ -312,11 +322,15 @@ measures:
 			push	R9						; Save stress_so_far
 			call	#temp					; Get cell temperature in degrees Celsius in R10
 			push	R10						; Save measurement
-			; High temperature stress: 1 for every 2 degrees over 40 C
-			sub		#40,R10
+			; High temperature stress: 1 for every OT_STEP degrees over OT_ZERO
+            mov     R10,R9
+			sub		#OT_ZERO,R9
 			_IF		_L
-				clr		R10					; Minimum of 0
+				clr		R9					; Minimum of 0
 			_ENDIF
+            clr     R10
+            mov     #OT_ZERO,R8
+            call    #UMSlashMod             ; (meas - OT_ZERO) / OT_STEP -> R9
 			rra		R10
 			pop		R8						; Restore measurement
 			pop		R9						; Restore stress_so_far
@@ -326,14 +340,19 @@ measures:
 				mov		R8,Rmeas				; Tentative measurement causing worst stress
 				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
 			_ENDIF
-			; Low temperature stress: 1 for every 2 degrees below 10 C
-			mov.b	R8,R10					; Save measurement
-			mov.b	#10,R8
-			sub.b	R10,R8					; 10 - measurement
+			; Low temperature stress: 1 for every UT_STEP degrees below UT_ZERO
+			push	R8  					; Save measurement
+            push    R9                      ; Save stress_so_far
+			mov.b	#UT_ZERO,R9
+			sub.b	R10,R9					; UT_ZERO - measurement
 			_IF		_L
-				clr		R8						; Min of 0
+				clr		R9						; Min of 0
 			_ENDIF
-			rra		R8
+            clr     R10
+            mov     #UT_STEP,R8
+            call    #UMSlashMod             ; (UT_ZERO - meas) / UT_STEP
+            pop     R9                      ; Restore stress_so_far
+            pop     R10                     ; Restore measurement
 			cmp		R8,R9					; Is low temp stress worse than stress_so_far?
 			_IF		_LO
 				mov		R8,R9					; Yes, new stress_so_far
