@@ -37,22 +37,30 @@ unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 //signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
 
 // Stress table with check bits
-static int stressTable[8] = {
-			(1<<3) + 0,		// Stress 0   $08
-			(3<<3) + 1,		// Stress 1   $19
-			(3<<3) + 2,		// Stress 2   $1A
-			(1<<3) + 3,		// Stress 3   $0B
-			(2<<3) + 4,		// Stress 4   $14
-			(0<<3) + 5,		// Stress 5   $05
-			(0<<3) + 6,		// Stress 6   $06
-			(2<<3) + 7		// Stress 7   $17
+static int stressTable[16] = {
+			(1<<4) + 0,		// Stress 0   $10
+			(1<<4) + 1,		// Stress 1   $11
+			(1<<4) + 2,		// Stress 2   $12
+			(1<<4) + 3,		// Stress 3   $13
+			(1<<4) + 4,		// Stress 4   $14
+			(1<<4) + 5,		// Stress 5   $15
+			(1<<4) + 6,		// Stress 6   $16
+			(1<<4) + 7,		// Stress 7   $17
+			(1<<4) + 8,		// Stress 8   $08
+			(0<<4) + 9,		// Stress 9   $09
+			(0<<4) + 10,	// Stress 10  $0A
+			(0<<4) + 11,	// Stress 11  $0B
+			(0<<4) + 12,	// Stress 12  $0C
+			(0<<4) + 13,	// Stress 13  $0D
+			(0<<4) + 13,	// Stress 14  $0E
+			(0<<4) + 15		// Stress 15  $0F
 };
 
 pid pidCharge(						// State for the PID control algorithm for charge current
-//		(int)((3.5/8.0) * 8192),	// Set point will be 3.5 out of 8.0, left shifted by 13 bits
+//		(int)((7.0/16.0) * 4096),	// Set point will be 7.0 out of 16.0, left shifted by 12 bits
 		(int)(0.8*256),				// Kp as s7.8 fixed-point
 		(int)(0.2*256),				// Ki as s7.8 fixed-point
-		(int)(0.0*256),			// Kd as s7.8 fixed-point
+		(int)(0.0*256),				// Kd as s7.8 fixed-point
 		0);							// Initial "measure"
 
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
@@ -154,7 +162,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 	int stress = status & 0x07;			// Isolate stress bits
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
-#define SET_POINT 3 // stress level
+#define SET_POINT 7 // stress level
 	
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
@@ -164,10 +172,10 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
-			// We need to scale the measurement (stress 0-7) to make good use of the s0.15
+			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-			// (stress 3) maps to 0x0000 and taking care to avoid overflow or underflow.
-			output = pidCharge.tick(sat_minus((stress-4) << 13, (SET_POINT-4) << 13));
+			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+			output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
 			if (status & 0x20) chgr_off(); // Stop when all in bypass
 		/*	if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
