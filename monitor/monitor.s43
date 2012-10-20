@@ -91,7 +91,6 @@ bNotMeasureTime EQU		4			; Zero if time to measure
 
 localStatus		DS		1			; Local stress, comms error and bypass status (0-2 stress,
 									;	6 comms error, 5 all-in-bypass)
-ticksSinceLastSend DS	1			; Timer overflow events (~1/4 seconds) since last status send
 ticksSinceLastRx DS		1			; Timer overflow events since last status received
 passWordState	DS		1			; State machine for password recogniser
 lastSentStatus	DS		1			; Last sent status byte
@@ -266,7 +265,6 @@ measures:
 #define Rmeas R15				// Tentative measurement causing worst stress
 #define Rtype R14				// Tentative type of measurement causing worst stress
 
-			inc.b	&ticksSinceLastSend		; Increment these counters
 			inc.b	&ticksSinceLastRx
 			_IF		_Z						; Wrapped around to 0?
 				mov.b	#$FF,&ticksSinceLastRx	; Yes, saturate at $FF
@@ -431,10 +429,6 @@ measures:
 				_IF		_NC						; If no carry, then no, we are not a master
 					ret								; So exit, no send
 				_ENDIF
-				cmp.b	#4,&ticksSinceLastSend	; We are a master, but is it time to send?
-				_IF		_NC
-					ret								; Not time to send, so do nothing
-				_ENDIF
 sendStatusNow
 				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
 				_IF		_C						; If carry, then yes, we are a master
@@ -454,7 +448,6 @@ sendStatusNow
 						bis		R8,R9				; Copy to R9
 					_ENDIF
 				_ENDIF
-				clr.b	&ticksSinceLastSend
 				mov.b	R9,&lastSentStatus		; Update remembered value
 				mov.b	R9,R10
 				and.b	#7,R10					; Just stress bits in R10

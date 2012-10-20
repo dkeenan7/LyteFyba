@@ -51,7 +51,7 @@ static int stressTable[8] = {
 pid pidCharge(						// State for the PID control algorithm for charge current
 //		(int)((3.5/8.0) * 8192),	// Set point will be 3.5 out of 8.0, left shifted by 13 bits
 		(int)(3.0*256),				// Kp as s7.8 fixed-point
-		(int)(3.0*2/(4*32)*256),	// Ki as s7.8 fixed-point
+		(int)(0.1*256),				// Ki as s7.8 fixed-point
 		(int)(0*256),				// Kd as s7.8 fixed-point
 		0);							// Initial "measure"
 

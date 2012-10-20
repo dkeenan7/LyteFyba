@@ -35,7 +35,7 @@
 DCOfreq		EQU		8000000					; DCO clock in Hz
 DCOckPerMck	EQU		2						; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
 DCOckPerSMck EQU	8						; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
-StatusFreq	EQU		16						; Status frequency in hertz
+StatusFreq	EQU		4						; Status frequency in hertz
 											; Only sent every fourth time if stress not increased
 SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/StatusFreq+(1<<15))/(1<<16)
 											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
