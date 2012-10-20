@@ -46,13 +46,13 @@ static int stressTable[16] = {
 			(1<<4) + 5,		// Stress 5   $15
 			(1<<4) + 6,		// Stress 6   $16
 			(1<<4) + 7,		// Stress 7   $17
-			(1<<4) + 8,		// Stress 8   $08
+			(0<<4) + 8,		// Stress 8   $08
 			(0<<4) + 9,		// Stress 9   $09
 			(0<<4) + 10,	// Stress 10  $0A
 			(0<<4) + 11,	// Stress 11  $0B
 			(0<<4) + 12,	// Stress 12  $0C
 			(0<<4) + 13,	// Stress 13  $0D
-			(0<<4) + 13,	// Stress 14  $0E
+			(0<<4) + 14,	// Stress 14  $0E
 			(0<<4) + 15		// Stress 15  $0F
 };
 
@@ -159,7 +159,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 void handleBMUstatusByte(unsigned char status, bool bCharging)
 {
 	int current, output;
-	int stress = status & 0x07;			// Isolate stress bits
+	int stress = status & 0x0F;			// Isolate stress bits
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
 #define SET_POINT 7 // stress level
