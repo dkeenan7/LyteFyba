@@ -502,7 +502,7 @@ DoStatus:
 			and		#ENC_STRESS_MASK,R8		; Only stress and check bits in R8
 			cmp.b	R8,stressTable(R10)		; Is it valid? (Tested after 2 intervening instructions)
 			mov.b	&localStatus,R8			; Get local status to R8
-			bic.b	#$F8,R8					; Clear off non-stress bits (does not affect flags)
+			bic.b	#~STRESS_MASK,R8		; Extract stress bits (BIC does not affect flags, AND does)
 			_IF		_EQ						; If incoming is a valid stress byte
 				cmp.b	R10,R8					; Compare incoming stress (R10) to ours (R8)
 				_IF		_HS						; If we (R10) are worse than incoming (R8)
