@@ -58,9 +58,19 @@ static int stressTable[16] = {
 
 pid pidCharge(						// State for the PID control algorithm for charge current
 //		(int)((7.0/16.0) * 4096),	// Set point will be 7.0 out of 16.0, left shifted by 12 bits
-		(int)(0.8*256),				// Kp as s7.8 fixed-point
-		(int)(0.2*256),				// Ki as s7.8 fixed-point
-		(int)(0.0*256),				// Kd as s7.8 fixed-point
+		(int)(1.164*256),			// Kp as s7.8 fixed-point
+		// Proportional gain of (0.4/5.5)/(1/16) = 4 * 16/55 = 1.164 means that a change of
+		// 1 stress level will cause a change of 0.4 A. With this Kp, 0.4 A is the lowest non-zero
+		// current that can be stable (except that we can achieve 0.3 A occasionally thanks to Kd).
+		// If Kp was any larger we would not be able to achieve a stable 0.4 A (except occasionally
+		// thanks to Kd). 0.4 A is the BMUs' typical bypass current.
+		(int)(0.291*256),		// Ki as s7.8 fixed-point
+		// Integral gain of (0.1/5.5)/(1/16) = 16/55 = 0.291 means that when the stress is 1 level
+		// away from the setpoint, the requested current will change by 0.1 A per tick.
+		// 0.1 A is the minimum change that the TC charger can make.
+		(int)(-0.582*256),			// Kd as s7.8 fixed-point
+		// Setting Kd to negative half Kp spreads the current steps due to Kp over two ticks,
+		// and allows current to occasionally reach 0.3 A via a single tick spent at stress 8.
 		0);							// Initial "measure"
 
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
