@@ -179,6 +179,8 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
+		
+		if (status & 0x20) { chgr_off(); return; } // Stop when all in bypass
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 		if (bValid) {
@@ -186,15 +188,6 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 			output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-			if (status & 0x20) chgr_off(); // Stop when all in bypass
-		/*	if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
-				if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
-					// Terminate charging
-					chgr_off();
-				}
-				else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
-					--chgr_bypCount;					// Saturate at zero
-			} */
 		}
 		else {
 			// We have to insert a dummy measurement tick so the derivatives still work

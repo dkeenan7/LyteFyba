@@ -58,8 +58,6 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
-unsigned int charger_count = CHARGER_SPEED;
-
 
 // Data from controller
 float motor_rpm = 0;
@@ -342,15 +340,6 @@ int main( void )
 			}
 		}
 			
-		
-		// MVE: send packet to charger
-		// Even though the current may not have changed, so we haven't sent a message for a while, the
-		// charger will still time out if it doesn't see any message for ~ 10 seconds
-		if (events & EVENT_CHARGER) {
-			events &= ~EVENT_CHARGER;
-			handleChargerEvent();
-		}
-
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
 			// IRQ flag is set, so run the receive routine to either get the message, or the error
@@ -653,12 +642,6 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	if( comms_count == 0 ){
 		comms_count = COMMS_SPEED;
 		events |= EVENT_COMMS;
-	}
-
-	// MVE: Trigger charger events (command packet transmission)
-	if((command.state == MODE_CHARGE) && (--charger_count == 0) ){
-		charger_count = CHARGER_SPEED;
-		events |= EVENT_CHARGER;
 	}
 
 	// Check for CAN activity events and blink LED

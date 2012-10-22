@@ -28,8 +28,7 @@ chgr_queue chgr_rx_q(CHGR_RX_BUFSZ);
 // Charger private variables
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
-unsigned char chgr_txbuf[12];			// A buffer for a charger packet
-unsigned int chgr_lastCurrent = 9999;	// Last commanded current sent to the charger
+unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
 
 unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
 
@@ -48,8 +47,6 @@ void chgr_init() {
 }
 
 void chgr_start() {
-	charger_count = CHARGER_SPEED;
-	chgr_lastCurrent = 9999;		// So first call to chgr_setCurrent will actually send
 	chgr_bypCount = 0;
 }
 
@@ -112,7 +109,7 @@ void chgr_sendRequest(int voltage, int current, bool chargerOff) {
 void chgr_processPacket() {
 
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
-													//	(starting next timer interrupt)
+											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
 }
 
@@ -124,25 +121,9 @@ void chgr_timer() {							// Called every timer tick, for charger related proces
 	}
 }
 
-// Set the current, but don't send again if it's the same as last time. These chargers don't like too
-// much traffic; more than one per second has been said to crash them.
-void chgr_setCurrent(unsigned int iCurr) {
-	if (iCurr == chgr_lastCurrent)
-		return;							// Do nothing; we have a timeout in case nothing is sent
-										// for ~ 5 seconds
-	chgr_sendCurrent(iCurr);			// If it's changed, send it now
-}
-
-// Here when we haven't sent anything to the charger for ~ 5 seconds
-void handleChargerEvent() {
-	chgr_sendCurrent(chgr_lastCurrent);	// Resend the last charger current, so the
-										//	charger doesn't stop due to a comms error
-}
-
 // Send the current command now
 void chgr_sendCurrent(unsigned int iCurr) {
 	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, 0);
-	charger_count = CHARGER_SPEED;			// Reset the charger timer
 }
 
 void chgr_off() {

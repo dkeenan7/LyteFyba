@@ -29,10 +29,8 @@ void readChargerBytes();
 void chgr_sendRequest(int voltage, int current, bool chargerOff);
 void chgr_processPacket();
 bool chgr_resendLastPacket(void);
-void chgr_timer();
+void chgr_timer();							// Called every timer tick, for charger related processing
 void chgr_off();
-void handleChargerEvent();
-void chgr_setCurrent(unsigned int iCurr);		// Set the current to a particular value (may not send)
 void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 
 
@@ -43,13 +41,8 @@ extern unsigned int charger_volt;			// MVE: charger voltage in tenths of a volt
 extern unsigned int charger_curr;			// MVE: charger current in tenths of an ampere
 extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = overtemp)
 extern unsigned int chgr_soakCnt;			// Counter for soak phase
-extern unsigned int charger_count;			// Counter to prevent timeout of charger commands
-extern unsigned int chgr_lastCurrent;		// Last current commanded from the charger
 extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
 											//	cutoff current
-
-
-void chgr_timer();						// Called every timer tick, for charger related processing
 
 class chgr_queue : public queue {
 	// Allocate space for the real buffer. Note that the base code will use member buf.
