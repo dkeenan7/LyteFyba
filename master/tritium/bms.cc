@@ -93,6 +93,7 @@ void bms_init()
 	bmu_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
 #endif
 	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
+	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
 #if USE_VOLT_REQ
 	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
 #endif
@@ -164,6 +165,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	szChgrVolt[10] = (nAmp / 10) + '0';	// Current units
 	szChgrVolt[12] = (nAmp % 10) + '0';	//	tenths
 	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
+	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
 }
 
 void handleBMUstatusByte(unsigned char status, bool bCharging)
@@ -311,13 +313,7 @@ void bmu_processPacket(bool bCharging) {
 		if (bmu_id == bmu_curr_cell) {
 			bmu_state &= ~BMU_SENT;				// Call this valid and no longer unacknowledged
 			unsigned int rxvolts =
-#if 0
 				(bmu_lastrx[5] - '0') * 100 +
-#else
-				// The *50 and << 1 below are to work around a mspgcc bug! See
-				// http://sourceforge.net/tracker/index.php?func=detail&aid=2082985&group_id=42303&atid=432701
-				(((bmu_lastrx[5] - '0') * 50) << 1) +
-#endif
 				(bmu_lastrx[6] - '0') * 10 +
 				(bmu_lastrx[7] - '0');
 			// We expect voltage responses during driving only now
