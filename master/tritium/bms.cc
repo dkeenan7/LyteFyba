@@ -164,8 +164,9 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
 	szChgrVolt[10] = (nAmp / 10) + '0';	// Current units
 	szChgrVolt[12] = (nAmp % 10) + '0';	//	tenths
-	return bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
+	bool result = bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
 	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
+	return result;
 }
 
 void handleBMUstatusByte(unsigned char status, bool bCharging)
