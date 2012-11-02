@@ -363,8 +363,8 @@ failCompare mov		#3,rERR
 
 ;
 ; f command ( -- )
-; This outputs a fixed frequency to the error LED and two TX outputs (in phase, so it doesn't send the
-; downstream BMU crazy) for 5 seconds. Used for checking clock calibration.
+; This outputs a fixed frequency to the error LED and LI (Link in) reconfigured as an output
+; for 5 seconds. Used for checking clock calibration.
 ; NOTE: this command can only be used (in conjunction with `fw) to make small adjustments to
 ;	CPU speed, since communications will be affected!
 
@@ -385,17 +385,17 @@ failCompare mov		#3,rERR
 
 
 ;
-; Toggle LED, TXDm, and TXDp with an 11 cycle loop,
+; Toggle LED, and TXDm with an 11 cycle loop,
 ; or 4000/2/11 = 181.8 kHz (@ 4 MHz) or 181.5 kHz (@ 9600*416 Hz).
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
 ; output frequency by about 0.5 kHz in the same direction.
-;
 
 doBurst		
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		R10
-			mov.b	#ACTLED,&P1OUT			; activity LED off, transmit outputs at same low level
-burstLp		xor.b	#TXDp+ACTLED+TXDm,&P1OUT ; (5) Toggle all 3 bits
+			mov.b	#TXDp+ACTLED,&P1OUT		; activity LED initially off, TXD+ will stay high
+burstLp		xor.b	#ACTLED+TXDm,&P1OUT 	; (5) Toggle LED and TXD- bits
+			; We used to toggle both TXD lines in phase but this caused problems with IFO outputs
 			dec		R10						; (1)
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
