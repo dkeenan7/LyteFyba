@@ -1,39 +1,33 @@
 /*
  * Tritium MCP2515 CAN interface header
- * Copyright (c) 2008, Tritium Pty Ltd.  All rights reserved.
+ * Copyright (c) 2012, Tritium Pty Ltd.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without modification,
+ * Redistribution and use in source and binary forms, with or without modification, 
  * are permitted provided that the following conditions are met:
  *  - Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
+ *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
  *	  in the documentation and/or other materials provided with the distribution.
- *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products
+ *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products 
  *	  derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
  * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
- * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
- * OF SUCH DAMAGE.
- *
- * Last Modified: J.Kennedy, Tritium Pty Ltd, 18 November 2008
- *
- * - Implements the following CAN interface functions
- *	- can_init
- *	- can_transmit
- *	- can_receive
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
+ * OF SUCH DAMAGE. 
  *
  */
 
 // Public function prototypes
-extern void				can_init( void );
-extern char				can_transmit( void );
-extern void				can_receive( void );
-extern void 			can_abort_transmit( void );
-extern void 			can_sleep( void );
-extern void 			can_wake( void );
+extern void	can_init( unsigned int bitrate_index );
+extern char	can_transmit( void );
+extern void	can_receive( void );
+extern void can_push( void );
+extern void can_abort_transmit( void );
+extern void can_sleep( void );
+extern void can_wake( void );
 
 // Public variables
 typedef struct _can_variables {
@@ -42,22 +36,45 @@ typedef struct _can_variables {
 	group_64			data;
 } can_variables;
 
+#define CAN_BUF_LEN		32
 extern can_variables	can;
+extern can_variables	canq[CAN_BUF_LEN];
+extern can_variables	*can_push_ptr;
+
+// Receive filters and masks
+// Receive buffer 0, can choose two different receive blocks, with a single mask
+#define RX_MASK_0		0x07E0			// Only care about upper 6 bits of 11-bit identifier
+#define RX_ID_0A		DC_CAN_BASE		// Receive driver controls (ourself) packets, for RTR and bootloader trigger
+#define RX_ID_0B		0x0000			// Unused
+// Receive buffer 1, can choose four different receive blocks, with a single mask
+#define RX_MASK_1		0x07E0			// Only care about upper 6 bits of 11-bit identifier
+#define RX_ID_1A		MC_CAN_BASE		// Receive packets from motor controller
+#define RX_ID_1B		EG_CAN_BASE		// Receive packets from eGear (series/parallel switch) controller
+#define RX_ID_1C		0x0000			// Unused
+#define RX_ID_1D		0x0000			// Unused
 
 // Private function prototypes
 void 					can_reset( void );
-void 					can_read( unsigned char address, unsigned char *ptr, unsigned char bytes );
-void 					can_read_rx( unsigned char address, unsigned char *ptr );
-void 					can_write( unsigned char address, unsigned char *ptr, unsigned char bytes );
-void 					can_write_tx( unsigned char address, unsigned char *ptr );
-void 					can_rts( unsigned char address );
+void 					can_read( unsigned char identifier, unsigned char *ptr, unsigned char bytes );
+void 					can_read_rx( unsigned char identifier, unsigned char *ptr );
+void 					can_write( unsigned char identifier, unsigned char *ptr, unsigned char bytes );
+void 					can_write_tx( unsigned char identifier, unsigned char *ptr );
+void 					can_rts( unsigned char identifier );
 unsigned char 			can_read_status( void );
 unsigned char 			can_read_filter( void );
-void 					can_mod( unsigned char address, unsigned char mask, unsigned char data );
+void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char data );
 
 // SPI port interface macros
 #define can_select		P3OUT &= ~CAN_CSn
 #define can_deselect	P3OUT |= CAN_CSn
+
+// CAN Bitrates
+#define CAN_BITRATE_50			0
+#define CAN_BITRATE_100			1
+#define CAN_BITRATE_125			2
+#define CAN_BITRATE_250			3
+#define CAN_BITRATE_500			4
+#define CAN_BITRATE_1000		5
 
 // Motor controller CAN base identifier and packet offsets
 #define	MC_CAN_BASE		0x400		// High = Serial Number             Low = "TRIa" string
@@ -77,11 +94,12 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define MC_CUMULATIVE	0x0E		// High = DC Bus AmpHours           Low = Odometer
 
 // Driver controls CAN base identifier and packet offsets
-#define DC_CAN_BASE		0x0500
-#define DC_DRIVE		0x01
-#define DC_POWER		0x02
-#define DC_RESET		0x03
-#define DC_SWITCH		0x05
+#define DC_CAN_BASE		0x500
+#define DC_DRIVE		1
+#define DC_POWER		2
+#define DC_RESET		3
+#define DC_SWITCH		5
+#define DC_BOOTLOAD		22
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_MODE_R		0x0001
@@ -101,6 +119,20 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define SW_BRAKE_FAULT	0x4000
 #define SW_REV_FAULT	0x8000
 
+// Low / high egear switch CAN base identifier and packet offsets
+#define EG_CAN_BASE		0x580
+#define EG_COMMAND		0x01
+#define EG_STATUS		0x02
+
+#define EG_CMD_NEUTRAL	0x00
+#define EG_CMD_LOW		0x01
+#define EG_CMD_HIGH		0x02
+
+#define EG_STATE_NEUTRAL	1
+#define EG_STATE_SWITCHING	2
+#define EG_STATE_LOW		3
+#define EG_STATE_HIGH		4
+
 // Status values (for message reception)
 #define CAN_ERROR		0xFFFF
 #define CAN_MERROR		0xFFFE
@@ -111,9 +143,9 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 // MCP2515 command bytes
 #define MCP_RESET		0xC0
 #define MCP_READ		0x03
-#define MCP_READ_RX		0x90		// When used, needs to have RX_BUFFER address inserted into lower bits
+#define MCP_READ_RX		0x90		// When used, needs to have RX_BUFFER identifier inserted into lower bits
 #define MCP_WRITE		0x02
-#define MCP_WRITE_TX	0x40		// When used, needs to have TX_BUFFER address inserted into lower bits
+#define MCP_WRITE_TX	0x40		// When used, needs to have TX_BUFFER identifier inserted into lower bits
 #define MCP_RTS			0x80		// When used, needs to have buffer to transmit inserted into lower bits
 #define MCP_STATUS		0xA0
 #define MCP_FILTER		0xB0
