@@ -105,7 +105,7 @@ int main( void )
 	
 	// Reset CAN controller and initialise
 	// This also changes the clock output from the MCP2515, but we're not using it in this software
-	can_init();
+	can_init( CAN_BITRATE_500 );
 	events |= EVENT_CONNECTED;
 
 	// Initialise Timer A (10ms timing ticks)

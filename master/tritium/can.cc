@@ -1,6 +1,6 @@
 /*
  * Tritium MCP2515 CAN Interface
- * Copyright (c) 2010, Tritium Pty Ltd.  All rights reserved.
+ * Copyright (c) 2012, Tritium Pty Ltd.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, 
  * are permitted provided that the following conditions are met:
@@ -18,12 +18,6 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
  * OF SUCH DAMAGE. 
  *
- * - Implements the following CAN interface functions
- *	- can_init
- *	- can_transmit
- *	- can_receive
- *	- can_sleep
- *	- can_wake
  */
 
 // Include files
@@ -33,10 +27,13 @@
 #include "usci.h"
 
 // Public variables
-can_variables			can;
+can_variables can;
+can_variables canq[CAN_BUF_LEN];
+can_variables *can_push_ptr;
 
 // Private variables
-unsigned char 			buffer[16];
+unsigned char buffer[16];
+can_variables *can_pop_ptr;
 
 /**************************************************************************************************
  * PUBLIC FUNCTIONS
@@ -48,27 +45,57 @@ unsigned char 			buffer[16];
  *	- Changes CLKOUT to /1 rate (16 MHz)
  *	- Sets up bit timing for 500 kbit operation
  *	- Sets up receive filters and masks
- *		- Rx Filter 0 = Driver controls packets (for remote frame requests)
- *		- Rx Filter 1 = Unused
- *		- Rx Filter 2 = Motor controller packets (for rpm, motor current, motor/control temp, DC voltage)
- *		- Rx Filter 3 = Unused
- *		- Rx Filter 4 = Unused
- *		- Rx Filter 5 = Unused
- *		- Rx Mask 0   = Block identifier must match (upper 6 bits)
- *		- Rx Mask 1   = Block identifier must match (upper 6 bits)
- *	- Enables ERROR and RX interrupts on IRQ pin
+ *	- Enables various interrupts on IRQ pin
  *	- Switches to normal (operating) mode
  */
-void can_init( void )
+void can_init( unsigned int bitrate_index )
 {
+	unsigned int i;
+
+	// Set up buffering
+	can_push_ptr = canq;
+	can_pop_ptr = can_push_ptr;
+
 	// Set up reset and clocking
 	can_reset();
+	for(i = 0; i < 1000; i++);
 	can_mod( CANCTRL, 0x03, 0x00 );			// CANCTRL register, modify lower 2 bits, CLK = /1 = 16 MHz
 	
-	// Set up bit timing & interrupts
-	buffer[0] = 0x45;						// CNF3 register: PHSEG2 = 6Tq, Wakeup filter, CLKOUT = CLK
-	buffer[1] = 0xF8;						// CNF2 register: set PHSEG2 in CNF3, Triple sample, PHSEG1= 8Tq, PROP = 1Tq
-	buffer[2] = 0x00;						// CNF1 register: SJW = 1Tq, BRP = 0
+	// Set up bit timing
+	switch(bitrate_index){
+		case CAN_BITRATE_50:
+			buffer[0] = 0x05;
+			buffer[1] = 0xF8;
+			buffer[2] = 0x09;						
+			break;
+		case CAN_BITRATE_100:
+			buffer[0] = 0x05;
+			buffer[1] = 0xF8;
+			buffer[2] = 0x04;						
+			break;
+		case CAN_BITRATE_125:
+			buffer[0] = 0x05;
+			buffer[1] = 0xF8;
+			buffer[2] = 0x03;
+			break;
+		case CAN_BITRATE_250:
+			buffer[0] = 0x05;
+			buffer[1] = 0xF8;
+			buffer[2] = 0x01;						
+			break;
+		case CAN_BITRATE_1000:
+			buffer[0] = 0x02;
+			buffer[1] = 0xD0;
+			buffer[2] = 0x00;						
+			break;
+		case CAN_BITRATE_500:
+		default:
+			buffer[0] = 0x05;
+			buffer[1] = 0xF8;
+			buffer[2] = 0x00;						
+			break;
+	}	
+	// Set up interrupts
 	buffer[3] = 0x63;						// CANINTE register: enable WAKE, ERROR, RX0 & RX1 interrupts on IRQ pin
 	buffer[4] = 0x00;						// CANINTF register: clear all IRQ flags
 	buffer[5] = 0x00;						// EFLG register: clear all user-changable error flags
@@ -76,47 +103,47 @@ void can_init( void )
 	
 	// Set up receive filtering & masks
 	// RXF0 - Buffer 0
-	buffer[ 0] = (unsigned char)(DC_CAN_BASE >> 3);
-	buffer[ 1] = (unsigned char)(DC_CAN_BASE << 5);
+	buffer[ 0] = (unsigned char)(RX_ID_0A >> 3);
+	buffer[ 1] = (unsigned char)(RX_ID_0A << 5);
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
 	// RXF1 - Buffer 0
-	buffer[ 4] = 0x00;
-	buffer[ 5] = 0x00;
+	buffer[ 4] = (unsigned char)(RX_ID_0B >> 3);
+	buffer[ 5] = (unsigned char)(RX_ID_0B >> 3);
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
 	// RXF2 - Buffer 1
-	buffer[ 8] = (unsigned char)(MC_CAN_BASE >> 3);
-	buffer[ 9] = (unsigned char)(MC_CAN_BASE << 5);
+	buffer[ 8] = (unsigned char)(RX_ID_1A >> 3);
+	buffer[ 9] = (unsigned char)(RX_ID_1A << 5);
 	buffer[10] = 0x00;
 	buffer[11] = 0x00;
 	can_write( RXF0SIDH, &buffer[0], 12 );
 	
 	// RXF3 - Buffer 1
-	buffer[ 0] = 0x00;
-	buffer[ 1] = 0x00;
+	buffer[ 0] = (unsigned char)(RX_ID_1B >> 3);
+	buffer[ 1] = (unsigned char)(RX_ID_1B << 5);
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
 	// RXF4 - Buffer 1
-	buffer[ 4] = 0x00;
-	buffer[ 5] = 0x00;
+	buffer[ 4] = (unsigned char)(RX_ID_1C >> 3);
+	buffer[ 5] = (unsigned char)(RX_ID_1C << 5);
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
 	// RXF5 - Buffer 1
-	buffer[ 8] = 0x00;
-	buffer[ 9] = 0x00;
+	buffer[ 8] = (unsigned char)(RX_ID_1D >> 3);
+	buffer[ 9] = (unsigned char)(RX_ID_1D << 5);
 	buffer[10] = 0x00;
 	buffer[11] = 0x00;
 	can_write( RXF3SIDH, &buffer[0], 12 );
 
 	// RXM0 - Buffer 0
-	buffer[ 0] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block identifier)
-	buffer[ 1] = 0x00;
+	buffer[ 0] = (unsigned char)(RX_MASK_0 >> 3);
+	buffer[ 1] = (unsigned char)(RX_MASK_0 << 5);
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
 	// RXM1 - Buffer 1
-	buffer[ 4] = 0xFC;						// Match upper 6 bits of ID - don't care about lower 5 bits (block identifier)
-	buffer[ 5] = 0x00;
+	buffer[ 4] = (unsigned char)(RX_MASK_1 >> 3);
+	buffer[ 5] = (unsigned char)(RX_MASK_1 << 5);
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
 	can_write( RXM0SIDH, &buffer[0], 8 );
@@ -239,114 +266,65 @@ void can_receive( void )
 
 /*
  * Transmits a CAN message to the bus
+ *	- If there are packets in the Queue, pick out the next one and send it
  *	- Accepts identifier and data payload via can_interface structure
- *	- Checks if any mailboxes are free, if not, returns -1 without transmitting packet
- *	- Busy waits while message is sent to CAN controller
- *	- Uses all available transmit buffers (3 available in CAN controller) to maximise throughput
- *	- Only modifies identifier information if it's different from what is already set up in CAN controller
- *	- Assumes constant 8-byte data length value
+ *	- Uses status field to pass in DLC (length) code
+ *	- Checks mailbox 1 is free, if not, returns -1 without transmitting packet
+ *	- Busy waits while message is sent to CAN controller on SPI port
+ *	- Only uses mailbox 1, to avoid corruption from CAN Module Errata (Microchip DS80179G)
+ *	- Return codes:
+ *		 1 = Transmitted a packet from the queue
+ *		-1 = All mailboxes busy
+ *		-2 = Dropped through all mailbox choices without transmitting (shouldn't happen)
+ *		-3 = No packets to transmit in the queue
  */
 char can_transmit( void )
 {
-	static unsigned int buf_addr[3] = {0xFFFF, 0xFFFF, 0xFFFF};
-
-//	return 1;			// For debugging without an actual CAN bus connected; the software locks up if
-						//	there isn't a CAN bus
-	
-	// Check for busy mailboxes
-//	if(( can_read_status() & 0x54 ) == 0x54){
-//		return(-1);
-//	}
-//	else{
-		// Fill data into buffer, it's used by any identifier
-		// Allow room at the start of the buffer for the identifier info if needed
-		buffer[ 5] = can.data.data_u8[0];
-		buffer[ 6] = can.data.data_u8[1];
-		buffer[ 7] = can.data.data_u8[2];
-		buffer[ 8] = can.data.data_u8[3];
-		buffer[ 9] = can.data.data_u8[4];
-		buffer[10] = can.data.data_u8[5];
-		buffer[11] = can.data.data_u8[6];
-		buffer[12] = can.data.data_u8[7];
-
-		// Check if the incoming identifier has already been configured in a mailbox
-		if( can.identifier == buf_addr[0] ){
-			// Mailbox 0 setup matches our new message
-			// Write to TX Buffer 0, start at data registers, and initiate transmission
-			can_write_tx( 0x01, &buffer[5] );		
-			can_rts( 0 );
-		}
-		else if( can.identifier == buf_addr[1] ){
-			// Mailbox 1 setup matches our new message
-			// Write to TX Buffer 1, start at data registers, and initiate transmission
-			can_write_tx( 0x03, &buffer[5] );		
-			can_rts( 1 );
-		}
-		else if( can.identifier == buf_addr[2] ){
-			// Mailbox 2 setup matches our new message
-			// Write to TX Buffer 2, start at data registers, and initiate transmission
-			can_write_tx( 0x05, &buffer[5] );		
-			can_rts( 2 );
+	// Check Queue
+	if( can_push_ptr != can_pop_ptr ){
+		// Check for mailbox 1 busy
+		if(( can_read_status() & 0x04 ) == 0x04){
+			return(-1);
 		}
 		else{
-			// No matches in existing mailboxes
-			// No mailboxes already configured, so we'll need to load an identifier - set it up
-			buffer[0] = (unsigned char)(can.identifier >> 3);
-			buffer[1] = (unsigned char)(can.identifier << 5);
-			buffer[2] = 0x00;						// EID8
-			buffer[3] = 0x00;						// EID0
-			buffer[4] = 0x08;						// DLC = 8 bytes
-			
-			// Check if we've got any un-setup mailboxes free and use them
-			// Otherwise, find a non-busy mailbox and set it up with our new identifier
-			if( buf_addr[0] == 0xFFFF ){			// Mailbox 0 is free
-				// Write to TX Buffer 0, start at identifier registers, and initiate transmission
-				can_write_tx( 0x00, &buffer[0] );
-				can_rts( 0 );
-				buf_addr[0] = can.identifier;
-			}									
-			else if( buf_addr[1] == 0xFFFF ){		// Mailbox 1 is free
-				// Write to TX Buffer 1, start at identifier registers, and initiate transmission
-				can_write_tx( 0x02, &buffer[0] );
-				can_rts( 1 );
-				buf_addr[1] = can.identifier;
-			}
-			else if( buf_addr[2] == 0xFFFF ){		// Mailbox 2 is free
-				// Write to TX Buffer 2, start at identifier registers, and initiate transmission
-				can_write_tx( 0x04, &buffer[0] );
-				can_rts( 2 );
-				buf_addr[2] = can.identifier;
-			}
-			else {					
-		
-				// No mailboxes free, wait until at least one is not busy
-				while(( can_read_status() & 0x54 ) == 0x54);
-				// Is it mailbox 0?
-				if(( can_read_status() & 0x04 ) == 0x00) {
-					// Setup mailbox 0 and send the message
-					can_write_tx( 0x00, &buffer[0] );
-					can_rts( 0 );
-					buf_addr[0] = can.identifier;
-				}
-				// Is it mailbox 1?
-				else if(( can_read_status() & 0x10 ) == 0x00) {
-					// Setup mailbox 1 and send the message
-					can_write_tx( 0x02, &buffer[0] );
-					can_rts( 1 );
-					buf_addr[1] = can.identifier;
-				}
-				// Is it mailbox 2?
-				else if(( can_read_status() & 0x40 ) == 0x00) {
-					// Setup mailbox 2 and send the message
-					can_write_tx( 0x04, &buffer[0] );
-					can_rts( 2 );
-					buf_addr[2] = can.identifier;
-				}
-			}			
+			// Format the data for the CAN controller
+			buffer[ 0] = (unsigned char)(can_pop_ptr->identifier >> 3);
+			buffer[ 1] = (unsigned char)(can_pop_ptr->identifier << 5);
+			buffer[ 2] = 0x00;											// EID8
+			buffer[ 3] = 0x00;											// EID0
+			buffer[ 4] = can_pop_ptr->status;							// DLC
+			buffer[ 5] = can_pop_ptr->data.data_u8[0];
+			buffer[ 6] = can_pop_ptr->data.data_u8[1];
+			buffer[ 7] = can_pop_ptr->data.data_u8[2];
+			buffer[ 8] = can_pop_ptr->data.data_u8[3];
+			buffer[ 9] = can_pop_ptr->data.data_u8[4];
+			buffer[10] = can_pop_ptr->data.data_u8[5];
+			buffer[11] = can_pop_ptr->data.data_u8[6];
+			buffer[12] = can_pop_ptr->data.data_u8[7];
+			// Setup mailbox 0 and send the message
+			can_write_tx( 0x00, &buffer[0] );
+			can_rts( 0 );
+			// Deal with queue
+			can_pop_ptr++;
+			if(can_pop_ptr == ( canq + CAN_BUF_LEN )) can_pop_ptr = canq;
+			return(1);
 		}
-		return(1);
-//	}
+	}
+	else{
+		// No data to transmit
+		return(-3);
+	}
 }
+
+/*
+ * Puts a CAN message on the queue
+ */
+void can_push( void )
+{
+	can_push_ptr++;
+	if(can_push_ptr == ( canq + CAN_BUF_LEN )) can_push_ptr = canq;
+}
+
 
 /*
  * Abort all pending transmissions
@@ -471,7 +449,7 @@ void can_write( unsigned char address, unsigned char *ptr, unsigned char bytes )
  * Writes data bytes to transmit buffers
  *	- Pass in buffer number and start position as defined in MCP2515 datasheet
  *		- For starting at data, accepts 8 bytes
- *		- For starting at identifier, accepts 13 bytes
+ *		- For starting at address, accepts 13 bytes
  */
 void can_write_tx( unsigned char address, unsigned char *ptr )
 {
