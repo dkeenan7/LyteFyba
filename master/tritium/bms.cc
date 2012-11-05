@@ -156,9 +156,9 @@ void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 bool bmu_sendVAComment(int nVolt, int nAmp)
 {
 	// Packet to announce the charger's meas of total voltage and current
-	// \ C H G _ n n n V _ n . n A \r
+	// \ C H G _ _ n n S _ n . n A \r
 	// 0 1 2 3 4 5 6 7 8 9 a b c d e
-	static unsigned char szChgrVolt[16] = "\\CHG nnnV n.nA\r";
+	static unsigned char szChgrVolt[16] = "\\CHG nnnS n.nA\r";
 	szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
 	szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
 	szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
@@ -210,11 +210,14 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
-		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
-		if (bValid)
-			bmu_sendVAComment(stress*10, current); // for debugging
-		else
-			bmu_sendVAComment(99, current); // for debugging
+		if (chgr_sendRequest(CHGR_VOLT_LIMIT, current, false)) {
+    		if (bValid)
+	    		bmu_sendVAComment(stress*10, current); // for debugging
+		    else
+			    bmu_sendVAComment(99, current); // for debugging
+        } else
+            // Charger failed to send. Indicate this
+            bmu_sendPacket((const unsigned char*)"\\F\r\n");
 	} else {
 		// Not charging, assume driving.
 		// FIXME: TO BE COMPLETED

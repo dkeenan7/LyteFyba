@@ -9,8 +9,8 @@
 #include "queue.h"
 
 // Charger constants
-#define NUMBER_OF_CELLS		60
-#define NUMBER_OF_BMUS		60		// FIXME: testing with 19 BMUs
+#define NUMBER_OF_CELLS		86
+#define NUMBER_OF_BMUS		86
 #define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.50))// Charger voltage limit in tenths of a volt
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
@@ -19,14 +19,14 @@
 //#define CHGR_SOAK_CURR		5				// Soak mode current in tenths of an ampere
 												//	Should be about 1/2 of BMU bypass capacity
 #define CHGR_CUT_CURR		20					// Charger cutoff current, usually 0.05C in tenths amp
-#define CHGR_TX_BUFSZ		16
+#define CHGR_TX_BUFSZ		16                  // Have observed overflow with size 16, but 32 worse?
 #define CHGR_RX_BUFSZ 		16
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising
 void chgr_start();								// Called whenever begin charging
 void readChargerBytes();
-void chgr_sendRequest(int voltage, int current, bool chargerOff);
+bool chgr_sendRequest(int voltage, int current, bool chargerOff);
 void chgr_processPacket();
 bool chgr_resendLastPacket(void);
 void chgr_timer();							// Called every timer tick, for charger related processing

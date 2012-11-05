@@ -90,7 +90,8 @@ void readChargerBytes()
 	}
 }
 
-void chgr_sendRequest(int voltage, int current, bool chargerOff) {
+bool chgr_sendRequest(int voltage, int current, bool chargerOff) {
+    bool ret;
 	// Charger is on the UART in UCI0
 	chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 	chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
@@ -102,8 +103,9 @@ void chgr_sendRequest(int voltage, int current, bool chargerOff) {
 	chgr_txbuf[7] = current;
 	chgr_txbuf[8] = chargerOff;
 	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-	chgr_sendPacket(chgr_txbuf);
+	ret = chgr_sendPacket(chgr_txbuf);
 	chgr_lastrxidx = 0;						// Expect receive packet in response
+    return ret;
 }
 
 void chgr_processPacket() {

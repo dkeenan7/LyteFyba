@@ -442,12 +442,12 @@ measures:
 			_IF		_Z
 				mov.b	&lastSentStatus,R8		; Get last stress and bypass bits we sent
 				and.b	#STRESS_MASK,R8			; Clear other than stress bits
-				cmp.b	R9,R8					; Is the current stress worse than the last stress we sent?
+;				cmp.b	R9,R8					; Is the current stress worse than the last stress we sent?
 				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
 				;	about a new lower stress (as well as higher).
 				;	However, it's possible that these messages could overwhelm
 				;	the communications system, in the situation of a sudden series of high power pulses.
-				jnc		sendStatusNow				; Jump if so to send the stress immediately
+;				jnc		sendStatusNow				; Jump if so to send the stress immediately
 
 				; We don't want to send status unless we are a (temporary) master, and it is time to send.
 				; We are a temporary master if there have been 10+ ticks since our last Rx
