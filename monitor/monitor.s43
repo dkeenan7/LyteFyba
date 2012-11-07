@@ -1,19 +1,19 @@
 			COL		150			; Wide listings
 
 			LSTOUT-
-#include "msp430.h"
+#include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
-#include "../common/comMacros.h"			// Macros for obscure instruction sequences
-#define Rtos   R7                           // Defined in BytecodeInterpreter2.s43
+#include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
 			LSTOUT+
-#include "../common/common.h"				// Common definitions such as IMAGE_START
+#include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
+											// such as WATCHDOG, IMAGE_START, BSL_IMAGE_START
 
 			NAME	main		; Module name
-			PUBLIC	main		; Make the "main" label visible
+			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
 
 
-; Addresses manually imported from the BSL-writer or debugger. Version 6. Keep up to date!
+; Addresses manually imported from the BSL-writer or TestICal. Version 6. Keep up to date!
 InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$1094		; Calling-address to receive byte in R8
 WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
@@ -21,55 +21,69 @@ BSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a downlo
 VoltCal		EQU		$10F8		; Address of Voltage scale calibration word
 TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
 LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
-MHz8CalD 	EQU		$10FC		; Frequency calibration
-MHz8CalB 	EQU		$10FD		;	for 8 MHz
-ID			EQU		$10FE		; Address of this Cell's/BMU's identification byte
+MHz8CalD	EQU		$10FC		; Address of frequency calibration data
+MHz8CalB	EQU		$10FD		;	for 8 MHz
+ID			EQU		$10FE		; Address of this cell's/BMU's identification byte
 
 
-; Interpreter Register Usage
+; Interpreter Register Usage (defined in BytecodeInterpreter2.s43)
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
-#define 	Rip		R5				// Virtual machine instruction pointer
-#define 	Rlit	R6				// Holds partial literals
-#define 	Rw		R8				// Working register - temporary - anyone can use
+#define		Rip		R5				// Interpreter instruction pointer
+#define		Rlit	R6				// Holds partial literals
+#define		Rtos	R7				// Top of interpreter data stack
+#define		Rw		R8				// Working register - temporary - anyone can use
 
 ; Conditional assembly
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
-#define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
+#define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
+									// Buffered ADC is mainly useful for debugging.
 
 ; Constants
 
 ; Stress calculations
-; Stress set point is intended to be 3.
-// OV = Over Voltage: Increase stress by 1 for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
-OV_ZERO     EQU         3500        ; Threshold in mV between OV stress levels -1 and 0
-OV_STEP     EQU         10          ; mV difference between one OV stress level and the next
-// UV = Under Voltage: Increase stress by 1 for each 0 mV below 2.500 V, to a maximum of 15 at <= 1.75 V
-UV_ZERO     EQU         2500        ; Threshold in mV between UV stress levels -1 and 0
-UV_STEP     EQU         50         ; mV difference between one UV stress level and the next
-// OT = Over Temperature: Increase stress by 1 for every 1 degree C above 40C, to a max of 15 at >= 55C
-OT_ZERO     EQU         40          ; Threshold in degrees C between OT stress levels -1 and 0
-OT_STEP     EQU         1           ; Temperature in degrees C between one OT stress level and the next
-// UT = Under Temperature: Increase stress by 1 for every 1 degrees C below 9C, to a max of 15 at <= -6C
-UT_ZERO     EQU         9           ; Threshold in degrees C between UT stress levels -1 and 0
-UT_STEP     EQU         1           ; Temperature in degrees C between one OT stress level and the next
-BYPLEV  	EQU			3560		; Bypass level in millivolts
-minLEDStress EQU		11			; Minimum stress to light error LED
-minAlrmStress EQU		11			; Minimum stress to sound alarm  (not in use yet)
+; Stress set-point is intended to be 7. Alarm is given at stress 11 or more.
+BYPLEV		EQU		3560		; Bypass threshold in millivolts. Corresp. to stress 5/6 threshold
+// OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
+// OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
+OV_ZERO		EQU		3500		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		10			; mV difference between one OV stress level and the next
+// UV = Under Voltage: One stress unit for each 40 mV below 2.500 V, to a maximum of 15 at <= 1.90 V
+// UV setpoint is 2.18 to 2.22 V. Alarm at 2.06 V.
+UV_ZERO		EQU		2500		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+// OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
+// OT setpoint is 47 to 48 degC. Alarm at 51 degC.
+OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
+OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
+// UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
+// UT setpoint is 4 to 3 degC. Alarm at 0degC.
+UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
+UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
+// AL = Absolute Link voltage: One stress unit for every 10 mV above 0 mV, to a max of 15 at >= 150 mV
+// AL setpoint is 70 to 80 mV. Alarm at 110 mV.
+AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
+AL_STEP		EQU		10			; mV difference between one AL stress level and the next
 
-; Status byte bit masks
-COM_ERR_MASK	EQU		1<<6
-ALL_BYP_MASK	EQU		1<<5
-ENC_STRESS_MASK	EQU		$1F			; Encoded stress. Bits 0-4. Bit 4 is a check bit
-STRESS_MASK		EQU		$0F			; Raw stress. Bits 0-3
+minLEDStress EQU	11			; Minimum stress to light error LED
+minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
 
-; Port 1 bits
+comErrTicks	EQU		2			; Minimum ticks without receiving valid status byte before
+								;	taking on master duties and reporting comms error (if ID not 1)
+
+; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
+COM_ERR		EQU		1<<6			; Communications error
+ALL_BYP		EQU		1<<5			; All in bypass
+ENC_STRESS	EQU		$1F				; Encoded stress. Bits 0-4. Bit 4 is a check bit
+STRESS		EQU		$0F				; Raw stress. Bits 0-3
+
+; Port 1 bit masks
 TXDm		EQU		1<<1			; TA0/P1.1
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; SCLK/P1.5
 PIEZO		EQU		1<<0			; Piezo on P1.0
 ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
-; Port 2 bits
+; Port 2 bit masks
 BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
 ERRLED		EQU		1<<7			; Error LED (red) on P2.7
 
@@ -79,41 +93,30 @@ TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$6				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
-; Serialio definitions
+; Serialio definitions (Here because used in initialisation)
 #define		TACCTLr		TACCTL1		// Receive using CCI1 (P1.2)
 #define		TACCTLt		TACCTL0		// Transmit (and everything else) using TA0
 #define		TACCRt		TACCR0		// Transmit compare register
 #define		TACCRr		TACCR1		// Receive capture/compare register
 
-rxsz		EQU		8				; Receive queue size. Must be a power of 2 no greater than 256
-									; 8 is sufficient to prevent dropped cmd and response characters
-txsz		EQU		8				; Transmit queue size. Must be a power of 2 no greater than 256
-									; 4 is sufficient to reduce dropped status to less than one a minute
-
-; The following macro gem is due to Dave Keenan. It is based on a Taylor series expansion.
-; It is valid for the domain 1-64, and range 0-6.
-; NOTE: it depends on the assembler rounding down on division, even for negative results
-; There is a similar simple formula for rounding towards zero
-#define LOG2(x) (4 * (x-8) / (x+8) + 3)
-
 ;
-;			Memory definitions
+; RAM allocation
 ;
-			ORG		$200			; Start of RAM. Ends at $27F
+				ORG		$200			; Start of RAM. Ends at $27F
 #if	ADCBUF
-			ALIGNRAM 1
-sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
+				ALIGNRAM 1
+sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 #endif
 
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
-bNotSendStatus 	EQU		2			; Zero if sending status bytes at all
-bNotMeasureTime EQU		4			; Zero if time to measure
+bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
+bNotMeasureTime EQU		1<<1		; Zero if time to measure
+bNotCharging	EQU		1<<2		; Zero if discharging (not charging or regen braking)
 
 localStatus		DS		1			; Local stress, comms error and bypass status (0-2 stress,
 									;	6 comms error, 5 all-in-bypass)
-ticksSinceLastRx DS		1			; Timer overflow events since last status received
+ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 passWordState	DS		1			; State machine for password recogniser
-lastSentStatus	DS		1			; Last sent status byte
 
 ; Serialio variables
 
@@ -124,6 +127,10 @@ BitCntTx		DS		1			; Bit count 10 -> 1
 BitCntRx		DS		1			; Bit count 8 -> 1
 TXCksum			DS		1			; Transmit checksum
 
+rxsz			EQU		8			; Receive queue size. Must be a power of 2 no greater than 256
+									; 8 is sufficient to prevent dropped cmd and response characters
+txsz			EQU		8			; Transmit queue size. Must be a power of 2 no greater than 256
+									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
 rxbuf			DS		rxsz		; Receive queue buffer
 rxwr			DS		1			; Receive queue write index
@@ -137,13 +144,13 @@ txrd			DS		1			; Transmit queue read index
 RXCksum			DS		1			; Received packet xor checksum
 intFlags		DS		1			; Interpreter flags, bitmask definitions follow
 bHexOutput		EQU		1			; Should numeric output be in hexadecimal, not decimal?
-bChecksumming 	EQU		2			; Are we sending checksums and checking received checksums?
-bDontInterpret 	EQU		4			; Are we interpreting?
+bChecksumming	EQU		2			; Are we sending checksums and checking received checksums?
+bDontInterpret	EQU		4			; Are we interpreting?
 
-				ALIGNRAM 1
-worstStress 		DS		1		; Worst local stress since last resetWorstStatus command
-worstStressType 	DS		1		; Character giving type of measurement that caused worst stress
-worstStressMeas 	DS		2		; Value of measurement that caused worst stress
+				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
+worstStress		DS		1		; Worst local stress since the last resetWorstStress command
+worstStressType	DS		1		; Character giving type of measurement that caused worst stress
+worstStressMeas	DS		2		; Value of measurement that caused worst stress
 
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
@@ -165,6 +172,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_DO		#worstStress-$200,R8
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
+
+			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
+			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
+			; NOTE: It depends on the assembler rounding toward negative infinity (floored division).
+			; There is a similar simple formula for rounding towards zero (truncated division).
+#define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
 			; Initialise clocks. SMCLK is only used by comms timer and watchdog timer.
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
@@ -214,10 +227,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
 												;	idle bit)
 			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits
-;			clr.b	TXCksum						; Clear the transmit checksum
+;			clr.b	TXCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 ;			clr.b	&rxwr						; Initialise the TX and RX queue indexes
-;			clr.b	&rxrd
+;			clr.b	&rxrd						;	Already cleared by loop above
 ;			clr.b	&txwr
 ;			clr.b	&txrd
 
@@ -227,9 +240,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
 			mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			; Initialise ADC10
-			; SREF_1    = +-refs are Vref+ and AVSS
+			; SREF_1	= +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
-			; REFOUT    = connect Vref+ to pin P1.4
+			; REFOUT	= connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
 			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
@@ -257,14 +270,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
 					_ELSE
-						call	#DoStatus					; Process status bytes
+						call	#DoStatus				; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
 					_IF		_Z							; If not, skip measurement and set/clear of bypass
 						eint
 						bis.b	#bNotMeasureTime,&monFlags
-						call	#measures				; May send status
+						call	#DoMeasurement			; May send status
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
 						;eint							; Interrupts are enabled by following bis instr:
@@ -278,272 +291,233 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; End of main loop
 
 
-measures:
+DoMeasurement:
 ;
-; Regular measurement. Called StatusFreq times per second (4-32 times per second)
+; Regular measurement. Called StatusFreq times per second (2-16 times per second, see serialio.s43)
 ;
-#define Rmeas R15				// Tentative measurement causing worst stress
-#define Rtype R14				// Tentative type of measurement causing worst stress
+#define Rstrs R12				// Worst stress (present, not trip)
+#define Rmeas R14				// Measurement causing worst stress
+#define Rtype R15				// Type of measurement causing worst stress
 
-			inc.b	&ticksSinceLastRx
-			_IF		_Z						; Wrapped around to 0?
-				mov.b	#$FF,&ticksSinceLastRx	; Yes, saturate at $FF
+			clr		Rstrs					; Init present stress to zero
+			clr		Rmeas					; Init measurement causing zero stress to zero
+			mov.b	' ',Rtype				; Init type of measurement causing zero stress to blank
+			
+			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
+			_IF		_C						; If unsigned overflow
+				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
 			_ENDIF
 
-			; Cell voltage measurement
+			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			mov		R10,Rmeas				; Tentative measurement causing worst stress
-			mov.b	#'V',Rtype				; Tentative type of measurement causing worst stress
+			push	R10						; Save measurement for undervoltage stress calc
+			
+			; Set bypass as required
 			cmp		#BYPLEV,R10				; Compare current cell voltage (R10) to the bypass threshold
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+			mov			R8,R9
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
+			movBits_B	R9,#ALL_BYP,&localStatus ; Move only the #ALL_BYP bit from R9 to &localStatus.
+			
+			; Calculate stress due to overvoltage
+			push	R10						; Measurement for overvoltage stress calc
+			push	#OV_STEP				; For every OV_STEP (millivolts)
+			push	#OV_ZERO				;	over OV_ZERO, we add one level of stress
+			push	#'v'					; Type of measurement
+			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
-			; Overvoltage stress: for every OV_STEP mV over OV_ZERO, we add one level of stress
-			mov		R10,R9					; Measurement
-			sub		#OV_ZERO,R9		        ; Cell voltage - OV_ZERO
-			_IF		_L
-				clr		R9						; Minimum of zero
-			_ENDIF
-			push	R10						; Save measurement
-			clr		R10						; R10:R9 has meas - OV_ZERO
-			mov		#OV_STEP,R8
-			call	#UMSlashMod				; (meas - OV_ZERO) / OV_STEP -> R9
+			; Calculate stress due to undervoltage
+											; Measurement saved on stack earlier
+			push	#UV_STEP				; For every UV_STEP (millivolts)
+			push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+			push	#'v'					; Type of measurement
+			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
 
-			; Undervoltage stress: for every UV_STEP mV below UV_ZERO, we add one level of stress
-			pop		R10						; Restore original measurement
-			push	R9						; Save stress_so_far
-			mov		#UV_ZERO+UV_STEP-1,R9
-			sub		R10,R9					; R9 has UV_ZERO - meas plus UV_STEP-1 for rounding
-			clr		R10						; R10:R9 has this
-			_IF		_L
-				clr		R9						; Minimum of zero
-			_ENDIF
-			mov		#UV_STEP,R8
-			call	#UMSlashMod				; (UV_ZERO - meas) / UV_STEP -> R9
-			pop		R8						; Restore stress_so_far
-			cmp		R8,R9					; Which stress is worse?
-			_IF		_LO
-				mov		R8,R9				; Worst to R9
-			_ENDIF
+			; Do temperature measurement
+			call	#temp					; Get temperature in degrees Celsius in R10
+			push	R10						; Save measurement for undertemperature stress calc
+			
+			; Calculate stress due to overtemperature
+			push	R10						; Measurement for overtemperature stress calc
+			push	#OT_STEP				; For every OT_STEP (degrees Celsius)
+			push	#OT_ZERO				;	over OV_ZERO, we add one level of stress
+			push	#'t'					; Type of measurement
+			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
-			; Temperature measurement
-			push	R9						; Save stress_so_far
-			call	#temp					; Get cell temperature in degrees Celsius in R10
-			push	R10						; Save measurement
-			; Overtemperature stress: 1 for every OT_STEP degrees over OT_ZERO
-            mov     R10,R9
-			sub		#OT_ZERO,R9
-			_IF		_L
-				clr		R9					; Minimum of 0
+			; Calculate stress due to undertemperature if required
+			bit.b	#bNotCharging,&monFlags	; If charging (including regen braking)
+			_IF		_Z
+												; Measurement saved on stack earlier
+				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
+				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
+				push	#'t'					; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
+			_ELSE
+				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
-            clr     R10
-            mov     #OT_STEP,R8
-            call    #UMSlashMod             ; (meas - OT_ZERO) / OT_STEP -> R9
-			pop		R10						; Restore measurement
-			pop		R8						; Restore stress_so_far
-			cmp		R8,R9					; Is temp stress worse than stress_so_far?
-			_IF		_LO
-				mov		R8,R9					; Yes, new stress_so_far
-				mov		R10,Rmeas				; Tentative measurement causing worst stress
-				mov.b	#'T',Rtype				; Tentative type of measurement causing worst stress
-			_ENDIF
-			; Undertemperature stress: 1 for every UT_STEP degrees below UT_ZERO
-			push	R8  					; Save measurement
-            push    R9                      ; Save stress_so_far
-			mov.b	#UT_ZERO,R9
-			sub.b	R10,R9					; UT_ZERO - measurement
-			_IF		_L
-				clr		R9						; Min of 0
-			_ENDIF
-            clr     R10
-            mov     #UT_STEP,R8
-            call    #UMSlashMod             ; (UT_ZERO - meas) / UT_STEP
-            pop     R9                      ; Restore stress_so_far
-            pop     R10                     ; Restore measurement
-			cmp		R8,R9					; Is low temp stress worse than stress_so_far?
-			_IF		_LO
-				mov		R8,R9					; Yes, new stress_so_far
-				mov		R10,Rmeas				; Tentative measurement causing worst stress
-				mov		#'t',Rtype				; Low temperature (lower case 't') is type
-			_ENDIF
-
-			; Link measurement, if appropriate
-			push	R9						; Save stress_so_far
+			
+			; Do link voltage measurement
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
-			_IF		_NE						; Only calculate link stress if not this value
-				push	R10						; Save linkV measurement
-				tst		R10
-				_IF		_L						; Get absolute value
+			_IF		_NE						; Only calculate link stress if not this value			
+				; Calculate stress due to excessive absolute link voltage
+				tst		R10						; Get absolute value of link voltage
+				_IF		_L
 					inv		R10
 					inc		R10
 				_ENDIF
-				; Link stress: 1 for every 50 mV over 100 mV
-				sub		#100-49,R10
-				_IF		_L
-					clr		R10						; Minimum of 0
-				_ENDIF
-				mov		R10,R9
-				clr		R10
-				mov		#50,R8
-				call	#UMSlashMod
-				mov		R9,R8					; Link stress in R8
-				pop		R10						; Restore linkV measurement
-				pop		R9						; Restore stress_so_far
-				cmp		R8,R9					; Is stress_so_far less than link stress?
-				_IF		_LO
-					mov		R8,R9					; Yes, new stress_so_far
-					mov		R10,Rmeas				; Tentative measurement causing worst stress
-					mov.b	#'L',Rtype				; Tentative type of measurement causing worst bad
-				_ENDIF
-			_ELSE
-				pop		R9						; Restore stress_so_far
+				push	R10						; Measurement for absolute link stress calc
+				push	#AL_STEP				; For every AL_STEP (millivolts)
+				push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
+				push	#'l'					; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
+			_ENDIF			
+			
+			; Check for stress overflow and saturate it
+			cmp		#STRESS,Rstrs			; If the stress is worse than we can fit in status byte
+			_IF		_HS
+				mov		#STRESS,Rstrs			; Use the maximum we can fit
 			_ENDIF
-
-			cmp		#STRESS_MASK,R9			; Is the stress_so_far worse than we can fit in status byte?
-			_IF		_GE
-				mov		#STRESS_MASK,R9			; Yes, use maximum we can fit
-			_ENDIF
-
-			; Receive (comms) stress: 1 if no status RX for 10 ticks and we are not ID 1
-			bit.b	#bNotSendStatus,&monFlags ; Are we sending status?
-			_IF		_Z						; If not, there can't be a receive stress
-				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-				_IF		_C
-					cmp.b	#1,&ID					; Only if ID
-					_IF		_NE						;	is not 1 ...
-						tst		R9						; Yes, are we at stress zero?
-						_IF		_Z
-							mov		#1,R9					; Yes, make it 1 for the comms error
-							mov.b	&ticksSinceLastRx,Rmeas	; Tentative measurement causing worst stress
-							mov.b	#'R',Rtype				; Tentative type of measurement causing worst bad
-						_ENDIF
-					_ENDIF
+			
+			; Update local present stress, and worst stress for trip so far
+			mov.b	Rstrs,R8				; Copy stress. movBits_B instruction trashes its source.
+			mov.b	stressTable(R8),R8		; Encode it with checkbit
+			movBits_B R8,#ENC_STRESS,&localStatus ; Record for later use, preserving other status bits.
+			cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
+			_IF		_HS
+				tst.b	Rstrs					; and it's an actual, nonzero stress
+				_IF	_NZ
+					mov.b	Rstrs,&worstStress		; Update worstStress
+					mov		Rmeas,&worstStressMeas	; Update value of measurement causing worst stress
+					mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 				_ENDIF
 			_ENDIF
-
-			mov.b	R9,R8					; Local stress
-			movBits_B R8,#STRESS_MASK,&localStatus	; Record for later use, preserving bypass bits
-			cmp.b	&worstStress,R9
-			_IF		_HS						; If localStatus equal or higher than worstStress
-                tst.b   R9                      ; and if it's an actual, nonzero error
-                _IF     _NZ
-				    mov.b	R9,&worstStress			; Update worstStress
-				    mov		Rmeas,&worstStressMeas	; Update value of measurement causing worst stress
-				    mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
-                _ENDIF
-			_ENDIF
-
-			cmp.b		#minLEDStress,R9	; Turn on the error LED if stress is minLEDStress or more
+			
+			; Update Alarm -- local red LED and piezo
+			cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
 			CtoAllBits	Rtos
-            call        #_errorLed          ; Use this function so it optionally turns on the piezo as well
+			call		#_errorLed			; Use this function so it optionally turns on the piezo as well
 
-			bit.b	#bNotSendStatus,&monFlags ; If bNotSendStatus is false
+			; Check for comms error and send local status if required
+			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
+			bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
 			_IF		_Z
-				mov.b	&lastSentStatus,R8		; Get last stress and bypass bits we sent
-				and.b	#STRESS_MASK,R8			; Clear other than stress bits
-;				cmp.b	R9,R8					; Is the current stress worse than the last stress we sent?
-				; We could change the jnc below to a jne if we wanted to send out-of-cycle messages
-				;	about a new lower stress (as well as higher).
-				;	However, it's possible that these messages could overwhelm
-				;	the communications system, in the situation of a sudden series of high power pulses.
-;				jnc		sendStatusNow				; Jump if so to send the stress immediately
-
-				; We don't want to send status unless we are a (temporary) master, and it is time to send.
-				; We are a temporary master if there have been 10+ ticks since our last Rx
-				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-				_IF		_NC						; If no carry, then no, we are not a master
-					ret								; So exit, no send
-				_ENDIF
-sendStatusNow
-				cmp.b	#10,&ticksSinceLastRx	; Been 10+ ticks since last Rx?
-				_IF		_C						; If carry, then yes, we are a master
-					; Master bypass logic: if we are bypassing, set the all-in-bypass bit
-					bit.b	#BYPASS,&P2OUT		; Are we bypassing?
-					_IF		_NZ
-						bis.b	#ALL_BYP_MASK,R9	; Yes, set all-in-bypass bit
+				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
+				_IF		_HS
+					; If our ID is not 1, set the comms error bit in local status
+					cmp.b	#1,&ID
+					_IF		_NE
+						bis.b	#COM_ERR,&localStatus		
 					_ENDIF
-				_ELSE							; Else, we are not a master
-					; Non-master logic: if bypassing, OR all-in-bypass from incoming
-					; else (not bypassing) leave all-in-bypass clear
-					bit.b		#BYPASS,&P2OUT		; Are we bypassing?
-					_IF		_NZ
-						mov.b	&localStatus,R8		; Local status
-						and.b	#ALL_BYP_MASK,R8	; Local all-in-bypass bit
-						bis.b	R8,R9				; OR local all-in-bypass bit with status to be sent
-					_ENDIF
-				_ENDIF
-				mov.b	R9,&lastSentStatus		; Update remembered value
-				mov.b	R9,R10
-				and.b	#STRESS_MASK,R10		; Just stress bits in R10
-				mov.b	stressTable(R10),R8		; Encode the present stress and bypass bits in R8
-				and.b	#COM_ERR_MASK+ALL_BYP_MASK,R9 ; Just comms error and bypass bits in R9
-				bis.b	R9,R8					; Copy comms error and bypass bits to R8
-				bis.b	#$80,R8					; Set the high bit to say it's a status byte
-				call	#TX_ByteNW
-			_ENDIF							; Endif bNotSendStatus is false
+					
+					; Act as a master -- send our status
+					mov.b	&localStatus,R8
+					bis.b	#$80,R8					; Set the high bit to say it's a status byte
+					call	#TX_ByteNW					
+				_ENDIF							; End if too many ticks since last Rx
+			_ENDIF							; End if sending status
 			ret
-; End of measurement
+; End of DoMeasurement
 
 
+DoStress:
+;
+; Called repeatedly by DoMeasurement to calculate the various kinds of stress
+; and keep track of which is worse.
+; It takes 4 arguments on the stack and updates 3 registers as required (Rstrs, Rmeas, Rtype).
+;
+; Stack offsets for parameters
+step	EQU		0				; The change in measurement corresp to a change of one stress level
+zero	EQU		-2				; The measurement corresponding to zero stress
+type	EQU		-4				; The character representing the type of measurement 'v', 't', 'l'
+meas	EQU		-6				; The measurement
+			
+			mov		step(SP),R8				; Get step in R8
+			tst		R8
+			_IF		_GE
+				mov		meas(SP),R9				; Get meas - zero in R9
+				sub		zero(SP),R9
+			_ELSE
+				inv		R8						; Get absolute value of step in R8
+				inc		R8
+				mov		zero(SP),R9				; Get zero - meas + step -1 in R9
+				sub		meas(SP),R9
+				add		step(SP),R9
+				sub		#1,R9
+			_ENDIF
+			_IF		_L
+				clr		R9						; Min of 0
+			_ENDIF
+			clr		R10						; Clear high word of dividend
+			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step
+			cmp		R9,Rstrs				; Is this stress worse than present stress calculated so far?
+			_IF		_LO
+				mov		R9,Rstrs				; Yes, new present stress
+				mov		meas(SP),Rmeas			; Measurement causing present stress
+				mov		type(SP),Rtype			; Type of measurement causing present stress
+			_ENDIF
+			add		#8,SP					; Drop the parameters off the stack
+			ret
+; End of DoStress
+
+
+DoStatus:
 ;
 ;	Process received status byte in R8. Trashes R9, R10
 ;	Status byte:
-;	 Bit 7: Always 1 for status byte
-;	 Bit 6: Comms error: status information is incomplete
-;	 Bit 5: All in bypass (will be some in bypass for bottom balancing)
-;	 Bits 4-3: check bits
-;	 Bits 2-0: stress level 0-7
+;	Bit 7: Always 1 for status byte
+;	Bit 6: Comms error: Means that status information does not represent the whole pack
+;	Bit 5: All in bypass (would change to "Some in bypass" if bottom balancing was implemented)
+;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
+;	Bits 3-0: Stress level 0-15
 ;
-DoStatus:
-			clr		&ticksSinceLastRx		; Now no time since last received status
-			mov.b	R8,R9					; Copy incoming stress to R9
+			; Check validity of incoming stress bits
+			mov.b	R8,R9					; Copy incoming status to R9
 			mov.b	R8,R10					; And R10
-			and		#STRESS_MASK,R10		; Consider only stress bits in R10
-			and		#ENC_STRESS_MASK,R8		; Only stress and check bits in R8
-			cmp.b	R8,stressTable(R10)		; Is it valid? (Tested after 2 intervening instructions)
-			mov.b	&localStatus,R8			; Get local status to R8
-			bic.b	#~STRESS_MASK,R8		; Extract stress bits (BIC does not affect flags, AND does)
-			_IF		_EQ						; If incoming is a valid stress byte
-				cmp.b	R10,R8					; Compare incoming stress (R10) to ours (R8)
-				_IF		_HS						; If we (R10) are worse than incoming (R8)
-			_CS_SWAP						; [ Make the next _ENDIF apply to the _IF _EQ ]
-			_ENDIF							; Endif incoming valid
-					mov		R8,R10					; Incoming not valid or we are worse; use our stress
-				_ENDIF							; Endif we are worse
+			and.b	#STRESS,R9				; Only stress bits in R9
+			and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
+			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid stress
+			_IF		_EQ						
+				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
+				; This will eliminate any comms error next time through DoMeasures
+				
+				; Check if DoMeasures may have just sent a status byte, due to a comms error
+				bit.b	#COM_ERR,&localStatus	; If no comms error
+				_IF		_NZ
 
-;
-; Process incoming bypass bit
-;
-			bit.b	#BYPASS,&P2OUT			; Test if we are in bypass now
-			_IF		_NZ						; If bit is nonzero (i.e. we are bypassing)
-				mov.b	R9,R8					; copy
-				and.b	#ALL_BYP_MASK,R8		; the all-in-bypass bit from incoming
-				bis.b	R8,R10					; to R10
-			_ENDIF
-;
-; Process incoming comms error bit. Since we received a status byte, we are not generating a local
-;	comms error, so just copy incoming comms error bit
-;
-			mov.b	R9,R8
-			and.b	#COM_ERR_MASK,R8		; Incoming comms error bit
-			bis.b	R8,R10
-
-			mov.b	R10,&lastSentStatus		; Remember that we sent this
-			mov.b	R10,R8
-			and.b	#STRESS_MASK,R10		; Just stress bits for index
-			bis.b	stressTable(R10),R8		; Encode the present stress and bypass bits
-			bis.b	#$80,R8					; Set the high bit to say it's a status byte
-			call	#TX_ByteNW				; Send this encoded data if buffer not full
+					; Do MAX of local and incoming stress
+					mov.b	&localStatus,R10		; Get local status to R10
+					and.b	#STRESS,R10				; Extract stress bits
+					cmp.b	R9,R10					; Compare incoming stress (R9) to ours (R10)
+					_IF		_HS						; If we (R10) are worse than incoming (R9)
+							mov.b	stressTable(R10),R10	; Get encoded local stress to R10
+							movBits_B	R10,#STRESS,R8		; Replace incoming encoded stress with ours
+					_ENDIF							; Endif we are worse
+		
+					; Do AND of local and incoming all_in_bypass bits
+					mov.b	&localStatus,R10		; Get local status to R10
+					bis.b	#~ALL_BYP,R10			; Set all bits other than the all-in-bypass bit
+					and.b	R10,R8					; AND the all-in-bypass bits, others unchanged
+		
+					; Process incoming comms error bit.
+					; Since we received a valid status byte, there is no local
+					;	comms error, so just pass the incoming comms error bit through.
+		
+					; Send the possibly-updated status byte. High bit already set.
+					call	#TX_ByteNW				; Send this encoded data if buffer not full
+				_ENDIF							; End if no comms error
+			_ENDIF							; End if incoming valid
 			ret
+; End of DoStatus
 
+
+DoPassword:
 ;
 ; Check for a password character
 ; After decrementing passWordState below, 3 = waiting for ^C, 2 = waiting for ^B, 1 = waiting for ^A,
 ; 0 = waiting for ^@ and erase if received. We should not receive any negative value
 ; Trashes R9
 ;
-DoPassword:
 			dec.b	&passWordState
 			jn		resetFSM			; This should never happen! Just reset FSM and
 										; process as an ordinary command
@@ -576,6 +550,7 @@ DoPassword:
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
 
 exitOnRx	ret
+; End of DoPassword
 
 			EVEN
 
@@ -600,22 +575,22 @@ DELAY_IF_NEEDED MACRO
 			; Bit 5 represents all-in-bypass
 			; Note that encoded stress values are not monotonic
 			; The table is indexed by raw stress values
-stressTable	DB		(1<<4) + 0			; Stress 0   $10
-			DB		(1<<4) + 1			; Stress 1   $11
-			DB		(1<<4) + 2			; Stress 2   $12
-			DB		(1<<4) + 3			; Stress 3   $13
-			DB		(1<<4) + 4			; Stress 4   $14
-			DB		(1<<4) + 5			; Stress 5   $15
-			DB		(1<<4) + 6			; Stress 6   $16
-			DB		(1<<4) + 7			; Stress 7   $17
-			DB		(0<<4) + 8			; Stress 8   $08
-			DB		(0<<4) + 9			; Stress 9   $09
-			DB		(0<<4) + 10			; Stress 10  $0A
-			DB		(0<<4) + 11			; Stress 11  $0B
-			DB		(0<<4) + 12			; Stress 12  $0C
-			DB		(0<<4) + 13			; Stress 13  $0D
-			DB		(0<<4) + 14			; Stress 14  $0E
-			DB		(0<<4) + 15			; Stress 15  $0F
+stressTable	DB		(1<<4) + 0			; Stress 0	$10
+			DB		(1<<4) + 1			; Stress 1	$11
+			DB		(1<<4) + 2			; Stress 2	$12
+			DB		(1<<4) + 3			; Stress 3	$13
+			DB		(1<<4) + 4			; Stress 4	$14
+			DB		(1<<4) + 5			; Stress 5	$15
+			DB		(1<<4) + 6			; Stress 6	$16
+			DB		(1<<4) + 7			; Stress 7	$17
+			DB		(0<<4) + 8			; Stress 8	$08
+			DB		(0<<4) + 9			; Stress 9	$09
+			DB		(0<<4) + 10			; Stress 10	$0A
+			DB		(0<<4) + 11			; Stress 11	$0B
+			DB		(0<<4) + 12			; Stress 12	$0C
+			DB		(0<<4) + 13			; Stress 13	$0D
+			DB		(0<<4) + 14			; Stress 14	$0E
+			DB		(0<<4) + 15			; Stress 15	$0F
 			
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
@@ -623,11 +598,11 @@ stressTable	DB		(1<<4) + 0			; Stress 0   $10
 ; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
 ; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:
 ; Fill unused code memory
-; 	Fill pattern: 0xFF
+;	Fill pattern: 0xFF
 ;	Generate checksum
 ;		Size: 1 byte, Alignment: 1
 ;		CRC Polynomial: 0x101
-; 		Complement: As is
+;		Complement: As is
 ;		Bit order: MSB first, Initial value: 0x10
 ; The initial value of 0x10 is required because the reset vector of $1000 at $FFFE is not transmitted
 ; and so the BSL does not include it in its checksum, but the linker does.
@@ -655,7 +630,7 @@ spaceaspercent EQU BCD( (100*freespace)/2048)
 
 			ORG		$FFF8
 jInterpretByte:
-            br      #interpretByte      ; BSL will call here expecting interpretByte
+			br		#interpretByte		; BSL will call here expecting interpretByte
 			ORG		0FFFEh				; MSP430 RESET Vector
 			DW		0x1000				; Reset to BSL in case there is a crash
 

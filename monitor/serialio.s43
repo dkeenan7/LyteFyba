@@ -8,7 +8,7 @@
 ;	latency effects as hardware insures that output and input bit latching and
 ;	timing are perfectly synchronised with Timer_A regardless of other
 ;	software activity.
-;	TACLK = SMCLK/8 = DCOCLK/2/8 = 250 kHz, MCLK = DCOCLK/1 = 4.00 MHz, ACLK = LFXT1/1 = unused
+;	TACLK = SMCLK/4 = DCOCLK/8/4 = 250 kHz, MCLK = DCOCLK/2 = 4.00 MHz
 ;
 ;				MSP430F20xx
 ;			 ---------------
@@ -29,20 +29,20 @@
 ;	October 2005
 ;*******************************************************************************
 
-;
+; Timer A overflow is used for the regular processing "tick" or status frequency
+; while its capture/compare regs are used for the interrupt-driven software UART
 ;
 ;	Conditions for 9600 Baud SW UART
 DCOfreq		EQU		8000000					; DCO clock in Hz
 DCOckPerMck	EQU		2						; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
 DCOckPerSMck EQU	8						; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
-StatusFreq	EQU		4						; Status frequency in hertz
-											; Only sent every fourth time if stress not increased
+StatusFreq	EQU		4						; Status frequency in hertz (allowed 2, 4, 8 or 16)
 SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/StatusFreq+(1<<15))/(1<<16)
 											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
 MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
 Bitime		EQU		(TAfreq+4800)/9600		; 104.17 us bit length in timer clock periods
-Bitime_5	EQU		(Bitime/2)-2			; 0.5 bit length less some
+Bitime_5	EQU		Bitime/2				; 0.5 bit length
 
 
 ;-------------------------------------------------------------------------------
