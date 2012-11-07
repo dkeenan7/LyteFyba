@@ -1,4 +1,4 @@
-; Common definitions for monitor, debugger, BSLWriter, and BSL
+; Common definitions for monitor, TestICal, BSLWriter, and BSL
 
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 									// Turning it off doesn't work because BSL will still clear and restart

@@ -69,7 +69,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; Trashes R8-R12
 		
 		xCODE	'n',emitNum,_emitNum
-#if 0	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
+#if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&intFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
@@ -170,11 +170,11 @@ _prettyPrint3:
 		mov		#3,Rtos
 		; Fall thru to _prettyPrint
 ;
-; Pretty print  ( ch n m -- ) Print n as a comment packet with m digits and follow with ch.
+; Pretty print  ( ch n m -- ) Print n as a comment packet with m digits
+; and precede with ID and ch.
 ; (no command letter)
 _prettyPrint:
-		push	Rthd				; Save ch
-;		push.b	&intFlags			; Save current number base
+		push.b	&intFlags			; Save current number base
 		
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
@@ -182,8 +182,9 @@ _prettyPrint:
 		
 		push	Rsec				; Save n
 		push	Rtos				; Save m
+		push	Rthd				; Save ch
 		
-;		bic.b	#bHexOutput,&intFlags ; Set to decimal output
+		bic.b	#bHexOutput,&intFlags ; Set to decimal output
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
 		call	#_emitNum			; Emit the ID in decimal
@@ -191,16 +192,16 @@ _prettyPrint:
 		mov		#':',R8				; Colon separator
 		call	#TX_ByteCk
 		
-		pop		Rtos				; Restore m
-		pop		Rsec				; Restore n
-;		pop.b	&intFlags			; Restore number base to print n with
-		call	#_emitNum
+		pop		R8					; Restore ch (type of measurement)
+		call	#TX_ByteCk			; Transmit ch
 		
 		mov		#' ',R8				; Transmit a space
 		call	#TX_ByteCk
 		
-		pop		R8					; Restore ch (type of measurement)
-		call	#TX_ByteCk			; Transmit ch
+		pop		Rtos				; Restore m
+		pop		Rsec				; Restore n
+		pop.b	&intFlags			; Restore number base to print n with
+		call	#_emitNum
 		
 		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
 		
@@ -216,7 +217,7 @@ _prettyPrint:
 ;
 		xCODE		'v',cellVolt,_cellVolt
 		call		#cellV				; Return cell voltage in millivolts in R10
-		mov			#'V',Rthd			; Type is cell Voltage
+		mov			#'v',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
@@ -227,7 +228,7 @@ _prettyPrint:
 ;
 		xCODE		't',cellTemp,_cellTemp
 		call		#temp				; Return temperature in degrees Celsius in R10
-		mov			#'T',Rthd			; Type is temperature
+		mov			#'v',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). It's a pain
 		mov			R10,Rsec			; Result in degrees Celsius
 		mov			#2,Rtos				; Print 2 digits
@@ -238,7 +239,7 @@ _prettyPrint:
 ; Transmit link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
 		xCODE		'l',linkVolt,_linkVolt
 		call		#linkV				; Return link voltage in millivolts in R10
-		mov			#'L',Rthd			; Type is Link voltage
+		mov			#'l',Rthd			; Type is Link voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint		; Tail-call pretty-print and return

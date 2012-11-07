@@ -1,13 +1,22 @@
 ;
-; Mathematical functions used by both the monitor and BSLwriter
+; Mathematical functions used by all BMU software
 ; Use #include "../common/math.s43"
 ;
 
-; UM*	Unsigned multiply
+; UMStar -- Unsigned mixed multiply
+; R8 * R9 -> R10:R9. Clears R11
+;
+; In ANS Forth: UM* ( u1 u2 -- ud )
+; Multiply u1 by u2, giving the unsigned double-word product ud. All values and arithmetic are unsigned.
+;
 ; Starts with 16 bit multiplicand in R8, multiplier in R9 and
 ; ends with 32 bit product in R10 (hi) and R9 (lo).
 ; Algorithm described in http://cs.hiram.edu/~walkerel/cs252/multiply.ppt
 ; 138 to 154 cycles
+;
+; UMStarPlus -- Unsigned mixed multiply and add. (Alternative entry point)
+; R8 * R9 + R10 -> R10:R9. Clears R11
+; This is the exact inverse of UMSlashMod below
 
 UMStar:							; (4) Call
 			clr		R10			; (1) Clear hi word of product so far
@@ -22,21 +31,25 @@ mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
 			jnz		mullp		; (2) Loop until zero
 			ret					; (3)
 
+
+; UMSlashMod -- Unsigned mixed divide and modulo
+; R10:R9 / R8 -> R9, remainder R10. Clears R11
 ;
-; UM/MOD ( ud u1 -- u2 u3 )
-; R10:R9 / R8 -> R9, remainder to R10. Clears R11
+; In ANS Forth: UM/MOD ( ud u1 -- u2 u3 )
 ; Divide ud by u1, giving the remainder u2 and the quotient u3.
 ; All values and arithmetic are unsigned. An ambiguous condition exists
-; if u1 is zero or if the quotient lies outside the range of a single
+; if u1 is zero or if the quotient lies outside the range of a single-word
 ; unsigned integer.
-; In this case we return $FFFF for both quotient and remainder.
+;
+; In cases of overflow or div by zero we return a saturated $FFFF for the quotient
+; and a remainder of $FFFF which cannot occur otherwise.
 ; Algorithm is from eForth by Bill Muench.
 ; It is essentially the reverse of the multiplication algorithm above.
 ; 172 to 204 cycles (excluding overflow or div by zero)
 
 UMSlashMod:						; (4) Call
 			cmp		R8,R10		; (1) Overflow?
-			jc		oflo		; (2) Jump to error exit if divide by zero or overflow.
+			jhs		oflo		; (2) Jump to error exit if divide by zero or overflow.
 			mov		#16,R11		; (2) Do 16 times
 	
 ummlp		rla		R9			; (1) Shift quotient left and simul. shift dividend lo
