@@ -484,15 +484,15 @@ DoStatus:
 				
 				; Check if DoMeasures may have just sent a status byte, due to a comms error
 				bit.b	#COM_ERR,&localStatus	; If no comms error
-				_IF		_NZ
+				_IF		_Z
 
 					; Do MAX of local and incoming stress
 					mov.b	&localStatus,R10		; Get local status to R10
 					and.b	#STRESS,R10				; Extract stress bits
 					cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
 					_IF		_LO						; If incoming (R9) is less than ours (R10)
-							mov.b	stressTable(R10),R10	; Get encoded local stress to R10
-							movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
+						mov.b	stressTable(R10),R10	; Get encoded local stress to R10
+						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
 		
 					; Do AND of local and incoming all_in_bypass bits
