@@ -30,7 +30,8 @@
 ; Stress ( -- )								; report local stress
 			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
 			mov		#'p',Rthd				; Type is stress
-			mov.b	&localStatus,Rsec		; Result in stress levels, 0 to 7
+			mov.b	&localStatus,Rsec		; Get local status
+			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
