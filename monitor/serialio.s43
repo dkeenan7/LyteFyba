@@ -129,7 +129,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;-------------------------------------------------------------------------------
 ; First interrupt BitCntTx is 10 (decrements to 9), start bit just sent, LSB needs sending now
 ; 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
-; 9th interrupt, BitCnt is 2, MSB just sent, stop bit needs sending now
+; 9th interrupt, BitCntTx is 2, MSB just sent, stop bit needs sending now
 ; 10th interrupt, BitCntTx is 1 (decrements to 0), stop bit just sent, need to send idle state;
 ;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
 
