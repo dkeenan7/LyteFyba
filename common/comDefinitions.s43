@@ -228,7 +228,7 @@ _prettyPrint:
 ;
 		xCODE		't',cellTemp,_cellTemp
 		call		#temp				; Return temperature in degrees Celsius in R10
-		mov			#'v',Rthd			; Type is temperature
+		mov			#'t',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). It's a pain
 		mov			R10,Rsec			; Result in degrees Celsius
 		mov			#2,Rtos				; Print 2 digits
