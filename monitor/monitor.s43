@@ -424,13 +424,13 @@ DoStress:
 ;
 ; Called repeatedly by DoMeasurement to calculate the various kinds of stress
 ; and keep track of which is worse.
-; It takes 4 arguments on the stack and updates 3 registers as required (Rstrs, Rmeas, Rtype).
+; It takes 4 parameters on the stack and updates 3 registers as required (Rstrs, Rmeas, Rtype).
 ;
-; Stack offsets for parameters
-step	EQU		0				; The change in measurement corresp to a change of one stress level
-zero	EQU		-2				; The measurement corresponding to zero stress
-type	EQU		-4				; The character representing the type of measurement 'v', 't', 'l'
-meas	EQU		-6				; The measurement
+; Stack offsets for parameters (return address is at offset zero)
+type	EQU		2				; The character representing the type of measurement 'v', 't', 'l'
+zero	EQU		4				; The measurement corresponding to zero stress
+step	EQU		6				; The change in measurement corresp to a change of one stress level
+meas	EQU		8				; The measurement
 			
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
@@ -456,8 +456,9 @@ meas	EQU		-6				; The measurement
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
 			_ENDIF
+			pop		R8						; Pop the return address
 			add		#8,SP					; Drop the parameters off the stack
-			ret
+			br		R8						; Return
 ; End of DoStress
 
 
@@ -476,7 +477,7 @@ DoStatus:
 			mov.b	R8,R10					; And R10
 			and.b	#STRESS,R9				; Only stress bits in R9
 			and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
-			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid stress
+			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
 			_IF		_EQ						
 				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
 				; This will eliminate any comms error next time through DoMeasures
@@ -488,10 +489,10 @@ DoStatus:
 					; Do MAX of local and incoming stress
 					mov.b	&localStatus,R10		; Get local status to R10
 					and.b	#STRESS,R10				; Extract stress bits
-					cmp.b	R9,R10					; Compare incoming stress (R9) to ours (R10)
-					_IF		_HS						; If we (R10) are worse than incoming (R9)
+					cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
+					_IF		_LO						; If incoming (R9) is less than ours (R10)
 							mov.b	stressTable(R10),R10	; Get encoded local stress to R10
-							movBits_B	R10,#STRESS,R8		; Replace incoming encoded stress with ours
+							movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
 		
 					; Do AND of local and incoming all_in_bypass bits
