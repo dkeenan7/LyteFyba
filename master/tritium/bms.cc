@@ -187,7 +187,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 			return;
 
 //		if (status & 0x20) { chgr_off(); return; } // Stop when all in bypass
-		if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
+		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 				// Terminate charging
 				chgr_off();
