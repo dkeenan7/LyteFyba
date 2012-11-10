@@ -99,7 +99,7 @@ bool chgr_sendRequest(int voltage, int current, bool chargerOff) {
 	chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
 	chgr_txbuf[4] = voltage >> 8;
 	chgr_txbuf[5] = voltage & 0xFF;
-	chgr_txbuf[6] = 0;
+	chgr_txbuf[6] = current >> 8;
 	chgr_txbuf[7] = current;
 	chgr_txbuf[8] = chargerOff;
 	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
@@ -117,7 +117,7 @@ void chgr_processPacket() {
 
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
-			
+
 	if (--chgr_rx_timeout <= 0) {
 		fault();						// Turn on fault LED (eventually)
 	}

@@ -193,9 +193,10 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 				chgr_off();
 				return;
 			}
-			else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
-				--chgr_bypCount;					// Saturate at zero
 		}
+		else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
+			--chgr_bypCount;					// Saturate at zero
+
 
 		if (bValid) {
 			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
