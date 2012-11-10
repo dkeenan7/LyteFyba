@@ -16,9 +16,8 @@
 #define CHGR_CURR_DELTA		1					// Amount to increase the current by every second
 #define CHGR_EOC_SOAKT		(5 * 60 * BMU_TICK_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger
-//#define CHGR_SOAK_CURR		5				// Soak mode current in tenths of an ampere
-												//	Should be about 1/2 of BMU bypass capacity
-#define CHGR_CUT_CURR		20					// Charger cutoff current, usually 0.05C in tenths amp
+#define CHGR_CUT_CURR		5					// Charger cutoff current, usually a little over bypass
+												// capacility, in tenths of an amp
 #define CHGR_TX_BUFSZ		16                  // Have observed overflow with size 16, but 32 worse?
 #define CHGR_RX_BUFSZ 		16
 
