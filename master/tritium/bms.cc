@@ -19,6 +19,7 @@ volatile unsigned int bmu_events = 0;
 		 unsigned int bmu_state = 0;
 volatile unsigned int bmu_sent_timeout;
 volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 for voltage requests
+		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 
 // BMU buffers
 bmu_queue bmu_tx_q(BMU_TX_BUFSZ);
@@ -80,7 +81,7 @@ bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
 void bms_init()
 {
 	bmu_lastrxidx = 0;
-#if USE_CKSUM	
+#if USE_CKSUM
 	// Turn on checksumming in BMUs.
 	// The "k" packet is ignored if BMU checksumming is on (bad checksum), but toggles BMU
 	// checksumming on if it was off.
@@ -176,16 +177,26 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
 #define SET_POINT 7 // stress level
-	
+
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
-		
-		if (status & 0x20) { chgr_off(); return; } // Stop when all in bypass
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
+
+//		if (status & 0x20) { chgr_off(); return; } // Stop when all in bypass
+		if (status & 0x20 && (chgr_lastCurrent < CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
+			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
+				// Terminate charging
+				chgr_off();
+				return;
+			}
+			else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
+				--chgr_bypCount;					// Saturate at zero
+		}
+
 		if (bValid) {
 			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
@@ -210,6 +221,7 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
+		chgr_lastCurrent = current;
 		if (chgr_sendRequest(CHGR_VOLT_LIMIT, current, false)) {
     		if (bValid)
 	    		bmu_sendVAComment(stress*10, current); // for debugging
@@ -243,7 +255,7 @@ void readBMUbytes(bool bCharging)
 		}
 	}
 }
-	
+
 unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
 
 // Returns true on success
@@ -344,7 +356,7 @@ void bmu_processPacket(bool bCharging) {
 				bmu_sendVoltReq();				// Send another voltage request for the next cell
 			}
 		} // End if (bCharging)
-	} // End if valid voltage response		
+	} // End if valid voltage response
 }
 
 
