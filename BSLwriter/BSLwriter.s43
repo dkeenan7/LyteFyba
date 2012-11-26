@@ -88,7 +88,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-; Address imported from the interpreter (monitor or debugger)
+; Address imported from the interpreter (monitor or TestICal)
 
 interpretByte EQU	$F800			; Where to call the main flash code
 
@@ -211,7 +211,7 @@ anInit:		cmp		#$FFFF,&main8MHzCalD	; Have we already run once?
 ;
 ; Start of the actual BSL-writer
 ;
-main:										; For debugger
+main:										; For IAR debugger
 BSLwriter:	mov		#$280,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
@@ -276,7 +276,7 @@ waitingIDAddr								; This address will be on the stack in dummyInterpretByte
 ;
 ; If we find $FFFF (erased flash) at $10C4 (near start of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG debugger is set to erase it
+			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG programmer is set to erase it
 			jeq		newChip			;	before downloading
 			
 ; It's not a new chip so check the data version number at the end of info-flash.
@@ -447,7 +447,7 @@ doneCalibrate
 			; because that's how we tell if we've already done our job
 			cmp		#$FFFF,&main8MHzCalD
 			_IF		_EQ
-				mov		#$AD0B,&main8MHzCalD	; To suggest "Oh bad" when seen in debugger			_ENDIF
+				mov		#$AD0B,&main8MHzCalD	; To suggest "Oh bad" when seen in IAR debugger
 			_ENDIF
 			
 ; Erase info flash including segment A.

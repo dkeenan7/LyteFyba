@@ -5,14 +5,14 @@
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; It is a debugger and bootstrap-loader writer for our cell-top Battery Monitoring Unit (BMU)
-; based on an MSP430F2012 microcontroller.
+; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader writer for our cell-top
+; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
 ; This version is interactive; there is also the non-interactive BSLwriter that requires reassembly
 ; to perform various actions, which may be required if clock frequency calibration is lost.
 ;
-; This debugger should be the first program written to the 2kB of main-flash.
+; TestICal should be the first program written to the 2kB of main-flash.
 ; This must be done using a flash programmer connected to the chip's JTAG port.
-; The debugger contains a copy of a bootstrap loader (BSL).
+; TestICal contains a copy of a bootstrap loader (BSL).
 ; It writes this BSL to the 256 bytes of info-flash, while preserving some of the
 ; digitally controlled oscillator (DCO) calibration bytes that are stored there
 ; by the chip manufacturer. It can also perform voltage and temperature calibrations
@@ -22,23 +22,23 @@
 ; and a password-recognising state-machine. The state-machine normally passes incoming
 ; serial data to a command interpreter in main-flash. But when the password is recognised,
 ; the state-machine instead writes incoming serial data to main-flash.
-; This allows it to overwrite this debugger with the normal command interpreter or monitor,
+; This allows it to overwrite TestICal with the normal command interpreter or monitor,
 ; sent via the serial input. And because the BSL transmits all data received on its serial
 ; input, to its serial output, a cascaded series of these MSP430 boards can all be updated
 ; simultaneously. You only need to send a new version of the monitor to the first board
 ; in the chain.
 ;
 ; But what if you want to update the BSL itself? In that case, instead of sending a new
-; monitor, you send this debugger carrying the new version of the BSL.
-; This time you send the debugger via the serial input not the JTAG port.
+; monitor, you send TestICal carrying the new version of the BSL.
+; This time you send TestICal via the serial input not the JTAG port.
 ; That way you will update the BSLs of all the boards in the chain simultaneously.
 ;
-; The existing BSL will dutifully load the debugger into main flash,
+; The existing BSL will dutifully load TestICal into main flash,
 ; completely unaware that it has just loaded the instrument of its own demise.
-; When the old BSL calls the debugger, thinking it is initialising a new monitor,
-; the debugger will write the new BSL to info-flash.
-; Then the monitor must be sent again, to replace the debugger.
-; The debugger still preserves the calibration data, which may now include
+; When the old BSL calls TestICal, thinking it is initialising a new monitor,
+; TestICal will write the new BSL to info-flash.
+; Then the monitor must be sent again, to replace TestICal.
+; TestICal still preserves the calibration data, which may now include
 ; voltage and temperature calibration data in addition to the DCO calibration data
 ; from the manufacturer.
 ;
@@ -48,11 +48,9 @@
 ; but not with info-flash. For this reason, the BSL code is highly hand-optimised
 ; for space and uses some tricks that may make it hard to follow and hard to modify.
 ;
-; The following is true of this debugger, and the BSL:
+; The following is true of both TestICal and the BSL:
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
-;   The serial input code does not check for false start bits or do majority voting on
-;   data bits.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as IMAGE_START
@@ -170,21 +168,21 @@ TIBEnd
 ; Must leave room for stack (about 36 bytes)
 
 ;
-; Debugger code in main-flash.
+; TestICal code in main-flash.
 			ORG		IMAGE_START				
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
 ; will call this when any bytes are received by the serial port, including "password" bytes.
 ; The BSL will also call this with a null that was not received by the serial port
 ; but is intended to initialise the interpreter or other main-flash program.
-; It will do this on any reset and after successfully bootstrap-loading a new monitor or debugger or
+; It will do this on any reset and after successfully bootstrap-loading a new monitor or TestICal or
 ; BSL-writer.
 interpretByte:
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
 			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
 			jnz		noWaitID				; If not, echo as usual
-			ret								; Yes, so return to ReadByte's caller (debugger below),
+			ret								; Yes, so return to ReadByte's caller (TestICal below),
 											;	without calling WriteByte (don't echo wrong ID)
 noWaitID
 			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
@@ -268,7 +266,7 @@ initialise:
 ;
 ; If we find $FFFF (erased flash) at $10C4 (near start of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG debugger is set to erase it
+			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG programmer is set to erase it
 			jeq		newChip			;	before downloading
 			
 ; It's not a new chip so check the data version number at the end of info-flash.
@@ -396,10 +394,10 @@ errorFlash:
 
 
 ; Command character definitions
-#include "debDefinitions.s43"
+#include "TesDefinitions.s43"
 
 ;
-; Start of the actual debugger, when not started from the BSL
+; Start of TestICal, when not started from the BSL
 ; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
 ;
 main:										; For IAR Embedded Workbench IDE debugger
@@ -430,7 +428,7 @@ JTAGstart:	mov		#$280,SP
 ; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File
 ;	Override default
-;	debugger.bin
+;	TestICal.bin
 ;	Output format: raw-binary
 
 ; Some calculations so we can see how much space we have left, by reading the listing.

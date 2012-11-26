@@ -2,7 +2,7 @@
 ; The bootstrap loader (BSL)
 ;
 ; This will be relocated to info-flash which starts at $1000.
-; This code is common to the debugger and the BSLwriter, which may still be needed
+; This code is common to TestICal and the BSLwriter, which may still be needed
 ;	occasionally if a BMU loses its frequency calibration data and it needs to be forced.
 
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)

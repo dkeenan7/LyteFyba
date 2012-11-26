@@ -648,7 +648,7 @@
         </option>
         <option>
           <name>OutputFile</name>
-          <state>debugger.d43</state>
+          <state>TestICal.d43</state>
         </option>
         <option>
           <name>OutputFormat</name>
@@ -714,7 +714,7 @@
         </option>
         <option>
           <name>XclFile</name>
-          <state>$TOOLKIT_DIR$\CONFIG\lnk430G2352.xcl</state>
+          <state>$TOOLKIT_DIR$\CONFIG\lnk430G2452.xcl</state>
         </option>
         <option>
           <name>XclFileSlave</name>
@@ -842,7 +842,7 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>debugger.bin</state>
+          <state>TestICal.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
@@ -1885,7 +1885,7 @@
     </settings>
   </configuration>
   <file>
-    <name>$PROJ_DIR$\debugger.s43</name>
+    <name>$PROJ_DIR$\TestICal.s43</name>
   </file>
 </project>
 

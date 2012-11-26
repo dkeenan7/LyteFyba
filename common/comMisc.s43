@@ -5,8 +5,8 @@
 ;
 ; Transmit the current checksum if checksumming is on. Clear checksum.
 ;
-; This is not in serialio.s43 because it is used by both the Monitor and the Debugger
-; But the Debugger does not use serialio. It has its own version of TX_ByteCk.
+; This is not in serialio.s43 because it is used by both the Monitor and TestICal
+; But the TestICal does not use serialio. It has its own version of TX_ByteCk.
 ;
 TX_Cksum:
 			bit.b		#bChecksumming,&intFlags

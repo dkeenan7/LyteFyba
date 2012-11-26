@@ -32,11 +32,11 @@ Normal BMU software:
 		Obsolete, but contains a nifty Wunth (single-character-Forth) interpreter.
 	
 Special BMU software:
-	debugger
+	TestICal
 		Current. Updates the bootstrap loader (BSL), allows calibration and debugging.
 		Adds command interpreting to BSLwriter.
 	BSLwriter
-		Obsolescent, but may be required (via JTAG) if debugger can't be used serially.
+		Obsolescent, but may be required (via JTAG) if TestICal can't be used serially.
 		
 Common BMU source files:
 	common
@@ -58,5 +58,5 @@ Hardware:
 	web
 		A set of web pages describing the BMUs and printed-circuit artwork.
 	PCB
-		The printed-circuit-board artwork and schematics in Protel format 
+		The printed-circuit-board artwork and schematics in DesignSpark format 
 		and parts spreadsheet in Excel.
