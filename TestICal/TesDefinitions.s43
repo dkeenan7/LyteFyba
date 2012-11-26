@@ -1,9 +1,9 @@
 ;
-; Command character definitions for the debugger
+; Command character definitions for TestICal
 ;
 
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
-												; and debugger
+												; and TestICal
 												
 #if IMAGE_START < $F800							; Comment out if short of space
 ;

@@ -3,7 +3,7 @@
 ;
 
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
-												; and debugger
+												; and TestICal
 ;
 ; Kill pain sending ( boolean -- )	; 1 for no pain, 0 for pain
 ;
@@ -18,9 +18,9 @@
 			xor.b	#bChecksumming,&intFlags ; Toggle bChecksumming bit in intFlags
 			ret
 
-#if IMAGE_START < $F000		// Commented out if need to save space
+#if IMAGE_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )
-			xCODE	'r',RxState,_RxState ; Note: 'r' is read calibration value in debugger
+			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits

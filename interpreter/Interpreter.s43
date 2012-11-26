@@ -24,7 +24,7 @@
 #define		CHECKSUM	0		; 1 to require a checksum immediately before end of line/packet
 #define		OKPROMPT	0		; 1 to respond ' ok<cr>' after every line/packet is processed
 
-; Addresses manually imported from the BSL-writer or debugger. Version 6. Keep up to date!
+; Addresses manually imported from the BSL-writer or TestICal. Version 6. Keep up to date!
 InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$1094		; Calling-address to receive byte in R8
 WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
@@ -364,7 +364,7 @@ initCmd	db		INITIALCMD
 ; e.g. VOLTS TEMP SER-NO BYPASS etc.
 ;-------------------------------------------------------------------------------
 
-#if 0	// SetID is now a BSLwriter or debugger function
+#if 0	// SetID is now a BSLwriter or TestICal function
 ; SetID ( -- ) 	; Set our ID according to where we are in the serial comms chain
 ;
 ; We wait up to 1.5 byte times for the start of a byte from our upstream neighbour.
