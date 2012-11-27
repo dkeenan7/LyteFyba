@@ -455,7 +455,7 @@ static void __inline__ brief_pause(register unsigned int n)
 /*
  * Initialise clock module
  *	- Setup MCLK, ACLK, SMCLK dividers and clock sources
- *	- ACLK  = 0
+ *	- ACLK  = 1.15 to 1.4 kHz (3rd harmonic) or 2.8 to 4.6 kHz (whatever is loudest on piezo)
  *	- MCLK  = 16 MHz internal oscillator
  *	- SMCLK = 16 MHz internal oscillator
  *
@@ -465,11 +465,11 @@ static void __inline__ brief_pause(register unsigned int n)
  */
 void clock_init( void )
 {
-	BCSCTL3 = 0x0200; 				// ACLK source = VLOCLK (4 to 20 kHz typ 12 kHz)
-	BCSCTL1 = CALBC1_16MHZ | 0x0200;	// ACLK divider 0x0000 = /1, 0x0100 = /2, 0x0200 = /4, 0x0300 = /8
+	BCSCTL3 = 0x20; 				// ACLK source = VLOCLK (4 to 20 kHz typ 12 kHz)
+	BCSCTL1 = CALBC1_16MHZ | 0x20;	// ACLK divider 0x0000 = /1, 0x0100 = /2, 0x0200 = /4, 0x0300 = /8
 	DCOCTL = CALDCO_16MHZ;
-	P2OUT &= ~0x0001;				// Set P2.0 output to zero
-	P2DIR |= 0x0001;				// Set P2.0 direction to output (piezo speaker)
+	P2OUT &= ~0x01;					// Set P2.0 output to zero
+	P2DIR |= 0x01;					// Set P2.0 direction to output (piezo speaker)
 //	BCSCTL1 = 0x8F;			// FIXME!
 //	DCOCTL = 0x83;
 }
@@ -665,9 +665,12 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 		events &= ~EVENT_FAULT;
 		fault_count = FAULT_SPEED;
 		LED_PORT &= ~LED_REDn;
+		P2SEL |= 0x01;  	// Turn on beeper
 	}
-	if ( fault_count == 0)
+	if ( fault_count == 0) {
 		LED_PORT |= LED_REDn;
+		P2SEL &= ~0x01;  	// Turn off beeper
+	}
 	else
 		--fault_count;
 
