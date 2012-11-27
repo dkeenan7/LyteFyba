@@ -59,7 +59,8 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 			
 #define INIT_CMD_STRING '' 			// No Init commands
-; #define INIT_CMD_STRING '$AD90\'fwf' // Write a new frequency cal value then let us measure it
+; #define INIT_CMD_STRING '254s$AD90\'fwf'	// Tell BMU 254 to write a new frequency cal value 
+											// then let us measure it. Note: no update command.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as IMAGE_START
