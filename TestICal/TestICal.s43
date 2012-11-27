@@ -52,6 +52,7 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
 
+
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete, but
 ; before the automatic update of infoflash that occurs only when JTAG programmed (not when BSLoaded).
@@ -59,15 +60,12 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 			
 #define INIT_CMD_STRING '' 			// No Init commands
-; #define INIT_CMD_STRING '254s$AD90\'fwf'	// Tell BMU 254 to write a new frequency cal value 
+; #define INIT_CMD_STRING '254s$AD90\'fwf'	// Tell BMU 254 to write a new frequency cal value
 											// then let us measure it. Note: no update command.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as IMAGE_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
-
-minLEDBad	EQU		1				; Minimum badness to light error LED
-
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
