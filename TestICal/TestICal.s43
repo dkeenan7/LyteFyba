@@ -52,16 +52,14 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
 
-
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete, but
 ; before the automatic update of infoflash that occurs only when JTAG programmed (not when BSLoaded).
 ; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
-initCmdString			
-;			db		'$AD90\'fwf'				; Write a new freqency cal value then let us measure it
-			db		EXIT						; Must end with EXIT command
-
+			
+#define INIT_CMD_STRING '' 			// No Init commands
+; #define INIT_CMD_STRING '$AD90\'fwf' // Write a new frequency cal value then let us measure it
 
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as IMAGE_START
@@ -180,7 +178,12 @@ TIBEnd
 
 ;
 ; TestICal code in main-flash.
-			ORG		IMAGE_START				
+			ORG		IMAGE_START
+			
+			; Assemble any initialisation command string
+			DB		INIT_CMD_STRING
+			DB		EXIT					; Must end with an EXIT command
+			ALIGN	1
 ;
 ; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
 ; will call this when any bytes are received by the serial port, including "password" bytes.
