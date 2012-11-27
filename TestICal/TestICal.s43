@@ -52,6 +52,17 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
 
+
+; Init Command String
+; A string of commands that will be interpreted after all other initialisation is complete, but
+; before the automatic update of infoflash that occurs only when JTAG programmed (not when BSLoaded).
+; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
+; been erased or corrupted, thereby rendering communications impossible or unreliable.
+initCmdString			
+;			db		'$AD90\'fwf'				; Write a new freqency cal value then let us measure it
+			db		EXIT						; Must end with EXIT command
+
+
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as IMAGE_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
@@ -196,7 +207,8 @@ noWaitID
 
 ;
 ; The intitialise routine. This intialises everything except the stack pointer, including the
-; ram calibration values. It could be called by main, or by the initialise call from the BSL
+; RAM calibration values. The stack pointer is initialised before this is called.
+; It could be called by main, or by the initialise call from the BSL
 ; If called by the BSL, the BSL's ReadByte loop is called, so that password detection and downloads
 ; are handled. If started by a cold start (reset or JTAG), it is assumed that the BSL may not be
 ; present, so a simple ReadByte loop is used that doesn't check for password bytes.
@@ -278,7 +290,7 @@ unknownVersBSL
 ; Version number is higher or lower than this BSL-writer knows about,
 ; so we should leave it alone and raise an error.
 			mov		#b'01010101,rERR			; 4 flashes
-			jmp		errorFlash
+			jmp		errorFlash					; Infinite loop, never returns
 			
 
 newChip
@@ -291,15 +303,23 @@ newChip
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
 			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
-			ret
+			jmp		interpInitCmdString
 			
 			
 currVersBSL
-			; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#infoDataEnd-infoDataStart,R15	; Prepare to move ~8 bytes
-				mov.b		infoDataStart-1(R15),ramDataStart-1(R15)	; Move 1 byte
-			_mLOOP	#1,R15							; Decrement loop counter by 1, loop if non zero
-			ret
+; The RAM image has the same layout as current version data, so we use a block move
+			_DO		#infoDataEnd-infoDataStart,R15 ; Prepare to move ~8 bytes
+				mov.b		infoDataStart-1(R15),ramDataStart-1(R15) ; Move 1 byte
+			_mLOOP	#1,R15						; Decrement loop counter by 1, loop if non zero
+
+
+interpInitCmdString
+			mov		#initCmdString,Rip			; Interpret the string as bytecode
+			call	#_ENTER
+			ret									; Return from initialise
+
+; End of initialise
+
 
 DELAY_IF_NEEDED MACRO
 			_DO		#1390,R11			; Delay for approx ...
@@ -442,12 +462,16 @@ jJTAGstart:	br		#JTAGstart		; A branch to JTAGstart, independent of IMAGE_START
 			ORG		$FFF8
 jInterpretByte br	#interpretByte	; Likewise for interpretByte
 			ORG		$FFFE			; The reset vector
-			dw		jJTAGstart		; If this BSL-writer is JTAGged then the reset vector must point
-									;	to it directly. For example, a new chip has no BSL at all.
-									;	This happens in _updateInfoFlash (u command, also called directly)
-; We need to change the reset vector to $1000 once we have established a BootStrap Loader (BSL) there.
+			dw		jJTAGstart		
+; If TestICal is JTAG-programmed then the reset vector must point directly to a TestICal entry point
+; in main flash, instead of to the BootStrap Loader (BSL) in infoflash, because TestICal must be able
+; to be JTAGged into a new chip which has no BSL at all.
+; The writing of a BSL to infoflash happens in _updateInfoFlash which is normally called by
+; the 'u' command but must be called directly here too, since without a BSL we have no comms.
+; Once we have established a BSL in infoflash, we need to change the reset vector to point there
+; (address $1000).
 ; We want to do this without having to erase the reset vector, as we would have to erase the whole
 ; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
-; But this is guaranteed, since jJTAGstart has a 1 in the same position as $1000 does.
-; This means that JTAGstart is no longer constrained to be above $F800
+; We are guaranteed to be able to write it to $1000, since jJTAGstart has a 1 in the same position
+; as $1000 does. This means that JTAGstart is no longer constrained to be at or above $F000.
 			END
