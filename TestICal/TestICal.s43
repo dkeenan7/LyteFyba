@@ -181,6 +181,7 @@ TIBEnd
 			ORG		IMAGE_START
 			
 			; Assemble any initialisation command string
+initCmdString
 			DB		INIT_CMD_STRING
 			DB		EXIT					; Must end with an EXIT command
 			ALIGN	1
