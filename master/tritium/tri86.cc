@@ -238,6 +238,13 @@ int main( void )
 					next_state = MODE_OFF;
 					break;
 			}
+			
+			// Tell BMUs about any change in direction of current flow
+			if (command.state != next_state) {
+				if (command.state == MODE_CHARGE) bmu_changeDirection(FALSE); // Not charging
+				else if (next_state == MODE_CHARGE) bmu_changeDirection(TRUE); // Charging
+			}
+			
 			command.state = next_state;
 				
 			// Control brake lights
@@ -265,7 +272,7 @@ int main( void )
 			
 		} // End if( events & EVENT_TIMER )
 		
-		readBMUbytes(command.state == MODE_CHARGE);
+		readBMUbytes();
 		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
