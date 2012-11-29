@@ -111,7 +111,7 @@ sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
 bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
-bNotCharging	EQU		1<<2		; Zero if discharging (not charging or regen braking)
+bNotFreezeStress EQU	1<<2		; Zero if undertemp should be included as stress (charging or regen)
 
 localStatus		DS		1			; Local stress, comms error and bypass status (0-2 stress,
 									;	6 comms error, 5 all-in-bypass)
@@ -345,7 +345,7 @@ DoMeasurement:
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
 			; Calculate stress due to undertemperature if required
-			bit.b	#bNotCharging,&monFlags	; If charging (including regen braking)
+			bit.b	#bNotFreezeStress,&monFlags	; If charging (including regen braking)
 			_IF		_Z
 												; Measurement saved on stack earlier
 				push	#UT_STEP				; For every UT_STEP (degrees Celsius)

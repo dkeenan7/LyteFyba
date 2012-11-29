@@ -24,9 +24,10 @@ bool bmu_sendVoltReq();
 bool bmu_sendVAComment(int nVolt, int nAmp);
 void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 							unsigned int bmu_min_id, unsigned int bmu_max_id);
-void handleBMUstatusByte(unsigned char status, bool bCharging);
-void readBMUbytes(bool bCharging);
-void bmu_processPacket(bool bCharging);
+void handleBMUstatusByte(unsigned char status);
+void readBMUbytes();
+void bmu_processPacket();
+void bmu_changeDirection(bool charging);
 bool bmu_resendLastPacket(void);
 void bmu_timer();
 

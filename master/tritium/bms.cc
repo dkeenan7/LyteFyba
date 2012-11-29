@@ -36,7 +36,7 @@ volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 // Current cell in the current end-of-charge test (send voltage request to this cell next)
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 //signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
-
+bool bCharging = FALSE;					// Whether we are in charge mode
 // Stress table with check bits
 static int stressTable[16] = {
 			(1<<4) + 0,		// Stress 0   $10
@@ -170,7 +170,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	return result;
 }
 
-void handleBMUstatusByte(unsigned char status, bool bCharging)
+void handleBMUstatusByte(unsigned char status)
 {
 	int current, output;
 	int stress = status & 0x0F;			// Isolate stress bits
@@ -238,11 +238,11 @@ void handleBMUstatusByte(unsigned char status, bool bCharging)
 }
 
 // Read incoming bytes from BMUs
-void readBMUbytes(bool bCharging)
+void readBMUbytes()
 {	unsigned char ch;
 	while (	bmu_rx_q.dequeue(ch)) {				// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			handleBMUstatusByte(ch, bCharging);
+			handleBMUstatusByte(ch);
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
@@ -250,11 +250,19 @@ void readBMUbytes(bool bCharging)
 			}
 			bmu_lastrx[bmu_lastrxidx++] = ch;	// !!! Need to check for buffer overflow
 			if (ch == '\r')	{					// All BMU responses end with a carriage return
-				bmu_processPacket(bCharging);
+				bmu_processPacket();
 				break;
 			}
 		}
 	}
+}
+
+// Act on any change in the direction of current flow
+void bmu_changeDirection(bool charging)
+{	
+	bCharging = charging;
+	if (bCharging) bmu_sendPacket((unsigned char*)"1f\r");
+	else bmu_sendPacket((unsigned char*)"0f\r");
 }
 
 unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
@@ -302,7 +310,8 @@ bool bmu_resendLastPacket(void)
 }
 
 
-void bmu_processPacket(bool bCharging) {
+void bmu_processPacket()
+{
 	bmu_lastrxidx = 0;								// Ready for next BMU response to overwrite this one
 													//	(starting next timer interrupt)
 	if (chgr_state & CHGR_END_CHARGE)
