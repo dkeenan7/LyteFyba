@@ -42,7 +42,8 @@ ID			EQU		$10FE		; Address of this cell's/BMU's identification byte
 
 ; Stress calculations
 ; Stress set-point is intended to be 7. Alarm is given at stress 11 or more.
-BYPLEV		EQU		3560		; Bypass threshold in millivolts. Corresp. to stress 5/6 threshold
+NBYPLEV		EQU		3560		; Near bypass (charge termination) threshold in mV. Stress 5/6 threshold
+BYPLEV		EQU		3570		; Bypass threshold in millivolts. Corresp. to stress 6/7 threshold
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
 // OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
 OV_ZERO		EQU		3500		; Threshold in mV between OV stress levels -1 and 0
@@ -72,7 +73,7 @@ comErrTicks	EQU		3			; Minimum ticks without receiving valid status byte before
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
 COM_ERR		EQU		1<<6			; Communications error
-ALL_BYP		EQU		1<<5			; All in bypass
+ALL_NBYP	EQU		1<<5			; All near bypass -- charge termination condition
 ENC_STRESS	EQU		$1F				; Encoded stress. Bits 0-4. Bit 4 is a check bit
 STRESS		EQU		$0F				; Raw stress. Bits 0-3
 
@@ -113,8 +114,7 @@ bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
 bNotFreezeStress EQU	1<<2		; Zero if undertemp should be included as stress (charging or regen)
 
-localStatus		DS		1			; Local stress, comms error and bypass status (0-2 stress,
-									;	6 comms error, 5 all-in-bypass)
+localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 passWordState	DS		1			; State machine for password recogniser
 
@@ -148,12 +148,12 @@ bChecksumming	EQU		2			; Are we sending checksums and checking received checksum
 bDontInterpret	EQU		4			; Are we interpreting?
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
-worstStress		DS		1		; Worst local stress since the last resetWorstStress command
-worstStressType	DS		1		; Character giving type of measurement that caused worst stress
-worstStressMeas	DS		2		; Value of measurement that caused worst stress
+worstStress		DS		1			; Worst local stress since the last resetWorstStress command
+worstStressType	DS		1			; Character giving type of measurement that caused worst stress
+worstStressMeas	DS		2			; Value of measurement that caused worst stress
 
 				ALIGNRAM 1
-ToIN			DS		2			; Pointer to current character being stored in Text Input Buffer
+ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes)
@@ -313,11 +313,12 @@ DoMeasurement:
 			push	R10						; Save measurement for undervoltage stress calc
 			
 			; Set bypass as required
-			cmp		#BYPLEV,R10				; Compare current cell voltage (R10) to the bypass threshold
+			cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to the bypass threshold
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-			mov			R8,R9
 			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-			movBits_B	R9,#ALL_BYP,&localStatus ; Move only the #ALL_BYP bit from R9 to &localStatus.
+			cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
+			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+			movBits_B	R8,#ALL_NBYP,&localStatus ; Move only the #ALL_NBYP bit from R8 to &localStatus.
 			
 			; Calculate stress due to overvoltage
 			push	R10						; Measurement for overvoltage stress calc
@@ -468,7 +469,7 @@ DoStatus:
 ;	Status byte:
 ;	Bit 7: Always 1 for status byte
 ;	Bit 6: Comms error: Means that status information does not represent the whole pack
-;	Bit 5: All in bypass (would change to "Some in bypass" if bottom balancing was implemented)
+;	Bit 5: All near bypass (would change to "Some near bypass" if bottom balancing was implemented)
 ;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
 ;	Bits 3-0: Stress level 0-15
 ;
@@ -495,10 +496,10 @@ DoStatus:
 						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
 		
-					; Do AND of local and incoming all_in_bypass bits
+					; Do AND of local and incoming all_near_bypass bits
 					mov.b	&localStatus,R10		; Get local status to R10
-					bis.b	#~ALL_BYP,R10			; Set all bits other than the all-in-bypass bit
-					and.b	R10,R8					; AND the all-in-bypass bits, others unchanged
+					bis.b	#~ALL_NBYP,R10			; Set all bits other than the all-near-bypass bit
+					and.b	R10,R8					; AND the all-near-bypass bits, others unchanged
 		
 					; Process incoming comms error bit.
 					; Since we received a valid status byte, there is no local
@@ -571,9 +572,9 @@ DELAY_IF_NEEDED MACRO
 			; with no checksum correction. To counter this, stress is encoded, so that only
 			; 16 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
 			; are treated as a corrupted attempt to send status information.
-			; Current status for this BMU is sent instead.
+			; Present status for this BMU is sent instead.
 			; Note that bit 7 is always set for status bytes; bit 6 represents comms error
-			; Bit 5 represents all-in-bypass
+			; Bit 5 represents all-near-bypass
 			; Note that encoded stress values are not monotonic
 			; The table is indexed by raw stress values
 stressTable	DB		(1<<4) + 0			; Stress 0	$10
