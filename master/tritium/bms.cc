@@ -33,9 +33,7 @@ volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
 volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
 volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
-// Current cell in the current end-of-charge test (send voltage request to this cell next)
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
-//signed	 int	first_bmu_in_bypass = -1; // Charger end-of-charge test
 bool bCharging = FALSE;					// Whether we are in charge mode
 // Stress table with check bits
 static int stressTable[16] = {
@@ -186,8 +184,8 @@ void handleBMUstatusByte(unsigned char status)
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 
-//		if (status & 0x20) { chgr_off(); return; } // Stop when all in bypass
-		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all in bypass
+//		if (status & 0x20) { chgr_off(); return; } // Stop when all near bypass
+		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all-near-bypass
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 				// Terminate charging
 				chgr_off();
@@ -223,6 +221,9 @@ void handleBMUstatusByte(unsigned char status)
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
 		chgr_lastCurrent = current;
+#if 0
+		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
+#else
 		if (chgr_sendRequest(CHGR_VOLT_LIMIT, current, false)) {
     		if (bValid)
 	    		bmu_sendVAComment(stress*10, current); // for debugging
@@ -231,7 +232,9 @@ void handleBMUstatusByte(unsigned char status)
         } else
             // Charger failed to send. Indicate this
             bmu_sendPacket((const unsigned char*)"\\F\r\n");
-	} else {
+#endif
+	}
+	else {
 		// Not charging, assume driving.
 		// FIXME: TO BE COMPLETED
 	}
