@@ -64,4 +64,7 @@
 9) Test for false break-to-reset with 1Q1e<Enter> then use TeraTerm's Send File command
    in binary mode and with no delays between characters, to send the file 
    "PCB/NullsTest.txt". All red LEDs should stay on.
-10) Turn off the power supply.
+10) Test for excessive quiescent current by ensuring all LEDs are off and removing 
+   an alligator clip from each BMU in turn and inserting a multimeter on 300 mA range. 
+   The quiescent current (after supercap has charged) should be 1 mA or less.
+11) Turn off the power supply.
