@@ -212,7 +212,7 @@ anInit:		cmp		#$FFFF,&main8MHzCalD	; Have we already run once?
 ; Start of the actual BSL-writer
 ;
 main:										; For IAR debugger
-BSLwriter:	mov		#$280,SP
+BSLwriter:	mov		#$300,SP
 StopWDT		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 
 			; Initialise MCLK (4 MHz)
@@ -575,7 +575,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/2048)
 ; values.
 ; Note: Don't put at $FE00 or later; gets erased by the code to rewrite the restart vector
 			ORG		$FD00
-			mov		#$280,SP
+			mov		#$300,SP
 			dint							; Disable interrupts
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop watchdog timer
 
