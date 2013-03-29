@@ -425,7 +425,7 @@ errorFlash:
 ;
 main:										; For IAR Embedded Workbench IDE debugger
 
-JTAGstart:	mov		#$280,SP
+JTAGstart:	mov		#$300,SP
 			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
 											; vector to point to the BSL, then branch to it.

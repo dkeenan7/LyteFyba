@@ -127,9 +127,9 @@ BitCntTx		DS		1			; Bit count 10 -> 1
 BitCntRx		DS		1			; Bit count 8 -> 1
 TXCksum			DS		1			; Transmit checksum
 
-rxsz			EQU		8			; Receive queue size. Must be a power of 2 no greater than 256
+rxsz			EQU		16			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
-txsz			EQU		8			; Transmit queue size. Must be a power of 2 no greater than 256
+txsz			EQU		16			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
 rxbuf			DS		rxsz		; Receive queue buffer
@@ -156,7 +156,7 @@ worstStressMeas	DS		2			; Value of measurement that caused worst stress
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
-; Must leave room for stack (about 36 bytes)
+; Must leave room for stack (about 36 bytes minimum)
 
 ;-------------------------------------------------------------------------------
 				ORG		IMAGE_START	; Reset vector points here
@@ -164,7 +164,7 @@ TIBEnd
 
 interpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
-			mov.w	#$280,SP				; Initialize stackpointer
+			mov.w	#$300,SP				; Initialize stackpointer
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
@@ -546,7 +546,7 @@ DoPassword:
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		R15					; The BSL uses R15 as its FSM state variable
-			mov		#$280,SP			; Give the BSL maximum stack
+			mov		#$300,SP			; Give the BSL maximum stack
 			br		#BSLErase			; Jump into the BSL to finish the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
