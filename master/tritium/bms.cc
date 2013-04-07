@@ -268,6 +268,7 @@ void bmu_changeDirection(bool charging)
 	bCharging = charging;
 	if (bCharging) bmu_sendPacket((unsigned char*)"1f\r");
 	else bmu_sendPacket((unsigned char*)"0f\r");
+	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
 }
 
 unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
