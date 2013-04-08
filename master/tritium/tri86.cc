@@ -141,6 +141,9 @@ int main( void )
 	// Check switch inputs and generate command packets to motor controller
 	// and control charging while monitoring BMUs.
 	while(TRUE){
+		// Process CAN transmit queue
+		can_transmit();
+		
 		// Monitor switch positions & analog inputs
 		if( events & EVENT_TIMER ) {
 			events &= ~EVENT_TIMER;
@@ -312,37 +315,41 @@ int main( void )
 				// events |= EVENT_ACTIVITY;
 
 				// Transmit drive command frame
-				can.identifier = DC_CAN_BASE + DC_DRIVE;
-				can.data.data_fp[1] = command.current;
-				can.data.data_fp[0] = command.rpm;
-				can_transmit();	
+				can_push_ptr->identifier = DC_CAN_BASE + DC_DRIVE;
+				can_push_ptr->status = 8;
+				can_push_ptr->data.data_fp[1] = command.current;
+				can_push_ptr->data.data_fp[0] = command.rpm;
+				can_push();	
 	
 				// Transmit bus command frame
-				can.identifier = DC_CAN_BASE + DC_POWER;
-				can.data.data_fp[1] = command.bus_current;
-				can.data.data_fp[0] = 0.0;
-				can_transmit();
+				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
+				can_push_ptr->status = 8;
+				can_push_ptr->data.data_fp[1] = command.bus_current;
+				can_push_ptr->data.data_fp[0] = 0.0;
+				can_push();
 				
 				// Transmit switch position/activity frame and clear switch differences variables
-				can.identifier = DC_CAN_BASE + DC_SWITCH;
-				can.data.data_u8[7] = command.state;
-				can.data.data_u8[6] = command.flags;
-				can.data.data_u16[2] = 0;
-				can.data.data_u16[1] = 0;
-				can.data.data_u16[0] = switches;
-				can_transmit();
+				can_push_ptr->identifier = DC_CAN_BASE + DC_SWITCH;
+				can_push_ptr->status = 8;
+				can_push_ptr->data.data_u8[7] = command.state;
+				can_push_ptr->data.data_u8[6] = command.flags;
+				can_push_ptr->data.data_u16[2] = 0;
+				can_push_ptr->data.data_u16[1] = 0;
+				can_push_ptr->data.data_u16[0] = switches;
+				can_push();
 				
 				// Transmit our ID frame at a slower rate (every 10 events = 1/second)
 				comms_event_count++;
 				if(comms_event_count == 10){
 					comms_event_count = 0;
-					can.identifier = DC_CAN_BASE;
-					can.data.data_u8[7] = 'T';
-					can.data.data_u8[6] = '0';
-					can.data.data_u8[5] = '8';
-					can.data.data_u8[4] = '6';
-					can.data.data_u32[0] = DEVICE_SERIAL;
-					can_transmit();		
+					can_push_ptr->identifier = DC_CAN_BASE;
+					can_push_ptr->status = 8;
+					can_push_ptr->data.data_u8[7] = 'T';
+					can_push_ptr->data.data_u8[6] = '0';
+					can_push_ptr->data.data_u8[5] = '8';
+					can_push_ptr->data.data_u8[4] = '6';
+					can_push_ptr->data.data_u32[0] = DEVICE_SERIAL;
+					can_push();		
 				}
 			}
 		}
@@ -393,30 +400,38 @@ int main( void )
 				// Remote request packet received - reply to it
 				switch(can.identifier){
 					case DC_CAN_BASE:
-						can.data.data_u8[3] = 'T';
-						can.data.data_u8[2] = '0';
-						can.data.data_u8[1] = '8';
-						can.data.data_u8[0] = '6';
-						can.data.data_u32[1] = DEVICE_SERIAL;
-						can_transmit();
+						can_push_ptr->identifier = can.identifier;
+						can_push_ptr->status = 8;
+						can_push_ptr->data.data_u8[3] = 'T';
+						can_push_ptr->data.data_u8[2] = '0';
+						can_push_ptr->data.data_u8[1] = '8';
+						can_push_ptr->data.data_u8[0] = '6';
+						can_push_ptr->data.data_u32[1] = DEVICE_SERIAL;
+						can_push();
 						break;
 					case DC_CAN_BASE + DC_DRIVE:
-						can.data.data_fp[1] = command.current;
-						can.data.data_fp[0] = command.rpm;
-						can_transmit();
+						can_push_ptr->identifier = can.identifier;
+						can_push_ptr->status = 8;
+						can_push_ptr->data.data_fp[1] = command.current;
+						can_push_ptr->data.data_fp[0] = command.rpm;
+						can_push();
 						break;
 					case DC_CAN_BASE + DC_POWER:
-						can.data.data_fp[1] = command.bus_current;
-						can.data.data_fp[0] = 0.0;
-						can_transmit();
+						can_push_ptr->identifier = can.identifier;
+						can_push_ptr->status = 8;
+						can_push_ptr->data.data_fp[1] = command.bus_current;
+						can_push_ptr->data.data_fp[0] = 0.0;
+						can_push();
 						break;
 					case DC_CAN_BASE + DC_SWITCH:
-						can.data.data_u8[7] = command.state;
-						can.data.data_u8[6] = command.flags;
-						can.data.data_u16[2] = 0;
-						can.data.data_u16[1] = 0;
-						can.data.data_u16[0] = switches;
-						can_transmit();
+						can_push_ptr->identifier = can.identifier;
+						can_push_ptr->status = 8;
+						can_push_ptr->data.data_u8[7] = command.state;
+						can_push_ptr->data.data_u8[6] = command.flags;
+						can_push_ptr->data.data_u16[2] = 0;
+						can_push_ptr->data.data_u16[1] = 0;
+						can_push_ptr->data.data_u16[0] = switches;
+						can_push();
 						break;
 				}
 			}
