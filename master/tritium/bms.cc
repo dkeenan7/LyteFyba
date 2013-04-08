@@ -7,7 +7,7 @@
 #include "bms.h"
 #include "charger.h"
 #include "queue.h"
-#include "can.h"			// For can_transmit(), but also general definitions
+#include "can.h"			// For can_push(), but also general definitions
 #include "assert2.h"		// assert-like function
 
 // Private function prototypes
@@ -147,7 +147,7 @@ void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 	can.data.data_u16[1] = bmu_max_mV;
 	can.data.data_u16[2] = bmu_min_id;
 	can.data.data_u16[3] = bmu_max_id;
-	can_transmit();
+	can_push();
 }
 
 // Only used for debugging.
