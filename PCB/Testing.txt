@@ -7,7 +7,7 @@
    Have a multimeter on 10 A range monitoring current. 
    Set oscilloscope to 1 V/div, 100 us/div, normal trigger, trigger at about 1.7 V.
 1) Place the board to be tested with its beepers down and with the 
-   "DANGER HIGH VOLTAGE" text reading correctly.
+   "Battery Management Unit" text reading correctly.
    Connect the communications plugs (in and out) to the rightmost two pins of 
    the 3 pin headers.
    Connect power to all Battery Monitoring Units (BMUs) with the alligator clips. 
