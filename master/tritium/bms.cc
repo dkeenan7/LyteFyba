@@ -263,10 +263,10 @@ void readBMUbytes()
 // Act on any change in the direction of current flow.
 // Temperatures below zero constitute stress when charging or regen-braking
 // but not when accelerating. So send appropriate 'f' (Freezing is stress) commands to BMUs.
-void bmu_changeDirection(bool charging)
+void bmu_changeDirection(bool chargeOrRegen)
 {	
-	bCharging = charging;
-	if (bCharging) bmu_sendPacket((unsigned char*)"1f\r");
+	bCharging = chargeOrRegen;
+	if (chargeOrRegen) bmu_sendPacket((unsigned char*)"1f\r");
 	else bmu_sendPacket((unsigned char*)"0f\r");
 	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
 }

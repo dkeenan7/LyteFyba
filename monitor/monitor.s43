@@ -60,10 +60,10 @@ OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the nex
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
-// AL = Absolute Link voltage: One stress unit for every 10 mV above 0 mV, to a max of 15 at >= 150 mV
-// AL setpoint is 70 to 80 mV. Alarm at 110 mV.
+// AL = Absolute Link voltage: One stress unit for every 20 mV above 0 mV, to a max of 15 at >= 300 mV
+// AL setpoint is 140 to 160 mV. Alarm at 220 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		10			; mV difference between one AL stress level and the next
+AL_STEP		EQU		30			; mV difference between one AL stress level and the next
 
 minLEDStress EQU	11			; Minimum stress to light error LED
 minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
