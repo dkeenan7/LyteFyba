@@ -216,16 +216,9 @@ int main( void )
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if (switches_diff & SW_CHARGE_CABLE)
-						// Just started charging
-						chgr_start();
 					if(!(switches & SW_CHARGE_CABLE)) next_state = MODE_N;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
-					if (next_state != MODE_CHARGE) {
-						// Coming out of charge mode, because the cable is pulled, or the ignition is on
-						chgr_off();
-					}
 					// Flash N LED in charge mode
 					charge_flash_count--;
 					P5OUT &= ~(LED_GEAR_4);
@@ -242,10 +235,16 @@ int main( void )
 					break;
 			}
 			
-			// Tell BMUs about any change in direction of current flow
+			// Start and stop charging
 			if (command.state != next_state) {
-				if (command.state == MODE_CHARGE) bmu_changeDirection(FALSE); // Not charging
-				else if (next_state == MODE_CHARGE) bmu_changeDirection(TRUE); // Charging
+				if (command.state == MODE_CHARGE) { // Not charging
+					bmu_changeDirection(FALSE); // Tell BMUs about any change in direction of current flow
+					chgr_off();
+				}
+				else if (next_state == MODE_CHARGE) { // Charging
+					bmu_changeDirection(TRUE); // Tell BMUs about any change in direction of current flow
+					chgr_start();
+				}
 			}
 			
 			command.state = next_state;
