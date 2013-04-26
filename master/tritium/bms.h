@@ -8,6 +8,7 @@
 
 #include "queue.h"
 #include "pid.h"
+#include "pedal.h"						// For command_variables and command
 
 // BMU constants
 #define USE_CKSUM 1						// Set non-zero to send and expect checksums to BMUs
@@ -24,8 +25,8 @@ bool bmu_sendVoltReq();
 bool bmu_sendVAComment(int nVolt, int nAmp);
 void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 							unsigned int bmu_min_id, unsigned int bmu_max_id);
-void handleBMUstatusByte(unsigned char status);
-void readBMUbytes();
+void handleBMUstatusByte(unsigned char status /* FIXME */, unsigned int switches, float fMotorCurrent);
+void readBMUbytes(/* FIXME */unsigned int switches, float fMotorCurrent);
 void bmu_processPacket();
 void bmu_changeDirection(bool charging);
 bool bmu_resendLastPacket(void);

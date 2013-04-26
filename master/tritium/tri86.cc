@@ -86,6 +86,7 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
+float fMotorCurrent = 0.0;		// FIXME: debugging only
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -274,7 +275,7 @@ int main( void )
 			
 		} // End if( events & EVENT_TIMER )
 		
-		readBMUbytes();
+		readBMUbytes(/* FIXEM */switches, fMotorCurrent);
 		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
@@ -379,6 +380,7 @@ int main( void )
 						// Update regen status flags
 						if(can.data.data_fp[0] < REGEN_THRESHOLD) events |= EVENT_REGEN;
 						else events &= ~EVENT_REGEN;
+fMotorCurrent = can.data.data_fp[0];		// FIXME: save motor current for debugging
 						break;
 					case MC_CAN_BASE + MC_TEMP1:
 						// Update data for temp gauge
