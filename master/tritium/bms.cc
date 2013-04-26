@@ -168,7 +168,9 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	return result;
 }
 
-void handleBMUstatusByte(unsigned char status)
+#define min(x, y) ((x<y)?x:y)	// FIXME: debugging only
+
+void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fMotorCurrent)
 {
 	int current, output;
 	int stress = status & 0x0F;			// Isolate stress bits
@@ -178,6 +180,12 @@ void handleBMUstatusByte(unsigned char status)
 
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
+
+// FIXME: for now, read some swithes to see if we want to fake BMU sress
+if (switches & SW_IGN_START)
+	stress = min(0, 7*fMotorCurrent/(ADC12MEM1/4096.*300.));
+else
+	stress = min(0, -7*fMotorCurrent/(ADC12MEM1/4096.*20.));		
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
@@ -194,19 +202,22 @@ void handleBMUstatusByte(unsigned char status)
 		}
 		else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 			--chgr_bypCount;					// Saturate at zero
+	}
 
 
-		if (bValid) {
-			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
-			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-			output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-		}
-		else {
-			// We have to insert a dummy measurement tick so the derivatives still work
-			// Uses the last known good measurement = set_point - prev_error
-			output = pidCharge.tick();
-		}
+	if (bValid) {
+		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+	}
+	else {
+		// We have to insert a dummy measurement tick so the derivatives still work
+		// Uses the last known good measurement = set_point - prev_error
+		output = pidCharge.tick();
+	}
+	
+	if (bCharging) {
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
@@ -236,16 +247,18 @@ void handleBMUstatusByte(unsigned char status)
 	}
 	else {
 		// Not charging, assume driving.
-		// FIXME: TO BE COMPLETED
+		// Map frac -1.0 .. almost +1.0 to float 0.0 .. 1.0
+		// Use 65534 (= 32767 *2) to allow full power with output = 0x7FFF (= almost 1.0 or 32767)
+		command.bus_current = output / 65534.0F + 0.5F;
 	}
 }
 
 // Read incoming bytes from BMUs
-void readBMUbytes()
+void readBMUbytes(/* FIXME */unsigned int switches, float fMotorCurrent)
 {	unsigned char ch;
 	while (	bmu_rx_q.dequeue(ch)) {				// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			handleBMUstatusByte(ch);
+			handleBMUstatusByte(ch /* FIXME*/ ,switches, fMotorCurrent);
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
