@@ -170,7 +170,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 
 #define min(x, y) ((x<y)?x:y)	// FIXME: debugging only
 
-void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fMotorCurrent)
+void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fBatteryCurrent)
 {
 	int current, output;
 	int stress = status & 0x0F;			// Isolate stress bits
@@ -183,9 +183,9 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 
 // FIXME: for now, read some swithes to see if we want to fake BMU sress
 if (switches & SW_IGN_START)
-	stress = min(0, 7*fMotorCurrent/(ADC12MEM1/4096.*300.));
+	stress = min(0, 7*fBatteryCurrent/(ADC12MEM1/4096.*300.));
 else
-	stress = min(0, -7*fMotorCurrent/(ADC12MEM1/4096.*20.));		
+	stress = min(0, -7*fBatteryCurrent/(ADC12MEM1/4096.*20.));		
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
@@ -254,11 +254,11 @@ else
 }
 
 // Read incoming bytes from BMUs
-void readBMUbytes(/* FIXME */unsigned int switches, float fMotorCurrent)
+void readBMUbytes(/* FIXME */unsigned int switches, float fBatteryCurrent)
 {	unsigned char ch;
 	while (	bmu_rx_q.dequeue(ch)) {				// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			handleBMUstatusByte(ch /* FIXME*/ ,switches, fMotorCurrent);
+			handleBMUstatusByte(ch /* FIXME*/ ,switches, fBatteryCurrent);
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
