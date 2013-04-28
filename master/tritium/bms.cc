@@ -184,7 +184,7 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 // FIXME: for now, read some swithes to see if we want to fake BMU sress
 if (switches & SW_IGN_START)
 	stress = min(0, 7*fBatteryCurrent/(ADC12MEM1/4096.*300.));
-else
+else if (switches & SW_BRAKE)
 	stress = min(0, -7*fBatteryCurrent/(ADC12MEM1/4096.*20.));		
 
 	if (bCharging) {
