@@ -59,7 +59,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 // Status and event flags
 volatile unsigned int events = 0x0000;
 
-// Data from controller
+// Data from motor controller
 float motor_rpm = 0;
 float motor_temp = 0;
 float controller_temp = 0;
@@ -394,6 +394,14 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debugging
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
+						break;
+					case DC_CAN_BASE + DC_BOOTLOAD:
+						// Switch to bootloader
+						if (		can.data.data_u8[0] == 'B' && can.data.data_u8[1] == 'O' && can.data.data_u8[2] == 'O' && can.data.data_u8[3] == 'T'
+								&&	can.data.data_u8[4] == 'L' && can.data.data_u8[5] == 'O' && can.data.data_u8[6] == 'A' && can.data.data_u8[7] == 'D' )
+						{
+							WDTCTL = 0x00;	// Force watchdog reset
+						}
 						break;
 				}
 			}
