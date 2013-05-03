@@ -139,6 +139,7 @@ void dint();
 // 	None at present
 
 // Charger state
+#define CHGR_CHARGING		0x0001				// We are charging
 #define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
 #define CHGR_END_CHARGE		0x0008				// The charger is turned off; end of charge
 

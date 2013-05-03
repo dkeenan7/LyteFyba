@@ -47,7 +47,7 @@ void chgr_init() {
 }
 
 void chgr_start() {
-	chgr_state = 0;			// Reset all flags, including end charge flag
+	chgr_state = CHGR_CHARGING;
 	chgr_bypCount = 0;
 }
 
