@@ -187,6 +187,8 @@ if (switches & SW_IGN_START)
 else if (switches & SW_BRAKE)
 	stress = min(0, -7*fBatteryCurrent/(ADC12MEM1/4096.*20.));		
 
+//can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+can_sendCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and mask bits
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_END_CHARGE)
