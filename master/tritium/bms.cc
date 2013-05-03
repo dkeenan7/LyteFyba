@@ -142,11 +142,12 @@ void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 {
 	// We have the min and max cell voltage information. Send a CAN packet so the telemetry
 	//	software can display them. Use CAN id 0x266, as the IQcell BMS would
-	can.identifier = 0x266;
-	can.data.data_u16[0] = bmu_min_mV;
-	can.data.data_u16[1] = bmu_max_mV;
-	can.data.data_u16[2] = bmu_min_id;
-	can.data.data_u16[3] = bmu_max_id;
+	can_push_ptr->identifier = 0x266;
+	can_push_ptr->status = 8;
+	can_push_ptr->data.data_u16[0] = bmu_min_mV;
+	can_push_ptr->data.data_u16[1] = bmu_max_mV;
+	can_push_ptr->data.data_u16[2] = bmu_min_id;
+	can_push_ptr->data.data_u16[3] = bmu_max_id;
 	can_push();
 }
 
