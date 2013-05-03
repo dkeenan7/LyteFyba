@@ -119,7 +119,7 @@ void chgr_processPacket() {
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
 
-	if ((chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timeout <= 0)) {
+	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timeout <= 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
 }
