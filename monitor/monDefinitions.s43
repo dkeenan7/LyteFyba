@@ -40,8 +40,12 @@
 ;			mov		#3,Rtos					; Print 3 digits
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
-; Query worst stress ( -- )
+; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
+			cmp.b	Rtos,&worstStress
+			_IF		_LO
+				ret
+			_ENDIF
 			mov.b	#'q',Rthd				; Type is worst stress level
 			mov.b	&worstStress,Rsec		; Result
 			call	#_prettyPrint3			; Pretty-print of 3 digits
