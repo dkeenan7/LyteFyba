@@ -146,7 +146,7 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 		can_transmit();
 		
 		// Monitor switch positions & analog inputs
-		if( events & EVENT_TIMER ) {
+		if( events & EVENT_TIMER ) { // Every 10 ms
 			events &= ~EVENT_TIMER;
 
 			// Convert potentiometer and current monitoring inputs
@@ -273,13 +273,13 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 			chgr_timer();
 			bmu_timer();
 			
-		} // End if( events & EVENT_TIMER )
+		} // End of if( events & EVENT_TIMER ) // Every 10 ms
 		
 		readBMUbytes(/* FIXEM */switches, fBatteryCurrent);
 		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
-		if(events & EVENT_COMMS){
+		if(events & EVENT_COMMS){ // Every 100 ms
 			events &= ~EVENT_COMMS;
 
 			// Update command state and override pedal commands if necessary
@@ -314,21 +314,21 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 				// Blink activity LED
 				// events |= EVENT_ACTIVITY;
 
-				// Transmit drive command frame
+				// Queue drive command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_DRIVE;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.current;
 				can_push_ptr->data.data_fp[0] = command.rpm;
 				can_push();	
-	
-				// Transmit bus command frame
+#if 0	
+				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.bus_current;
 				can_push_ptr->data.data_fp[0] = 0.0;
 				can_push();
 				
-				// Transmit switch position/activity frame and clear switch differences variables
+				// Queue switch position/activity frame and clear switch differences variables
 				can_push_ptr->identifier = DC_CAN_BASE + DC_SWITCH;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_u8[7] = command.state;
@@ -337,8 +337,8 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 				can_push_ptr->data.data_u16[1] = 0;
 				can_push_ptr->data.data_u16[0] = switches;
 				can_push();
-				
-				// Transmit our ID frame at a slower rate (every 10 events = 1/second)
+#endif				
+				// Queue our ID frame at a slower rate (every 10 events = 1/second)
 				comms_event_count++;
 				if(comms_event_count == 10){
 					comms_event_count = 0;
@@ -351,8 +351,8 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 					can_push_ptr->data.data_u32[0] = DEVICE_SERIAL;
 					can_push();		
 				}
-			}
-		}
+			} // End of if(events & EVENT_CONNECTED)
+		} // End of if(events & EVENT_COMMS) // Every 100 ms
 			
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -404,7 +404,7 @@ fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debuggi
 						}
 						break;
 				}
-			}
+			} // End of if(can.status == CAN_OK)
 			if(can.status == CAN_RTR){
 				// Remote request packet received - reply to it
 				switch(can.identifier){
@@ -443,7 +443,7 @@ fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debuggi
 						can_push();
 						break;
 				}
-			}
+			} // End of if(can.status == CAN_RTR)
 			if (can.status == CAN_ERROR) {
 				if (can.identifier == 0x0002) {
 					// Wake up CAN controller
@@ -452,7 +452,7 @@ fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debuggi
 				// Comment out for now: will always get CAN errors
 				// fault();		// MVE: see the CAN error in fault light
 			}
-		}
+		} // End of if((P2IN & CAN_INTn) == 0x00)
 		
 		// Check sleep mode requests
 /*		if(events & EVENT_REQ_SLEEP){

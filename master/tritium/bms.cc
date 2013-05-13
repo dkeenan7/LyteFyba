@@ -136,8 +136,20 @@ bool bmu_sendVoltReq()
 	return bmu_sendPacket(cmd);
 }
 
+// Send bus current setpoint on CAN bus to wavesculptor immediately.
+// For cell protection.
+void can_transmitBusCurrent(float bus_current)
+{
+	can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
+	can_push_ptr->status = 8;
+	can_push_ptr->data.data_fp[1] = bus_current;
+	can_push_ptr->data.data_fp[0] = 0.0;
+	can_push();
+	can_transmit();
+}
+
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
-void can_sendCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
+void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 								unsigned int bmu_min_id, unsigned int bmu_max_id)
 {
 	// We have the min and max cell voltage information. Send a CAN packet so the telemetry
@@ -256,12 +268,11 @@ if (switches & SW_IGN_START) {
 	}
 	else {
 		// Not charging, assume driving.
-		// Map frac -1.0 .. almost +1.0 to float 0.0 .. 1.0
-		// Use 65534 (= 32767 *2) to allow full power with output = 0x7FFF (= almost 1.0 or 32767)
-		command.bus_current = output / 65534.0F + 0.5F;
+		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
+		can_transmitBusCurrent(((float)output + 32769.0F) / 65536.0F);
 	}
-//can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-can_sendCellMaxMin((int)(cellv*1000.), stress*1000+(int)(command.bus_current*100.),
+//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+can_queueCellMaxMin((int)(cellv*1000.), stress*1000+(int)(command.bus_current*100.),
   (int)(pot*100.), (status & 0x60)>>5);	// Debugging: stress and mask bits etc.
 }
 }
@@ -389,7 +400,7 @@ void bmu_processPacket()
 			if (bmu_id >= NUMBER_OF_BMUS) {
 				// We have the min and max information. Send a CAN packet so the telemetry
 				//	software can display them.
-				can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+				can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
 			}
 			// Move to the next BMU, only if packet valid
 			if (++bmu_curr_cell > NUMBER_OF_BMUS)
