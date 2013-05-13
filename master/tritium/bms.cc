@@ -169,7 +169,8 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	return result;
 }
 
-#define min(x, y) ((x<y)?x:y)	// FIXME: debugging only
+#define max(x, y) (((x)>(y))?(x):(y))	// FIXME: debugging only
+#define min(x, y) (((x)<(y))?(x):(y))
 
 void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fBatteryCurrent)
 {
@@ -183,13 +184,18 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 	bValid = stressTable[stress] == encoded;
 
 // FIXME: for now, read some swithes to see if we want to fake BMU sress
-if (switches & SW_IGN_START)
-	stress = min(0, 7*fBatteryCurrent/(ADC12MEM1/4096.*300.));
-else if (switches & SW_BRAKE)
-	stress = min(0, -7*fBatteryCurrent/(ADC12MEM1/4096.*20.));		
+{	
+float pot=0, cellv=0;
+if (switches & SW_IGN_START) {
+ pot = ADC12MEM1/4095.0;	// 0 .. 1.0
+ cellv=3.30-fBatteryCurrent*pot*0.1;		// Full pot represent 100mR per cell internal resistance
+ if (cellv < 3.30)
+	 stress = max(0, (int)((2.50-cellv)/.04));
+ else
+	 stress = max(0, (int)((cellv-3.50)/.01));
+ stress = min(15, stress);
+}
 
-//can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-can_sendCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and mask bits
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_END_CHARGE)
@@ -254,6 +260,10 @@ can_sendCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress 
 		// Use 65534 (= 32767 *2) to allow full power with output = 0x7FFF (= almost 1.0 or 32767)
 		command.bus_current = output / 65534.0F + 0.5F;
 	}
+//can_sendCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+can_sendCellMaxMin((int)(cellv*1000.), stress*1000+(int)(command.bus_current*100.),
+  (int)(pot*100.), (status & 0x60)>>5);	// Debugging: stress and mask bits etc.
+}
 }
 
 // Read incoming bytes from BMUs

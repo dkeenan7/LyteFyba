@@ -46,12 +46,16 @@ NBYPLEV		EQU		3560		; Near bypass (charge termination) threshold in mV. Stress 5
 BYPLEV		EQU		3570		; Bypass threshold in millivolts. Corresp. to stress 6/7 threshold
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
 // OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
-OV_ZERO		EQU		3500		; Threshold in mV between OV stress levels -1 and 0
+//OV_ZERO		EQU		3500		; Threshold in mV between OV stress levels -1 and 0
+//OV_STEP		EQU		10			; mV difference between one OV stress level and the next
+OV_ZERO		EQU		3400		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		10			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 40 mV below 2.500 V, to a maximum of 15 at <= 1.90 V
 // UV setpoint is 2.18 to 2.22 V. Alarm at 2.06 V.
-UV_ZERO		EQU		2500		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+//UV_ZERO		EQU		2500		; Threshold in mV between UV stress levels -1 and 0
+//UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+UV_ZERO		EQU		3100		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
