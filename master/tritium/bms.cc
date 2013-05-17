@@ -72,6 +72,23 @@ pid pidCharge(						// State for the PID control algorithm for charge current
 		// and allows current to occasionally reach 0.3 A via a single tick spent at stress 8.
 		0);							// Initial "measure"
 
+pid pidDrive(						// State for the PID control algorithm for charge current
+//		(int)((7.0/16.0) * 4096),	// Set point will be 7.0 out of 16.0, left shifted by 12 bits
+		(int)(1.164*256/4),			// Kp as s7.8 fixed-point
+		// Proportional gain of (0.4/5.5)/(1/16) = 4 * 16/55 = 1.164 means that a change of
+		// 1 stress level will cause a change of 0.4 A. With this Kp, 0.4 A is the lowest non-zero
+		// current that can be stable (except that we can achieve 0.3 A occasionally thanks to Kd).
+		// If Kp was any larger we would not be able to achieve a stable 0.4 A (except occasionally
+		// thanks to Kd). 0.4 A is the BMUs' typical bypass current.
+		(int)(0.291*256/4),		// Ki as s7.8 fixed-point
+		// Integral gain of (0.1/5.5)/(1/16) = 16/55 = 0.291 means that when the stress is 1 level
+		// away from the setpoint, the requested current will change by 0.1 A per tick.
+		// 0.1 A is the minimum change that the TC charger can make.
+		(int)(-0.582*256/4),			// Kd as s7.8 fixed-point
+		// Setting Kd to negative half Kp spreads the current steps due to Kp over two ticks,
+		// and allows current to occasionally reach 0.3 A via a single tick spent at stress 8.
+		0);							// Initial "measure"
+
 bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
 	assert2(sz <= BMU_RX_BUFSZ, "bmu::queue buffer size");
 };
@@ -186,34 +203,20 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 
 void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fBatteryCurrent)
 {
+#define SET_POINT 7 // stress level
 	int current, output;
 	int stress = status & 0x0F;			// Isolate stress bits
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
-#define SET_POINT 7 // stress level
 
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
-
-// FIXME: for now, read some swithes to see if we want to fake BMU sress
-{	
-float pot=0, cellv=0;
-if (switches & SW_IGN_START) {
- pot = ADC12MEM1/4095.0;	// 0 .. 1.0
- cellv=3.30-fBatteryCurrent*pot*0.1;		// Full pot represent 100mR per cell internal resistance
- if (cellv < 3.30)
-	 stress = max(0, (int)((2.50-cellv)/.04));
- else
-	 stress = max(0, (int)((cellv-3.50)/.01));
- stress = min(15, stress);
-}
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_END_CHARGE)
 			return;
 
-//		if (status & 0x20) { chgr_off(); return; } // Stop when all near bypass
 		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all-near-bypass
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 				// Terminate charging
@@ -223,22 +226,19 @@ if (switches & SW_IGN_START) {
 		}
 		else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 			--chgr_bypCount;					// Saturate at zero
-	}
-
-
-	if (bValid) {
-		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
-		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-	}
-	else {
-		// We have to insert a dummy measurement tick so the derivatives still work
-		// Uses the last known good measurement = set_point - prev_error
-		output = pidCharge.tick();
-	}
+		
+		if (bValid) {
+			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+			output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+		}
+		else {
+			// We have to insert a dummy measurement tick so the derivatives still work
+			// Uses the last known good measurement = set_point - prev_error
+			output = pidCharge.tick();
+		}
 	
-	if (bCharging) {
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
@@ -266,16 +266,26 @@ if (switches & SW_IGN_START) {
             bmu_sendPacket((const unsigned char*)"\\F\r\n");
 #endif
 	}
-	else {
-		// Not charging, assume driving.
+	else { // Not charging, assume driving.
+		if (bValid) {
+			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+			output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+		}
+		else {
+			// We have to insert a dummy measurement tick so the derivatives still work
+			// Uses the last known good measurement = set_point - prev_error
+			output = pidDrive.tick();
+		}
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 		can_transmitBusCurrent(((float)output + 32769.0F) / 65536.0F);
-	}
-//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-can_queueCellMaxMin((int)(cellv*1000.), stress*1000+(int)(command.bus_current*100.),
-  (int)(pot*100.), (status & 0x60)>>5);	// Debugging: stress and mask bits etc.
-}
-}
+	} // End of else not charging
+
+	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+	can_queueCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and comms error bits etc.
+} // End of handleBMUstatusByte()
+
 
 // Read incoming bytes from BMUs
 void readBMUbytes(/* FIXME */unsigned int switches, float fBatteryCurrent)
