@@ -285,7 +285,7 @@ void handleBMUstatusByte(unsigned char status)
 		
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 		float fLocalCurLim = ((float)output + 32769.0F) / 65536.0F;
-		fLocalCurLim = (fLocalCurLim + LIMP_CURR) * (1 - LIMP_CURR);	// Scale to LIMP .. 1.0
+		fLocalCurLim = fLocalCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
 		can_transmitLocalCurrent(fLocalCurLim);
 		can_transmitBusCurrent(min(fLocalCurLim, fRemoteCurLim));
 	} // End of else not charging
