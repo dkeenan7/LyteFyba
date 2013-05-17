@@ -27,7 +27,7 @@
 #define __PEDAL_H_
 
 // Public function prototypes
-extern void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm);
+void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm);
 
 // Public variables
 typedef struct _command_variables {
@@ -46,6 +46,8 @@ extern command_variables command;
 #define FAULT_ACCEL_MISMATCH	0x04
 #define FAULT_REGEN_LOW			0x10
 #define FAULT_REGEN_HIGH		0x20
+#define HAVE_PEDAL				0x40
+
 
 // Command parameter limits
 #define CURRENT_MAX				1.0					// %, absolute value
@@ -58,11 +60,11 @@ extern command_variables command;
 // Channel A = 0.00 to 5.00 Volts = 0 to 4096 counts
 // Channel B = Unused
 #define ADC_MAX					4096
-#define PEDAL_TRAVEL_MIN		200
-#define PEDAL_TRAVEL_MAX		(ADC_MAX - 200)
+#define PEDAL_TRAVEL_MIN		200				// FIXME: measure actual travel
+#define PEDAL_TRAVEL_MAX		(ADC_MAX - 200)	// FIXME: as above
 #define PEDAL_TRAVEL			(PEDAL_TRAVEL_MAX - PEDAL_TRAVEL_MIN)
-#define PEDAL_ERROR_MIN			0
-#define PEDAL_ERROR_MAX			(ADC_MAX - 0)
+#define PEDAL_ERROR_MIN			(PEDAL_TRAVEL_MIN >> 1)
+#define PEDAL_ERROR_MAX			((ADC_MAX + PEDAL_TRAVEL_MAX) >> 1)
 #define PEDAL_MISMATCH_MAX		100
 
 // Analog input for linear slider type pot for regenerative strenght control

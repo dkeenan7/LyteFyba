@@ -2,21 +2,21 @@
  * Tritium MCP2515 CAN Interface
  * Copyright (c) 2012, Tritium Pty Ltd.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without modification, 
+ * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
  *  - Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer 
+ *	- Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
  *	  in the documentation and/or other materials provided with the distribution.
- *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products 
+ *	- Neither the name of Tritium Pty Ltd nor the names of its contributors may be used to endorse or promote products
  *	  derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
  * IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
- * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
- * OF SUCH DAMAGE. 
+ * OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
  *
  */
 
@@ -317,14 +317,13 @@ char can_transmit( void )
 }
 
 /*
- * Puts a CAN message on the queue
+ * Puts a CAN message on the front of the queue
  */
 void can_push( void )
 {
 	can_push_ptr++;
 	if(can_push_ptr == ( canq + CAN_BUF_LEN )) can_push_ptr = canq;
 }
-
 
 /*
  * Abort all pending transmissions
@@ -381,7 +380,7 @@ void can_reset( void )
 	usci_transmit( MCP_RESET );
 	can_deselect;
 }
- 
+
 /*
  * Reads data bytes from the MCP2515
  *	- Pass in starting address, pointer to array of bytes for return data, and number of bytes to read
@@ -521,7 +520,7 @@ unsigned char can_read_filter( void )
 	can_deselect;
 	return status;
 }
- 
+
 /*
  * Modifies selected register in MCP2515
  *	- Pass in register to be modified, bit mask, and bit data
