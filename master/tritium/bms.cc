@@ -35,6 +35,10 @@ volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
 unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
 bool bCharging = FALSE;					// Whether we are in charge mode
+// Static globals
+static unsigned int bmuStatusTimeout = 0;	// Counts timer ticks with no status byte received
+static unsigned int bmuFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
+
 // Stress table with check bits
 static int stressTable[16] = {
 			(1<<4) + 0,		// Stress 0   $10
@@ -165,6 +169,17 @@ void can_transmitBusCurrent(float bus_current)
 	can_transmit();
 }
 
+// Send local bus current limit on CAN bus to other DCU immediately, so it will send our current limit
+// in place of its own, if ours is lower. For cell protection.
+void can_transmitLocalCurrent(float bus_current)
+{
+	can_push_ptr->identifier = DC_CAN_BASE + DC_LOC_CUR_LIM;
+	can_push_ptr->status = 4;
+	can_push_ptr->data.data_fp[0] = bus_current;
+	can_push();
+	can_transmit();
+}
+
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
 void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 								unsigned int bmu_min_id, unsigned int bmu_max_id)
@@ -201,7 +216,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 #define max(x, y) (((x)>(y))?(x):(y))	// FIXME: debugging only
 #define min(x, y) (((x)<(y))?(x):(y))
 
-void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned int switches, float fBatteryCurrent)
+void handleBMUstatusByte(unsigned char status)
 {
 #define SET_POINT 7 // stress level
 	int current, output;
@@ -211,6 +226,8 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
+	if (!bValid)
+		stress = 8;				// Treat invalid status byte as most minor dis-stress
 
 	if (bCharging) {
 		// FIXME: not handling comms error bit yet
@@ -226,18 +243,12 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 		}
 		else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 			--chgr_bypCount;					// Saturate at zero
-		
-		if (bValid) {
-			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
-			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-			output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-		}
-		else {
-			// We have to insert a dummy measurement tick so the derivatives still work
-			// Uses the last known good measurement = set_point - prev_error
-			output = pidCharge.tick();
-		}
+
+
+		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
 	
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
@@ -267,19 +278,16 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 #endif
 	}
 	else { // Not charging, assume driving.
-		if (bValid) {
-			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
-			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-			output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-		}
-		else {
-			// We have to insert a dummy measurement tick so the derivatives still work
-			// Uses the last known good measurement = set_point - prev_error
-			output = pidDrive.tick();
-		}
+		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+		output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+		
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
-		can_transmitBusCurrent(((float)output + 32769.0F) / 65536.0F);
+		float fLocalCurLim = ((float)output + 32769.0F) / 65536.0F;
+		fLocalCurLim = (fLocalCurLim + LIMP_CURR) * (1 - LIMP_CURR);	// Scale to LIMP .. 1.0
+		can_transmitLocalCurrent(fLocalCurLim);
+		can_transmitBusCurrent(min(fLocalCurLim, fRemoteCurLim));
 	} // End of else not charging
 
 	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
@@ -288,11 +296,13 @@ void handleBMUstatusByte(unsigned char status /* FIXME: debug only!*/ ,unsigned 
 
 
 // Read incoming bytes from BMUs
-void readBMUbytes(/* FIXME */unsigned int switches, float fBatteryCurrent)
+void readBMUbytes()
 {	unsigned char ch;
 	while (	bmu_rx_q.dequeue(ch)) {				// Get a byte from the BMU receive queue
 		if (ch >= 0x80) {
-			handleBMUstatusByte(ch /* FIXME*/ ,switches, fBatteryCurrent);
+			handleBMUstatusByte(ch);
+			bmuStatusTimeout = 0;		// Reset timeout counter
+			bmuFakeStatusCtr = 0;		// Ensure fake status is sent immediately on timeout
 		} else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
@@ -431,16 +441,13 @@ void bmu_timer() {
 			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
-#if USE_VOLT_REQ
-	if (--bmu_vr_count == 0) {
-		bmu_vr_count = BMU_VR_SPEED;
-		// Reset the min/max data
-		bmu_min_mV = 9999;	bmu_max_mV = 0;
-		bmu_min_id = 0;		bmu_max_id = 0;
-		bmu_curr_cell = 1;
-		bmu_sendVoltReq();						// Initiate a chain of voltage requests
+	if (++bmuStatusTimeout >= BMU_STATUS_TIMEOUT)
+	{
+		bmuStatusTimeout = BMU_STATUS_TIMEOUT;	// Don't allow overflow
+		if (bmuFakeStatusCtr == 0)
+			handleBMUstatusByte(0x88);			// Fake status with stress of 8 (lowest distress)
+		if (++bmuFakeStatusCtr == BMU_FAKESTATUS_RATE)
+			bmuFakeStatusCtr = 0;
 	}
-#endif
 }
-
 

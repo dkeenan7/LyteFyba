@@ -60,11 +60,13 @@ void update_switches( unsigned int *state, unsigned int *difference);
 volatile unsigned int events = 0x0000;
 
 // Data from motor controller
-float motor_rpm = 0;
-float motor_temp = 0;
-float controller_temp = 0;
-float battery_voltage = 0;
-float battery_current = 0;
+float motor_rpm = 0.0;
+float motor_temp = 0.0;
+float controller_temp = 0.0;
+float battery_voltage = 0.0;
+float battery_current = 0.0;
+
+float fRemoteCurLim = 1.0;				// DC bus current limit from the other DCU, if present
 
 
 void fault() {
@@ -86,7 +88,6 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
-float fBatteryCurrent = 0.0;		// FIXME: debugging only
 	
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
@@ -129,6 +130,10 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
 	
+	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm);	// Just to detect presence of pedal
+	if (command.flags == 0)			// If no position error, i.e. pedal present
+		command.flags |= HAVE_PEDAL;
+	
 	// Init gauges
 	gauge_init();
 	
@@ -156,7 +161,9 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
 			// Update motor commands based on pedal and slider positions
-			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	// MVE: For now, pass constant regen as 3rd arg
+			if (command.flags & HAVE_PEDAL)
+				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
+				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	
 			
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
@@ -275,11 +282,11 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 			
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms
 		
-		readBMUbytes(/* FIXEM */switches, fBatteryCurrent);
+		readBMUbytes();
 		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
-		if(events & EVENT_COMMS){ // Every 100 ms
+		if ((events & EVENT_COMMS) && (command.flags & HAVE_PEDAL)) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
 
 			// Update command state and override pedal commands if necessary
@@ -361,10 +368,10 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 			// Check the status
 			if(can.status == CAN_OK){
 				// We've received a packet, so must be connected to something
-					// MVE TODO: Distinguish between connecting to other DCU and to motor controller?
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				switch(can.identifier){
+				if (command.flags & HAVE_PEDAL) {
+					switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
 						if(can.data.data_fp[1] > ENGAGE_VEL_F) events |= EVENT_FORWARD;
@@ -391,10 +398,12 @@ float fBatteryCurrent = 0.0;		// FIXME: debugging only
 						// Update battery voltage and current for fuel and power gauges
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
-fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debugging
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
+				    }
+				} else {
+				 	switch (can.identifier) {
 					case DC_CAN_BASE + DC_BOOTLOAD:
 						// Switch to bootloader
 						if (		can.data.data_u8[0] == 'B' && can.data.data_u8[1] == 'O' && can.data.data_u8[2] == 'O' && can.data.data_u8[3] == 'T'
@@ -403,9 +412,13 @@ fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debuggi
 							WDTCTL = 0x00;	// Force watchdog reset
 						}
 						break;
+					case DC_CAN_BASE + DC_LOC_CUR_LIM:
+						fRemoteCurLim = can.data.data_fp[0];
+						break;
+					}
 				}
 			} // End of if(can.status == CAN_OK)
-			if(can.status == CAN_RTR){
+			if ((can.status == CAN_RTR) && (command.flags & HAVE_PEDAL)) {
 				// Remote request packet received - reply to it
 				switch(can.identifier){
 					case DC_CAN_BASE:
@@ -450,7 +463,7 @@ fBatteryCurrent = can.data.data_fp[1];		// FIXME: save motor current for debuggi
 					can_wake();
 				}
 				// Comment out for now: will always get CAN errors
-				// fault();		// MVE: see the CAN error in fault light
+				fault();		// MVE: see the CAN error in fault light
 			}
 		} // End of if((P2IN & CAN_INTn) == 0x00)
 		
