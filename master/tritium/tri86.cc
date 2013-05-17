@@ -130,6 +130,10 @@ int main( void )
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
 	
+	// Convert potentiometer and current monitoring inputs
+	ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
+	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
+
 	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm);	// Just to detect presence of pedal
 	if (command.flags == 0)			// If no position error, i.e. pedal present
 		command.flags |= HAVE_PEDAL;
