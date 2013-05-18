@@ -94,6 +94,7 @@ int main( void )
 
 	// Initialise I/O ports
 	io_init();
+	P6OUT |= ANLG_V_ENABLE; // Turn on power to pedal
 
 	// Wait a bit for clocks etc to stabilise, and power to come up for external devices
 	// MSP430 starts at 1.8V, CAN controller need 3.3V
@@ -118,7 +119,6 @@ int main( void )
 
 	// Initialise A/D converter for potentiometer and current sense inputs
 	adc_init();
-	P6OUT |= ANLG_V_ENABLE; // Turn on power to pedal
 
 	// Initialise switch & encoder positions
 	update_switches(&switches, &switches_diff);
