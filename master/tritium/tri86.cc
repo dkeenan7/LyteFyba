@@ -118,6 +118,7 @@ int main( void )
 
 	// Initialise A/D converter for potentiometer and current sense inputs
 	adc_init();
+	P6OUT |= ANLG_V_ENABLE; // Turn on power to pedal
 
 	// Initialise switch & encoder positions
 	update_switches(&switches, &switches_diff);
