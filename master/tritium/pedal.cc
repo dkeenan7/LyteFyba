@@ -73,7 +73,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 	
 	
 	// Run command calculations only if there are no pedal faults detected
-	if(command.flags == 0x00){
+	if (command.flags == 0x00) {
 		// Scale pedal input to a 0.0 to 1.0 range
 		// Clip lower travel region of pedal input
 		if(analog_a > PEDAL_TRAVEL_MIN) pedal = (analog_a - PEDAL_TRAVEL_MIN);
