@@ -136,8 +136,8 @@ int main( void )
 	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
 	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm);	// Just to detect presence of pedal
-	if (command.flags == 0)			// If no position error, i.e. pedal present
-		command.flags |= HAVE_PEDAL;
+	if (command.flags != 0)			// If position error, i.e. pedal not present
+		command.flags |= FAULT_NO_PEDAL;
 	
 	// Init gauges
 	gauge_init();
@@ -166,7 +166,7 @@ int main( void )
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
 			// Update motor commands based on pedal and slider positions
-			if (command.flags & HAVE_PEDAL)
+			if (!(command.flags & FAULT_NO_PEDAL))
 				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
 				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	
 			
@@ -291,7 +291,7 @@ int main( void )
 		readChargerBytes();
 		
 		// Handle outgoing communications events (to motor controller)
-		if ((events & EVENT_COMMS) && (command.flags & HAVE_PEDAL)) { 	// Every 100 ms
+		if ((events & EVENT_COMMS) && !(command.flags & FAULT_NO_PEDAL)) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
 
 			// Update command state and override pedal commands if necessary
@@ -375,7 +375,7 @@ int main( void )
 				// We've received a packet, so must be connected to something
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				if (command.flags & HAVE_PEDAL) {
+				if (!(command.flags & FAULT_NO_PEDAL)) {
 					switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -423,7 +423,7 @@ int main( void )
 					}
 				}
 			} // End of if(can.status == CAN_OK)
-			if ((can.status == CAN_RTR) && (command.flags & HAVE_PEDAL)) {
+			if ((can.status == CAN_RTR) && !(command.flags & FAULT_NO_PEDAL)) {
 				// Remote request packet received - reply to it
 				switch(can.identifier){
 					case DC_CAN_BASE:
