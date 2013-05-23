@@ -92,15 +92,14 @@ int main( void )
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
 
-	// Initialise I/O ports
+	// Initialise I/O ports, including enabling the 5V supply for the pedal etc.
 	io_init();
-	P6OUT |= ANLG_V_ENABLE; // Turn on power to pedal
 
-	// Wait a bit for clocks etc to stabilise, and power to come up for external devices
-	// MSP430 starts at 1.8V, CAN controller need 3.3V
-	for(i = 0; i < 10000; i++) brief_pause(10);
+	// Wait approx 20 ms for clocks etc to stabilise, and power to come up for external devices
+	// MSP430 starts at 1.8V, CAN controller needs 3.3V, pedal needs 5V
+	for(i = 0; i < 20; i++) brief_pause(5333); // 20 ms
 
-	// Initialise clock module - internal osciallator
+	// Initialise clock module - internal oscillator
 	clock_init();
 
 	// Initialise SPI port for CAN controller (running with SMCLK)
@@ -118,6 +117,7 @@ int main( void )
 	timerB_init();
 
 	// Initialise A/D converter for potentiometer and current sense inputs
+	// Includes 20 ms wait for Vref cap to charge
 	adc_init();
 
 	// Initialise switch & encoder positions
@@ -131,14 +131,6 @@ int main( void )
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
 	
-	// Convert potentiometer and current monitoring inputs
-	ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
-	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
-
-	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm);	// Just to detect presence of pedal
-	if (command.flags != 0)			// If position error, i.e. pedal not present
-		command.flags |= FAULT_NO_PEDAL;
-	
 	// Init gauges
 	gauge_init();
 	
@@ -149,6 +141,14 @@ int main( void )
 	// Enable interrupts
 	eint();
 
+	// Convert potentiometer and current monitoring inputs
+	ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
+	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
+
+	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, 0.0);	// Just to detect presence of pedal
+	if (command.flags != 0)			// If position error, i.e. pedal not present
+		command.flags |= FAULT_NO_PEDAL;
+	
 	// Check switch inputs and generate command packets to motor controller
 	// and control charging while monitoring BMUs.
 	while(TRUE){
@@ -547,7 +547,7 @@ void io_init( void )
 	P5OUT = 0x00;
 	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
 	
-	P6OUT = 0x00;
+	P6OUT = ANLG_V_ENABLE; // Enable the 5V supply for the pedal etc.
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
 	
 	// Initialise charger and BMS UARTs
@@ -621,6 +621,9 @@ void adc_init( void )
 //	ADC12IE = BIT6;	// Some bug with this - keep using polling for the moment
 	// Enable conversions
 	ADC12CTL0 |= ENC;											
+	// Wait 20 ms for Vref capacitor to charge up.
+	unsigned int i;
+	for(i = 0; i < 20; i++) brief_pause(5333);
 }
 
 /*
