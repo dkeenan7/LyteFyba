@@ -58,7 +58,7 @@
 ; before the automatic update of infoflash that occurs only when JTAG programmed (not when BSLoaded).
 ; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
-			
+
 #define INIT_CMD_STRING '' 			// No Init commands
 ; #define INIT_CMD_STRING '254s$AD90\'fwf'	// Tell BMU 254 to write a new frequency cal value
 											// then let us measure it. Note: no update command.
@@ -178,7 +178,7 @@ TIBEnd
 ;
 ; TestICal code in main-flash.
 			ORG		IMAGE_START
-			
+
 			; Assemble any initialisation command string
 initCmdString
 			DB		INIT_CMD_STRING
@@ -192,6 +192,7 @@ initCmdString
 ; It will do this on any reset and after successfully bootstrap-loading a new monitor or TestICal or
 ; BSL-writer.
 interpretByte:
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
 			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
@@ -224,7 +225,7 @@ initialise:
 			_DO		#TIB-$200,R8
 				clr		$200-2(R8)
 			_mLOOP	#2,R8
-			
+
 			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
 			; bottom of the link voltage divider, so we can test with paralleled boards,
 			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
@@ -264,7 +265,7 @@ initialise:
 ; Miscellaneous initialisation
 ;
 ;			clr.b	TXCksum						; Clear transmit checksum
-			
+
 ;
 ; Initialise the command character (bytecode) interpreter
 ;
@@ -273,7 +274,7 @@ initialise:
 ;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
 ;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
-			
+
 ;
 ; Copy calibration data into RAM
 ;
@@ -283,7 +284,7 @@ initialise:
 ; then assume it's a new chip.
 			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG programmer is set to erase it
 			jeq		newChip			;	before downloading
-			
+
 ; It's not a new chip so check the data version number at the end of info-flash.
 			cmp.b	#DATAVERS,&infoDataVers
 			jeq		currVersBSL
@@ -294,7 +295,7 @@ unknownVersBSL
 ; so we should leave it alone and raise an error.
 			mov		#b'01010101,rERR			; 4 flashes
 			jmp		errorFlash					; Infinite loop, never returns
-			
+
 
 newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
@@ -307,8 +308,8 @@ newChip
 			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
 			jmp		interpInitCmdString
-			
-			
+
+
 currVersBSL
 ; The RAM image has the same layout as current version data, so we use a block move
 			_DO		#infoDataEnd-infoDataStart,R15 ; Prepare to move ~8 bytes
@@ -394,7 +395,7 @@ justRet		ret
 ; Takes a 16 bit pattern in rERR and repeatedly flashes the error LED in that pattern
 ; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
 ; This error processing code should be near the middle of the image.
-errorFlash:	
+errorFlash:
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer (ReadByte may have reset it)
 			; We could end up here after the DCO calibration has been set to $FFFF,
 			;	so the processor could be running very fast.
@@ -429,7 +430,7 @@ JTAGstart:	mov		#$300,SP
 			call	#initialise				; Do most of the initialisation
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
 											; vector to point to the BSL, then branch to it.
-			
+
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
@@ -457,7 +458,7 @@ JTAGstart:	mov		#$300,SP
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_OPCODETBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent	EQU		BCD( (100*freespace)/2048)
+spaceaspercent	EQU		BCD( (100*freespace)/4096)
 
 
 			ORG		$FFEC
@@ -465,7 +466,7 @@ jJTAGstart:	br		#JTAGstart		; A branch to JTAGstart, independent of IMAGE_START
 			ORG		$FFF8
 jInterpretByte br	#interpretByte	; Likewise for interpretByte
 			ORG		$FFFE			; The reset vector
-			dw		jJTAGstart		
+			dw		jJTAGstart
 ; If TestICal is JTAG-programmed then the reset vector must point directly to a TestICal entry point
 ; in main flash, instead of to the BootStrap Loader (BSL) in infoflash, because TestICal must be able
 ; to be JTAGged into a new chip which has no BSL at all.
