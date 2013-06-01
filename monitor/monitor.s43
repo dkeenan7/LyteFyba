@@ -171,6 +171,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.w	#$300,SP				; Initialize stackpointer
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
+#else
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable Watchdog Timer
 #endif
 			; Clear all variables in RAM except worstStress (and ToIN/TIB)
 			_DO		#worstStress-$200,R8
@@ -306,7 +308,7 @@ DoMeasurement:
 			clr		Rstrs					; Init present stress to zero
 			clr		Rmeas					; Init measurement causing zero stress to zero
 			mov.b	' ',Rtype				; Init type of measurement causing zero stress to blank
-			
+
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
 			_IF		_C						; If unsigned overflow
 				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
@@ -315,7 +317,7 @@ DoMeasurement:
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
 			push	R10						; Save measurement for undervoltage stress calc
-			
+
 			; Set bypass as required
 			cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to the bypass threshold
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
@@ -323,7 +325,7 @@ DoMeasurement:
 			cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
 			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 			movBits_B	R8,#ALL_NBYP,&localStatus ; Move only the #ALL_NBYP bit from R8 to &localStatus.
-			
+
 			; Calculate stress due to overvoltage
 			push	R10						; Measurement for overvoltage stress calc
 			push	#OV_STEP				; For every OV_STEP (millivolts)
@@ -341,7 +343,7 @@ DoMeasurement:
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
 			push	R10						; Save measurement for undertemperature stress calc
-			
+
 			; Calculate stress due to overtemperature
 			push	R10						; Measurement for overtemperature stress calc
 			push	#OT_STEP				; For every OT_STEP (degrees Celsius)
@@ -360,11 +362,11 @@ DoMeasurement:
 			_ELSE
 				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
-			
+
 			; Do link voltage measurement
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
-			_IF		_NE						; Only calculate link stress if not this value			
+			_IF		_NE						; Only calculate link stress if not this value
 				; Calculate stress due to excessive absolute link voltage
 				tst		R10						; Get absolute value of link voltage
 				_IF		_L
@@ -376,14 +378,14 @@ DoMeasurement:
 				push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
 				push	#'l'					; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
-			_ENDIF			
-			
+			_ENDIF
+
 			; Check for stress overflow and saturate it
 			cmp		#STRESS,Rstrs			; If the stress is worse than we can fit in status byte
 			_IF		_HS
 				mov		#STRESS,Rstrs			; Use the maximum we can fit
 			_ENDIF
-			
+
 			; Update local present stress, and worst stress for trip so far
 			mov.b	Rstrs,R8				; Copy stress. movBits_B instruction trashes its source.
 			mov.b	stressTable(R8),R8		; Encode it with checkbit
@@ -397,7 +399,7 @@ DoMeasurement:
 					mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 				_ENDIF
 			_ENDIF
-			
+
 			; Update Alarm -- local red LED and piezo
 			cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
 			CtoAllBits	Rtos
@@ -412,13 +414,13 @@ DoMeasurement:
 					; If our ID is not 1, set the comms error bit in local status
 					cmp.b	#1,&ID
 					_IF		_NE
-						bis.b	#COM_ERR,&localStatus		
+						bis.b	#COM_ERR,&localStatus
 					_ENDIF
-					
+
 					; Act as a master -- send our status
 					mov.b	&localStatus,R8
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
-					call	#TX_ByteNW					
+					call	#TX_ByteNW
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
 			ret
@@ -436,7 +438,7 @@ type	EQU		2				; The character representing the type of measurement 'v', 't', 'l
 zero	EQU		4				; The measurement corresponding to zero stress
 step	EQU		6				; The change in measurement corresp to a change of one stress level
 meas	EQU		8				; The measurement
-			
+
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
 			_IF		_GE
@@ -483,10 +485,10 @@ DoStatus:
 			and.b	#STRESS,R9				; Only stress bits in R9
 			and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
 			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
-			_IF		_EQ						
+			_IF		_EQ
 				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
 				; This will eliminate any comms error next time through DoMeasures
-				
+
 				; Check if DoMeasures may have just sent a status byte, due to a comms error
 				bit.b	#COM_ERR,&localStatus	; If no comms error
 				_IF		_Z
@@ -499,16 +501,16 @@ DoStatus:
 						mov.b	stressTable(R10),R10	; Get encoded local stress to R10
 						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
-		
+
 					; Do AND of local and incoming all_near_bypass bits
 					mov.b	&localStatus,R10		; Get local status to R10
 					bis.b	#~ALL_NBYP,R10			; Set all bits other than the all-near-bypass bit
 					and.b	R10,R8					; AND the all-near-bypass bits, others unchanged
-		
+
 					; Process incoming comms error bit.
 					; Since we received a valid status byte, there is no local
 					;	comms error, so just pass the incoming comms error bit through.
-		
+
 					; Send the possibly-updated status byte. High bit already set.
 					call	#TX_ByteNW				; Send this encoded data if buffer not full
 				_ENDIF							; End if no comms error
@@ -597,7 +599,7 @@ stressTable	DB		(1<<4) + 0			; Stress 0	$10
 			DB		(0<<4) + 13			; Stress 13	$0D
 			DB		(0<<4) + 14			; Stress 14	$0E
 			DB		(0<<4) + 15			; Stress 15	$0F
-			
+
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
 ; when asked for one.
@@ -624,7 +626,7 @@ stressTable	DB		(1<<4) + 0			; Stress 0	$10
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace	EQU		_OPCODETBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent EQU BCD( (100*freespace)/2048)
+spaceaspercent EQU BCD( (100*freespace)/4096)
 
 ;-------------------------------------------------------------------------------
 ;			Interrupt Vectors

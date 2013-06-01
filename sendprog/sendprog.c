@@ -82,7 +82,7 @@ void writeByte(const char* p) {
 
 	// Issue write.
 	if (!WriteFile(hComm, p, 1, NULL, &osWrite)) {
- 		if (GetLastError() != ERROR_IO_PENDING) { 
+ 		if (GetLastError() != ERROR_IO_PENDING) {
         	fprintf(stderr, "WriteFile to comm port failed, but isn't delayed.\n");
 		 	exit(1);
     	}
@@ -135,7 +135,7 @@ int main(int argc, char* argv[]) {
 	config.c_oflag = 0;
 	//
 	// No line processing:
-	// echo off, echo newline off, canonical mode off, 
+	// echo off, echo newline off, canonical mode off,
 	// extended input processing off, signal chars off
 	//
 	config.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
 	//
 	// Finally, apply the configuration
 	//
-	if(tcsetattr(fd, TCSAFLUSH, &config) < 0) { 
+	if(tcsetattr(fd, TCSAFLUSH, &config) < 0) {
 		printf("Error - could not set configuration\n");
 		exit(1);
 	}
@@ -173,9 +173,9 @@ int main(int argc, char* argv[]) {
 		COMMCONFIG  lpCC;
 		sprintf(sName, "\\\\.\\%s", argv[2]);
 		hComm = CreateFile(sName,
-                    GENERIC_READ | GENERIC_WRITE, 
-                    0, 
-                    0, 
+                    GENERIC_READ | GENERIC_WRITE,
+                    0,
+                    0,
                     OPEN_EXISTING,
                     FILE_ATTRIBUTE_NORMAL,
                     0);
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {
 		SetCommState(hComm, &lpCC.dcb );
 
 	}
-			
+
 #endif
 
 
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
 		stat(argv[1], &st);
 		total_len = st.st_size;
 		fread(progBuf, 1, total_len, f);
-	}	
+	}
 	printf("Read %d bytes\n", total_len);
 	fclose(f);
 
@@ -279,19 +279,19 @@ int main(int argc, char* argv[]) {
 		writeByte(pfx+i);					/* Write prefix */
     	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
 	}
-	
+
 	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSLwriter. Soon
 		the second delay can go away */
 	/* Allow extra time for bulk erase; approximately 3 characters */
 	for (k=0; k < (32+1)*DELAY; ++k);
-	/* Send the 2048-2 bytes of the binary image */
+	/* Send the 4096-2 bytes of the binary image */
 	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 3 characters */
 	for (k=0; k < (32+1)*DELAY; ++k);
-	for (u=1; u < 2048-2; ++u) {
+	for (u=1; u < 4096-2; ++u) {
 		if ((u & 0xFF) == 0xFF)
 		{
-			printf("."); 
+			printf(".");
 			fflush(stdout);
 		}
 		writeByte(progBuf+u);				/* Write byte */
