@@ -52,12 +52,15 @@
      beeper pin to find the beeper 
      frequency. Use the 'o' for 'octave' command, repeated as necessary, to place 
      the beeper frequency in one of two ranges: 1.15 to 1.4 kHz or 2.8 to 4.6 kHz. 
-     
-  j) Use 0eu<enter> to turn off the error alarm and update the calibration values.
+  j) Move the test lead to the middle pin of P3 (TX-). Use the 'f' command and read
+     the frequency. You may find it easier to use 2 or more 'f' commands so the reading
+     is stable for longer. The reading should be between 182.5 and 183.5 kHz at 20 degC
+     (185 to 186 kHz at 35 degC).   
+  k) Use 0eu<enter> to turn off the error alarm and update the calibration values.
      The u is very important otherwise all the above work will be lost.
      Ignore the strange characters emitted as following BMUs are reset as a result 
      of the u command.
-  k) Type the <ESC> key (upper left corner of keyboard). 
+  l) Type the <ESC> key (upper left corner of keyboard). 
      This cancels the previous <n>x command.
 
 8) Test break-to-reset with 1e then <Alt-b> (send break). All red LEDs should go off.

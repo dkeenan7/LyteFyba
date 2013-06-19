@@ -72,7 +72,7 @@ AL_STEP		EQU		100			; mV difference between one AL stress level and the next
 minLEDStress EQU	11			; Minimum stress to light error LED
 minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
 
-comErrTicks	EQU		3			; Minimum ticks without receiving valid status byte before
+comErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
