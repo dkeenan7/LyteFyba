@@ -1,8 +1,5 @@
 ; Contains both an outer (packet) interpreter with backspace editing
-; and a cutdown inner (bytecode) interpreter.
-; This bytecode interpreter does not allow nested bytecode definitions,
-; i.e. a command character can only be defined in machine code,
-; not as a sequence of other command characters.
+; and an inner (command character) interpreter.
 
 ;-------------------------------------------------------------------------------
 ;
@@ -28,33 +25,33 @@ DPUSH		MACRO	arg
 			mov		Rtos,Rsec
 			mov		arg,Rtos
 			ENDM
-			
+
 DPUSHb		MACRO	arg
 			mov		Rsec,Rthd
 			mov		Rtos,Rsec
 			mov.b	arg,Rtos
 			ENDM
-			
+
 DROP		MACRO
 			mov		Rsec,Rtos
 			mov		Rthd,Rsec
 			ENDM
-			
+
 TwoDROP		MACRO
 			mov		Rthd,Rtos
 			ENDM
-			
+
 SWAP		MACRO
 			xor		Rtos,Rsec
 			xor		Rsec,Rtos
 			xor		Rtos,Rsec
 			ENDM
-			
+
 DUP			MACRO
 			mov		Rsec,Rthd
 			mov		Rtos,Rsec
 			ENDM
-			
+
 OVER		MACRO
 			mov		Rsec,Rthd
 			mov		Rtop,Rsec
@@ -64,7 +61,7 @@ OVER		MACRO
 NIP			MACRO
 			mov		Rthd,Rsec
 			ENDM
-			
+
 TUCK		MACRO
 			mov		Rtos,Rthd
 			ENDM
@@ -91,7 +88,7 @@ MinusROT	MACRO
 ; Opcode-table Macros
 
 ; The opcode lookup table is in high memory.
-; It contains one word per bytecode from $21 to $7F.
+; It contains one word per command character from $21 to $7F.
 ; That word is the address of the code that implements the operation.
 
 _LOW_OPCODE	EQU	' '+1						; Lowest definable opcode is the char after space
@@ -120,26 +117,27 @@ OPCODENAM EQU	OPCODE						; Define the opcode name
 						ENDM
 
 ;-------------------------------------------------------------------------------
-; The inner (bytecode) interpreter
+; The inner (command character) interpreter
 
-; Bytecode interpreter for 7 bit bytecodes
+; Interpreter for 7 bit command characters
 _ENTER
-_NEXT	
+_NEXT
 #if WATCHDOG
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer before each bytecode is interpreted
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer before each
+										; command character is interpreted
 #endif
-		mov.b	@Rip+,Rw	; Fetch the next bytecode
-		
-		cmp.b	#_LOW_OPCODE,Rw	; Treat all undefinable bytecodes, including space,
+		mov.b	@Rip+,Rw	; Fetch the next character
+
+		cmp.b	#_LOW_OPCODE,Rw	; Treat all undefinable characters, including space,
 		jlo		NotDigit	; as literal-separator no-ops
-		
-_RUN	rla.b	Rw			; Multiply bytecode by 2
-FncOPCD mov _OPCODETBL-(_LOW_OPCODE*2)(Rw),Rw ; Use 2*bytecode to index the opcode-table to get
+
+_RUN	rla.b	Rw			; Multiply character code by 2
+FncOPCD mov _OPCODETBL-(_LOW_OPCODE*2)(Rw),Rw ; Use 2*charcode to index the opcode-table to get
 							;	the code address
 
-		cmp		#$FFFF,Rw	; Check for undefined bytecodes, either $FFFF or $0000
+		cmp		#$FFFF,Rw	; Check for undefined characters, either $FFFF or $0000
 		jge		DoUNDEF		; Note: Will fail on processors with > 32K of flash and code below $8000
-							
+
 FncLIT	tst		SR			; Check for an implied push-literal
 		jge		DoOPCD		; If there's an operand-in-progress
 							;	there's an implied LIT now
@@ -148,26 +146,26 @@ FncLIT	tst		SR			; Check for an implied push-literal
 ;		mov		Rlit,Rtos	;	operation
 		DPUSH	Rlit
 
-DoOPCD	call	Rw			; Call the machine-code implementation of the bytecode
+DoOPCD	call	Rw			; Call the machine-code implementation of the command character
 							; It must end with an RET
 		jmp		_NEXT
 
 
-DoUNDEF ; Attempt to interpret undefined bytecodes as hex/decimal digits,
+DoUNDEF ; Attempt to interpret undefined command characters as hex/decimal digits,
 		; otherwise treat them as literal-separating no-ops.
         dec		Rip			; Decrement the instruction pointer to
-		mov.b	@Rip+,Rw	;  re-fetch the bytecode
+		mov.b	@Rip+,Rw	;  re-fetch the character
         sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
-		jn		NotDigit	; Ignore undefined bytecodes below '0'
+		jn		NotDigit	; Ignore undefined characters below '0'
 		cmp.b	#$0A,Rw
 		_IF		_GE
 			cmp.b	#$17,Rw
-			jge		NotDigit ; Ignore undefined bytecodes above 'F'
+			jge		NotDigit ; Ignore undefined characters above 'F'
 			cmp.b	#$11,Rw
 			jl		NotDigit ; Ignore undefined between '9' and 'A'
 			sub.b	#'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
 		_ENDIF
-		
+
 FncPFX4 tst		SR			; Test the operand-in-progress flag
 		bis		#1<<15,SR	; Set the operand-in-progress flag
 		jn		DatMor4		; If there was no operand-in-progress
@@ -187,7 +185,7 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		_ENDIF				; Endif
 		add		Rw,Rlit		;	Add data into operand reg
 DatEnd4 jmp		_NEXT		; Endif
-		
+
 NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 		jmp		FncLIT
 
@@ -201,7 +199,7 @@ NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 ACCEPT
 		mov		&ToIN,R9
 		_CASE
-		
+
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
@@ -209,17 +207,17 @@ ACCEPT
 				_IF		_NZ				; If checksumming
 					tst.b	&RXCksum
 					_IF		_Z				; If good checksum
-						dec		R9				; Prepare to overwrite the checksum with an EXIT bytecode
+						dec		R9				; Prepare to overwrite checksum with EXIT command char
 						cmp		#TIB,R9			; Handle case of empty packet with no checksum
 						_IF		_LO
 							mov		#TIB,R9
 						_ENDIF
 				_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
 				_ENDIF					; Endif checksumming
-						mov.b	#EXIT,0(R9) 	; Overwrite checksum or carriage return with EXIT bytecode
+						mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
 						bit.b	#bDontInterpret,&intFlags
 						_IF		_Z				; If the dont-interpret flag is clear
-							mov		#TIB,Rip		; Interpret the packet as bytecode
+							mov		#TIB,Rip		; Interpret the packet as command characters
 							call	#_ENTER
 						_ENDIF					; Endif dont-interpret flag is clear
 					_ENDIF					; Endif good checksum
@@ -227,7 +225,7 @@ ACCEPT
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
 			clr.b	&RXCksum		; Clear the packet checksum
 		_ENDOF					; EndOf carriage return
-		
+
 		_OFb	#$08,R8			; Backspace editing
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
@@ -239,11 +237,11 @@ ACCEPT
 				mov		R9,&ToIN
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
-		
+
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
 			bic.b	#bDontInterpret,&intFlags ; Clear the don't interpret flag
 		_ENDOF					; EndOf escape
-		
+
 		; Default case, if not CR or BS
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
@@ -255,6 +253,6 @@ ACCEPT
 		_ENDCASE				; End Case char
 
 		ret
-		
+
 
 

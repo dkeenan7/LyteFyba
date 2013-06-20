@@ -26,7 +26,7 @@ MHz8CalB	EQU		$10FD		;	for 8 MHz
 ID			EQU		$10FE		; Address of this cell's/BMU's identification byte
 
 
-; Interpreter Register Usage (defined in BytecodeInterpreter2.s43)
+; Command Character Interpreter Register Usage (defined in CmdCharInterpreter.s43)
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
 #define		Rip		R5				// Interpreter instruction pointer
 #define		Rlit	R6				// Holds partial literals
@@ -143,7 +143,7 @@ txbuf			DS		txsz		; Transmit queue buffer
 txwr			DS		1			; Transmit queue write index
 txrd			DS		1			; Transmit queue read index
 
-; ByteCodeInterpreter2 variables
+; Command Character Interpreter variables
 
 RXCksum			DS		1			; Received packet xor checksum
 intFlags		DS		1			; Interpreter flags, bitmask definitions follow
@@ -254,7 +254,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Other ADC10 initialisation is done every time "measure" is called, to save code
 
 ;
-; Initialise the command character (bytecode) interpreter
+; Initialise the command character interpreter
 ;
 			mov		#TIB,&ToIN				; Packet pointer
 
@@ -570,9 +570,9 @@ DELAY_IF_NEEDED MACRO
 #include "serialio.s43"				// Comms routines
 #include "../common/comMisc.s43"	// Miscellaneous common functions
 #include "../common/measure.s43"	// Voltage measurement functions
-#include "../common/BytecodeInterpreter2.s43" // Cutdown bytecode interpreter. No defs in bytecode
+#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
-#include "monDefinitions.s43"		// Bytecode definitions
+#include "monDefinitions.s43"		// Command character definitions
 
 			; Encoded stress table. The stress and other information is transmitted in one status byte,
 			; with no checksum correction. To counter this, stress is encoded, so that only

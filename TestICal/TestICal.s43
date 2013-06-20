@@ -162,7 +162,7 @@ ramDataEnd
 
 TXCksum		DS		1				; Transmit checksum
 
-; ByteCodeInterpreter2 variables
+; Command Character Interpreter variables
 
 RXCksum		DS		1				; Received packet xor checksum
 intFlags	DS		1				; Interpreter flags, bitmask definitions follow
@@ -267,7 +267,7 @@ initialise:
 ;			clr.b	TXCksum						; Clear transmit checksum
 
 ;
-; Initialise the command character (bytecode) interpreter
+; Initialise the command character interpreter
 ;
 ;			clr.b	&RXCksum					; Clear the receive checksum
 ;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
@@ -318,7 +318,7 @@ currVersBSL
 
 
 interpInitCmdString
-			mov		#initCmdString,Rip			; Interpret the string as bytecode
+			mov		#initCmdString,Rip			; Interpret the string as commands
 			call	#_ENTER
 			ret									; Return from initialise
 
@@ -352,7 +352,7 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 #include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TX_Cksum
 #include "../common/measure.s43"			// ADC Measurement
 #include "../common/math.s43"				// Multiply and divide
-#include "../common/BytecodeInterpreter2.s43"
+#include "../common/CmdCharInterpreter.s43"
 
 
 ;
@@ -384,10 +384,10 @@ justRet		ret
 
 
 ; ----------------------------------------------------------------------------
-; The bootstrap loader (BSL)
+; The first bootstrap loader (BSL)
 ;
 ; This will be relocated to info-flash which starts at $1000.
-#include "bsl.s43"
+#include "BSL1.s43"
 
 
 ; ----------------------------------------------------------------------------
