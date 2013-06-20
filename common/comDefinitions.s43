@@ -1,5 +1,5 @@
 ;
-; Command character definitions common to both the monitor and BSLwriter,
+; Command character definitions common to both the monitor and TestICal,
 ; which need no customisation in either
 ;
 
@@ -9,7 +9,7 @@
 		xCODE	'\\',EXIT,_EXIT	; Slosh (backslash)
 		incd	SP			; Drop the return address within the interpreter
 		ret					; Return to whoever called the interpreter (_ENTER)
-		
+
 ; HEX ( flag -- ) ; Set the number base to hexadecimal
 
 		xCODE	'h',HEX,_HEX
@@ -63,11 +63,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			bic.b	#bDontInterpret,&intFlags ; Needed to handle _eXclusive fall-through
 		_ENDIF						; Endif
 		ret
-		
+
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
-		
+
 		xCODE	'n',emitNum,_emitNum
 #if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
@@ -175,42 +175,42 @@ _prettyPrint3:
 ; (no command letter)
 _prettyPrint:
 		push.b	&intFlags			; Save current number base
-		
+
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 		call	#TX_ByteCk			; Stops rest of packet being interpreted
-		
+
 		push	Rsec				; Save n
 		push	Rtos				; Save m
 		push	Rthd				; Save ch
-		
+
 		bic.b	#bHexOutput,&intFlags ; Set to decimal output
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
 		call	#_emitNum			; Emit the ID in decimal
-		
+
 		mov		#':',R8				; Colon separator
 		call	#TX_ByteCk
-		
+
 		pop		R8					; Restore ch (type of measurement)
 		call	#TX_ByteCk			; Transmit ch
-		
+
 		mov		#' ',R8				; Transmit a space
 		call	#TX_ByteCk
-		
+
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
 		pop.b	&intFlags			; Restore number base to print n with
 		call	#_emitNum
-		
+
 		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
-		
+
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit
-		
+
 		bic.b	#ACTLED,&P1OUT		; Set the (inverted) activity LED here to mimic old behaviour
 		ret
-		
+
 ;
 ; cellVolt ( -- )
 ; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
@@ -270,4 +270,3 @@ _prettyPrint:
 		; Select either VLOCLK (~12 kHz) or LFXT1 (unused crystal oscillator) as source for ACLK divider
 ;		pop		Rtos				; Remove operand
 		ret
-		

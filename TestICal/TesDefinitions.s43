@@ -4,7 +4,7 @@
 
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and TestICal
-												
+
 #if IMAGE_START < $F800							; Comment out if short of space
 ;
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
@@ -19,7 +19,7 @@
 		mov			R10,Rtos
 		ret
 #endif
-		
+
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
@@ -49,7 +49,7 @@ TranslateToCalAddr:
 				mov.b	R10,Rtos	; Substitute it for the address character
 			_ENDIF				; Endif match
 		ret
-		
+
 ;
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v for voltage etc) and value is n
@@ -75,7 +75,7 @@ TranslateToCalAddr:
 				call	#UMSlashMod					; Gives quotient in R9, remainder in R10
 				mov.w	R9,&ramVoltCal				; Save calibration value
 			_ENDOF
-			
+
 			_OFb	#'t',Rtos			; 't': temperature
 ;
 ; Temperature offset calibration
@@ -99,7 +99,7 @@ TranslateToCalAddr:
 				sub		Rsec,R10					; Subtract 273 and the calibration temperature
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
-			
+
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov		#LinkVChan<<12,R8
 				call	#measAndScale
@@ -152,15 +152,16 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BM
 			_ENDIF							; Endif unrecognised
 			mov.b		#' ',Rthd			; Trailing char (space)
 			jmp 	_prettyPrint			; Tail-call prettyPrint and return
-			
+
 ;
 ; Write calibration value ( n ch --- )
 ;
 ; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
 ;
-; Note: The 'fw or 'ow command can affect the CPU clock in such a way that the processor
+; Note: The 'fw command can affect the CPU clock in such a way that the processor
 ; is no longer capable of receiving commands, and needs physical access to recover.
-; So take great care. If the worst happens, JTAG the BSLwriter to set frequency calibration.
+; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
+; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
 
 			xCODE	'w',writeCalValue,_writeCalValue
 			call 	#TranslateToCalAddr
@@ -251,7 +252,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			;
 			call	#compareImage			; Compare the for1000 image with what's at 1000
 			jnz		failCompare
-			
+
 			;
 			; Compares successfully. Point the reset vector at the new BSL.
 			; No flash erase is done. It relies on only having to change 1 bits to 0 bits.
@@ -289,7 +290,7 @@ failCompare mov		#3,rERR
 		_ENDIF
 ;		DROP
 		ret
-		
+
 ;
 ; GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
@@ -298,7 +299,7 @@ failCompare mov		#3,rERR
 			mov.b	@Rtos,Rsec
 ;			mov		#3,Rtos
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits
-			
+
 ;
 ; ZtoreByte - store a byte (a la CStore) ( ch addr -- )
 ;
@@ -348,8 +349,8 @@ failCompare mov		#3,rERR
 			DROP				; Drop stack in case the code at addr uses stack arguments
 			br		R8			; Tail-call the code at addr and return
 #endif
-			
-			
+
+
 #if IMAGE_START < $F800	// Commented out if need to save space
 ;
 ; Turn on or off bypass resistors ( bool -- )
@@ -390,7 +391,7 @@ failCompare mov		#3,rERR
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
 ; output frequency by about 0.5 kHz in the same direction.
 
-doBurst		
+doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		R10
 			mov.b	#TXDp+ACTLED,&P1OUT		; activity LED initially off, TXD+ will stay high
@@ -413,7 +414,7 @@ jBurstLp	br		#burstLp				;	(alt2 3)
 ;
 			xCODE	'z',sendNulls,_sendNulls ; 'z' for send Zeros
 			mov		#100,R11					; Ensure a proper stop bit
-bitDelay	dec		R11						
+bitDelay	dec		R11
 			jnz		bitDelay				; Also clears R11 which is required by BSL WriteByte to save space
 
 			mov.b	#$00,R8					; Null to be sent

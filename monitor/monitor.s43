@@ -13,7 +13,7 @@
 
 
 
-; Addresses manually imported from the BSL-writer or TestICal. Version 6. Keep up to date!
+; Addresses manually imported from TestICal. Version 6. Keep up to date!
 InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$1094		; Calling-address to receive byte in R8
 WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
