@@ -16,14 +16,14 @@
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
-		
+
 ; Freezing is stress ( boolean -- )			; 1 when charging or regenning, 0 when driving
 			xCODE	'f',FreezeIsStress,_FreezeIsStress
 			allBitsIfZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bNotFreezeStress,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
-		
-#if IMAGE_START < $F800		// Commented out if need to save space
+
+#if PROG_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
 			mov		#'r',Rthd				; Type is Rx state
@@ -57,11 +57,11 @@
 			mov		&worstStressMeas,Rsec	; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
-		
+
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
 			clr.b	&worstStress
 			mov.b	#' ',&worstStressType
 			clr		&worstStressMeas
 			ret
-			
+

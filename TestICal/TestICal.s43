@@ -1,4 +1,4 @@
-			COL		150				; Nice wide listings
+			COL		153				; Wide listings
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
 ;
@@ -7,8 +7,6 @@
 ;
 ; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader writer for our cell-top
 ; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
-; This version is interactive; there is also the non-interactive BSLwriter that requires reassembly
-; to perform various actions, which may be required if clock frequency calibration is lost.
 ;
 ; TestICal should be the first program written to the 2kB of main-flash.
 ; This must be done using a flash programmer connected to the chip's JTAG port.
@@ -64,7 +62,7 @@
 											// then let us measure it. Note: no update command.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Common definitions such as IMAGE_START
+#include "../common/common.h"		// Common definitions such as PROG_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 
 ; ADC channel numbers
@@ -73,15 +71,15 @@ TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$6				; ADC channel number for link voltage
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
-; To get n more bits of resolution, add up 4^n samples and shift the result right by n bits.
+; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
 ; i.e. By adding up 4^n samples you get 2n more bits in the result,
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
 ; Locations in info-flash, of routines and calibration data
-; These addresses must be manually exported to the monitor and TestICal.
+; These addresses must be manually exported to the monitor.
 ; Assemble this file with listing-generation enabled, then look at the listing file
-; to determine the absolute addresses to put into the monitor and TestICal.
+; to determine the absolute addresses to put into the monitor.
 
 infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpretByte
 														; is called for initialisation
@@ -140,6 +138,7 @@ SETLOCKA	MACRO
 
 
 			ORG		$200			; Start of RAM
+bsl2state	DS		2				; Pasword recogniser state for BSL2
 #if	ADCBUF
 			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
@@ -177,7 +176,7 @@ TIBEnd
 
 ;
 ; TestICal code in main-flash.
-			ORG		IMAGE_START
+			ORG		PROG_START
 
 			; Assemble any initialisation command string
 initCmdString
@@ -236,11 +235,11 @@ initialise:
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
 
 			cmp.b	#DATAVERS,&infoDataVers
-			jnc		unknownVersBSL					; Can't handle version 5 data layout; use BSLwriter
+			jnc		unknownVersBSL			; Can't handle obsolete version 5 or earlier data layout
 			; Now running 1 MHz SMCLK for compatibility with the monitor, hence watchdog timeout now 32 ms
-			mov.b	#DIVM_1+DIVS_3,&BCSCTL2			; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
+			mov.b	#DIVM_1+DIVS_3,&BCSCTL2	; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
 			; Works for version 6 data or new chip, not other versions
-			mov.b	&info8MHzCalB,&BCSCTL1			; 8 MHz cal data from info-flash
+			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz cal data from info-flash
 			mov.b	&info8MHzCalD,&DCOCTL
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
@@ -456,17 +455,29 @@ JTAGstart:	mov		#$300,SP
 ;	Output format: raw-binary
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
-freespace		EQU		_OPCODETBL-$
+freespace		EQU		_CMDCHRTBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent	EQU		BCD( (100*freespace)/4096)
 
 
-			ORG		$FFEC
-jJTAGstart:	br		#JTAGstart		; A branch to JTAGstart, independent of IMAGE_START
-			ORG		$FFF8
-jInterpretByte br	#interpretByte	; Likewise for interpretByte
-			ORG		$FFFE			; The reset vector
-			dw		jJTAGstart
+;---------------------------------------------------------------------------------
+; Interrupt and entry-point jump table at the end of the second-last flash segment
+;---------------------------------------------------------------------------------
+				ORG		$FDEE
+jJTAGstart		br		#JTAGstart		; A branch to JTAGstart, independent of PROG_START
+jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
+jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+				reti					; Not used
+jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
+				reti					; Not used
+				ORG		$FDFF
+Prog_checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+
+
+#include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
+
+				ORG		$FFFE			; The reset vector
+				DW		jJTAGstart
 ; If TestICal is JTAG-programmed then the reset vector must point directly to a TestICal entry point
 ; in main flash, instead of to the BootStrap Loader (BSL) in infoflash, because TestICal must be able
 ; to be JTAGged into a new chip which has no BSL at all.
@@ -478,4 +489,4 @@ jInterpretByte br	#interpretByte	; Likewise for interpretByte
 ; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
 ; We are guaranteed to be able to write it to $1000, since jJTAGstart has a 1 in the same position
 ; as $1000 does. This means that JTAGstart is no longer constrained to be at or above $F000.
-			END
+				END

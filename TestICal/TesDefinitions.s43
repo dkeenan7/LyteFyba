@@ -5,7 +5,7 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and TestICal
 
-#if IMAGE_START < $F800							; Comment out if short of space
+#if PROG_START < $F800							; Comment out if short of space
 ;
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
 ; "channel" has channel number shifted left 12 bits.
@@ -267,7 +267,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 failCompare mov		#3,rERR
 			jmp		errorFlash
 
-#if IMAGE_START < $F800			// Commented out when need to save space
+#if PROG_START < $F800			// Commented out when need to save space
 ;
 ; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
 ; When testing with BMUs powered up in parallel, link inputs are at +3.6 V.
@@ -308,7 +308,7 @@ failCompare mov		#3,rERR
 			ret
 #endif
 
-#if IMAGE_START < $F800		// Commented out if need to save space
+#if PROG_START < $F800		// Commented out if need to save space
 ;
 ; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
 ;
@@ -319,7 +319,7 @@ failCompare mov		#3,rERR
 			jmp		_prettyPrint
 #endif
 
-#if 0 && IMAGE_START < $F800		// Commented out if need to save space
+#if 0 && PROG_START < $F800		// Commented out if need to save space
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;
@@ -351,7 +351,7 @@ failCompare mov		#3,rERR
 #endif
 
 
-#if IMAGE_START < $F800	// Commented out if need to save space
+#if PROG_START < $F800	// Commented out if need to save space
 ;
 ; Turn on or off bypass resistors ( bool -- )
 ;
