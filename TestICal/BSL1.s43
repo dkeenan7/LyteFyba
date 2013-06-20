@@ -2,7 +2,7 @@
 ; The first bootstrap loader (BSL1)
 ;
 ; This file is included by TestICal.s43.
-; This code will be relocated to info-flash which starts at $1000.
+; This code will be relocated to info-flash which starts at $1000. This code is called on reset.
 
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
 BaudRate	EQU		9600			; Serial comms rate in bits per second
@@ -68,31 +68,30 @@ FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to
 			dec		Rstate
 			jn		progByte		; If state is negative, program, don't interpret
 
-			; Check for a continuing password match
-;			cmp.b	infoPWtable(Rstate),R8	; Address adjusted for BSL's relocation to info-flash
+			; Check for a continuing password match $04 $03 $02 $01
 			cmp.b	Rstate,R8		; Made expected password character equal to Rstate to save space
 			jne		resetFSM
 			tst		Rstate
 			jnz		FSMloop
 
-			; Erase main flash memory
-			; Master will need to delay at least 33 ms before sending first byte to program.
+			; Erase last segment of main flash memory
+			; Master will need to delay at least 16 ms before sending first byte to program.
 			;
 mainBSLErase:
-			dint					; Main-flash has probably turned on interrupts; can't have them now
+			dint					; The main-flash program has probably turned on interrupts
+									; Can't risk an interrupt while the vectors are erased
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-			mov		#BSL_IMAGE_START+2,R12	; Start of image in main flash +2.
-											; The +2 saves a 2-word compare at the end
-; FIXME: we are using a bulk erase here; eventually need a loop to erase only part of flash space
-			mov		#FWKEY+MERAS,&FCTL1 ; Enable bulk segment erase
-			rra		@R12				; Dummy write: erase segments
+			mov		#BSL2_START+2,R12	; Start of BSL2 image in main flash +2.
+										; The +2 saves a 2-word compare at the end
+			mov		#FWKEY+ERASE,&FCTL1 ; Enable single segment erase
+			rra		@R12			; Dummy write: erase segment
 
 			; Immediately replace reset vector to this boot loader
 			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
-			mov		#$1000,&$FFFE	; Write reset vector to point to start of info-flash (start of BSL)
+			mov		#$1000,&$FFFE	; Write reset vector to point to start of info-flash (start of BSL1)
 			clr.b	Rcksum			; Initialise the checksum to 0
 
 			; Assume a bad checksum, clear on good checksum.
@@ -124,7 +123,7 @@ progByte	mov.b	R8,-2(R12)		; Program it
 ;
 ReadByte:
 ; We used to hold the watchdog timer here, and enable but clear the watchdog after the start bit was
-; detected; this speeds up the start bit detection by 5 cycles (from 11 now). This is the best way to
+; detected; this sped up the start bit detection by 5 cycles (11 now). This is the best way to
 ; do it, but we just don't have the space. Now that we run at 4 MHz, the extra overhead is only 1.2% of
 ; a bit time.
 waitStartR							; (Number of cycles)
@@ -155,15 +154,14 @@ waitNextR	dec		R11				; (1) Delay loop
 			; But it's not needed, since we always send something before waiting for the next byte
 
 testNoInterp
-			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
-			jnz		WriteByte		; Jump around call, if set
-			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+			tst.b	&$FFFC ; &BSL2_Presence	; Test for presence of BSL2. Should be zero if present
+			jnz		WriteByte		; Jump around call, if non-zero
+			; We are about to jump to interpretByte. In case the flash is corrupted by a
 			; partial download, set the watchdog timer to the shortest interval, 64 cycles
 			; InterpretByte should set it back to the longest interval, 32k cycles
 			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-			br		#jInterpretByte	; tail-call interpretByte in main flash
-									; It must preserve at least R8, Rstate(=R15)
-									; Get there via the IMAGE_START independent vector
+			br		#BSL2_START		; tail-call BSL2 in last segment of main flash
+									; It must preserve at least R8 and Rstate(=R15)
 
 ; WriteByte ( R8 R11 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output. R11 must be clear on entry.

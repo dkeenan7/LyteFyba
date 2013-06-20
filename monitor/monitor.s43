@@ -1,4 +1,12 @@
-			COL		150			; Wide listings
+			COL		154				; Wide listings
+; Ensure you set the FET Debugger download options to erase main memory _only_,
+; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
+;
+; This software has been developed by Mike Van Emmerik and Dave Keenan for their
+; lithium battery monitoring system for high voltage electric vehicles.
+;
+; "Monitor" is the standard operating software for our cell-top
+; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -6,14 +14,14 @@
 #include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
 			LSTOUT+
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
-											// such as WATCHDOG, IMAGE_START, BSL_IMAGE_START
+											// such as WATCHDOG, PROG_START, PROG_START_FOR_BSL
 
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
 
 
-; Addresses manually imported from TestICal. Version 6. Keep up to date!
+; BSL1 (info-flash) addresses manually imported from TestICal listing. Version 6. Keep up to date!
 InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
 ReadByte	EQU		$1094		; Calling-address to receive byte in R8
 WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
@@ -108,6 +116,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; RAM allocation
 ;
 				ORG		$200			; Start of RAM. Ends at $27F
+bsl2state		DS		2			; Pasword recogniser state for BSL2
 #if	ADCBUF
 				ALIGNRAM 1
 sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
@@ -163,7 +172,7 @@ TIBEnd
 ; Must leave room for stack (about 36 bytes minimum)
 
 ;-------------------------------------------------------------------------------
-				ORG		IMAGE_START	; Reset vector points here
+				ORG		PROG_START
 ;-------------------------------------------------------------------------------
 
 interpretByte:
@@ -624,23 +633,24 @@ stressTable	DB		(1<<4) + 0			; Stress 0	$10
 ;	Output format: raw-binary
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
-freespace	EQU		_OPCODETBL-$
+freespace	EQU		_CMDCHRTBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent EQU BCD( (100*freespace)/4096)
 
-;-------------------------------------------------------------------------------
-;			Interrupt Vectors
-;-------------------------------------------------------------------------------
-			ORG		0FFF0h				; Timer A Vectors
-			DW		RX_TIOV_ISR			; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-			DW		TX_ISR				; Timer A CC0IFG (transmit compare)
+;---------------------------------------------------------------------------------
+; Interrupt and entry-point jump table at the end of the second-last flash segment
+;---------------------------------------------------------------------------------
+				ORG		$FDF0
+jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
+jRX_TIOV_ISR	br		#RX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)
+				ORG		$FDFF
+Prog_checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
 
 
-			ORG		$FFF8
-jInterpretByte:
-			br		#interpretByte		; BSL will call here expecting interpretByte
-			ORG		0FFFEh				; MSP430 RESET Vector
-			DW		0x1000				; Reset to BSL in case there is a crash
+#include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
 
+				ORG		$FFFE			; The reset vector
+				DW		$1000			; Reset to BSL1 in case there is a crash
 
-			END
+				END

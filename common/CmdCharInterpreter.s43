@@ -85,30 +85,30 @@ MinusROT	MACRO
 			ENDM
 
 ;-------------------------------------------------------------------------------
-; Opcode-table Macros
+; Command-character-table Macros
 
-; The opcode lookup table is in high memory.
+; The command-character lookup table is in high memory.
 ; It contains one word per command character from $21 to $7F.
 ; That word is the address of the code that implements the operation.
 
-_LOW_OPCODE	EQU	' '+1						; Lowest definable opcode is the char after space
+_LOW_CMDCHR	EQU	' '+1						; Lowest definable command-character is the char after space
 
-_OPCODETBL	EQU	$FFEC-(2*($80-_LOW_OPCODE))	; Table ends immediately below lowest used
-											; interrupt vector (FFEC is used for the JTAGstart "vector")
+_CMDCHRTBL	EQU	$FDEE-(2*($80-_LOW_CMDCHR))	; Table ends immediately below lowest used
+											; interrupt vector (FDEE is used for the JTAGstart "vector")
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.
 ; The name "CODE" is from Forth.
 
 
-; Assemble an opcode-table entry that has a machine-code definition.
+; Assemble a command-character-table entry that has a machine-code definition.
 
-xCODE	MACRO	OPCODE,OPCODENAM,_ADDRLBL
+xCODE	MACRO	CMDCHR,CMDCHRNAM,_ADDRLBL
 						LSTOUT-
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
-OPCODENAM EQU	OPCODE						; Define the opcode name
-		ORG		_OPCODETBL-(_LOW_OPCODE*2)+(OPCODE)*2	; Point to correct opcode-table entry
+CMDCHRNAM EQU	CMDCHR						; Define the command-character name
+		ORG		_CMDCHRTBL-(_LOW_CMDCHR*2)+(CMDCHR)*2	; Point to correct command-character-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
@@ -128,11 +128,11 @@ _NEXT
 #endif
 		mov.b	@Rip+,Rw	; Fetch the next character
 
-		cmp.b	#_LOW_OPCODE,Rw	; Treat all undefinable characters, including space,
+		cmp.b	#_LOW_CMDCHR,Rw	; Treat all undefinable characters, including space,
 		jlo		NotDigit	; as literal-separator no-ops
 
 _RUN	rla.b	Rw			; Multiply character code by 2
-FncOPCD mov _OPCODETBL-(_LOW_OPCODE*2)(Rw),Rw ; Use 2*charcode to index the opcode-table to get
+FncOPCD mov _CMDCHRTBL-(_LOW_CMDCHR*2)(Rw),Rw ; Use 2*charcode to index the command-character-table to get
 							;	the code address
 
 		cmp		#$FFFF,Rw	; Check for undefined characters, either $FFFF or $0000
