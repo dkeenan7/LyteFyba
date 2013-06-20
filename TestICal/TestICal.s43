@@ -387,7 +387,7 @@ justRet		ret
 ; The bootstrap loader (BSL)
 ;
 ; This will be relocated to info-flash which starts at $1000.
-#include "../common/bsl.s43"
+#include "bsl.s43"
 
 
 ; ----------------------------------------------------------------------------
