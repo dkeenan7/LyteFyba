@@ -51,11 +51,11 @@ for1000:	; This will be relocated to info-flash at $1000.
 
 mainLoop:							; Start of the main BSL loop
 
-			; Initialise the interpreter (or BSL-writer), if possible
+			; Initialise the monitor or TestICal or other main-flash code, if possible
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
 									;	to initialise the main-flash code
 			call	#testNoInterp-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
-mainInitRetAddr:	; Used by BSL-writer or interpreter in main flash
+mainInitRetAddr:	; Used by the monitor or TestICal or other main-flash code
 					; to tell if the byte in R8 should be echoed
 
 			; Password-checking finite-state-machine (FSM)
