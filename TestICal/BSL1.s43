@@ -1,9 +1,8 @@
 ; ----------------------------------------------------------------------------
-; The bootstrap loader (BSL)
+; The first bootstrap loader (BSL1)
 ;
-; This will be relocated to info-flash which starts at $1000.
-; This code is common to TestICal and the BSLwriter, which may still be needed
-;	occasionally if a BMU loses its frequency calibration data and it needs to be forced.
+; This file is included by TestICal.s43.
+; This code will be relocated to info-flash which starts at $1000.
 
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
 BaudRate	EQU		9600			; Serial comms rate in bits per second
