@@ -50,17 +50,19 @@ for1000:	; This will be relocated to info-flash at $1000.
 
 mainLoop:							; Start of the main BSL loop
 
-			; Initialise the monitor or TestICal or other main-flash code, if possible
+			; Initialise the monitor or TestICal or other main-flash code, if allowed
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
 									;	to initialise the main-flash code
 			call	#testNoInterp-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
 mainInitRetAddr:	; Used by the monitor or TestICal or other main-flash code
-					; to tell if the byte in R8 should be echoed
+					; to tell if the interpretByte call is for initialisation
+					; and hence if the byte in R8 should be echoed
 
 			; Password-checking finite-state-machine (FSM)
 			; After decrementing Rstate below, 3 = waiting for 1st pwd char,
 			; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
-			; 0 = waiting for last pwd char and erase if received, any negative value = program, no interpret
+			; 0 = waiting for last pwd char and erase if received,
+			; any negative value = program, no interpret
 			;
 resetFSM:	mov		#4,Rstate		; Initialise FSM: waiting for first password character
 FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
@@ -112,7 +114,8 @@ progByte	mov.b	R8,-2(R12)		; Program it
 			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
 
 			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
-			jmp		mainLoop		; Back to looking for ^B, but first send a null to interpretByte
+			jmp		mainLoop		; Back to looking for password
+									; but first make init call to BSL2
 
 			; end FSM code
 
@@ -153,8 +156,8 @@ waitNextR	dec		R11				; (1) Delay loop
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
 			; But it's not needed, since we always send something before waiting for the next byte
 
-testNoInterp
-			tst.b	&$FFFC ; &BSL2_Presence	; Test for presence of BSL2. Should be zero if present
+testNoInterp:
+			cmp.b	#8,&$FFFC ; &BSL2presence	; Test for presence of BSL2.
 			jnz		WriteByte		; Jump around call, if non-zero
 			; We are about to jump to interpretByte. In case the flash is corrupted by a
 			; partial download, set the watchdog timer to the shortest interval, 64 cycles
@@ -162,6 +165,7 @@ testNoInterp
 			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
 			br		#BSL2_START		; tail-call BSL2 in last segment of main flash
 									; It must preserve at least R8 and Rstate(=R15)
+			; ret					; Effective ret due to tail-call above
 
 ; WriteByte ( R8 R11 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output. R11 must be clear on entry.
