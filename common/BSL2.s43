@@ -145,6 +145,9 @@ freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
 				DW		jRX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTX_ISR			; Timer A CC0IFG (transmit compare)
 
+				ORG		$FFF8
+				br		#interpretByte	; Temporary so it still works with old BSL1
+
 				ORG		$FFFC			; Unused NMI vector location
 BSL2presence	DB		$08				; For BSL1 to check before calling BSL2
 BSL2checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
