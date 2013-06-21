@@ -22,17 +22,19 @@
 
 
 ; BSL1 (info-flash) addresses manually imported from TestICal listing. Version 6. Keep up to date!
-InitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
-ReadByte	EQU		$1094		; Calling-address to receive byte in R8
-WriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
-BSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a download
-VoltCal		EQU		$10F8		; Address of Voltage scale calibration word
-TempCal		EQU		$10FA		; Address of Temperature offset calibration byte
-LinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
-MHz8CalD	EQU		$10FC		; Address of frequency calibration data
-MHz8CalB	EQU		$10FD		;	for 8 MHz
-ID			EQU		$10FE		; Address of this cell's/BMU's identification byte
+infoInitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
+infoReadByte	EQU		$1094		; Calling-address to receive byte in R8
+infoWriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
+infoBSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a download
+infoVoltCal		EQU		$10F8		; Address of Voltage scale calibration word
+infoTempCal		EQU		$10FA		; Address of Temperature offset calibration byte
+infoLinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
+infoMHz8CalD	EQU		$10FC		; Address of frequency calibration data
+infoMHz8CalB	EQU		$10FD		;	for 8 MHz
+infoID			EQU		$10FE		; Address of this cell's/BMU's identification byte
 
+ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
+									; commands. TestICal uses the ram copy
 
 ; Command Character Interpreter Register Usage (defined in CmdCharInterpreter.s43)
 ;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
@@ -198,8 +200,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
-			mov.b	&MHz8CalB,&BCSCTL1		; 8 MHz DCO cal data
-			mov.b	&MHz8CalD,&DCOCTL
+			mov.b	&infoMHz8CalB,&BCSCTL1	; 8 MHz DCO cal data
+			mov.b	&infoMHz8CalD,&DCOCTL
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 
@@ -421,7 +423,7 @@ DoMeasurement:
 				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
 				_IF		_HS
 					; If our ID is not 1, set the comms error bit in local status
-					cmp.b	#1,&ID
+					cmp.b	#1,&infoID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
 					_ENDIF
@@ -562,7 +564,7 @@ DoPassword:
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		R15					; The BSL uses R15 as its FSM state variable
 			mov		#$300,SP			; Give the BSL maximum stack
-			br		#BSLErase			; Jump into the BSL to finish the download
+			br		#infoBSLErase		; Jump into the BSL to finish the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
 
@@ -644,8 +646,9 @@ spaceaspercent EQU BCD( (100*freespace)/4096)
 jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
 jRX_TIOV_ISR	br		#RX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)
-				ORG		$FDFF
-Prog_checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+				ORG		$FDFE
+ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
+ProgChecksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
 
 
 #include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
