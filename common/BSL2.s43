@@ -1,0 +1,151 @@
+; ----------------------------------------------------------------------------
+; The second bootstrap loader (BSL2)
+;
+; This file is included by monitor.s43 and TestICal.s43.
+; This code will assemble into the last main-flash segment which starts at $FE00.
+; It is called by BSL1 in info-flash.
+; It contains the reset and interrupt vectors which point to fixed locations at the end of the
+; second-last flash segment.
+
+MClock2		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
+MckPerFTGck2	EQU		(MClock2+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
+
+#define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
+
+			ORG		$FE00			; Start of the last 512 byte flash segment
+BSL2:
+			; Check to see if this is an init call (from BSL1)
+			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
+			_IF		_EQ				; If for initialisation, initialise, and return
+				call	#initBSL2
+				ret						; Return to BSL1
+			_ENDIF					; Endif call is for initialisation
+			jmp		processByte2	; Skip over the init routine below
+
+
+initBSL2:	; Initialisation
+			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch)
+			; or main program not present
+			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
+			clr.b	&IFG1			; Clear those bits ready for next time
+			_IF		_GE				; If Vcc power-up or /RST pin pulsed low
+				cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
+				_IF		_NE				; If no main program
+			_CS_SWAP				; [Make next _ENDIF apply to _IF _GE above]
+			_ENDIF					; Endif Vcc power-up or /RST pin pulsed low
+				mov.b	#WDTIFG,&IFG1	; Set watchdog int flag to indicate not to call jInterpretByte
+				_ENDIF					; Endif no main program
+mainLoop2:
+			; Pass initialisation on to main program, if allowed
+			call	#testNoInterp2
+initRetAddr2:	; Used by the monitor or TestICal or other main-flash code
+			; to tell if the interpretByte call is for initialisation
+			; and hence if the byte in R8 should be echoed
+resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
+FSMloop2:
+			ret						; Return
+			; End of initBSL2
+
+
+processByte2 ; Password-checking finite-state-machine (FSM)
+			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
+			; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
+			; 0 = waiting for last pwd char and erase if received,
+			; any negative value = program, no interpret
+			;
+			dec	&bsl2state
+			jn		progByte2		; If state is negative, program, don't interpret
+
+			; Check for a continuing password match $05 $03 $03 $01
+			mov		&bsl2state,R9
+			bis.b	#1,R9			; Expected password character is equal to &bsl2state with low bit set
+			cmp.b	R9,R8
+			jne		resetFSM2
+			tst		&bsl2state
+			jnz		FSMloop2
+
+			; Erase only those segments of main flash memory used for the main program, not the last.
+			; Master will need to delay at least 7*16 ms = 112 ms before sending first byte to program.
+			;
+mainBSLErase2:
+			dint					; The main-flash program has probably turned on interrupts
+									; Can't risk an interrupt while the vectors are erased
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck2-1),&FCTL2 ; Divides MCLK by FN+1
+			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
+
+			mov		#PROG_START_FOR_BSL+$202,R12	; Start of program image in main flash + $202.
+												; The +$202 saves a 2-word compare at the end
+			; Erase
+			mov		R12,R11			; R12 contains start of program image in main flash + $202
+eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
+			rra		-$200(R11)		; Dummy write: erase segment
+			add		#$200,R11		; Increment to next segment
+			jn		eraseLoop		; Stop when we wrap around to $0002
+
+			clr.b	Rcksum			; Initialise the checksum to 0
+
+			; Assume a bad checksum, clear on good checksum.
+			; Also prevents interpreting till the end of flash programming
+			bis.b	#WDTIFG,&IFG1
+			jmp		FSMloop2		; Read first byte to program
+
+			; Program (flash write) byte in R8
+			;
+progByte2	mov.b	R8,-2(R12)		; Program it
+			xor.b	R8,Rcksum		; Include in check-XOR
+			inc		R12
+			jnz		FSMloop2		; Repeat until R12 wraps to zero
+
+			mov		#FWKEY,&FCTL1	; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
+			tst.b	Rcksum			; Check the checksum
+			jnz		resetFSM2		; If bad checksum, leave the no interpret flag set
+
+			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
+			jmp		mainLoop2		; Back to looking for password,
+									; but first make init call to jInterpretByte
+
+			; end FSM code
+
+testNoInterp2:
+			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
+			jnz		didntInterp		; Jump around call, if set
+			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+			; partial download, set the watchdog timer to the shortest interval, 64 cycles
+			; InterpretByte should set it back to the longest interval, 32k cycles
+			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
+			br		#jInterpretByte	; tail-call interpretByte in main flash
+									; It must preserve at least R8 and bsl2state
+									; Get there via the PROG_START independent vector
+			; ret					; Effective ret to BSL1 due to tail-call above
+
+			; Set the comms error bit on any passing status bytes if we are not calling the main program
+didntInterp
+#if 0		// To be tested later
+			tst		&bsl2state
+			jn		retToBSL1		; If state is negative, we're programming
+			tst.b	R8
+			jge		retToBSL1		; If data has bit 7 clear it's not a status byte
+			bis.b	#COM_ERR,R8		; Set the comms error bit in status bytes when not programming
+#endif
+retToBSL1	ret						; Return to BSL1
+
+			; Any free last segment space is between here and the timer-A interrupt vectors
+freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
+
+; The end of the second bootstrap loader (BSL2)
+; -----------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+; Interrupt Vectors at the end of the last flash segment
+;-------------------------------------------------------------------------------
+
+				ORG		$FFF0			; Timer A Vectors
+				DW		jRX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+				DW		jTX_ISR			; Timer A CC0IFG (transmit compare)
+
+				ORG		$FFFC			; Unused NMI vector location
+BSL2presence	DB		$08				; For BSL1 to check before calling BSL2
+BSL2checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+				; The reset vector (at $FFFE) is set differently by monitor and TestICal.
