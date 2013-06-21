@@ -24,19 +24,23 @@ public:
 
 
 // Overrides
-public:
+private:
 	virtual BOOL InitInstance();
-			void UpdateTitle();
 
 // Implementation
 	afx_msg void OnAppAbout();
 	DECLARE_MESSAGE_MAP()
-public:
 	afx_msg void OnSend();
-public:
+	afx_msg void OnPasswordBSL1();
+	afx_msg void OnPasswordBSL2();
+	afx_msg void OnImageAll();
+	afx_msg void OnImageBSL2();
+	afx_msg void OnImageProgram();
 	afx_msg void OnFileOpen();
+
 public:
-	afx_msg void OnUpdateSend(CCmdUI *pCmdUI);
+			void UpdateTitle();
+			void UpdateMenu();
 
 	CArray<SSerInfo,SSerInfo&>
 					m_asiPorts;				// CArray of available serial ports
@@ -46,6 +50,10 @@ public:
 	TCHAR	m_szShortName[100];
 	BOOL	m_bFileValid;
 	int		m_nProgress;
+	// 1 for BSL1, 2 for BSL2
+	int m_password_sel;
+	// 1 for main program (all but last 512 bytes), 2 for BSL2 (last 512 bytes), 3 for all
+	int m_image_sel;
 
 
 };

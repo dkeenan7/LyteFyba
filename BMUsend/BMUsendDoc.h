@@ -43,7 +43,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnFileOpen();
-public:
+private:
 	afx_msg void OnUpdateSend(CCmdUI *pCmdUI);
 	afx_msg void OnFileMruFile(UINT uiMsgId);
 public:
@@ -52,6 +52,9 @@ public:
 	afx_msg void OnSetserial();
 public:
 	afx_msg void OnFileSaveas();
+public:
+	// Offset from the start of the image to start sending from
+	int m_start_off;
 };
 
 
