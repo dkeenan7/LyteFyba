@@ -53,13 +53,13 @@
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete, but
-; before the automatic update of infoflash that occurs only when JTAG programmed (not when BSLoaded).
+; only when JTAG programmed (not when BSLoaded) and before the automatic update of infoflash.
 ; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 
 #define INIT_CMD_STRING '' 			// No Init commands
-; #define INIT_CMD_STRING '254s$AD90\'fwf'	// Tell BMU 254 to write a new frequency cal value
-											// then let us measure it. Note: no update command.
+; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
+									// No update command is required; see above.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as PROG_START
@@ -309,7 +309,7 @@ newChip
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
 			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
-			jmp		interpInitCmdString
+			jmp		returnFromInitialise
 
 
 currVersBSL
@@ -319,9 +319,7 @@ currVersBSL
 			_mLOOP	#1,R15						; Decrement loop counter by 1, loop if non zero
 
 
-interpInitCmdString
-			mov		#initCmdString,Rip			; Interpret the string as commands
-			call	#_ENTER
+returnFromInitialise
 			ret									; Return from initialise
 
 ; End of initialise
@@ -429,6 +427,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 JTAGstart:	mov		#$300,SP
 			call	#initialise				; Do most of the initialisation
+
+			; Don't be tempted to put this inside initialise because it will lead to an
+			; infinite loop if someone puts an update command in the string
+			; because update branches to start of BSL which calls interpretByte which calls
+			; initialise again.
+			mov		#initCmdString,Rip		; Interpret the init string as commands
+			call	#_ENTER
+
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
 											; vector to point to the BSL, then branch to it.
 
