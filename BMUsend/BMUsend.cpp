@@ -16,15 +16,20 @@
 // CBMUsendApp
 
 BEGIN_MESSAGE_MAP(CBMUsendApp, CWinApp)
-	ON_COMMAND(ID_APP_ABOUT, &CBMUsendApp::OnAppAbout)
-	// Standard file based document commands
-	ON_UPDATE_COMMAND_UI(ID_SEND, &CBMUsendApp::OnUpdateSend)
+	ON_COMMAND(ID_APP_ABOUT,	&CBMUsendApp::OnAppAbout)
+	ON_COMMAND(ID_PASSWORD_BSL1,&CBMUsendApp::OnPasswordBSL1)
+	ON_COMMAND(ID_PASSWORD_BSL2,&CBMUsendApp::OnPasswordBSL2)
+	ON_COMMAND(ID_IMAGE_ALL,	&CBMUsendApp::OnImageAll)
+	ON_COMMAND(ID_IMAGE_PROGRAM,&CBMUsendApp::OnImageProgram)
+	ON_COMMAND(ID_IMAGE_BSL2,	&CBMUsendApp::OnImageBSL2)
 END_MESSAGE_MAP()
 
 
 // CBMUsendApp construction
 
 CBMUsendApp::CBMUsendApp()
+	: m_password_sel(2)
+	, m_image_sel(1)
 {
 	// TODO: add construction code here,
 	// Place all significant initialization in InitInstance
@@ -94,6 +99,8 @@ BOOL CBMUsendApp::InitInstance()
 	_tcscpy_s(m_szShortName, _T("No file loaded"));
 	EnumSerialPorts(m_asiPorts, true);
 
+	UpdateMenu();
+
 	return TRUE;
 }
 
@@ -143,10 +150,6 @@ void CBMUsendApp::OnAppAbout()
 
 
 
-void CBMUsendApp::OnUpdateSend(CCmdUI *pCmdUI)
-{
-}
-
 void CBMUsendApp::UpdateTitle()
 {
 	CString csPort;
@@ -156,3 +159,21 @@ void CBMUsendApp::UpdateTitle()
 		csPort = m_asiPorts[m_nPortIndex].strFriendlyName;
 	m_pMainWnd->SetWindowText(CString(m_szShortName) + _T(" -> ") + csPort);
 }
+
+void CBMUsendApp::UpdateMenu() {
+	CMenu* mmenu = m_pMainWnd->GetMenu();
+	CMenu* amenu = mmenu->GetSubMenu(2);		// Advanced
+	CMenu* pmenu = amenu->GetSubMenu(0);		// Advanced/password
+	pmenu->CheckMenuItem(ID_PASSWORD_BSL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+	pmenu->CheckMenuItem(ID_PASSWORD_BSL2,	MF_BYCOMMAND | ((theApp.m_password_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+	CMenu* imenu = amenu->GetSubMenu(1);		// Advanced/image
+	imenu->CheckMenuItem(ID_IMAGE_ALL,		MF_BYCOMMAND | ((theApp.m_image_sel == 3) ? MF_CHECKED : MF_UNCHECKED));
+	imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+	imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+}
+
+void CBMUsendApp::OnPasswordBSL1()	{ theApp.m_password_sel = 1; UpdateMenu(); }
+void CBMUsendApp::OnPasswordBSL2()	{ theApp.m_password_sel = 2; UpdateMenu(); }
+void CBMUsendApp::OnImageAll()		{ theApp.m_image_sel = 3; UpdateMenu();}
+void CBMUsendApp::OnImageProgram()	{ theApp.m_image_sel = 1; UpdateMenu();}
+void CBMUsendApp::OnImageBSL2()		{ theApp.m_image_sel = 2; UpdateMenu(); }

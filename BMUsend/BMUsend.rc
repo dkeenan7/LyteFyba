@@ -78,6 +78,20 @@ BEGIN
         MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
     END
+    POPUP "&Advanced"
+    BEGIN
+        POPUP "&Password"
+        BEGIN
+            MENUITEM "BSL&1",                       ID_PASSWORD_BSL1
+            MENUITEM "BSL&2",                       ID_PASSWORD_BSL2
+        END
+        POPUP "&Image"
+        BEGIN
+            MENUITEM "&All",                        ID_IMAGE_ALL
+            MENUITEM "&Program",                    ID_IMAGE_PROGRAM
+            MENUITEM "&BSL2",                       ID_IMAGE_BSL2
+        END
+    END
     POPUP "&Help"
     BEGIN
         MENUITEM "&About BMUsend...",           ID_APP_ABOUT
@@ -119,8 +133,8 @@ CAPTION "About BMUsend"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDR_MAINFRAME,IDC_STATIC,11,17,20,20
-    LTEXT           "BMUsend Version 1.1",IDC_STATIC,40,10,119,8,SS_NOPREFIX
-    LTEXT           "Copyright (C) 2011",IDC_STATIC,40,25,119,8
+    LTEXT           "BMUsend Version 1.2",IDC_STATIC,40,10,119,8,SS_NOPREFIX
+    LTEXT           "Free Software 2013",IDC_STATIC,40,25,119,8
     DEFPUSHBUTTON   "OK",IDOK,178,7,50,16,WS_GROUP
 END
 
@@ -131,8 +145,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
+ FILEVERSION 1,0,0,2
+ PRODUCTVERSION 1,0,0,2
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -147,14 +161,14 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "TODO: <Company name>"
-            VALUE "FileDescription", "TODO: <File description>"
-            VALUE "FileVersion", "1.0.0.1"
+            VALUE "CompanyName", "Coulomb & Weber"
+            VALUE "FileDescription", "Battery Management Unit download sender"
+            VALUE "FileVersion", "1.0.0.2"
             VALUE "InternalName", "BMUsend.exe"
-            VALUE "LegalCopyright", "TODO: (c) <Company name>.  All rights reserved."
+            VALUE "LegalCopyright", "Free software 2013."
             VALUE "OriginalFilename", "BMUsend.exe"
-            VALUE "ProductName", "TODO: <Product name>"
-            VALUE "ProductVersion", "1.0.0.1"
+            VALUE "ProductName", "BMUsend"
+            VALUE "ProductVersion", "1.0.0.2"
         END
     END
     BLOCK "VarFileInfo"

@@ -153,6 +153,7 @@ END_MESSAGE_MAP()
 // CBMUsendDoc construction/destruction
 
 CBMUsendDoc::CBMUsendDoc()
+: m_start_off(0)
 {
 	// TODO: add one-time construction code here
 	m_total_len = 0;
@@ -363,6 +364,22 @@ void CBMUsendDoc::ReadFile()
 		sum ^= m_fileBuf[u];
 	sum ^= m_fileBuf[m_total_len-3];      /* Remove the existing checksum */
 	m_fileBuf[m_total_len-3] = sum;       /* Now it will checksum to zero */
+
+	// Adjust m_total_len based on the image selection
+	switch (theApp.m_image_sel) {
+		case 1: 
+			m_start_off = 0;					// Start at the beginning of the image
+			m_total_len -= 512;					// Remove space for BSL2 (one flash segment = 512 bytes)
+			break;
+		case 2:
+			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
+			m_total_len = 512;
+			break;
+		case 3:
+			m_start_off = 0;
+			break;
+	}
+
 }
 
 
@@ -453,31 +470,25 @@ void CBMUsendDoc::OnSend()
     /* Now send this image to the BMUs */
     unsigned int i, u;
 
-    /* Write the prefix */
-#define PASSWORD4 1							// Non zero for the 4 byte password ^C ^B ^A ^@
-#if PASSWORD4
-#define PASSLEN (2+4)
-	unsigned char* pfx = (unsigned char*) "\x01\x01\x03\x02\x01\x00";	/* ^a^a ^C ^B ^A ^@ */
-#else
-#define PASSLEN (2+3)
-    unsigned char* pfx = (unsigned char*) "\x01\x01\x02\x01\x04";		/* ^a^a ^B ^A ^D */
-#endif
-    for (i=0; i < PASSLEN; ++i) {
-        writeByte(pfx+i);                   /* Write 2nd to 5th byte of prefix */
-		Sleep(2+1);
+    /* Write the prefix (escape and the 4-character password) */
+	unsigned char pfx[5];
+	if (theApp.m_password_sel == 1)
+		memcpy(pfx, "\x1B\x03\x02\x01\x00", 5);
+	else
+		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
+    for (i=0; i < 5; ++i) {
+        writeByte(pfx+i);
+		Sleep(1+1);
     }
 
-    /* Allow time for bulk erase (approximately 32 ms) as well as a send, echo, and flash write */
-	/* NOTE: There are two delays now, since we have two versions of the BSL at present.
-		Soon the second delay can go away */
-	Sleep(35+1);
+    /* Allow time for segment erases (approximately 15 ms per segment) */
+	Sleep((m_total_len / 512 * 16) +1);
     /* Send the length-2 bytes of the binary image */
-    writeByte(m_fileBuf);                     /* Write first byte */
-    /* Allow time for bulk erase (approximately 32 ms) as well as a send, echo, and flash write */
-	Sleep(35+1);
-    for (u=1; u < m_total_len-2; ++u) {
-        writeByte(m_fileBuf+u);               /* Write byte */
-        Sleep(3+1);        /* Time to transmit, echo, and flash write */
+    for (i=0, u=m_start_off; i < m_total_len-2; ++i, ++u) {
+        writeByte(m_fileBuf+u);         /* Write byte */
+        Sleep(2+1);						// Time to transmit, echo, and flash write (~ 0.2 ms); the 0.2 can be
+										//	part of the +1, which is because each bit is more like 1.04 ms, and
+										//	in case the clock is slow
 		if ((u & 0x3F) == 0x3F) {
 			theApp.m_nProgress = u;
 			pProg->SetFocus();			// Use the focus message to update the progress bar
@@ -531,9 +542,9 @@ void CBMUsendDoc::OnFileSaveas()
 	if (GetSaveFileName(&ofn))
 	{
 		CFile f(ofn.lpstrFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-//		f.Write("\x01""\x01""\x02""\x01""\x04", 5);		// ^a^a ^B^A^D
 		f.Write(m_fileBuf, m_total_len);
 		f.Close();
 	}
 	
 }
+

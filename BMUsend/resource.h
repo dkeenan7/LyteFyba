@@ -17,13 +17,22 @@
 #define ID_FILE_SAVEAS                  32775
 #define ID_FILE_RELOADPORTS             32776
 #define ID_RELOAD                       32777
+#define ID_ADVANCED_PASSWORD            32778
+#define ID_ADVANCED_IMAGE               32779
+#define ID_PASSWORD_BMU1                32780
+#define ID_PASSWORD_BMU2                32781
+#define ID_IMAGE_ALL                    32782
+#define ID_IMAGE_PROGRAM                32783
+#define ID_IMAGE_BSL2                   32784
+#define ID_PASSWORD_BSL1                32785
+#define ID_PASSWORD_BSL2                32786
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32778
+#define _APS_NEXT_COMMAND_VALUE         32787
 #define _APS_NEXT_CONTROL_VALUE         1002
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
