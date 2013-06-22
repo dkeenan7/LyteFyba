@@ -91,9 +91,10 @@ MinusROT	MACRO
 ; It contains one word per command character from $21 to $7F.
 ; That word is the address of the code that implements the operation.
 
-_LOW_CMDCHR	EQU	' '+1						; Lowest definable command-character is the char after space
+_LO_CMDCHR	EQU	' '+1						; Lowest definable command-character is the char after space
+_HI_CMDCHR	EQU	$7F							; Highest definable command-character is the char after space
 
-_CMDCHRTBL	EQU	$FDEE-(2*($80-_LOW_CMDCHR))	; Table ends immediately below lowest used
+_CMDCHRTBL	EQU	$FDEE-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest used
 											; interrupt vector (FDEE is used for the JTAGstart "vector")
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
@@ -108,7 +109,7 @@ xCODE	MACRO	CMDCHR,CMDCHRNAM,_ADDRLBL
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
 CMDCHRNAM EQU	CMDCHR						; Define the command-character name
-		ORG		_CMDCHRTBL-(_LOW_CMDCHR*2)+(CMDCHR)*2	; Point to correct command-character-table entry
+		ORG		_CMDCHRTBL-(_LO_CMDCHR*2)+(CMDCHR)*2	; Point to correct command-character-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
@@ -128,11 +129,13 @@ _NEXT
 #endif
 		mov.b	@Rip+,Rw	; Fetch the next character
 
-		cmp.b	#_LOW_CMDCHR,Rw	; Treat all undefinable characters, including space,
+		cmp.b	#_LO_CMDCHR,Rw ; Treat all undefinable characters, including space,
 		jlo		NotDigit	; as literal-separator no-ops
+		cmp.b	#_HI_CMDCHR+1,Rw
+		jhs		NotDigit
 
 _RUN	rla.b	Rw			; Multiply character code by 2
-FncOPCD mov _CMDCHRTBL-(_LOW_CMDCHR*2)(Rw),Rw ; Use 2*charcode to index the command-character-table to get
+FncOPCD mov _CMDCHRTBL-(_LO_CMDCHR*2)(Rw),Rw ; Use 2*charcode to index the command-character-table to get
 							;	the code address
 
 		cmp		#$FFFF,Rw	; Check for undefined characters, either $FFFF or $0000

@@ -70,7 +70,7 @@ FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to
 			dec		Rstate
 			jn		progByte		; If state is negative, program, don't interpret
 
-			; Check for a continuing password match $04 $03 $02 $01
+			; Check for a continuing password match $03 $02 $01 $00
 			cmp.b	Rstate,R8		; Made expected password character equal to Rstate to save space
 			jne		resetFSM
 			tst		Rstate
