@@ -56,9 +56,9 @@ processByte2 ; Password-checking finite-state-machine (FSM)
 			dec	&bsl2state
 			jn		progByte2		; If state is negative, program, don't interpret
 
-			; Check for a continuing password match $05 $03 $03 $01
+			; Check for a continuing password match $07 $06 $05 $04
 			mov		&bsl2state,R9
-			bis.b	#1,R9			; Expected password character is equal to &bsl2state with low bit set
+			bis.b	#4,R9			; Expected password character is equal to &bsl2state with bit 2 set
 			cmp.b	R9,R8
 			jne		resetFSM2
 			tst		&bsl2state
