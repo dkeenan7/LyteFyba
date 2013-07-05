@@ -14,6 +14,7 @@ MckPerFTGck2	EQU		(MClock2+165000)/330000	; MCLK cycles per Flash Timing Generat
 
 			ORG		$FE00			; Start of the last 512 byte flash segment
 BSL2:
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32k)
 			; Check to see if this is an init call (from BSL1)
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			_IF		_EQ				; If for initialisation, initialise, and return
@@ -24,6 +25,7 @@ BSL2:
 
 
 initBSL2:	; Initialisation
+mainLoop2:
 			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch)
 			; or main program not present
 			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
@@ -35,26 +37,34 @@ initBSL2:	; Initialisation
 			_ENDIF					; Endif Vcc power-up or /RST pin pulsed low
 				mov.b	#WDTIFG,&IFG1	; Set watchdog int flag to indicate not to call jInterpretByte
 				_ENDIF					; Endif no main program
-mainLoop2:
+
 			; Pass initialisation on to main program, if allowed
+			clr.b	R8				; A null to pass to interpretByte (if allowed)
 			call	#testNoInterp2
 initRetAddr2:	; Used by the monitor or TestICal or other main-flash code
 			; to tell if the interpretByte call is for initialisation
 			; and hence if the byte in R8 should be echoed
-resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-FSMloop2:
+			mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
+
 			ret						; Return
 			; End of initBSL2
 
 
-processByte2 ; Password-checking finite-state-machine (FSM)
+resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
+FSMloop2:
+			ret
+processByte2
+			; Pass byte in R8 on to main program, if allowed
+			call	#testNoInterp2
+
+			; Password-checking finite-state-machine (FSM)
 			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
 			; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
 			; 0 = waiting for last pwd char and erase if received,
 			; any negative value = program, no interpret
 			;
-			dec	&bsl2state
-			jn		progByte2		; If state is negative, program, don't interpret
+			dec		&bsl2state
+			jn		progByte2		; If state is negative, program, don't test for password etc.
 
 			; Check for a continuing password match $07 $06 $05 $04
 			mov		&bsl2state,R9
@@ -74,25 +84,26 @@ mainBSLErase2:
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck2-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-			mov		#PROG_START_FOR_BSL+$202,R12	; Start of program image in main flash + $202.
-												; The +$202 saves a 2-word compare at the end
+			mov		#PROG_START_FOR_BSL+$200,R12	; Start of program image in main flash + $200.
+												; The +$200 saves a 2-word compare at the end
 			; Erase
-			mov		R12,R11			; R12 contains start of program image in main flash + $202
+			mov		R12,R11			; R12 contains start of program image in main flash + $200
 eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
 			rra		-$200(R11)		; Dummy write: erase segment
 			add		#$200,R11		; Increment to next segment
-			jn		eraseLoop		; Stop when we wrap around to $0002
+			jn		eraseLoop		; Stop when we wrap around to $0000
 
+			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
 			clr.b	Rcksum			; Initialise the checksum to 0
 
 			; Assume a bad checksum, clear on good checksum.
 			; Also prevents interpreting till the end of flash programming
-			bis.b	#WDTIFG,&IFG1
+			bis.b	#WDTIFG,&IFG1 ; FIXME: MOVE ME EARLIER?
 			jmp		FSMloop2		; Read first byte to program
 
 			; Program (flash write) byte in R8
 			;
-progByte2	mov.b	R8,-2(R12)		; Program it
+progByte2	mov.b	R8,-$200(R12)		; Program it
 			xor.b	R8,Rcksum		; Include in check-XOR
 			inc		R12
 			jnz		FSMloop2		; Repeat until R12 wraps to zero
@@ -102,13 +113,18 @@ progByte2	mov.b	R8,-2(R12)		; Program it
 			tst.b	Rcksum			; Check the checksum
 			jnz		resetFSM2		; If bad checksum, leave the no interpret flag set
 
-			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
+			mov.b	#RSTIFG,&IFG1	; Good checksum, reset no interpret flag,
+									;	set RST so BSL2 will call interpretByte
+		; FIXME: need to call interpretByte with 00 for initialisation. Dave says may not want above
 			jmp		mainLoop2		; Back to looking for password,
 									; but first make init call to jInterpretByte
 
 			; end FSM code
 
 testNoInterp2:
+			; FIXME! When we transition away from BSL1, we'll have to change the below
+			call	#infoWriteByte	; Echo; interpretByte no longer does
+			bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
 			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
 			jnz		didntInterp		; Jump around call, if set
 			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
@@ -146,7 +162,7 @@ freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
 				DW		jTX_ISR			; Timer A CC0IFG (transmit compare)
 
 				ORG		$FFF8
-				br		#interpretByte	; Temporary so it still works with old BSL1
+				br		#BSL2			; Temporary so it still works with old BSL1
 
 				ORG		$FFFC			; Unused NMI vector location
 BSL2presence	DB		$08				; For BSL1 to check before calling BSL2

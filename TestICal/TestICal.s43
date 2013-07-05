@@ -202,8 +202,6 @@ interpretByte:
 			ret								; Yes, so return to ReadByte's caller (TestICal below),
 											;	without calling WriteByte (don't echo wrong ID)
 noWaitID
-			call	#WriteByte				; No, not initialise call, echo the byte, as the BSL has not
-			bis.b	#ACTLED,&P1OUT			; Turn off the (inverted) activity LED
 			call	#ACCEPT					; Process the byte
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
@@ -478,11 +476,15 @@ jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overf
 				reti					; Not used
 jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
 				reti					; Not used
+
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
 
-COM_ERR			EQU		1<<6			; Communications error bit in status byte
+;---------------------------------------------------------------------------------
+; Second bootstrap loader, in the last flash segment
+;---------------------------------------------------------------------------------
+COM_ERR			EQU		1<<6			; Communications error bit in status byte; needed by BSL2
 #include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
 
 				ORG		$FFFE			; The reset vector
