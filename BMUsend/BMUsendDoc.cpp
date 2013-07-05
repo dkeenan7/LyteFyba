@@ -153,10 +153,7 @@ END_MESSAGE_MAP()
 // CBMUsendDoc construction/destruction
 
 CBMUsendDoc::CBMUsendDoc()
-: m_start_off(0)
 {
-	// TODO: add one-time construction code here
-	m_total_len = 0;
 }
 
 CBMUsendDoc::~CBMUsendDoc()
@@ -302,7 +299,7 @@ void CBMUsendDoc::ReadFile()
 	unsigned int u;
 	if (_tcscmp(theApp.m_szShortName + _tcslen(theApp.m_szShortName)-4, _T(".hex")) == 0) {
 		theApp.m_bFileValid = false;
-		m_total_len = 0;
+		theApp.m_total_len = 0;
 		m_first_addr = (unsigned int) -1;
 
 		memset(m_fileBuf, '\xFF', 8192);
@@ -343,38 +340,21 @@ void CBMUsendDoc::ReadFile()
 			}
 			add += len;
 		} while (1);
-		m_total_len = 0xFFFF+1 - m_first_addr;		// Assume last byte will load at 0xFFFF (MSB of reset vector)
+		theApp.m_total_len = 0xFFFF+1 - m_first_addr;		// Assume last byte will load at 0xFFFF (MSB of reset vector)
 	} else
 	{	// Not a hex file; assume binary
 		// Close it and open it again in binary mode
 		f.Close();
 		f.Open(theApp.m_szFileName, CFile::modeRead | CFile::typeBinary);
-		m_total_len = (unsigned int) f.GetLength();
-		f.Read(m_fileBuf, m_total_len);
+		theApp.m_total_len = (unsigned int) f.GetLength();
+		f.Read(m_fileBuf, theApp.m_total_len);
 	}
 	f.Close();
-	if (m_total_len)
+	if (theApp.m_total_len)
 		theApp.m_bFileValid = true;		// Enables the ID_SEND green arrow
 
+	theApp.Adjust_start_and_len();
 
-	// Adjust m_total_len based on the image selection. Don't include reset vector (never sent) or the checksum byte
-	switch (theApp.m_image_sel) {
-		case 1: 
-			m_start_off = 0;					// Start at the beginning of the image
-			m_total_len -= 512+2+1;				// Remove space for BSL2 (one flash segment = 512 bytes), reset vector, and checksum byte
-			break;
-		case 2:
-			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
-			m_total_len = 512-1;				// Send only the 512 bytes of BSL2, less the 1 checksum byte
-			break;
-		case 3:
-			m_start_off = 0;
-			m_total_len -= 2+1;					// Remove reset vector, checkum byte
-			break;
-	}
-
-	// printf("Read %d bytes\n", m_total_len);
-	theApp.m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
 }
 
 
@@ -459,7 +439,7 @@ void CBMUsendDoc::OnSend()
 	CProgDlg* pProg = new CProgDlg();
 	pProg->Create(CProgDlg::IDD);
 	pProg->ShowWindow(SW_SHOW);
-	pProg->m_Bar.SetRange(0, m_total_len);
+	pProg->m_Bar.SetRange(0, theApp.m_len_to_send);
 
 
     /* Now send this image to the BMUs */
@@ -477,11 +457,11 @@ void CBMUsendDoc::OnSend()
     }
 
     /* Allow time for segment erases (approximately 15 ms per segment) */
-	Sleep((m_total_len / 512 * 16) +1);
-    /* Send the appropriate number of bytes of the binary image (excluding checksum) */
+	Sleep((theApp.m_len_to_send / 512 * 16) +1);
+    // Send the appropriate number of bytes of the binary image (excluding last byte, to be replaced with the checksum)
 	sum = 0;							// Checksum
-    for (i=0, u=m_start_off; i < m_total_len; ++i, ++u) {
-        writeByte(m_fileBuf+u);         /* Write byte */
+    for (i=0, u = theApp.m_start_off; i < theApp.m_len_to_send-1; ++i, ++u) {
+        writeByte(m_fileBuf+u);         // Write one byte
 		sum ^= m_fileBuf[u];			// Update checksum
         Sleep(2+1);						// Time to transmit, echo, and flash write (~ 0.2 ms); the 0.2 can be
 										//	part of the +1, which is because each bit is more like 1.04 ms, and
@@ -491,11 +471,11 @@ void CBMUsendDoc::OnSend()
 			pProg->SetFocus();			// Use the focus message to update the progress bar
 		}
     }
-	// Finally send the checksum byte as the very last byte (either just before the reset vector, or right at the end
+	// Finally send the checksum byte in place of the very last byte (either just before the reset vector, or right at the end
 	//	of the main program, ust before BSL2
 	writeByte(&sum);
 
-	theApp.m_nProgress = m_total_len;
+	theApp.m_nProgress = theApp.m_len_to_send;
 	pProg->SetFocus();
 
 	CloseHandle(hComm);
@@ -520,9 +500,9 @@ void CProgDlg::PostNcDestroy()
 
 void CProgDlg::OnSetFocus(CWnd* pOldWnd)
 {
-	CDialog::OnSetFocus(pOldWnd);
-
 	m_Bar.SetPos(theApp.m_nProgress);
+	CDialog::OnSetFocus(pOldWnd);
+	ShowWindow(SW_SHOW);
 }
 
 void CBMUsendDoc::OnFileSaveas()
@@ -544,7 +524,7 @@ void CBMUsendDoc::OnFileSaveas()
 	if (GetSaveFileName(&ofn))
 	{
 		CFile f(ofn.lpstrFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-		f.Write(m_fileBuf, m_total_len);
+		f.Write(m_fileBuf, theApp.m_total_len);
 		f.Close();
 	}
 	

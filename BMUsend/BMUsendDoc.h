@@ -35,8 +35,7 @@ public:
 protected:
 	unsigned char	m_fileBuf[8192];		// Binary file image
 public:
-	unsigned int	m_total_len;			// Number of bytes read into the image
-	unsigned int	m_first_addr;
+	unsigned int	m_first_addr;			// Lowest address read from the file
 
 // Generated message map functions
 protected:
@@ -52,9 +51,6 @@ public:
 	afx_msg void OnSetserial();
 public:
 	afx_msg void OnFileSaveas();
-public:
-	// Offset from the start of the image to start sending from
-	int m_start_off;
 };
 
 
