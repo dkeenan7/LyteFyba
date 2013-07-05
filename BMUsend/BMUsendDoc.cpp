@@ -251,7 +251,8 @@ void CBMUsendDoc::OnFileMruFile(UINT uiMsgId)
 }
 
 // Disgusting globals
-static unsigned int sum, add;
+static unsigned char sum;
+static unsigned int add;
 HANDLE hComm;
 
 
@@ -354,32 +355,26 @@ void CBMUsendDoc::ReadFile()
 	f.Close();
 	if (m_total_len)
 		theApp.m_bFileValid = true;		// Enables the ID_SEND green arrow
-	// printf("Read %d bytes\n", m_total_len);
-	theApp.m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
 
-	/* Calculate the checksum, and place at third last byte (first unused interrupt vector, starting at highest address,
-		after reset */
-	sum = 0;
-	for (u=0; u < m_total_len-2; ++u)          /* -2 because reset vector (last 2 bytes) is not sent */
-		sum ^= m_fileBuf[u];
-	sum ^= m_fileBuf[m_total_len-3];      /* Remove the existing checksum */
-	m_fileBuf[m_total_len-3] = sum;       /* Now it will checksum to zero */
 
-	// Adjust m_total_len based on the image selection
+	// Adjust m_total_len based on the image selection. Don't include reset vector (never sent) or the checksum byte
 	switch (theApp.m_image_sel) {
 		case 1: 
 			m_start_off = 0;					// Start at the beginning of the image
-			m_total_len -= 512;					// Remove space for BSL2 (one flash segment = 512 bytes)
+			m_total_len -= 512+2+1;				// Remove space for BSL2 (one flash segment = 512 bytes), reset vector, and checksum byte
 			break;
 		case 2:
 			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
-			m_total_len = 512;
+			m_total_len = 512-1;				// Send only the 512 bytes of BSL2, less the 1 checksum byte
 			break;
 		case 3:
 			m_start_off = 0;
+			m_total_len -= 2+1;					// Remove reset vector, checkum byte
 			break;
 	}
 
+	// printf("Read %d bytes\n", m_total_len);
+	theApp.m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
 }
 
 
@@ -483,9 +478,11 @@ void CBMUsendDoc::OnSend()
 
     /* Allow time for segment erases (approximately 15 ms per segment) */
 	Sleep((m_total_len / 512 * 16) +1);
-    /* Send the length-2 bytes of the binary image */
-    for (i=0, u=m_start_off; i < m_total_len-2; ++i, ++u) {
+    /* Send the appropriate number of bytes of the binary image (excluding checksum) */
+	sum = 0;							// Checksum
+    for (i=0, u=m_start_off; i < m_total_len; ++i, ++u) {
         writeByte(m_fileBuf+u);         /* Write byte */
+		sum ^= m_fileBuf[u];			// Update checksum
         Sleep(2+1);						// Time to transmit, echo, and flash write (~ 0.2 ms); the 0.2 can be
 										//	part of the +1, which is because each bit is more like 1.04 ms, and
 										//	in case the clock is slow
@@ -494,12 +491,17 @@ void CBMUsendDoc::OnSend()
 			pProg->SetFocus();			// Use the focus message to update the progress bar
 		}
     }
+	// Finally send the checksum byte as the very last byte (either just before the reset vector, or right at the end
+	//	of the main program, ust before BSL2
+	writeByte(&sum);
+
 	theApp.m_nProgress = m_total_len;
 	pProg->SetFocus();
 
 	CloseHandle(hComm);
 
 }
+
 
 
 void CBMUsendDoc::OnSetserial()
