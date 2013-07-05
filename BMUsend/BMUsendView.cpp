@@ -84,6 +84,9 @@ void CBMUsendView::OnPaint()
 	// Do not call CView::OnPaint() for painting messages
 	CBMUsendDoc* pDoc = GetDocument();
 	TCHAR buf[100];
-	_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("%d bytes"), pDoc->m_total_len);
+	if (pDoc->m_total_len == 0)
+		wcscpy_s(buf, sizeof(buf)/sizeof(TCHAR), _T("No file loaded"));
+	else
+		_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("%d (%Xh) bytes"), pDoc->m_total_len+1, pDoc->m_total_len+1);	// +1 for the checksum byte
 	dc.TextOut(5,5, buf, (int)_tcslen(buf));
 }
