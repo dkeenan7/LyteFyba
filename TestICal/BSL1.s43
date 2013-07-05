@@ -113,7 +113,8 @@ progByte	mov.b	R8,-2(R12)		; Program it
 			tst.b	Rcksum			; Check the checksum
 			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
 
-			bic.b	#WDTIFG,&IFG1	; Good checksum, reset no interpret flag
+			mov.b	#RSTIFG,&IFG1	; Good checksum, reset no interpret flag,
+									;	set RST so BSL2 will call interpretByte
 			jmp		mainLoop		; Back to looking for password
 									; but first make init call to BSL2
 

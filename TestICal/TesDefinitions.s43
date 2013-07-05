@@ -262,6 +262,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
+			bis.b	#RSTIFG,&IFG1			; BSL2 expects real reset, so fake one
 			br		#$1000					; Start the new BSL
 
 failCompare mov		#3,rERR
