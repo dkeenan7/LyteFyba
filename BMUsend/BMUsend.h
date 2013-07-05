@@ -41,6 +41,7 @@ private:
 public:
 			void UpdateTitle();
 			void UpdateMenu();
+			void Adjust_start_and_len();	// Adjust the start offset and length to send
 
 	CArray<SSerInfo,SSerInfo&>
 					m_asiPorts;				// CArray of available serial ports
@@ -54,6 +55,11 @@ public:
 	int m_password_sel;
 	// 1 for main program (all but last 512 bytes), 2 for BSL2 (last 512 bytes), 3 for all
 	int m_image_sel;
+
+	unsigned int	m_total_len;			// Number of bytes read into the image
+	unsigned int	m_len_to_send;			// Number of bytes to send (including checksum)
+		// The checksum replaces the last byte of the image that would otherwise have been sent
+	int m_start_off;						// Offset from the start of the image to start sending from
 
 
 };

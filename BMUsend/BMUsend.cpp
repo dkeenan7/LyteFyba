@@ -30,10 +30,11 @@ END_MESSAGE_MAP()
 CBMUsendApp::CBMUsendApp()
 	: m_password_sel(2)
 	, m_image_sel(1)
+	, m_start_off(0)
+	, m_total_len(0)
+	, m_len_to_send(0)
+	, m_nPortIndex(0)
 {
-	// TODO: add construction code here,
-	// Place all significant initialization in InitInstance
-	m_nPortIndex = 0;
 }
 
 
@@ -160,6 +161,28 @@ void CBMUsendApp::UpdateTitle()
 	m_pMainWnd->SetWindowText(CString(m_szShortName) + _T(" -> ") + csPort);
 }
 
+void CBMUsendApp::Adjust_start_and_len() {
+	// Calculate start offset and length to send based on the image selection. In the length to send, don't include
+	//	reset vector (never sent) but do include the checksum (not sent from the image)
+	switch (m_image_sel) {
+		case 1:									// Main program (TestICal or Monitor)
+			m_start_off = 0;					// Start at the beginning of the image
+			m_len_to_send = m_total_len - (512+2);// Remove space for BSL2 (one flash segment = 512 bytes), reset vector
+			break;
+		case 2:									// BSL2 only
+			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
+			m_len_to_send = 512;	// Send only the 512 bytes of BSL2
+			break;
+		case 3:									// All (both the above)
+			m_start_off = 0;
+			m_len_to_send = m_total_len - 2;	// Remove reset vector
+			break;
+	}
+
+	m_pMainWnd->InvalidateRect(NULL);
+	m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
+}
+
 void CBMUsendApp::UpdateMenu() {
 	CMenu* mmenu = m_pMainWnd->GetMenu();
 	CMenu* amenu = mmenu->GetSubMenu(2);		// Advanced
@@ -170,6 +193,7 @@ void CBMUsendApp::UpdateMenu() {
 	imenu->CheckMenuItem(ID_IMAGE_ALL,		MF_BYCOMMAND | ((theApp.m_image_sel == 3) ? MF_CHECKED : MF_UNCHECKED));
 	imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
 	imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+	Adjust_start_and_len();
 }
 
 void CBMUsendApp::OnPasswordBSL1()	{ theApp.m_password_sel = 1; UpdateMenu(); }
