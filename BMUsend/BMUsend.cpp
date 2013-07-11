@@ -17,9 +17,8 @@
 
 BEGIN_MESSAGE_MAP(CBMUsendApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT,	&CBMUsendApp::OnAppAbout)
-	ON_COMMAND(ID_PASSWORD_BSL1,&CBMUsendApp::OnPasswordBSL1)
-	ON_COMMAND(ID_PASSWORD_BSL2,&CBMUsendApp::OnPasswordBSL2)
-	ON_COMMAND(ID_IMAGE_ALL,	&CBMUsendApp::OnImageAll)
+	ON_COMMAND(ID_IMAGE_ALL1,	&CBMUsendApp::OnImageAll1)
+	ON_COMMAND(ID_IMAGE_ALL2,	&CBMUsendApp::OnImageAll2)
 	ON_COMMAND(ID_IMAGE_PROGRAM,&CBMUsendApp::OnImageProgram)
 	ON_COMMAND(ID_IMAGE_BSL2,	&CBMUsendApp::OnImageBSL2)
 END_MESSAGE_MAP()
@@ -167,15 +166,15 @@ void CBMUsendApp::Adjust_start_and_len() {
 	switch (m_image_sel) {
 		case 1:									// Main program (TestICal or Monitor)
 			m_start_off = 0;					// Start at the beginning of the image
-			m_len_to_send = m_total_len - (512+2);// Remove space for BSL2 (one flash segment = 512 bytes), reset vector
+			m_len_to_send = m_total_len - 512;	// Remove space for BSL2 (one flash segment = 512 bytes)
 			break;
 		case 2:									// BSL2 only
 			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
-			m_len_to_send = 512;	// Send only the 512 bytes of BSL2
+			m_len_to_send = 512-2;				// Send only the 512 bytes of BSL2, less reset vector
 			break;
 		case 3:									// All (both the above)
 			m_start_off = 0;
-			m_len_to_send = m_total_len - 2;	// Remove reset vector
+			m_len_to_send = m_total_len - 2;	// Remove only reset vector
 			break;
 	}
 
@@ -184,20 +183,38 @@ void CBMUsendApp::Adjust_start_and_len() {
 }
 
 void CBMUsendApp::UpdateMenu() {
-	CMenu* mmenu = m_pMainWnd->GetMenu();
-	CMenu* amenu = mmenu->GetSubMenu(2);		// Advanced
-	CMenu* pmenu = amenu->GetSubMenu(0);		// Advanced/password
-	pmenu->CheckMenuItem(ID_PASSWORD_BSL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
-	pmenu->CheckMenuItem(ID_PASSWORD_BSL2,	MF_BYCOMMAND | ((theApp.m_password_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
-	CMenu* imenu = amenu->GetSubMenu(1);		// Advanced/image
-	imenu->CheckMenuItem(ID_IMAGE_ALL,		MF_BYCOMMAND | ((theApp.m_image_sel == 3) ? MF_CHECKED : MF_UNCHECKED));
+	CMenu* mmenu = m_pMainWnd->GetMenu();		// Whole menu
+	CMenu* imenu = mmenu->GetSubMenu(2);		// Image menu
+	if (theApp.m_image_sel == 3) {
+		imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+		imenu->CheckMenuItem(ID_IMAGE_ALL2,	MF_BYCOMMAND | ((theApp.m_password_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+	}
+	else {
+		imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_ALL2,	MF_BYCOMMAND | MF_UNCHECKED);
+	}
 	imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
 	imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
 	Adjust_start_and_len();
 }
 
-void CBMUsendApp::OnPasswordBSL1()	{ theApp.m_password_sel = 1; UpdateMenu(); }
-void CBMUsendApp::OnPasswordBSL2()	{ theApp.m_password_sel = 2; UpdateMenu(); }
-void CBMUsendApp::OnImageAll()		{ theApp.m_image_sel = 3; UpdateMenu();}
-void CBMUsendApp::OnImageProgram()	{ theApp.m_image_sel = 1; UpdateMenu();}
-void CBMUsendApp::OnImageBSL2()		{ theApp.m_image_sel = 2; UpdateMenu(); }
+void CBMUsendApp::OnImageAll1()	{
+	theApp.m_password_sel = 1;
+	theApp.m_image_sel = 3;
+	UpdateMenu();
+}
+void CBMUsendApp::OnImageAll2()	{
+	theApp.m_password_sel = 2;
+	theApp.m_image_sel = 3;
+	UpdateMenu();
+}
+void CBMUsendApp::OnImageProgram()	{ 
+	theApp.m_password_sel = 2;
+	theApp.m_image_sel = 1;
+	UpdateMenu();
+}
+void CBMUsendApp::OnImageBSL2()		{
+	theApp.m_password_sel = 1;
+	theApp.m_image_sel = 2;
+	UpdateMenu();
+}
