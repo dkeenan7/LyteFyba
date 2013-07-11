@@ -78,19 +78,12 @@ BEGIN
         MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
     END
-    POPUP "&Advanced"
+    POPUP "&Image"
     BEGIN
-        POPUP "&Password"
-        BEGIN
-            MENUITEM "BSL&1",                       ID_PASSWORD_BSL1
-            MENUITEM "BSL&2",                       ID_PASSWORD_BSL2
-        END
-        POPUP "&Image"
-        BEGIN
-            MENUITEM "&All",                        ID_IMAGE_ALL
-            MENUITEM "&Program",                    ID_IMAGE_PROGRAM
-            MENUITEM "&BSL2",                       ID_IMAGE_BSL2
-        END
+        MENUITEM "All via BSL&1",               ID_IMAGE_ALL1
+        MENUITEM "All via BSL&2",               ID_IMAGE_ALL2
+        MENUITEM "&Program",                    ID_IMAGE_PROGRAM
+        MENUITEM "&BSL2",                       ID_IMAGE_BSL2
     END
     POPUP "&Help"
     BEGIN

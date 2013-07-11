@@ -31,9 +31,8 @@ private:
 	afx_msg void OnAppAbout();
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnSend();
-	afx_msg void OnPasswordBSL1();
-	afx_msg void OnPasswordBSL2();
-	afx_msg void OnImageAll();
+	afx_msg void OnImageAll1();
+	afx_msg void OnImageAll2();
 	afx_msg void OnImageBSL2();
 	afx_msg void OnImageProgram();
 	afx_msg void OnFileOpen();
