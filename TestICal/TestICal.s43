@@ -86,6 +86,7 @@ infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpr
 infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
 infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
+infoResetFSM	EQU		mainResetFSM-for1000+$1000		; Where to end up in BSL1 to continue a BSL2 download
 
 infoDataStart	EQU		mainDataStart-for1000+$1000		; Used when copying between ram and info-flash
 infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
@@ -473,9 +474,9 @@ spaceaspercent	EQU		BCD( (100*freespace)/4096)
 jJTAGstart		br		#JTAGstart		; A branch to JTAGstart, independent of PROG_START
 jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
 jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-				reti					; Not used
+				reti					; Not used by TestICal
 jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
-				reti					; Not used
+				reti					; Not used by TestICal
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)

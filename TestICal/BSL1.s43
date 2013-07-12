@@ -64,15 +64,14 @@ mainInitRetAddr:	; Used by the monitor or TestICal or other main-flash code
 			; 0 = waiting for last pwd char and erase if received,
 			; any negative value = program, no interpret
 			;
-resetFSM:	mov		#4,Rstate		; Initialise FSM: waiting for first password character
+mainResetFSM:mov		#4,Rstate		; Initialise FSM: waiting for first password character
 FSMloop:	call	#ReadByte-for1000+$1000	; Address adjusted for BSL's relocation to info-flash
-
 			dec		Rstate
 			jn		progByte		; If state is negative, program, don't interpret
 
 			; Check for a continuing password match $03 $02 $01 $00
 			cmp.b	Rstate,R8		; Made expected password character equal to Rstate to save space
-			jne		resetFSM
+			jne		mainResetFSM
 			tst		Rstate
 			jnz		FSMloop
 
@@ -111,7 +110,7 @@ progByte	mov.b	R8,-2(R12)		; Program it
 			mov		#FWKEY,&FCTL1	; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
 			tst.b	Rcksum			; Check the checksum
-			jnz		resetFSM		; If bad checksum, leave the no interpret flag set
+			jnz		mainResetFSM	; If bad checksum, leave the no interpret flag set
 
 			mov.b	#RSTIFG,&IFG1	; Good checksum, reset no interpret flag,
 									;	set RST so BSL2 will call interpretByte
