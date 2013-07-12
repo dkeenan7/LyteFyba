@@ -25,6 +25,7 @@
 infoInitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
 infoReadByte	EQU		$1094		; Calling-address to receive byte in R8
 infoWriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
+infoResetFSM	EQU		$102E		; Code to continue a BSL2 download in BSL1
 infoBSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a download
 infoVoltCal		EQU		$10F8		; Address of Voltage scale calibration word
 infoTempCal		EQU		$10FA		; Address of Temperature offset calibration byte
@@ -542,10 +543,11 @@ DoPassword:
 										; process as an ordinary command
 
 			; Check for a continuing password match
-			mov.b	&passWordState,R9	; Password is ^C ^B ^A ^@
+			mov.b	&passWordState,R9	; Password is $07 $06 $05 $04
+			bis.b	#4,R9				; Expected password character is &passWordState with bit 2 set
 			cmp.b	R9,R8				; Check for a match
 			jne		resetFSM			; If mismatch, jump and reset FSM
-			tst		R9					; Are we now at state 0?
+			tst.b	&passWordState		; Are we now at state 0?
 			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
 										;	Just exit this callback and wait for more
 			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
@@ -562,9 +564,10 @@ DoPassword:
 			clr.b	&P2OUT				; Set bypass and error LED off
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
-			clr		R15					; The BSL uses R15 as its FSM state variable
+			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised a password
 			mov		#$300,SP			; Give the BSL maximum stack
-			br		#infoBSLErase		; Jump into the BSL to finish the download
+			push	#infoResetFSM		; This is where BSL2 code needs to return to to continue the download
+			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
 
@@ -642,7 +645,8 @@ spaceaspercent EQU BCD( (100*freespace)/4096)
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDF0
+				ORG		$FDEE
+jJTAGstart		br		$				; JTAGstart not used by monitor
 jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
 jRX_TIOV_ISR	br		#RX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)

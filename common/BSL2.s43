@@ -77,7 +77,7 @@ processByte2
 			; Erase only those segments of main flash memory used for the main program, not the last.
 			; Master will need to delay at least 7*16 ms = 112 ms before sending first byte to program.
 			;
-mainBSLErase2:
+BSLErase2:
 			dint					; The main-flash program has probably turned on interrupts
 									; Can't risk an interrupt while the vectors are erased
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
