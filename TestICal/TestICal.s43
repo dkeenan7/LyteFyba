@@ -313,9 +313,9 @@ newChip
 
 currVersBSL
 ; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#infoDataEnd-infoDataStart,R15 ; Prepare to move ~8 bytes
-				mov.b		infoDataStart-1(R15),ramDataStart-1(R15) ; Move 1 byte
-			_mLOOP	#1,R15						; Decrement loop counter by 1, loop if non zero
+			_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+				mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+			_mLOOP	#1,R8						; Decrement loop counter by 1, loop if non zero
 
 
 returnFromInitialise
