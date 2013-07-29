@@ -17,7 +17,7 @@
 												//	turning off the charger
 #define CHGR_CUT_CURR		8					// Charge termination max current in tenths of an amp,
 												// must be more than bypass plus max DC-DC loads
-#define CHGR_TX_BUFSZ		16                  // Have observed overflow with size 16, but 32 worse?
+#define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16, but 32 worse?
 #define CHGR_RX_BUFSZ 		16
 
 // Public function prototypes
