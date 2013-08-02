@@ -17,7 +17,7 @@
 												//	turning off the charger
 #define CHGR_CUT_CURR		8					// Charge termination max current in tenths of an amp,
 												// must be more than bypass plus max DC-DC loads
-#define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16, but 32 worse?
+#define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
 
 // Public function prototypes
@@ -42,14 +42,20 @@ extern unsigned int chgr_soakCnt;			// Counter for soak phase
 extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
 											//	cutoff current
 
-class chgr_queue : public queue {
+class chgr_tx_queue : public queue {
 	// Allocate space for the real buffer. Note that the base code will use member buf.
-	char real_buf[CHGR_RX_BUFSZ];		// Assume that the rx buffer is no smaller than the tx buffer
+	char real_buf[CHGR_TX_BUFSZ];
 public:
-	chgr_queue(unsigned char sz);
+	chgr_tx_queue();
+};
+class chgr_rx_queue : public queue {
+	// Allocate space for the real buffer. Note that the base code will use member buf.
+	char real_buf[CHGR_RX_BUFSZ];
+public:
+	chgr_rx_queue();
 };
 
 // Charger buffers
-extern chgr_queue chgr_tx_q;
-extern chgr_queue chgr_rx_q;
+extern chgr_tx_queue chgr_tx_q;
+extern chgr_rx_queue chgr_rx_q;
 
