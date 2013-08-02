@@ -22,8 +22,12 @@ unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overt
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
 
 // Charger buffers
-chgr_queue chgr_tx_q(CHGR_TX_BUFSZ);
-chgr_queue chgr_rx_q(CHGR_RX_BUFSZ);
+
+chgr_tx_queue::chgr_tx_queue() : queue(CHGR_TX_BUFSZ) {} ;
+chgr_rx_queue::chgr_rx_queue() : queue(CHGR_RX_BUFSZ) {} ;
+
+chgr_tx_queue chgr_tx_q;
+chgr_rx_queue chgr_rx_q;
 
 // Charger private variables
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
@@ -37,10 +41,6 @@ bool chgr_sendPacket(const unsigned char* ptr)
 	memcpy(chgr_lastSentPacket, ptr, 12);				// Copy the data to the last message buffer
 	return chgr_resendLastPacket();						// Call the main transmit function
 }
-
-chgr_queue::chgr_queue(unsigned char sz) : queue(sz) {
-	assert2(sz <= CHGR_RX_BUFSZ, "chgr_queue buffer size");
-};
 
 void chgr_init() {
 	chgr_lastrxidx = 0;

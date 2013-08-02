@@ -22,8 +22,10 @@ volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 f
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 
 // BMU buffers
-bmu_queue bmu_tx_q(BMU_TX_BUFSZ);
-bmu_queue bmu_rx_q(BMU_RX_BUFSZ);
+bmu_tx_queue::bmu_tx_queue() : queue(BMU_TX_BUFSZ) {};
+bmu_rx_queue::bmu_rx_queue() : queue(BMU_RX_BUFSZ) {};
+bmu_tx_queue bmu_tx_q;
+bmu_rx_queue bmu_rx_q;
 unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
 unsigned char bmu_lastrxidx;			// Index into the above
 
@@ -92,10 +94,6 @@ pid pidDrive(						// State for the PID control algorithm for charge current
 		// Setting Kd to negative half Kp spreads the current steps due to Kp over two ticks,
 		// and allows current to occasionally reach 0.3 A via a single tick spent at stress 8.
 		0);							// Initial "measure"
-
-bmu_queue::bmu_queue(unsigned char sz) : queue(sz) {
-	assert2(sz <= BMU_RX_BUFSZ, "bmu::queue buffer size");
-};
 
 void bms_init()
 {

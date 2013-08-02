@@ -7,11 +7,14 @@ typedef unsigned char bool;				// C does not define type bool
 #define false 0
 #endif
 
-// Define a queue type for serial transmit and receive (charger and BMUs)
+// Define a base queue type for serial transmit and receive (charger and BMUs)
+// Always derive a type from this, so that the buffer size gets set automatically
 class queue {
 	unsigned char rd;					// Read index
     unsigned char wr;					// Write index
+protected:
     const unsigned char bufSize;		// Buffer size must be a power of 2
+private:
     unsigned char buf[0];				// Circular buffer (size determined when initialised)
 public:
 	queue(unsigned char sz);			// Constructor has to supply buffer size
