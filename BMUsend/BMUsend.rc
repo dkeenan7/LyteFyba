@@ -80,8 +80,7 @@ BEGIN
     END
     POPUP "&Image"
     BEGIN
-        MENUITEM "All via BSL&1",               ID_IMAGE_ALL1
-        MENUITEM "All via BSL&2",               ID_IMAGE_ALL2
+        MENUITEM "All via old BSL&1",           ID_IMAGE_ALL1
         MENUITEM "&Program",                    ID_IMAGE_PROGRAM
         MENUITEM "&BSL2",                       ID_IMAGE_BSL2
     END

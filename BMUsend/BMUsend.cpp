@@ -18,7 +18,6 @@
 BEGIN_MESSAGE_MAP(CBMUsendApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT,	&CBMUsendApp::OnAppAbout)
 	ON_COMMAND(ID_IMAGE_ALL1,	&CBMUsendApp::OnImageAll1)
-	ON_COMMAND(ID_IMAGE_ALL2,	&CBMUsendApp::OnImageAll2)
 	ON_COMMAND(ID_IMAGE_PROGRAM,&CBMUsendApp::OnImageProgram)
 	ON_COMMAND(ID_IMAGE_BSL2,	&CBMUsendApp::OnImageBSL2)
 END_MESSAGE_MAP()
@@ -200,11 +199,6 @@ void CBMUsendApp::UpdateMenu() {
 
 void CBMUsendApp::OnImageAll1()	{
 	theApp.m_password_sel = 1;
-	theApp.m_image_sel = 3;
-	UpdateMenu();
-}
-void CBMUsendApp::OnImageAll2()	{
-	theApp.m_password_sel = 2;
 	theApp.m_image_sel = 3;
 	UpdateMenu();
 }
