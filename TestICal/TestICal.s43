@@ -142,7 +142,11 @@ SETLOCKA	MACRO
 
 
 			ORG		$200			; Start of RAM
-bsl2state	DS		2				; Pasword recogniser state for BSL2
+bsl2state	DS		2				; Password recogniser state for BSL2
+resetCounter	DS		2			; Number of resets since the last "^" command
+resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
+resetBufEnd
+
 #if	ADCBUF
 			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
@@ -222,9 +226,9 @@ initialise:
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
-			; Clear all variables in RAM
-			_DO		#TIB-$200,R8
-				clr		$200-2(R8)
+			; Clear all variables in RAM except resetBuffer
+			_DO		#TIB-resetBufEnd,R8
+				clr		resetBufEnd-2(R8)
 			_mLOOP	#2,R8
 
 			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
