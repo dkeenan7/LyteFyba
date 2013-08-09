@@ -453,7 +453,7 @@ void CBMUsendDoc::OnSend()
 		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
     for (i=0; i < 5; ++i) {
         writeByte(pfx+i);
-		Sleep(1+1);
+		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
     }
 
     /* Allow time for segment erases (approximately 15 ms per segment) */
