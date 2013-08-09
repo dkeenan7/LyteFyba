@@ -4,7 +4,6 @@
 #include "charger.h"
 #include "bms.h"
 #include "tri86.h"			// For fault() etc
-#include "assert2.h"		// An assert-like function
 
 // Private function prototypes
 bool chgr_sendByte(unsigned char ch);
@@ -22,12 +21,8 @@ unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overt
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
 
 // Charger buffers
-
-chgr_tx_queue::chgr_tx_queue() : queue(CHGR_TX_BUFSZ) {} ;
-chgr_rx_queue::chgr_rx_queue() : queue(CHGR_RX_BUFSZ) {} ;
-
-chgr_tx_queue chgr_tx_q;
-chgr_rx_queue chgr_rx_q;
+queue chgr_tx_q(CHGR_TX_BUFSZ);
+queue chgr_rx_q(CHGR_RX_BUFSZ);
 
 // Charger private variables
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message

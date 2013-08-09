@@ -12,10 +12,8 @@ typedef unsigned char bool;				// C does not define type bool
 class queue {
 	unsigned char rd;					// Read index
     unsigned char wr;					// Write index
-protected:
-    const unsigned char bufSize;		// Buffer size must be a power of 2
-private:
-    unsigned char buf[0];				// Circular buffer (size determined when initialised)
+	unsigned char bufSize;				// Buffer size must be a power of 2
+    unsigned char* buf;					// Ptr to circular buffer (size determined when initialised)
 public:
 	queue(unsigned char sz);			// Constructor has to supply buffer size
 

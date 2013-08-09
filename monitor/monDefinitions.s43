@@ -65,3 +65,71 @@
 			clr		&worstStressMeas
 			ret
 
+; Query reset-log ( maxResetsToShow -- )
+			xCODE	'R',queryResetLog,_queryResetLog
+			push	Rtos					; Save maxResetsToShow
+			mov.b	#'R',Rthd				; Type is reset-log query
+			mov.b	&resetCounter,Rsec		; Result
+			mov		#5,Rtos					; Print 5 digits
+			call	#_prettyPrint			; Pretty-print of 5 digits
+	#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+	#endif
+
+			; Now prettyPrint the reasons for the resets, in hex
+			push.b	&intFlags				; Save current number base
+			bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
+
+			pop		R8						; Restore maxResetsToShow
+			tst		R8						; Treat zero as infinity
+			_IF		_Z
+				mov		#$FFFF,R8
+			_ENDIF
+			cmp		&resetCounter,R8		; Take min of that and resetCounter
+			_IF		_HS
+				mov		&resetCounter,R8
+			_ENDIF
+			cmp		#16,R8					; Take min of that and 16
+			_IF		_HS
+				mov		#16,R8
+			_ENDIF
+
+			mov		&resetCounter,R9
+			and		#$0F,R9
+			add		#resetBuffer,R9
+
+			_BEGIN
+			tst		R8
+			_WHILE	_NZ
+			push	R8
+			mov.b	#'R',Rthd				; Type is reset-log query
+			dec		R9
+			cmp		#resetBuffer,R9
+			_IF		_LO
+				mov		#resetBuffer+15,R9
+			_ENDIF
+			mov		@R9,Rsec				; Result
+			push	R9
+			call	#_prettyPrint3			; Call pretty-print for 3 digits
+			pop		R9
+	#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+	#endif
+			pop		R8
+			dec		R8
+			_REPEAT
+
+			pop.b	&intFlags				; Restore number base
+			ret
+
+; Reset reset-log ( -- )
+			xCODE	'^',resetResetLog,_resetResetLog ; "^" so unlikely to type accidentally
+			clr		&resetCounter
+			mov		#resetBuffer,R8
+			_BEGIN
+			clr.b	0(R8)
+			inc		R8
+			cmp		#resetBuffer+16,R8
+			_UNTIL	_EQ
+			ret
+

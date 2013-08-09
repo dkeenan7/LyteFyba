@@ -22,10 +22,8 @@ volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 f
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 
 // BMU buffers
-bmu_tx_queue::bmu_tx_queue() : queue(BMU_TX_BUFSZ) {};
-bmu_rx_queue::bmu_rx_queue() : queue(BMU_RX_BUFSZ) {};
-bmu_tx_queue bmu_tx_q;
-bmu_rx_queue bmu_rx_q;
+queue bmu_tx_q(BMU_TX_BUFSZ);
+queue bmu_rx_q(BMU_RX_BUFSZ);
 unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
 unsigned char bmu_lastrxidx;			// Index into the above
 
@@ -247,7 +245,7 @@ void handleBMUstatusByte(unsigned char status)
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-	
+
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. CHGR_CURR_LIMIT.
@@ -280,7 +278,7 @@ void handleBMUstatusByte(unsigned char status)
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 		output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-		
+
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 		float fLocalCurLim = ((float)output + 32769.0F) / 65536.0F;
 		fLocalCurLim = fLocalCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
@@ -319,7 +317,7 @@ void readBMUbytes()
 // Temperatures below zero constitute stress when charging or regen-braking
 // but not when accelerating. So send appropriate 'f' (Freezing is stress) commands to BMUs.
 void bmu_changeDirection(bool chargeOrRegen)
-{	
+{
 	bCharging = chargeOrRegen;
 	if (chargeOrRegen) bmu_sendPacket((unsigned char*)"1f\r");
 	else bmu_sendPacket((unsigned char*)"0f\r");

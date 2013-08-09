@@ -41,21 +41,6 @@ extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = ov
 extern unsigned int chgr_soakCnt;			// Counter for soak phase
 extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
 											//	cutoff current
-
-class chgr_tx_queue : public queue {
-	// Allocate space for the real buffer. Note that the base code will use member buf.
-	char real_buf[CHGR_TX_BUFSZ];
-public:
-	chgr_tx_queue();
-};
-class chgr_rx_queue : public queue {
-	// Allocate space for the real buffer. Note that the base code will use member buf.
-	char real_buf[CHGR_RX_BUFSZ];
-public:
-	chgr_rx_queue();
-};
-
 // Charger buffers
-extern chgr_tx_queue chgr_tx_q;
-extern chgr_rx_queue chgr_rx_q;
-
+extern queue chgr_tx_q;
+extern queue chgr_rx_q;
