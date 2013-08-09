@@ -266,7 +266,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			br		#$1000					; Start the new BSL
 
 failCompare mov		#3,rERR
-			jmp		errorFlash
+			br		#errorFlash
 
 #if PROG_START < $F800			// Commented out when need to save space
 ;
