@@ -32,7 +32,6 @@ private:
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnSend();
 	afx_msg void OnImageAll1();
-	afx_msg void OnImageAll2();
 	afx_msg void OnImageBSL2();
 	afx_msg void OnImageProgram();
 	afx_msg void OnFileOpen();
