@@ -74,8 +74,8 @@ UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the ne
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		100			; mV difference between one AL stress level and the next
 
-NBYPLEV		EQU	OV_ZERO+6*OV_STEP	; Near bypass (charge termination) 3560 mV. Stress 5/6 threshold
-BYPLEV		EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3570 mV. Corresp. to stress 6/7 threshold
+NBYPLEV		EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
+BYPLEV		EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
 
 minLEDStress EQU	11			; Minimum stress to light error LED
 minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
@@ -164,6 +164,10 @@ bDontInterpret	EQU		4			; Are we interpreting?
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Character giving type of measurement that caused worst stress
 worstStressMeas	DS		2			; Value of measurement that caused worst stress
+
+				ALIGNRAM 1
+resetCounter	DS		2			; Number of resets since the last "^" command
+resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer

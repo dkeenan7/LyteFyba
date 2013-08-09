@@ -39,25 +39,12 @@ bool bmu_resendLastPacket(void);
 void bmu_timer();
 
 
-class bmu_tx_queue : public queue {
-	// Allocate space for the real buffer. Note that the base code will use member buf.
-	char real_buf[BMU_TX_BUFSZ];
-public:
-	bmu_tx_queue();
-};
-class bmu_rx_queue : public queue {
-	// Allocate space for the real buffer. Note that the base code will use member buf.
-	char real_buf[BMU_RX_BUFSZ];
-public:
-	bmu_rx_queue();
-};
-
 // Public variables
 extern volatile unsigned int bmu_events;
 extern volatile unsigned int bmu_sent_timeout;
 extern float fRemoteCurLim;
 
 // BMU buffers
-extern bmu_tx_queue bmu_tx_q;
-extern bmu_rx_queue bmu_rx_q;
+extern queue bmu_tx_q;
+extern queue bmu_rx_q;
 

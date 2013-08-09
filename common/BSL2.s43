@@ -25,6 +25,12 @@ BSL2:
 
 
 initBSL2:	; Initialisation
+			; Log the reason for the reset
+			mov			&resetCounter,R8
+			and			#$0F,R8
+			mov.b		&IFG1,resetBuffer(R8)
+			inc			&resetCounter
+
 mainLoop2:
 			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch)
 			; or main program not present

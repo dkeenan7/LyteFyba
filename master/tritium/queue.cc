@@ -1,8 +1,14 @@
 // Queue related functions
-
+#include <stdlib.h>		// Should include alloca() but doesn't
 #include "queue.h"
 
-queue::queue(unsigned char sz) : rd(0), wr(0), bufSize(sz) {};
+queue::queue(unsigned char sz)
+{
+	rd = 0;
+	wr = 0;
+	bufSize = sz;
+	buf = (unsigned char*)__builtin_malloc(sizeof(unsigned char[sz]));	// buf = new unsigned char[sz];
+}
 
 /* Enqueue and Dequeue general queueing functions */
 // Enqueue a byte. Returns true on success (queue not full)
