@@ -34,6 +34,7 @@ private:
 	afx_msg void OnImageAll1();
 	afx_msg void OnImageBSL2();
 	afx_msg void OnImageProgram();
+	afx_msg void OnImageBadSum();
 	afx_msg void OnFileOpen();
 
 public:
@@ -53,6 +54,7 @@ public:
 	int m_password_sel;
 	// 1 for main program (all but last 512 bytes), 2 for BSL2 (last 512 bytes), 3 for all
 	int m_image_sel;
+	bool m_bBadSum;
 
 	unsigned int	m_total_len;			// Number of bytes read into the image
 	unsigned int	m_len_to_send;			// Number of bytes to send (including checksum)

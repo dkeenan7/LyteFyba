@@ -83,6 +83,7 @@ BEGIN
         MENUITEM "&Program",                    ID_IMAGE_PROGRAM
         MENUITEM "&BSL2 (via TestICal)",        ID_IMAGE_BSL2
         MENUITEM "&All (via old BSL1)",         ID_IMAGE_ALL1
+        MENUITEM "Program w/bad &checksum",     ID_IMAGE_BADSUM
     END
     POPUP "&Help"
     BEGIN

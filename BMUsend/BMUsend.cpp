@@ -20,6 +20,7 @@ BEGIN_MESSAGE_MAP(CBMUsendApp, CWinApp)
 	ON_COMMAND(ID_IMAGE_ALL1,	&CBMUsendApp::OnImageAll1)
 	ON_COMMAND(ID_IMAGE_PROGRAM,&CBMUsendApp::OnImageProgram)
 	ON_COMMAND(ID_IMAGE_BSL2,	&CBMUsendApp::OnImageBSL2)
+	ON_COMMAND(ID_IMAGE_BADSUM,	&CBMUsendApp::OnImageBadSum)
 END_MESSAGE_MAP()
 
 
@@ -28,6 +29,7 @@ END_MESSAGE_MAP()
 CBMUsendApp::CBMUsendApp()
 	: m_password_sel(2)
 	, m_image_sel(1)
+	, m_bBadSum(0)
 	, m_start_off(0)
 	, m_total_len(0)
 	, m_len_to_send(0)
@@ -184,31 +186,47 @@ void CBMUsendApp::Adjust_start_and_len() {
 void CBMUsendApp::UpdateMenu() {
 	CMenu* mmenu = m_pMainWnd->GetMenu();		// Whole menu
 	CMenu* imenu = mmenu->GetSubMenu(2);		// Image menu
-	if (theApp.m_image_sel == 3) {
-		imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
-		imenu->CheckMenuItem(ID_IMAGE_ALL2,	MF_BYCOMMAND | ((theApp.m_password_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+	if (theApp.m_bBadSum) {
+		imenu->CheckMenuItem(ID_IMAGE_BADSUM, MF_CHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_ALL1, MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM, MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_BSL2, MF_UNCHECKED);
 	}
 	else {
-		imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_ALL2,	MF_BYCOMMAND | MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_BADSUM, MF_UNCHECKED);
+		if (theApp.m_image_sel == 3) {
+			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+		}
+		else {
+			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | MF_UNCHECKED);
+		}
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+		imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
 	}
-	imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
-	imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
 	Adjust_start_and_len();
 }
 
 void CBMUsendApp::OnImageAll1()	{
 	theApp.m_password_sel = 1;
 	theApp.m_image_sel = 3;
+	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
 void CBMUsendApp::OnImageProgram()	{ 
 	theApp.m_password_sel = 2;
 	theApp.m_image_sel = 1;
+	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
 void CBMUsendApp::OnImageBSL2()		{
 	theApp.m_password_sel = 1;
 	theApp.m_image_sel = 2;
+	theApp.m_bBadSum = false;
+	UpdateMenu();
+}
+void CBMUsendApp::OnImageBadSum()	{ 
+	theApp.m_password_sel = 2;
+	theApp.m_image_sel = 1;
+	theApp.m_bBadSum = true;
 	UpdateMenu();
 }
