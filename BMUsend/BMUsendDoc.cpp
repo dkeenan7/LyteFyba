@@ -473,7 +473,15 @@ void CBMUsendDoc::OnSend()
     }
 	// Finally send the checksum byte in place of the very last byte (either just before the reset vector, or right at the end
 	//	of the main program, ust before BSL2
-	writeByte(&sum);
+	// Sometimes we want to deliberately send a bad checksum
+	if (theApp.m_bBadSum)
+	{
+		sum ^= 0xFF;					// Invert checksum
+		writeByte(&sum);
+		sum ^= 0xFF;					// Correct checksum by re-inverting
+	}
+	else
+		writeByte(&sum);
 
 	theApp.m_nProgress = theApp.m_len_to_send;
 	pProg->SetFocus();
