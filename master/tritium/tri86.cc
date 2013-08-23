@@ -88,7 +88,7 @@ int main( void )
 	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
-	
+
 	// Stop watchdog timer
 	WDTCTL = WDTPW + WDTHOLD;
 
@@ -104,7 +104,7 @@ int main( void )
 
 	// Initialise SPI port for CAN controller (running with SMCLK)
 	usci_init(0);
-	
+
 	// Reset CAN controller and initialise
 	// This also changes the clock output from the MCP2515, but we're not using it in this software
 	can_init( CAN_BITRATE_500 );
@@ -122,7 +122,7 @@ int main( void )
 
 	// Initialise switch & encoder positions
 	update_switches(&switches, &switches_diff);
-	
+
 	// Initialise command state
 	command.rpm = 0.0;
 	command.current = 0.0;
@@ -130,11 +130,14 @@ int main( void )
 	command.flags = 0x00;
 //	command.state = MODE_OFF;
 	command.state = MODE_D;			// For now, we're like "drive, baby, drive!" (FIXME)
-	
+
 	// Init gauges
 	gauge_init();
-	
+
 	// Init BMS and charger
+	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end f the BMU
+	//	string. Otherwise, the 'k' and 0K commands won't work from about BMU 14 onwards
+	for(i = 0; i < 3000; i++) brief_pause(5333);		// 3000 ms = 3 seconds
 	bms_init();
 	chgr_init();
 
@@ -148,13 +151,13 @@ int main( void )
 	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, 0.0);	// Just to detect presence of pedal
 	if (command.flags != 0)			// If position error, i.e. pedal not present
 		command.flags |= FAULT_NO_PEDAL;
-	
+
 	// Check switch inputs and generate command packets to motor controller
 	// and control charging while monitoring BMUs.
 	while(TRUE){
 		// Process CAN transmit queue
 		can_transmit();
-		
+
 		// Monitor switch positions & analog inputs
 		if( events & EVENT_TIMER ) { // Every 10 ms
 			events &= ~EVENT_TIMER;
@@ -168,11 +171,11 @@ int main( void )
 			// Update motor commands based on pedal and slider positions
 			if (!(command.flags & FAULT_NO_PEDAL))
 				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
-				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );	
-			
+				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
+
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
-			
+
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
@@ -247,7 +250,7 @@ int main( void )
 					next_state = MODE_OFF;
 					break;
 			}
-			
+
 			// Start and stop charging
 			if (command.state != next_state) {
 				if (command.state == MODE_CHARGE) { // Not charging
@@ -259,17 +262,17 @@ int main( void )
 					chgr_start();
 				}
 			}
-			
+
 			command.state = next_state;
-				
+
 			// Control brake lights
 			if((switches & SW_BRAKE) || (events & EVENT_REGEN)) P1OUT |= BRAKE_OUT;
 			else P1OUT &= ~BRAKE_OUT;
-			
+
 			// Control reversing lights
 			if(command.state == MODE_R) P1OUT |= REVERSE_OUT;
 			else P1OUT &= ~REVERSE_OUT;
-			
+
 			// Control CAN bus and pedal sense power
 			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) {
 			  	P1OUT |= CAN_PWR_OUT;
@@ -284,12 +287,12 @@ int main( void )
 
 			chgr_timer();
 			bmu_timer();
-			
+
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms
-		
+
 		readBMUbytes();
 		readChargerBytes();
-		
+
 		// Handle outgoing communications events (to motor controller)
 		if ((events & EVENT_COMMS) && !(command.flags & FAULT_NO_PEDAL)) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
@@ -301,7 +304,7 @@ int main( void )
 					case MODE_D:
 					case MODE_B:
 						if(switches & SW_BRAKE){
-							command.current = 0.0;	
+							command.current = 0.0;
 							command.rpm = 0.0;
 						}
 						break;
@@ -331,15 +334,15 @@ int main( void )
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.current;
 				can_push_ptr->data.data_fp[0] = command.rpm;
-				can_push();	
-#if 0	
+				can_push();
+#if 0
 				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.bus_current;
 				can_push_ptr->data.data_fp[0] = 0.0;
 				can_push();
-				
+
 				// Queue switch position/activity frame and clear switch differences variables
 				can_push_ptr->identifier = DC_CAN_BASE + DC_SWITCH;
 				can_push_ptr->status = 8;
@@ -349,7 +352,7 @@ int main( void )
 				can_push_ptr->data.data_u16[1] = 0;
 				can_push_ptr->data.data_u16[0] = switches;
 				can_push();
-#endif				
+#endif
 				// Queue our ID frame at a slower rate (every 10 events = 1/second)
 				comms_event_count++;
 				if(comms_event_count == 10){
@@ -361,11 +364,11 @@ int main( void )
 					can_push_ptr->data.data_u8[5] = '8';
 					can_push_ptr->data.data_u8[4] = '6';
 					can_push_ptr->data.data_u32[0] = DEVICE_SERIAL;
-					can_push();		
+					can_push();
 				}
 			} // End of if(events & EVENT_CONNECTED)
 		} // End of if(events & EVENT_COMMS) // Every 100 ms
-			
+
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
 			// IRQ flag is set, so run the receive routine to either get the message, or the error
@@ -468,10 +471,10 @@ int main( void )
 					can_wake();
 				}
 				// Comment out for now: will always get CAN errors
-				fault();		// MVE: see the CAN error in fault light
+				//fault();		// MVE: see the CAN error in fault light
 			}
 		} // End of if((P2IN & CAN_INTn) == 0x00)
-		
+
 		// Check sleep mode requests
 /*		if(events & EVENT_REQ_SLEEP){
 			events &= ~EVENT_REQ_SLEEP;
@@ -481,7 +484,7 @@ int main( void )
 			__bis_SR_register(LPM3_bits);     // Enter LPM3
 		}
 */	} // End of while(True) do
-	
+
 	// Will never get here, keeps compiler happy
 	return(1);
 } // End of main
@@ -532,7 +535,7 @@ void io_init( void )
 {
 	P1OUT = 0x00;
 	P1DIR = BRAKE_OUT | REVERSE_OUT | CAN_PWR_OUT | P1_UNUSED;
-	
+
 	P2OUT = 0x00;
 	P2DIR = P2_UNUSED;
 
@@ -540,16 +543,16 @@ void io_init( void )
 	P3OUT = CAN_CSn | CHARGER_TXD | BMS_TXD;
 //	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | EXPANSION_TXD | LED_REDn | LED_GREENn | P3_UNUSED;
 	P3DIR = CAN_CSn | CAN_MOSI | CAN_SCLK | CHARGER_TXD | BMS_TXD | P3_UNUSED;
-	
+
 	P4OUT = LED_PWM | LED_REDn | LED_GREENn;
 	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | LED_REDn | LED_GREENn;
-	
+
 	P5OUT = 0x00;
 	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
-	
+
 	P6OUT = ANLG_V_ENABLE; // Enable the 5V supply for the pedal etc.
 	P6DIR = ANLG_V_ENABLE | P6_UNUSED;
-	
+
 	// Initialise charger and BMS UARTs
 	P3SEL |= CHARGER_TXD | CHARGER_RXD | BMS_TXD | BMS_RXD;// Set pins to peripheral function, not GPIO
 	UCA0CTL1 |= UCSSEL_2;					// SMCLK
@@ -603,10 +606,10 @@ void timerB_init( void )
  */
 void adc_init( void )
 {
-	// Enable A/D input channels											
+	// Enable A/D input channels
 	P6SEL |= ANLG_SENSE_A | ANLG_SENSE_B | ANLG_SENSE_C | ANLG_SENSE_V | ANLG_BRAKE_I | ANLG_REVERSE_I | ANLG_CAN_PWR_I;
 	// Turn on ADC12, set sampling time = 256 ADCCLK, multiple conv, start internal 2.5V reference
-	ADC12CTL0 = ADC12ON | SHT0_8 | SHT1_8 | MSC | REFON | REF2_5V;	
+	ADC12CTL0 = ADC12ON | SHT0_8 | SHT1_8 | MSC | REFON | REF2_5V;
 	// Use sampling timer, ADCCLK = MCLK/4, run a single sequence per conversion start
 	ADC12CTL1 = ADC12SSEL_2 | ADC12DIV_3 | SHP | CONSEQ_1;
 	// Map conversion channels to input channels & reference voltages
@@ -620,7 +623,7 @@ void adc_init( void )
 	// Enable interrupts on final conversion in sequence
 //	ADC12IE = BIT6;	// Some bug with this - keep using polling for the moment
 	// Enable conversions
-	ADC12CTL0 |= ENC;											
+	ADC12CTL0 |= ENC;
 	// Wait 20 ms for Vref capacitor to charge up.
 	unsigned int i;
 	for(i = 0; i < 20; i++) brief_pause(5333);
@@ -635,7 +638,7 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 	static unsigned int gauge_count;
 	static unsigned int gauge1_on, gauge1_off;
 	static unsigned int gauge2_on, gauge2_off;
-	
+
 	// Toggle gauge 1 & 2 pulse frequency outputs
 	if(gauge_count == gauge1_on){
 		P4OUT |= GAUGE_1_OUT;
@@ -657,7 +660,7 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 
 	// Update pulse output timebase counter
 	gauge_count++;
-	
+
 	// Update outputs if necessary
 	if(events & EVENT_GAUGE1){
 		events &= ~EVENT_GAUGE1;
@@ -667,12 +670,12 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
 	}
 	if(events & EVENT_GAUGE3){
 		events &= ~EVENT_GAUGE3;
-		TBCCR2 = gauge.g3_duty;		
+		TBCCR2 = gauge.g3_duty;
 	}
 	if(events & EVENT_GAUGE4){
 		events &= ~EVENT_GAUGE4;
-		TBCCR1 = gauge.g4_duty;		
-	}	
+		TBCCR1 = gauge.g4_duty;
+	}
 }
 
 /*
@@ -687,9 +690,9 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 	static unsigned char activity_count;
 	static unsigned char fault_count;
 
-	
+
 	// Trigger timer based events
-	events |= EVENT_TIMER;	
+	events |= EVENT_TIMER;
 
 
 	// Trigger comms events (command packet transmission)
@@ -735,7 +738,7 @@ interrupt(TIMERA0_VECTOR) timer_a0(void)
 void update_switches( unsigned int *state, unsigned int *difference)
 {
 	unsigned int old_switches;
-	
+
 	// Save state for difference tracking
 	old_switches = *state;
 
@@ -744,7 +747,7 @@ void update_switches( unsigned int *state, unsigned int *difference)
 #if 0
 	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
 	else *state &= ~SW_MODE_R;
-	
+
 	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;
 	else *state &= ~SW_MODE_N;
 
@@ -754,10 +757,10 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;
 	else *state &= ~SW_MODE_D;
 #endif
-	
+
 	if(P1IN & IN_IGN_ACCn) *state &= ~SW_IGN_ACC;
 	else *state |= SW_IGN_ACC;
-	
+
 	if(P1IN & IN_IGN_ONn) *state &= ~SW_IGN_ON;
 	else *state |= SW_IGN_ON;
 
@@ -771,7 +774,7 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	else *state &= ~SW_CHARGE_CABLE;
 
 	// Update changed switches
-	*difference = *state ^ old_switches;	
+	*difference = *state ^ old_switches;
 }
 
 /*
