@@ -19,6 +19,9 @@
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
+#define CHGR_ACTIVITY		60					// Number of seconds since last charger packet deemed
+												//	to indicate charging activity (for not driving away
+												//	when charging)
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising

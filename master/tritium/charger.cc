@@ -29,6 +29,9 @@ unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
 unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
 
+// Program global
+extern unsigned int uCharging;
+
 unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
 
 bool chgr_sendPacket(const unsigned char* ptr)
@@ -109,6 +112,7 @@ void chgr_processPacket() {
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
+	uCharging = CHGR_ACTIVITY * 100;		// Reset charger activity timer
 }
 
 
@@ -116,8 +120,12 @@ void chgr_timer() {							// Called every timer tick, for charger related proces
 
 	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timeout <= 0)) {
 		fault();						// Turn on fault LED (eventually)
+		chgr_rx_timeout = 0;			// Don't let it wrap around
 	}
+	if (uCharging)
+		--uCharging;					// Update charger activity timer
 }
+
 
 // Send the current command now
 void chgr_sendCurrent(unsigned int iCurr) {
