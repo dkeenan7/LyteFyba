@@ -113,9 +113,6 @@ void dint();
 #define CHARGE_FLASH_SPEED	20					// LED flash rate in charge mode: 20 ticks = 200ms = 5 Hz
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
 #define FAULT_SPEED			/*200*/10					// LED sustain period for FAULT led: 200 ticks = 2 seconds
-#define CHGR_TIMEOUT		200					// Charger timeout in timer ticks; should receive something every second
-#define BMU_TIMEOUT			100					// BMU timeout in timer ticks; absolute minimum is
-													// about 250 ms = 25 ticks
 
 // Event definitions
 #define EVENT_TIMER			0x0001				// Timer went off

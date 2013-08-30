@@ -13,7 +13,7 @@ void chgr_processPacket();
 // Public variables
 volatile unsigned int chgr_events = 0;
 		 unsigned int chgr_state = 0;
-		 int chgr_rx_timeout = CHGR_TIMEOUT;// MVE: counts to zero; reset when see any output from the charger
+		 int chgr_rx_timer = CHGR_TIMEOUT;// MVE: counts to zero; reset when see any output from the charger
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
@@ -83,7 +83,7 @@ void readChargerBytes()
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
 			chgr_processPacket();			// We've received a charger response
-			chgr_rx_timeout = CHGR_TIMEOUT;	// Reset received anything counter
+			chgr_rx_timer = CHGR_TIMEOUT;	// Reset received anything counter
 			break;
 		}
 	}
@@ -112,18 +112,15 @@ void chgr_processPacket() {
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
-	uCharging = CHGR_ACTIVITY * 100;		// Reset charger activity timer
 }
 
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
 
-	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timeout <= 0)) {
+	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timer <= 0)) {
 		fault();						// Turn on fault LED (eventually)
-		chgr_rx_timeout = 0;			// Don't let it wrap around
+		chgr_rx_timer = 0;			// Don't let it wrap around
 	}
-	if (uCharging)
-		--uCharging;					// Update charger activity timer
 }
 
 

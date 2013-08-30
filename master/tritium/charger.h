@@ -19,9 +19,8 @@
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
-#define CHGR_ACTIVITY		60					// Number of seconds since last charger packet deemed
-												//	to indicate charging activity (for not driving away
-												//	when charging)
+#define CHGR_TIMEOUT		120					// Charger timeout in 10 ms timer ticks.
+												//  Should receive something every second
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising
@@ -30,7 +29,7 @@ void readChargerBytes();
 bool chgr_sendRequest(int voltage, int current, bool chargerOff);
 void chgr_processPacket();
 bool chgr_resendLastPacket(void);
-void chgr_timer();							// Called every timer tick, for charger related processing
+void chgr_timer();								// Called every timer tick, for charger related processing
 void chgr_off();
 void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 
@@ -38,6 +37,7 @@ void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 // Public variables
 extern volatile unsigned int chgr_events;
 extern 			unsigned int chgr_state;
+extern int chgr_rx_timer;					// MVE: counts to zero; reset when see any output from the charger
 extern unsigned int charger_volt;			// MVE: charger voltage in tenths of a volt
 extern unsigned int charger_curr;			// MVE: charger current in tenths of an ampere
 extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = overtemp)
