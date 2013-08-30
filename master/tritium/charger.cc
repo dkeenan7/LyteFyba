@@ -80,10 +80,10 @@ bool chgr_sendByte(unsigned char ch) {
 void readChargerBytes()
 {	unsigned char ch;
 	while (	chgr_rx_q.dequeue(ch)) {
+		chgr_rx_timer = CHGR_TIMEOUT;		// Reset received anything counter
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
 			chgr_processPacket();			// We've received a charger response
-			chgr_rx_timer = CHGR_TIMEOUT;	// Reset received anything counter
 			break;
 		}
 	}
@@ -117,9 +117,9 @@ void chgr_processPacket() {
 
 void chgr_timer() {							// Called every timer tick, for charger related processing
 
-	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (--chgr_rx_timer <= 0)) {
+	if (--chgr_rx_timer < 0) chgr_rx_timer = 0;			// Don't let it wrap around
+	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
-		chgr_rx_timer = 0;			// Don't let it wrap around
 	}
 }
 

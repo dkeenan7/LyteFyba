@@ -19,7 +19,7 @@
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
-#define CHGR_TIMEOUT		120					// Charger timeout in 10 ms timer ticks.
+#define CHGR_TIMEOUT		200					// Charger timeout in 10 ms timer ticks.
 												//  Should receive something every second
 
 // Public function prototypes

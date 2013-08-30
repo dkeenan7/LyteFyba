@@ -51,8 +51,8 @@ extern command_variables command;
 
 // Command parameter limits
 #define CURRENT_MAX				1.0					// %, absolute value
-#define REGEN_MAX				0.6					// %, absolute value
-#define RPM_FWD_MAX				4500				// Forwards max speed, rpm
+#define REGEN_MAX				0.2					// %, absolute value
+#define RPM_FWD_MAX				6000				// Forwards max speed, rpm
 #define RPM_REV_MAX				-2500				// Reverse max speed, rpm
 
 // Analog pedal input scaling
