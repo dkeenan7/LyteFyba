@@ -128,10 +128,7 @@ int main( void )
 	command.current = 0.0;
 	command.bus_current = 1.0;
 	command.flags = 0x00;
-//	command.state = MODE_OFF;
-	// Initially go to charge state so we can't drive off in the second before
-	// charger activity is detected.
-	command.state = MODE_CHARGE;
+	command.state = MODE_OFF;
 
 	// Init gauges
 	gauge_init();
@@ -181,7 +178,8 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					if(switches & SW_IGN_ON) next_state = MODE_CHARGE;
+					if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					else if (switches & SW_IGN_ON) next_state = MODE_D;
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
 					break;
@@ -193,7 +191,7 @@ int main( void )
 					else
 #endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (!(switches & SW_CHARGE_CABLE)) next_state = MODE_D;
+					else if (!((switches & SW_CHARGE_CABLE) || chgr_rx_timer)) next_state = MODE_D;
 //					else next_state = MODE_N;
 					else next_state = MODE_CHARGE;	// Always proceed to MODE_CHARGE unless ignition is on
 													//	and fuel door is closed
@@ -227,15 +225,14 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else
 #endif
-						if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if(!(switches & SW_CHARGE_CABLE) && !chgr_rx_timer) next_state = MODE_D;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
+					if (!((switches & SW_CHARGE_CABLE) || chgr_rx_timer)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
 					charge_flash_count--;
