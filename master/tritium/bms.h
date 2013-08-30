@@ -16,6 +16,8 @@
 #define BMU_STATUS_PER		(1000/BMU_STATUS_RATE)	// Period in ms of BMU status bytes
 #define BMU_TX_BUFSZ		64
 #define BMU_RX_BUFSZ		64
+#define BMU_TIMEOUT			100			// BMU timeout in timer ticks; absolute minimum is
+										//   about 250 ms = 25 ticks
 #define BMU_VR_SPEED		4500		// Number of 10 ms ticks per voltage request
 										// Note: it takes > 30s to send a voltage request to 114 BMUs
 #define BMU_STATUS_TIMEOUT	50			// Number of 10 ms  ticks we tolerate with no BMU status byte

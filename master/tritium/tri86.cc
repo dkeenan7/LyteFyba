@@ -68,8 +68,6 @@ float battery_current = 0.0;
 
 float fRemoteCurLim = 1.0;				// DC bus current limit from the other DCU, if present
 
-unsigned int uCharging = 0;				// If non-zero, we were charging recently
-
 
 void fault() {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
@@ -131,7 +129,9 @@ int main( void )
 	command.bus_current = 1.0;
 	command.flags = 0x00;
 //	command.state = MODE_OFF;
-	command.state = MODE_N;			// Initially go to neutral
+	// Initially go to charge state so we can't drive off in the second before
+	// charger activity is detected.
+	command.state = MODE_CHARGE;
 
 	// Init gauges
 	gauge_init();
@@ -181,12 +181,11 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					if(switches & SW_IGN_ON) next_state = MODE_N;
+					if(switches & SW_IGN_ON) next_state = MODE_CHARGE;
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
 					break;
-				case MODE_N:	// MVE: we get here briefly when the fuel door closes, and a few other cases
-								// With the
+				case MODE_N:  // Should never get here now
 #if 0
 					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
@@ -194,11 +193,10 @@ int main( void )
 					else
 #endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
-					else if (uCharging) next_state = MODE_CHARGE;		// Stay in charge mode if see charger activity
+					else if (!(switches & SW_CHARGE_CABLE)) next_state = MODE_D;
 //					else next_state = MODE_N;
-					else next_state = MODE_D;			// Always proceed to MODE_D unless ignition is off, fuel door is open,
-														//	or see charger activity
+					else next_state = MODE_CHARGE;	// Always proceed to MODE_CHARGE unless ignition is on
+													//	and fuel door is closed
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_3;
 					break;
@@ -207,7 +205,7 @@ int main( void )
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
 					else next_state = MODE_R;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_4;
@@ -217,7 +215,7 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
+					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_2;
@@ -230,14 +228,13 @@ int main( void )
 					else
 #endif
 						if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE) next_state = MODE_CHARGE;
-					else if (uCharging) next_state = MODE_CHARGE;		// Switch to charge mode if detect charger activity
+					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if(!(switches & SW_CHARGE_CABLE)) next_state = MODE_N;
+					if(!(switches & SW_CHARGE_CABLE) && !chgr_rx_timer) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
