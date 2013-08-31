@@ -178,7 +178,7 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 					else if (switches & SW_IGN_ON) next_state = MODE_D;
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
@@ -191,10 +191,10 @@ int main( void )
 					else
 #endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (!((switches & SW_CHARGE_CABLE) || chgr_rx_timer)) next_state = MODE_D;
+					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 //					else next_state = MODE_N;
-					else next_state = MODE_CHARGE;	// Always proceed to MODE_CHARGE unless ignition is on
-													//	and fuel door is closed
+					else next_state = MODE_D;	// Always proceed to MODE_D unless ignition is off
+												//	or charger or charge cable are detected
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_3;
 					break;
@@ -203,7 +203,7 @@ int main( void )
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 					else next_state = MODE_R;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_4;
@@ -213,7 +213,7 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 					else next_state = MODE_B;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_2;
@@ -225,14 +225,14 @@ int main( void )
 					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else
 #endif
-					if (switches & SW_CHARGE_CABLE || chgr_rx_timer) next_state = MODE_CHARGE;
+					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else next_state = MODE_D;
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if (!((switches & SW_CHARGE_CABLE) || chgr_rx_timer)) next_state = MODE_OFF;
+					if (!((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) next_state = MODE_OFF;
 					else next_state = MODE_CHARGE;
 					// Flash N LED in charge mode
 					charge_flash_count--;
@@ -254,7 +254,7 @@ int main( void )
 			if (command.state != next_state) {
 				if (command.state == MODE_CHARGE) { // Not charging
 					bmu_changeDirection(FALSE); // Tell BMUs about any change in direction of current flow
-					chgr_off();
+					chgr_stop();
 				}
 				else if (next_state == MODE_CHARGE) { // Charging
 					bmu_changeDirection(TRUE); // Tell BMUs about any change in direction of current flow
@@ -267,10 +267,6 @@ int main( void )
 			// Control brake lights
 			if((switches & SW_BRAKE) || (events & EVENT_REGEN)) P1OUT |= BRAKE_OUT;
 			else P1OUT &= ~BRAKE_OUT;
-
-			// Control reversing lights
-			if(command.state == MODE_R) P1OUT |= REVERSE_OUT;
-			else P1OUT &= ~REVERSE_OUT;
 
 			// Control CAN bus and pedal sense power
 			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) {
@@ -533,7 +529,7 @@ void clock_init( void )
 void io_init( void )
 {
 	P1OUT = 0x00;
-	P1DIR = BRAKE_OUT | REVERSE_OUT | CAN_PWR_OUT | P1_UNUSED;
+	P1DIR = BRAKE_OUT | CHG_CONT_OUT | CAN_PWR_OUT | P1_UNUSED;
 
 	P2OUT = 0x00;
 	P2DIR = P2_UNUSED;
@@ -606,7 +602,7 @@ void timerB_init( void )
 void adc_init( void )
 {
 	// Enable A/D input channels
-	P6SEL |= ANLG_SENSE_A | ANLG_SENSE_B | ANLG_SENSE_C | ANLG_SENSE_V | ANLG_BRAKE_I | ANLG_REVERSE_I | ANLG_CAN_PWR_I;
+	P6SEL |= ANLG_SENSE_A | ANLG_SENSE_B | ANLG_SENSE_C | ANLG_SENSE_V | ANLG_BRAKE_I | ANLG_CHG_CONT_I | ANLG_CAN_PWR_I;
 	// Turn on ADC12, set sampling time = 256 ADCCLK, multiple conv, start internal 2.5V reference
 	ADC12CTL0 = ADC12ON | SHT0_8 | SHT1_8 | MSC | REFON | REF2_5V;
 	// Use sampling timer, ADCCLK = MCLK/4, run a single sequence per conversion start
@@ -617,7 +613,7 @@ void adc_init( void )
 	ADC12MCTL2 = INCH_1 | SREF_1;			// Analog C
 	ADC12MCTL3 = INCH_4 | SREF_1;			// Analog V Supply
 	ADC12MCTL4 = INCH_5 | SREF_1;			// Brake light current
-	ADC12MCTL5 = INCH_6 | SREF_1;			// Reverse light current
+	ADC12MCTL5 = INCH_6 | SREF_1;			// Charger contactor coil current
 	ADC12MCTL6 = INCH_7 | SREF_1 | EOS;		// CAN Bus current / End of sequence
 	// Enable interrupts on final conversion in sequence
 //	ADC12IE = BIT6;	// Some bug with this - keep using polling for the moment

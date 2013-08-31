@@ -12,8 +12,8 @@ void chgr_processPacket();
 
 // Public variables
 volatile unsigned int chgr_events = 0;
-		 unsigned int chgr_state = 0;
-		 int chgr_rx_timer = CHGR_TIMEOUT;// MVE: counts to zero; reset when see any output from the charger
+		 unsigned int chgr_state = CHGR_IDLE;
+		 int chgr_rx_timer = CHGR_TIMEOUT;// MVE: counts to zero; restart when see any output from the charger
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
@@ -46,7 +46,39 @@ void chgr_init() {
 
 void chgr_start() {
 	chgr_state = CHGR_CHARGING;
+	P1OUT |= CHG_CONT_OUT;		// Turn on the charger contactor.
+								// External relays and diodes should ensure that we also
+								// turn on the battery contactors and
+								// disable the traction (motor controller and precharge) contactors.
 	chgr_bypCount = 0;
+}
+
+
+void chgr_idle() {
+	chgr_sendRequest(0, 0, false); // Zero volts, zero amps, but let it keep sending data
+	chgr_state = CHGR_IDLE;
+	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
+								// External relays and diodes should ensure that we also
+								// turn off the battery contactors but
+								// don't enable the traction (motor controller and precharge) contactors.
+}
+
+
+void chgr_stop() {
+	chgr_sendRequest(0, 0, true); // Zero volts, zero amps, and turn charger off
+	chgr_state = CHGR_IDLE;
+	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
+								// External relays and diodes should ensure that we also
+								// turn off the battery contactors and
+								// enable the traction (motor controller and precharge) contactors.
+}
+
+
+void chgr_timer() {				// Called every timer tick, for charger related processing
+	if (chgr_rx_timer > 0) --chgr_rx_timer;	// Decrement without letting it wrap around
+	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
+		fault();						// Turn on fault LED (eventually)
+	}
 }
 
 
@@ -80,7 +112,7 @@ bool chgr_sendByte(unsigned char ch) {
 void readChargerBytes()
 {	unsigned char ch;
 	while (	chgr_rx_q.dequeue(ch)) {
-		chgr_rx_timer = CHGR_TIMEOUT;		// Reset received anything counter
+		chgr_rx_timer = CHGR_TIMEOUT;		// Restart received-anything timer
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
 			chgr_processPacket();			// We've received a charger response
@@ -115,21 +147,8 @@ void chgr_processPacket() {
 }
 
 
-void chgr_timer() {							// Called every timer tick, for charger related processing
-
-	if (--chgr_rx_timer < 0) chgr_rx_timer = 0;			// Don't let it wrap around
-	if (chgr_state && (chgr_state != CHGR_END_CHARGE) && (chgr_rx_timer == 0)) {
-		fault();						// Turn on fault LED (eventually)
-	}
-}
-
-
 // Send the current command now
 void chgr_sendCurrent(unsigned int iCurr) {
-	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, 0);
+	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, false);
 }
 
-void chgr_off() {
-	chgr_sendRequest(0, 0, true);			// Zero volts, zero amps, and turn charger off
-	chgr_state = CHGR_END_CHARGE;			// Reset all other flags, set end charge flag
-}

@@ -26,7 +26,7 @@ void dint();
 #define IN_IGN_ONn			0x08
 #define IN_IGN_ACCn			0x10
 #define BRAKE_OUT			0x20
-#define REVERSE_OUT			0x40
+#define CHG_CONT_OUT		0x40	// Charger contactor. Was REVERSE_OUT (reversing lights)
 #define CAN_PWR_OUT			0x80
 #define P1_UNUSED			0x00
 
@@ -83,7 +83,7 @@ void dint();
 #define ANLG_SENSE_A		0x08
 #define ANLG_SENSE_V		0x10
 #define ANLG_BRAKE_I		0x20
-#define ANLG_REVERSE_I		0x40
+#define ANLG_CHG_CONT_I		0x40	// Charger contactor current. Was ANLG_REVERSE_I (reversing lights)
 #define ANLG_CAN_PWR_I		0x80
 #define P6_UNUSED			0x00
 
@@ -131,22 +131,6 @@ void dint();
 #define EVENT_GAUGE2		0x2000				// Signal that gauge 2 has been recalculated and requires update
 #define EVENT_GAUGE3		0x4000				// Signal that gauge 3 has been recalculated and requires update
 #define EVENT_GAUGE4		0x8000				// Signal that gauge 4 has been recalculated and requires update
-
-// Charger events
-// 	None at present
-
-// Charger state
-#define CHGR_CHARGING		0x0001				// We are charging
-#define CHGR_SOAKING		0x0004				// We are soaking with all BMUs in bypass
-#define CHGR_END_CHARGE		0x0008				// The charger is turned off; end of charge
-
-
-// BMU events
-#define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
-//#define	BMU_REC			0x0002				// We have received a response from the BMU string
-//#define BMU_BADNESS		0x0004				// We have received a badness value from the BMU string
-//#define BMU_VOLTREQ		0x0008				// Time to send a voltage request to BMUs
-//#define BMU_RESEND		0x0010				// Resend the last BMU packet from main loop
 
 // Control parameters
 #define ENGAGE_VEL_F		50					// Don't allow drive direction change above this speed, rpm

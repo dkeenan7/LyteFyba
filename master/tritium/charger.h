@@ -19,18 +19,27 @@
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
-#define CHGR_TIMEOUT		200					// Charger timeout in 10 ms timer ticks.
+#define CHGR_TIMEOUT		120					// Charger timeout in 10 ms timer ticks.
 												//  Should receive something every second
+// Charger state
+#define CHGR_IDLE			0x0000				// Not charging -- bat is full or not in charge mode
+#define CHGR_CHARGING		0x0001				// We are charging
+// #define CHGR_SOAKING		0x0002				// We are soaking with all BMUs in bypass -- not used
+
+// Charger events
+// 	None at present
+
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising
-void chgr_start();								// Called whenever begin charging
+void chgr_start();								// Called when entering charge mode
+void chgr_idle();								// Called in charge mode when the battery finishes charging
+void chgr_stop();								// Called when leaving charge mode
 void readChargerBytes();
 bool chgr_sendRequest(int voltage, int current, bool chargerOff);
 void chgr_processPacket();
 bool chgr_resendLastPacket(void);
 void chgr_timer();								// Called every timer tick, for charger related processing
-void chgr_off();
 void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 
 
