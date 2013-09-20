@@ -25,7 +25,7 @@ public:
 
 };
 
-#define nop()  __asm__ __volatile__("nop"::)
+//#define nop()  __asm__ __volatile__("nop"::)
 
 // Saturating subtraction of signed ints
 // Uses tricky MSP430 assembler
