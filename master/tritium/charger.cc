@@ -48,8 +48,7 @@ void chgr_start() {
 	chgr_state = CHGR_CHARGING;
 	P1OUT |= CHG_CONT_OUT;		// Turn on the charger contactor.
 								// External relays and diodes should ensure that we also
-								// turn on the battery contactors and
-								// disable the traction (motor controller and precharge) contactors.
+								// turn on the battery contactors.
 	chgr_bypCount = 0;
 }
 

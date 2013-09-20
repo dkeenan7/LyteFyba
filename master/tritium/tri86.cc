@@ -85,8 +85,6 @@ int main( void )
 	unsigned char next_state = MODE_OFF;
 	// Comms
 	unsigned int comms_event_count = 0;
-	// LED flashing
-	unsigned char charge_flash_count = CHARGE_FLASH_SPEED;
 	// Debug
 	unsigned int i;
 
@@ -135,11 +133,14 @@ int main( void )
 	gauge_init();
 
 	// Init BMS and charger
-	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end f the BMU
-	//	string. Otherwise, the 'k' and 0K commands won't work from about BMU 14 onwards
-	for(i = 0; i < 3000; i++) brief_pause(5333);		// 3000 ms = 3 seconds
 	bms_init();
 	chgr_init();
+	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end f the BMU
+	//	string. Otherwise, the 'k' and 0K commands won't work from about BMU 14 onwards
+	for (i = 0; i < 3000; i++) {
+		readChargerBytes();		// So we update chgr_rx_timer
+		brief_pause(5333);		// 3000 ms = 3 seconds
+	}
 
 	// Enable interrupts
 	__eint();
@@ -180,17 +181,19 @@ int main( void )
 			switch(command.state){
 				case MODE_OFF:
 					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-					else if (switches & SW_IGN_ON) next_state = MODE_D;
+					else if (switches & SW_IGN_START) next_state = MODE_D;
 					else next_state = MODE_OFF;
 					P5OUT &= ~(LED_GEAR_ALL);
+					P1OUT &= ~CHG_CONT_OUT;			// Turn off charger contactors
+					if (!(command.flags & FAULT_NO_PEDAL))
+						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors
 					break;
-				case MODE_N:  // Should never get here now
 #if 0
+				case MODE_N:  // Should never get here now
 					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
 					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
 					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
 					else
-#endif
 						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
 					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 //					else next_state = MODE_N;
@@ -219,32 +222,35 @@ int main( void )
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_2;
 					break;
-				case MODE_D:
-#if 0
-					if(switches & SW_MODE_N) next_state = MODE_N;
-					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
-					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
-					else
 #endif
+				case MODE_D:
 					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
 					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else next_state = MODE_D;
+					else {
+						next_state = MODE_D;
+						if (!(command.flags & FAULT_NO_PEDAL)) {	// If DCU A, turn traction on or off
+							// On DCU A, SW_BRAKE is the traction inbhibit from the other DCU
+							if (switches & SW_CRASH || switches & SW_BRAKE)
+								P1OUT &= ~BRAKE_OUT;
+							else
+								P1OUT |= BRAKE_OUT;					//	turn on traction contactors
+						}
+					}
 					P5OUT &= ~(LED_GEAR_ALL);
 					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if (!((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) next_state = MODE_OFF;
+					if (!((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) {
+						next_state = MODE_OFF;
+						if (command.flags & FAULT_NO_PEDAL)		// If DCU B
+							P5OUT &= ~LED_GEAR_3;				// turn off IN CHARGE MODE
+					}
 					else next_state = MODE_CHARGE;
-					// Flash N LED in charge mode
-					charge_flash_count--;
+					if (switches & SW_CRASH)
+						P1OUT &= ~CHG_CONT_OUT;
 					P5OUT &= ~(LED_GEAR_4);
-					if(charge_flash_count == 0){
-						charge_flash_count = (CHARGE_FLASH_SPEED * 2);
-						P5OUT |= LED_GEAR_3;
-					}
-					else if(charge_flash_count == CHARGE_FLASH_SPEED){
-						P5OUT &= ~LED_GEAR_3;
-					}
+					if (command.flags & FAULT_NO_PEDAL)		// For DCU B
+						P5OUT |= LED_GEAR_3;				//	turn on IN CHARGE MODE
 					break;
 				default:
 					next_state = MODE_OFF;
@@ -259,15 +265,26 @@ int main( void )
 				}
 				else if (next_state == MODE_CHARGE) { // Charging
 					bmu_changeDirection(TRUE); // Tell BMUs about any change in direction of current flow
-					chgr_start();
+					if (!(switches & SW_CRASH))	// Don't start charging if crashed
+						chgr_start();
 				}
 			}
 
 			command.state = next_state;
 
 			// Control brake lights
-			if((switches & SW_BRAKE) || (events & EVENT_REGEN)) P1OUT |= BRAKE_OUT;
-			else P1OUT &= ~BRAKE_OUT;
+			if (command.flags & FAULT_NO_PEDAL) {
+				// DCU B
+				if((switches & SW_BRAKE) || (events & EVENT_REGEN))
+					P1OUT |= BRAKE_OUT;
+				else P1OUT &= ~BRAKE_OUT;
+			} else {
+				// DCU A
+				if (events & EVENT_REGEN)
+					P5OUT |= LED_GEAR_3;
+				else
+					P5OUT &= ~LED_GEAR_3;
+			}
 
 			// Control CAN bus and pedal sense power
 			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) {
@@ -299,10 +316,12 @@ int main( void )
 					case MODE_R:
 					case MODE_D:
 					case MODE_B:
+#if 0					// On DCU A, SW_BRAKE means inhibit traction
 						if(switches & SW_BRAKE){
 							command.current = 0.0;
 							command.rpm = 0.0;
 						}
+#endif
 						break;
 					case MODE_CHARGE:
 					case MODE_N:
@@ -752,8 +771,11 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	if(P2IN & IN_GEAR_2) *state |= SW_MODE_B;
 	else *state &= ~SW_MODE_B;
 
-	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;
-	else *state &= ~SW_MODE_D;
+//	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;	// IN_GEAR_1 now repurposed to crash signal
+//	else *state &= ~SW_MODE_D;
+	// Crash switch is active (crash state) when low at DB37, so active high at the port
+	if (P2IN & IN_GEAR_1) *state |= SW_CRASH;
+	else *state &= ~SW_CRASH;
 #endif
 
 	if(P1IN & IN_IGN_ACCn) *state &= ~SW_IGN_ACC;
