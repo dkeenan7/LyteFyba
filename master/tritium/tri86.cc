@@ -22,7 +22,8 @@
 
 // Include files
 #include <msp430x24x.h>
-#include <signal.h>
+//#include <signal.h>
+#include <intrinsics.h>
 #include "tri86.h"
 #include "can.h"
 #include "usci.h"
@@ -36,8 +37,8 @@
 #define __inline__								//	press F7, and so that "go to definition of X" works better
 #define __volatile__
 #define interrupt(x) void
-void eint();
-void dint();
+void __eint();
+void __dint();
 #endif
 
 #define LED_PORT			P4OUT				// MVE: modified DCU; uses port 3 for UART, port 4 for
@@ -141,7 +142,7 @@ int main( void )
 	chgr_init();
 
 	// Enable interrupts
-	eint();
+	__eint();
 
 	// Convert potentiometer and current monitoring inputs
 	ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
@@ -628,7 +629,8 @@ void adc_init( void )
  * Timer B CCR0 Interrupt Service Routine
  *	- Interrupts on Timer B CCR0 match at GAUGE_FREQUENCY (10kHz)
  */
-interrupt(TIMERB0_VECTOR) timer_b0(void)
+#pragma vector=TIMERB0_VECTOR
+__interrupt void timer_b0(void)
 {
 	static unsigned int gauge_count;
 	static unsigned int gauge1_on, gauge1_off;
@@ -679,7 +681,8 @@ interrupt(TIMERB0_VECTOR) timer_b0(void)
  *	- Sets Time_Flag variable
  */
 
-interrupt(TIMERA0_VECTOR) timer_a0(void)
+#pragma vector=TIMERA0_VECTOR
+__interrupt void timer_a0(void)
 {
 	static unsigned char comms_count = COMMS_SPEED;
 	static unsigned char activity_count;

@@ -30,12 +30,12 @@
 
 // Include files
 #include <msp430x24x.h>
-#include <signal.h>					// For interrupt() macro
+#include <intrinsics.h>
 #include <string.h>					// For memcpy()
 
 #include "tri86.h"					// For CAN_MOSI etc
 #include "usci.h"
-#include "bms.h"					// For the BMU and 
+#include "bms.h"					// For the BMU and
 #include "charger.h"				//	charger queues
 #include "queue.h"
 
@@ -85,8 +85,8 @@ unsigned char usci_exchange( unsigned char data )
 }
 
 // USCI0 A0/B0 Transmit ISR.
-// #pragma vector=USCIAB0TX_VECTOR
-interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
+#pragma vector=USCIAB0TX_VECTOR
+__interrupt void usciab0tx(void)
 {
 	if (IFG2 & UCA0TXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
@@ -100,8 +100,8 @@ interrupt(USCIAB0TX_VECTOR) usciab0tx(void)
 }
 
 // For use with A1/B1, need separate ISR, using UC1IFG instead of IFG2, and UC1IE for IE2.
-// #pragma vector=USCIAB1TX_VECTOR
-interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
+#pragma vector=USCIAB1TX_VECTOR
+__interrupt void usciab1tx(void)
 {
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
@@ -115,8 +115,8 @@ interrupt(USCIAB1TX_VECTOR) usciab1tx(void)
 }
 
 // USCI0 A0/B0 Receive ISR
-//  #pragma vector=USCIAB0RX_VECTOR
-interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
+#pragma vector=USCIAB0RX_VECTOR
+__interrupt void usciab0rx(void)
 {
 	if (IFG2 & UCA0RXIFG)						// Make sure it's UCA0 causing the interrupt
 	{
@@ -128,8 +128,8 @@ interrupt(USCIAB0RX_VECTOR) usciab0rx(void)
 }
 
 // USCI1 A0/B0 Receive ISR
-//  #pragma vector=USCIAB1RX_VECTOR
-interrupt(USCIAB1RX_VECTOR) usciab1rx(void)
+#pragma vector=USCIAB1RX_VECTOR
+__interrupt void usciab1rx(void)
 {
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{

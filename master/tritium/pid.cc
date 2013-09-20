@@ -17,7 +17,7 @@
 
 //#include <io.h>			// For hardware multiplier special function regs
 #include <msp430.h>			// For hardware multiplier special function regs
-#include <signal.h>		// For dint(), eint()
+#include <intrinsics.h>		// For __dint(), __eint()
 #include "pid.h"
 
 pid::pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd, fract measure)
@@ -34,7 +34,7 @@ pid::pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd
 fract pid::tick(fract measure) {
 	fract error, deriv, deriv2;
 	accum output;
-	
+
 	error = sat_minus(/*set_point*/ 0, measure);
 	deriv = sat_minus(error, prev_error);
 	deriv2 = sat_minus(deriv, prev_deriv);
@@ -47,7 +47,7 @@ fract pid::tick(fract measure) {
         +  ((long)Ki * error)
         +  ((long)Kd * deriv2)) >> 8);
 #else					// Use the hardware multiply-accumulate registers
-	dint();				// Disable interrupts, in case use multiply hardware there
+	__dint();			// Disable interrupts, in case use multiply hardware there
 	nop();				// First instruction not protected
 	MPYS = Kp;			// First operation is a multiply, to ignore previous results
 	OP2 = deriv;
@@ -58,7 +58,7 @@ fract pid::tick(fract measure) {
 	// Allow accessing multiplier result as a _signed_ long instead of two unsigned ints.
 	static volatile signed long RESLONG asm("0x013A");
 	output = prev_output + (RESLONG >> 8);
-	eint();
+	__eint();
 #endif
 	// Saturate the output to -1.0 ($8000) and almost +1.0 ($7FFF)
 	if (output > 0x7FFFL) output = 0x7FFFL;
@@ -67,7 +67,7 @@ fract pid::tick(fract measure) {
 	prev_error = error;
 	prev_deriv = deriv;
 	prev_output = output;
-	return output;	
+	return output;
 }
 
 // This function is for when we have an invalid measurement, e.g. we get a status byte, but it fails
