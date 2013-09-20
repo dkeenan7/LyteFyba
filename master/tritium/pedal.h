@@ -46,7 +46,7 @@ extern command_variables command;
 #define FAULT_ACCEL_MISMATCH	0x04
 #define FAULT_REGEN_LOW			0x10
 #define FAULT_REGEN_HIGH		0x20
-#define FAULT_NO_PEDAL			0x40
+#define FAULT_NO_PEDAL			0x40				// Set if no pedal found, i.e. DCU B
 
 
 // Command parameter limits

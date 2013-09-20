@@ -31,7 +31,7 @@ void dint();
 #define P1_UNUSED			0x00
 
 // Port 2
-#define IN_GEAR_1			0x01
+#define IN_GEAR_1			0x01	// Now crash switch, low at DB37 = crash
 #define IN_GEAR_2			0x02
 #define IN_GEAR_3			0x04
 #define IN_GEAR_4			0x08
@@ -69,7 +69,8 @@ void dint();
 #define LED_FAULT_1			0x04
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10
-#define LED_GEAR_3			0x20
+#define LED_GEAR_3			0x20	// DCUA: regen, request brake light
+									// DCUB: IN CHARGE MODE
 #define LED_GEAR_2			0x40
 #define LED_GEAR_1			0x80
 #define P5_UNUSED			0x00
@@ -110,7 +111,6 @@ void dint();
 #define INPUT_CLOCK			16000000			// Hz
 #define TICK_RATE			100					// Hz
 #define COMMS_SPEED			10					// Number of ticks per event: 10 ticks = 100ms = 10 Hz
-#define CHARGE_FLASH_SPEED	20					// LED flash rate in charge mode: 20 ticks = 200ms = 5 Hz
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
 #define FAULT_SPEED			/*200*/10					// LED sustain period for FAULT led: 200 ticks = 2 seconds
 
