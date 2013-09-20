@@ -15,7 +15,8 @@
 // The charger algorithm would be particularly upset by this, causing overflows and worse delaying
 // essential charge current cut-back when a cell becomes full.
 
-#include <io.h>			// For hardware multiplier special function regs
+//#include <io.h>			// For hardware multiplier special function regs
+#include <msp430.h>			// For hardware multiplier special function regs
 #include <signal.h>		// For dint(), eint()
 #include "pid.h"
 
