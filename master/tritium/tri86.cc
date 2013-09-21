@@ -187,8 +187,8 @@ int main( void )
 					P1OUT &= ~BRAKE_OUT;			// Turn off traction contactors if we're DCU-A
 													// Turn off brake lights if we're DCU-B
 
-					if (switches & SW_CRASH)		// if we've crashed
-						next_state = MODE_OFF;		// Stay in the OFF mode
+					if (switches & SW_CRASH)				// if we've crashed
+						next_state = MODE_OFF;				// Stay in the OFF mode
 					else if ((switches & SW_CHARGE_CABLE)  	// else if our charge cable is present
 					|| (chgr_rx_timer > 0)) {				// or we received data from our charger
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
@@ -202,7 +202,7 @@ int main( void )
 					}
 					else if (!(command.flags & FAULT_NO_PEDAL)	// else if we're DCU-A
 					&& !(switches & SW_BRAKE) 				// and DCU-B is not in charge mode
-					&& (switches & SW_IGN_START) {			// and latched start is on
+					&& (switches & SW_IGN_START)) {			// and latched start is on
 						next_state = MODE_D;				// Go to drive mode
 						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
 						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
@@ -213,23 +213,23 @@ int main( void )
 				case MODE_D:
 					if ((switches & SW_CRASH) 				// if we've crashed
 					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
-					|| (chgr_rx_timer > 0))					// or we received data from our charger
-					|| (!(switches & SW_IGN_START)) {		// or latched start is off
+					|| (chgr_rx_timer > 0)					// or we received data from our charger
+					|| !(switches & SW_IGN_START)) {		// or latched start is off
 						next_state = MODE_OFF;				// Go to OFF mode
-					else {
-						next_state = MODE_D;
-						}
 					}
-					P5OUT &= ~(LED_GEAR_ALL);
+					else
+						next_state = MODE_D;
 					break;
 				case MODE_CHARGE:
-					if ((switches & SW_CRASH) || !((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) {
-						next_state = MODE_OFF;
+					if ((switches & SW_CRASH)  				// if we've crashed
+						|| !((switches & SW_CHARGE_CABLE) 	// or we have neither charge cable
+							|| (chgr_rx_timer > 0))) {		// nor received data from our charger
+						next_state = MODE_OFF;				// Go to OFF mode
 						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
 							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
 															// so it can allow traction
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
-						chgr_stop();
+						chgr_stop();						// Stop the charge controller (PID loop)
 					}
 					else
 						next_state = MODE_CHARGE;
