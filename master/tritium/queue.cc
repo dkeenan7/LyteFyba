@@ -7,7 +7,7 @@ queue::queue(unsigned char sz)
 	rd = 0;
 	wr = 0;
 	bufSize = sz;
-	buf = (unsigned char*)__builtin_malloc(sizeof(unsigned char[sz]));	// buf = new unsigned char[sz];
+	buf = (unsigned char*)malloc(sizeof(unsigned char[sz]));	// buf = new unsigned char[sz];
 }
 
 /* Enqueue and Dequeue general queueing functions */

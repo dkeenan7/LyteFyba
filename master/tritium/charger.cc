@@ -58,18 +58,16 @@ void chgr_idle() {
 	chgr_state = CHGR_IDLE;
 	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
 								// External relays and diodes should ensure that we also
-								// turn off the battery contactors but
-								// don't enable the traction (motor controller and precharge) contactors.
+								// turn off the battery contactors.
 }
 
 
 void chgr_stop() {
-	chgr_sendRequest(0, 0, true); // Zero volts, zero amps, and turn charger off
+	chgr_sendRequest(0, 0, false); // Zero volts, zero amps, but let it keep sending data
 	chgr_state = CHGR_IDLE;
 	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
 								// External relays and diodes should ensure that we also
-								// turn off the battery contactors and
-								// enable the traction (motor controller and precharge) contactors.
+								// turn off the battery contactors.
 }
 
 

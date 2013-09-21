@@ -69,8 +69,8 @@ void dint();
 #define LED_FAULT_1			0x04
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10
-#define LED_GEAR_3			0x20	// DCUA: regen, request brake light
-									// DCUB: IN CHARGE MODE
+#define LED_GEAR_3			0x20	// DCU-A: heavy regen, request DCU-B to turn on brake light
+									// DCU-B: in charge mode, request DCU-A to inhibit traction
 #define LED_GEAR_2			0x40
 #define LED_GEAR_1			0x80
 #define P5_UNUSED			0x00

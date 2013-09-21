@@ -180,114 +180,83 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-					else if (switches & SW_IGN_START) next_state = MODE_D;
-					else next_state = MODE_OFF;
-					P5OUT &= ~(LED_GEAR_ALL);
-					P1OUT &= ~CHG_CONT_OUT;			// Turn off charger contactors
-					if (!(command.flags & FAULT_NO_PEDAL))
-						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors
-					break;
-#if 0
-				case MODE_N:  // Should never get here now
-					if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
-					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
-					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
+					P5OUT &= ~(LED_GEAR_ALL);		// Stop indicating drive mode or charge mode
+													// Stop requesting brakelights if we're DCU-A
+													// Stop indicating charge mode if we're DCU-B
+					P1OUT &= ~CHG_CONT_OUT;			// Turn off our charger contactors
+					P1OUT &= ~BRAKE_OUT;			// Turn off traction contactors if we're DCU-A
+													// Turn off brake lights if we're DCU-B
+
+					if (switches & SW_CRASH)		// if we've crashed
+						next_state = MODE_OFF;		// Stay in the OFF mode
+					else if ((switches & SW_CHARGE_CABLE)  	// else if our charge cable is present
+					|| (chgr_rx_timer > 0)) {				// or we received data from our charger
+						next_state = MODE_CHARGE;			// Go to CHARGE mode
+						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
+							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
+															// so it can inhibit traction
+						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
+						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
+						chgr_start();						// Start the charge controller (PID loop)
+						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
+					}
+					else if (!(command.flags & FAULT_NO_PEDAL)	// else if we're DCU-A
+					&& !(switches & SW_BRAKE) 				// and DCU-B is not in charge mode
+					&& (switches & SW_IGN_START) {			// and latched start is on
+						next_state = MODE_D;				// Go to drive mode
+						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
+						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
+					}
 					else
-						 if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-//					else next_state = MODE_N;
-					else next_state = MODE_D;	// Always proceed to MODE_D unless ignition is off
-												//	or charger or charge cable are detected
-					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_3;
+						next_state = MODE_OFF;
 					break;
-				case MODE_R:							// MVE: we never get here now
-					if(switches & SW_MODE_N) next_state = MODE_N;
-					else if((switches & SW_MODE_B) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_B;
-					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-					else next_state = MODE_R;
-					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_4;
-					break;
-				case MODE_B:
-					if(switches & SW_MODE_N) next_state = MODE_N;
-					else if((switches & SW_MODE_R) && ((events & EVENT_SLOW) || (events & EVENT_REVERSE))) next_state = MODE_R;
-					else if((switches & SW_MODE_D) && ((events & EVENT_SLOW) || (events & EVENT_FORWARD))) next_state = MODE_D;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
-					else if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-					else next_state = MODE_B;
-					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_2;
-					break;
-#endif
 				case MODE_D:
-					if ((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0)) next_state = MODE_CHARGE;
-					else if (!(switches & SW_IGN_ON)) next_state = MODE_OFF;
+					if ((switches & SW_CRASH) 				// if we've crashed
+					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
+					|| (chgr_rx_timer > 0))					// or we received data from our charger
+					|| (!(switches & SW_IGN_START)) {		// or latched start is off
+						next_state = MODE_OFF;				// Go to OFF mode
 					else {
 						next_state = MODE_D;
-						if (!(command.flags & FAULT_NO_PEDAL)) {	// If DCU A, turn traction on or off
-							// On DCU A, SW_BRAKE is the traction inbhibit from the other DCU
-							if (switches & SW_CRASH || switches & SW_BRAKE)
-								P1OUT &= ~BRAKE_OUT;
-							else
-								P1OUT |= BRAKE_OUT;					//	turn on traction contactors
 						}
 					}
 					P5OUT &= ~(LED_GEAR_ALL);
-					P5OUT |= LED_GEAR_1;
 					break;
 				case MODE_CHARGE:
-					if (!((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) {
+					if ((switches & SW_CRASH) || !((switches & SW_CHARGE_CABLE) || (chgr_rx_timer > 0))) {
 						next_state = MODE_OFF;
-						if (command.flags & FAULT_NO_PEDAL)		// If DCU B
-							P5OUT &= ~LED_GEAR_3;				// turn off IN CHARGE MODE
+						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
+							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
+															// so it can allow traction
+						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
+						chgr_stop();
 					}
-					else next_state = MODE_CHARGE;
-					if (switches & SW_CRASH)
-						P1OUT &= ~CHG_CONT_OUT;
-					P5OUT &= ~(LED_GEAR_4);
-					if (command.flags & FAULT_NO_PEDAL)		// For DCU B
-						P5OUT |= LED_GEAR_3;				//	turn on IN CHARGE MODE
+					else
+						next_state = MODE_CHARGE;
 					break;
 				default:
 					next_state = MODE_OFF;
 					break;
 			}
 
-			// Start and stop charging
-			if (command.state != next_state) {
-				if (command.state == MODE_CHARGE) { // Not charging
-					bmu_changeDirection(FALSE); // Tell BMUs about any change in direction of current flow
-					chgr_stop();
-				}
-				else if (next_state == MODE_CHARGE) { // Charging
-					bmu_changeDirection(TRUE); // Tell BMUs about any change in direction of current flow
-					if (!(switches & SW_CRASH))	// Don't start charging if crashed
-						chgr_start();
-				}
-			}
-
 			command.state = next_state;
 
 			// Control brake lights
 			if (command.flags & FAULT_NO_PEDAL) {
-				// DCU B
-				if((switches & SW_BRAKE) || (events & EVENT_REGEN))
-					P1OUT |= BRAKE_OUT;
+				// If we're DCU-B
+				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-B is requesting
+					P1OUT |= BRAKE_OUT;		// Turn on brake lights
 				else P1OUT &= ~BRAKE_OUT;
 			} else {
-				// DCU A
-				if (events & EVENT_REGEN)
-					P5OUT |= LED_GEAR_3;
+				// else we're DCU-A
+				if (events & EVENT_REGEN)   // If we're in heavy regen
+					P5OUT |= LED_GEAR_3;	// Request DCU-B to turn on brake lights
 				else
 					P5OUT &= ~LED_GEAR_3;
 			}
 
 			// Control CAN bus and pedal sense power
-			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON)) {
+			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON) || (switches & SW_IGN_START)) {
 			  	P1OUT |= CAN_PWR_OUT;
 				P6OUT |= ANLG_V_ENABLE;
 			}
@@ -309,35 +278,6 @@ int main( void )
 		// Handle outgoing communications events (to motor controller)
 		if ((events & EVENT_COMMS) && !(command.flags & FAULT_NO_PEDAL)) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
-
-			// Update command state and override pedal commands if necessary
-			if(switches & SW_IGN_ON){
-				switch(command.state){
-					case MODE_R:
-					case MODE_D:
-					case MODE_B:
-#if 0					// On DCU A, SW_BRAKE means inhibit traction
-						if(switches & SW_BRAKE){
-							command.current = 0.0;
-							command.rpm = 0.0;
-						}
-#endif
-						break;
-					case MODE_CHARGE:
-					case MODE_N:
-					case MODE_START:
-					case MODE_OFF:
-					case MODE_ON:
-					default:
-						command.current = 0.0;
-						command.rpm = 0.0;
-						break;
-				}
-			}
-			else{
-				command.current = 0.0;
-				command.rpm = 0.0;
-			}
 
 			// Transmit commands and telemetry
 			if(events & EVENT_CONNECTED){
