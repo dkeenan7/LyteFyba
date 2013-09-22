@@ -222,8 +222,8 @@ int main( void )
 					break;
 				case MODE_CHARGE:
 					if ((switches & SW_CRASH)  				// if we've crashed
-						|| !((switches & SW_CHARGE_CABLE) 	// or we have neither charge cable
-							|| (chgr_rx_timer > 0))) {		// nor received data from our charger
+					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither charge cable present
+					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
 						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
 							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
@@ -247,7 +247,8 @@ int main( void )
 				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-B is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
 				else P1OUT &= ~BRAKE_OUT;
-			} else {
+			}
+			else {
 				// else we're DCU-A
 				if (events & EVENT_REGEN)   // If we're in heavy regen
 					P5OUT |= LED_GEAR_3;	// Request DCU-B to turn on brake lights
@@ -260,7 +261,7 @@ int main( void )
 			  	P1OUT |= CAN_PWR_OUT;
 				P6OUT |= ANLG_V_ENABLE;
 			}
-			else{
+			else {
 				P1OUT &= ~CAN_PWR_OUT;
 				P6OUT &= ~ANLG_V_ENABLE;
 				events &= ~EVENT_CONNECTED;
@@ -365,7 +366,8 @@ int main( void )
 						gauge_fuel_update( battery_voltage );
 						break;
 				    }
-				} else {
+				}
+				else {
 				 	switch (can.identifier) {
 					case DC_CAN_BASE + DC_BOOTLOAD:
 						// Switch to bootloader
@@ -668,7 +670,7 @@ __interrupt void timer_a0(void)
 	if( activity_count == 0 ){
 		LED_PORT |= LED_GREENn;
 	}
-	else{
+	else {
 		activity_count--;
 	}
 

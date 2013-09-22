@@ -19,8 +19,10 @@
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
-#define CHGR_TIMEOUT		400					// Charger timeout in 10 ms timer ticks.
+#define CHGR_RX_TIMEOUT		400					// Charger recieve timeout in 10 ms timer ticks.
 												//  Should receive something every second
+#define CHGR_TX_TIMEOUT		50					// Charger transmit timeout in 10 ms timer ticks.
+												//  Should transmit something every second
 // Charger state
 #define CHGR_IDLE			0x0000				// Not charging -- bat is full or not in charge mode
 #define CHGR_CHARGING		0x0001				// We are charging
@@ -35,18 +37,19 @@ void chgr_init();								// Once off, "cold" initialising
 void chgr_start();								// Called when entering charge mode
 void chgr_idle();								// Called in charge mode when the battery finishes charging
 void chgr_stop();								// Called when leaving charge mode
-void readChargerBytes();
-bool chgr_sendRequest(int voltage, int current, bool chargerOff);
-void chgr_processPacket();
-bool chgr_resendLastPacket(void);
 void chgr_timer();								// Called every timer tick, for charger related processing
-void chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
+bool chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
+bool chgr_sendRequest(int voltage, int current, bool chargerOff);
+bool chgr_resendLastPacket(void);
+void readChargerBytes();
+void chgr_processPacket();
 
 
 // Public variables
 extern volatile unsigned int chgr_events;
 extern 			unsigned int chgr_state;
-extern int chgr_rx_timer;					// MVE: counts to zero; reset when see any output from the charger
+extern int chgr_rx_timer;					// MVE: counts to zero; reset when receive anything from charger
+extern int chgr_tx_timer;					// MVE: counts to zero; reset when transmit anything to charger
 extern unsigned int charger_volt;			// MVE: charger voltage in tenths of a volt
 extern unsigned int charger_curr;			// MVE: charger current in tenths of an ampere
 extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = overtemp)
