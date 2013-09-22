@@ -598,6 +598,10 @@ __interrupt void timer_b0(void)
 	static unsigned int gauge2_on, gauge2_off;
 
 	// Toggle gauge 1 & 2 pulse frequency outputs
+	if (gauge.g1_count == 0) {				// Handle zero count specially, so it doesn't act like 64K
+		gauge1_off = gauge_count;			// Turn off the output below
+		gauge1_on = gauge_count + 100;		// +100 to prevent very short off pulses
+	}
 	if(gauge_count == gauge1_on){
 		P4OUT |= GAUGE_1_OUT;
 		gauge1_on = gauge_count + gauge.g1_count;
@@ -607,6 +611,10 @@ __interrupt void timer_b0(void)
 		P4OUT &= ~GAUGE_1_OUT;
 	}
 
+	if (gauge.g2_count == 0) {
+		gauge2_off = gauge_count;
+		gauge2_on = gauge_count + 100;
+	}
 	if(gauge_count == gauge2_on){
 		P4OUT |= GAUGE_2_OUT;
 		gauge2_on = gauge_count + gauge.g2_count;

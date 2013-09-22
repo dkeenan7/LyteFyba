@@ -54,11 +54,13 @@ extern gauge_variables gauge;
 // Tachometer gauge scaling
 // BMW e36 gauge cluster: 350Hz = 7000rpm = full scale
 // With timer ISR at 10kHz, output count = (10000 * 20) / rpm
+// MX-5: 266.7 Hz = 8000 rpm = full scale
+// We want 60 / 2 = 30 scale (4 cylinder); they used 60 / 3 (6 cylinder)
 // Do scaling in floating point maths to make user modifications simple
 // Below the minimum, do not try to display a value
-#define GAUGE1_SCALE		20.0f
+#define GAUGE1_SCALE		30.0f
 #define GAUGE1_MIN			100
-#define GAUGE1_MAX			7000
+#define GAUGE1_MAX			8000
 
 // Speedometer gauge scaling
 // BMW e36 gauge cluster: 325Hz = 260km/h = full scale
