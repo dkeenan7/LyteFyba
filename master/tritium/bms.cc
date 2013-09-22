@@ -230,14 +230,14 @@ void handleBMUstatusByte(unsigned char status)
 		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_IDLE)
 			return;
-
+#if 0
 		// Protect against errant charger or PI loop by turning off charge contactor
 		if (stress >= 11) {
 			chgr_idle();	// Terminate charging
 			fault();
 			return;
 		}
-
+#endif
 		// Check for normal charge termination -- all near bypass for sufficient time at low enough current
 		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all-near-bypass
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
@@ -268,7 +268,7 @@ void handleBMUstatusByte(unsigned char status)
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
-#if 0
+#if 1
 			if (chgr_sendCurrent(current))
 				chgr_lastCurrent = current;
 #else
