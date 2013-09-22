@@ -13,8 +13,8 @@ void chgr_processPacket();
 // Public variables
 volatile unsigned int chgr_events = 0;
 		 unsigned int chgr_state = CHGR_IDLE;
-		 int chgr_rx_timer = CHGR_RX_TIMEOUT;// MVE: counts to zero; restart when receive anything from charger
-		 int chgr_tx_timer = CHGR_TX_TIMEOUT;// MVE: counts to zero; restart when transmit anything to charger
+		 int chgr_rx_timer = 0;			// MVE: counts to zero; restart when receive anything from charger
+		 int chgr_tx_timer = 0;			// DCK: counts to zero; restart when transmit anything to charger
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
