@@ -13,7 +13,8 @@ void chgr_processPacket();
 // Public variables
 volatile unsigned int chgr_events = 0;
 		 unsigned int chgr_state = CHGR_IDLE;
-		 int chgr_rx_timer = CHGR_TIMEOUT;// MVE: counts to zero; restart when see any output from the charger
+		 int chgr_rx_timer = CHGR_RX_TIMEOUT;// MVE: counts to zero; restart when receive anything from charger
+		 int chgr_tx_timer = CHGR_TX_TIMEOUT;// MVE: counts to zero; restart when transmit anything to charger
 unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
@@ -33,12 +34,6 @@ unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
 extern unsigned int uCharging;
 
 unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
-
-bool chgr_sendPacket(const unsigned char* ptr)
-{
-	memcpy(chgr_lastSentPacket, ptr, 12);				// Copy the data to the last message buffer
-	return chgr_resendLastPacket();						// Call the main transmit function
-}
 
 void chgr_init() {
 	chgr_lastrxidx = 0;
@@ -72,6 +67,7 @@ void chgr_stop() {
 
 
 void chgr_timer() {				// Called every timer tick, for charger related processing
+	if (chgr_tx_timer > 0) --chgr_tx_timer;	// Decrement without letting it wrap around
 	if (chgr_rx_timer > 0) --chgr_rx_timer;	// Decrement without letting it wrap around
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
@@ -79,44 +75,11 @@ void chgr_timer() {				// Called every timer tick, for charger related processin
 }
 
 
-// chgr_resendLastPacket could be used for resending, but also used for sending the first time.
-// Returns true on success
-bool chgr_resendLastPacket(void)
-{
-	int i;
-	if (chgr_tx_q.queue_space() < 12) {
-		// Need 12 bytes of space in the queue
-		// If not, best to abort the whole command, rather than sending a partial message
-		fault();
-		return false;
-	}
-	for (i=0; i < 12; ++i)
-		chgr_sendByte(chgr_lastSentPacket[i]);
-	return true;
+// Send a command to set the current
+bool chgr_sendCurrent(unsigned int iCurr) {
+	return chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, false);
 }
 
-
-bool chgr_sendByte(unsigned char ch) {
-	if (chgr_tx_q.enqueue(ch)) {
-    	IE2 |= UCA0TXIE;                        		// Enable USCI_A0 TX interrupt
-		events |= EVENT_ACTIVITY;						// Turn on activity light
-		return true;
-	}
-	return false;
-}
-
-// Read incoming bytes from charger
-void readChargerBytes()
-{	unsigned char ch;
-	while (	chgr_rx_q.dequeue(ch)) {
-		chgr_rx_timer = CHGR_TIMEOUT;		// Restart received-anything timer
-		chgr_lastrx[chgr_lastrxidx++] = ch;
-		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
-			chgr_processPacket();			// We've received a charger response
-			break;
-		}
-	}
-}
 
 bool chgr_sendRequest(int voltage, int current, bool chargerOff) {
     bool ret;
@@ -136,6 +99,59 @@ bool chgr_sendRequest(int voltage, int current, bool chargerOff) {
     return ret;
 }
 
+
+bool chgr_sendPacket(const unsigned char* ptr)
+{
+	memcpy(chgr_lastSentPacket, ptr, 12);				// Copy the data to the last message buffer
+	return chgr_resendLastPacket();						// Call the main transmit function
+}
+
+
+// chgr_resendLastPacket could be used for resending, but also used for sending the first time.
+// Returns true on success
+bool chgr_resendLastPacket(void)
+{
+	int i;
+	if (chgr_tx_q.queue_space() < 12) {
+		// Need 12 bytes of space in the queue
+		// If not, best to abort the whole command, rather than sending a partial message
+		fault();
+		return false;
+	}
+	else {
+		for (i=0; i < 12; ++i)
+			chgr_sendByte(chgr_lastSentPacket[i]);
+		return true;
+	}
+}
+
+
+bool chgr_sendByte(unsigned char ch) {
+	if (chgr_tx_q.enqueue(ch)) {
+    	IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+		events |= EVENT_ACTIVITY;				// Turn on activity light
+		chgr_tx_timer = CHGR_TX_TIMEOUT;		// Restart transmitted-anything timer
+		return true;
+	}
+	else
+		return false;
+}
+
+
+// Read incoming bytes from charger
+void readChargerBytes()
+{	unsigned char ch;
+	while (	chgr_rx_q.dequeue(ch)) {
+		chgr_rx_timer = CHGR_RX_TIMEOUT;	// Restart received-anything timer
+		chgr_lastrx[chgr_lastrxidx++] = ch;
+		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
+			chgr_processPacket();			// We've received a charger response
+			break;
+		}
+	}
+}
+
+
 void chgr_processPacket() {
 
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
@@ -144,8 +160,4 @@ void chgr_processPacket() {
 }
 
 
-// Send the current command now
-void chgr_sendCurrent(unsigned int iCurr) {
-	chgr_sendRequest(CHGR_VOLT_LIMIT, iCurr, false);
-}
 

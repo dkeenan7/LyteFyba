@@ -215,7 +215,8 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 void handleBMUstatusByte(unsigned char status)
 {
 #define SET_POINT 7 // stress level
-	int current, output;
+	unsigned int current;
+	int output;
 	int stress = status & 0x0F;			// Isolate stress bits
 	int encoded = status & 0x1F;		// Stress bits and check bits
 	bool bValid;
@@ -266,19 +267,23 @@ void handleBMUstatusByte(unsigned char status)
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
 		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
-		chgr_lastCurrent = current;
+		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 0
-		chgr_sendRequest(CHGR_VOLT_LIMIT, current, false);
+			if (chgr_sendCurrent(current))
+				chgr_lastCurrent = current;
 #else
-		if (chgr_sendRequest(CHGR_VOLT_LIMIT, current, false)) {
-    		if (bValid)
-	    		bmu_sendVAComment(stress*10, current); // for debugging
-		    else
-			    bmu_sendVAComment(99, current); // for debugging
-        } else
-            // Charger failed to send. Indicate this
-            bmu_sendPacket((const unsigned char*)"\\F\r\n");
+			if (chgr_sendCurrent(current)) {
+				chgr_lastCurrent = current;
+				if (bValid)
+					bmu_sendVAComment(stress*10, current); // for debugging
+				else
+					bmu_sendVAComment(99, current); // for debugging
+			}
+			else
+				// Charger failed to send. Indicate this
+				bmu_sendPacket((const unsigned char*)"\\F\r\n");
 #endif
+		}
 	}
 	else { // Not charging, assume driving.
 		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
@@ -306,7 +311,8 @@ void readBMUbytes()
 			handleBMUstatusByte(ch);
 			bmuStatusTimeout = 0;		// Reset timeout counter
 			bmuFakeStatusCtr = 0;		// Ensure fake status is sent immediately on timeout
-		} else {
+		}
+		else {
 			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
 				fault();
 				break;

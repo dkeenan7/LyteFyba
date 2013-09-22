@@ -54,7 +54,7 @@ command_variables	command;
 void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c , float motor_rpm)
 {
 	float pedal, regen;
-	
+
 	// Error Flag updates
 	// Pedal too low
 	if(analog_a < PEDAL_ERROR_MIN) command.flags |= FAULT_ACCEL_LOW;
@@ -70,8 +70,8 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 	// Regen pot too high
 	if(analog_c > REGEN_ERROR_MAX) command.flags |= FAULT_REGEN_HIGH;
 	else command.flags &= ~FAULT_REGEN_HIGH;
-	
-	
+
+
 	// Run command calculations only if there are no pedal faults detected
 	if (command.flags == 0x00) {
 		// Scale pedal input to a 0.0 to 1.0 range
@@ -82,7 +82,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		pedal = pedal / PEDAL_TRAVEL;
 		// Check pedal limit and clip upper travel region
 		if(pedal > 1.0) pedal = 1.0;
-		
+
 		// Scale regen input to a 0.0 to REGEN_MAX range
 		// Clip lower travel region of regen input
 		if(analog_c > REGEN_TRAVEL_MIN) regen = (analog_c - REGEN_TRAVEL_MIN);
@@ -91,7 +91,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		regen = regen * REGEN_MAX / REGEN_TRAVEL;
 		// Check regen limit and clip upper travel region
 		if(regen > REGEN_MAX) regen = REGEN_MAX;
-		
+
 		// Choose target motor current and velocity
 		switch(command.state){
 			// case MODE_R:
@@ -128,7 +128,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		}
 	}
 	// There was a pedal fault detected
-	else{
+	else {
 		command.current = 0.0;
 		command.rpm = 0.0;
 	}
