@@ -61,14 +61,16 @@ void gauge_init( void )
  */
 void gauge_tach_update( float motor_rpm )
 {
+	float gauge_count_float;
+
 	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
-	float gauge_count_float = ((float)GAUGE_FREQ * GAUGE1_SCALE) / motor_rpm / 2.0;
+	gauge_count_float = ((float)GAUGE_FREQ * GAUGE1_SCALE) / motor_rpm / 2.0;
 	gauge.g1_count[0] = (unsigned int) gauge_count_float;
-	gauge.g1_count[1] = (unsigned int)(gauge_count_float * 2.0) - gauge.g1_count[0];
-	gauge.g1_count[2] = (unsigned int)(gauge_count_float * 3.0) - gauge.g1_count[1] - gauge.g1_count[0];
-	gauge.g1_count[3] = (unsigned int)(gauge_count_float * 4.0) - gauge.g1_count[2] - gauge.g1_count[1] - gauge.g1_count[0];
+//	gauge.g1_count[1] = (unsigned int)(gauge_count_float * 2.0) - gauge.g1_count[0];
+//	gauge.g1_count[2] = (unsigned int)(gauge_count_float * 3.0) - gauge.g1_count[1] - gauge.g1_count[0];
+//	gauge.g1_count[3] = (unsigned int)(gauge_count_float * 4.0) - gauge.g1_count[2] - gauge.g1_count[1] - gauge.g1_count[0];
 	events |= EVENT_GAUGE1;
 }
 
