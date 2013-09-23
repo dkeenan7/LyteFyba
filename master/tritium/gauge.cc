@@ -58,7 +58,7 @@ void gauge_init( void )
  */
 void gauge_tach_update( float motor_rpm )
 {
-	if( motor_rpm < 0) motor_rpm = motor_rpm * -1;
+	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
 	gauge.g1_count = (unsigned int)( ((float)GAUGE_FREQ * GAUGE1_SCALE) / motor_rpm / 2.0);

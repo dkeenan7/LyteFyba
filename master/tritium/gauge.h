@@ -57,15 +57,15 @@ extern gauge_variables gauge;
 // We want 60 / 2 = 30 scale (4 cylinder)
 // Do scaling in floating point maths to make user modifications simple
 // Do not send frequencies outside of those representing min and max below.
-#define GAUGE1_SCALE		31.0f	// 31 instead of 30, compensates for some gauge error
-#define GAUGE1_MIN			1.0f
+#define GAUGE1_SCALE		32.0f	// 32 instead of 30, compensates for some gauge error
+#define GAUGE1_MIN			200.0f
 #define GAUGE1_MAX			8000.0f
 
 // Speedometer gauge scaling
 // BMW e36 gauge cluster: 325Hz = 260km/h = full scale
 // With timer ISR at 10kHz, output count = (10000 * 0.8) / km/h
 // Do not send frequencies outside of those representing min and max below.
-##define GAUGE2_SCALE		0.8f
+#define GAUGE2_SCALE		0.8f
 #define GAUGE2_MIN			10.0f
 #define GAUGE2_MAX			260.0f
 
