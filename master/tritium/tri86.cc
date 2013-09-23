@@ -593,52 +593,38 @@ void adc_init( void )
 #pragma vector=TIMERB0_VECTOR
 __interrupt void timer_b0(void)
 {
-	static unsigned int gauge_count;
-	static unsigned int gauge1_on, gauge1_off;
-	static unsigned int gauge2_on, gauge2_off;
+	static int gauge_count = 0;
+	static int gauge1_toggle, gauge1_last_toggle = 0;
+	static int gauge2_toggle, gauge2_last_toggle = 0;
 
 	// Toggle gauge 1 & 2 pulse frequency outputs
-	if (gauge.g1_count == 0) {				// Handle zero count specially, so it doesn't act like 64K
-		gauge1_off = gauge_count;			// Turn off the output below
-		gauge1_on = gauge_count + 100;		// +100 to prevent very short off pulses
-	}
-	if(gauge_count == gauge1_on){
-		P4OUT |= GAUGE_1_OUT;
-		gauge1_on = gauge_count + gauge.g1_count;
-		gauge1_off = gauge_count + (gauge.g1_count >> 2);
-	}
-	if(gauge_count == gauge1_off){
-		P4OUT &= ~GAUGE_1_OUT;
+	gauge1_toggle = gauge1_last_toggle + gauge.g1_count;
+	if (gauge_count - gauge1_toggle >= 0) {
+		P4OUT ^= GAUGE_1_OUT;
+		gauge1_last_toggle = gauge_count;
 	}
 
-	if (gauge.g2_count == 0) {
-		gauge2_off = gauge_count;
-		gauge2_on = gauge_count + 100;
-	}
-	if(gauge_count == gauge2_on){
-		P4OUT |= GAUGE_2_OUT;
-		gauge2_on = gauge_count + gauge.g2_count;
-		gauge2_off = gauge_count + (gauge.g2_count >> 2);
-	}
-	if(gauge_count == gauge2_off){
-		P4OUT &= ~GAUGE_2_OUT;
+	gauge2_toggle = gauge2_last_toggle + gauge.g2_count;
+	if (gauge_count - gauge2_toggle >= 0) {
+		P4OUT ^= GAUGE_2_OUT;
+		gauge2_last_toggle = gauge_count;
 	}
 
 	// Update pulse output timebase counter
 	gauge_count++;
 
 	// Update outputs if necessary
-	if(events & EVENT_GAUGE1){
+	if (events & EVENT_GAUGE1) {
 		events &= ~EVENT_GAUGE1;
 	}
-	if(events & EVENT_GAUGE2){
+	if (events & EVENT_GAUGE2) {
 		events &= ~EVENT_GAUGE2;
 	}
-	if(events & EVENT_GAUGE3){
+	if (events & EVENT_GAUGE3) {
 		events &= ~EVENT_GAUGE3;
 		TBCCR2 = gauge.g3_duty;
 	}
-	if(events & EVENT_GAUGE4){
+	if (events & EVENT_GAUGE4) {
 		events &= ~EVENT_GAUGE4;
 		TBCCR1 = gauge.g4_duty;
 	}
