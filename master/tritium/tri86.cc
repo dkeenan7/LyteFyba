@@ -599,7 +599,7 @@ __interrupt void timer_b0(void)
 	static int gauge2_toggle, gauge2_last_toggle = 0;
 
 	// Toggle gauge 1 & 2 pulse frequency outputs
-	gauge1_toggle = gauge1_last_toggle + gauge.g1_count[i++ & 3];
+	gauge1_toggle = gauge1_last_toggle + gauge.g1_count[0]; // i++ & 3];
 	if (gauge_count - gauge1_toggle >= 0) {
 		P4OUT ^= GAUGE_1_OUT;
 		gauge1_last_toggle = gauge_count;
