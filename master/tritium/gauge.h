@@ -36,7 +36,7 @@ extern void gauge_fuel_update( float battery_voltage );
 
 // Public variables
 typedef struct _gauge_variables {
-	unsigned int g1_count;
+	unsigned int g1_count[4];
 	unsigned int g2_count;
 	unsigned int g3_duty;
 	unsigned int g4_duty;

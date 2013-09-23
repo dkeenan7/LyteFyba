@@ -594,11 +594,13 @@ void adc_init( void )
 __interrupt void timer_b0(void)
 {
 	static int gauge_count = 0;
+	static int i;
 	static int gauge1_toggle, gauge1_last_toggle = 0;
 	static int gauge2_toggle, gauge2_last_toggle = 0;
 
 	// Toggle gauge 1 & 2 pulse frequency outputs
-	gauge1_toggle = gauge1_last_toggle + gauge.g1_count;
+	gauge1_toggle = gauge1_last_toggle + gauge.g1_count[i];
+	i++;
 	if (gauge_count - gauge1_toggle >= 0) {
 		P4OUT ^= GAUGE_1_OUT;
 		gauge1_last_toggle = gauge_count;
