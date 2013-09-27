@@ -202,8 +202,6 @@ interpretByte:
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			cmp		#initRetAddr2,0(SP)		; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
-			cmp		#waitingIDAddr,0(SP)	; Is the call from the waitingID call to ReadByte?
-			jnz		noWaitID				; If not, echo as usual
 			ret								; Yes, so return to ReadByte's caller (TestICal below),
 											;	without calling WriteByte (don't echo wrong ID)
 noWaitID
