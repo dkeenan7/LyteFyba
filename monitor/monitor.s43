@@ -175,6 +175,14 @@ TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes minimum)
 
+; FIXME! The below is to allow monitor to assemble. It is needed because in BSL2, we need to compare
+; a return address with an address defined in TestICal. This value is not defined in monitor, and we
+; don't want to have to maintain a definition keeping it up to date. So we use any old address.
+; But this means we should never use the BSL2 from monitor, only from TestICal:
+; DO NOT USE MONITOR'S BSL2! It will not allow the TestICal 'i' command to work.
+waitingIDAddr:
+
+
 ;-------------------------------------------------------------------------------
 				ORG		PROG_START
 ;-------------------------------------------------------------------------------
