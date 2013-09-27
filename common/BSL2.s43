@@ -129,8 +129,10 @@ progByte2	mov.b	R8,-$200(R12)		; Program it
 
 testNoInterp2:
 			; FIXME! When we transition away from BSL1, we'll have to change the below
+			cmp		#waitingIDAddr,2(SP); Is the call to readByte from the waitingID call to ReadByte?
+			jeq		noEcho				; If so, no echo
 			call	#infoWriteByte	; Echo; interpretByte no longer does
-			bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
+noEcho:		bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
 			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
 			jnz		didntInterp		; Jump around call, if set
 			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
