@@ -102,6 +102,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				command.current = CURRENT_MAX * pedal;
 				command.rpm = RPM_FWD_MAX;
 				*/
+#if 0
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
@@ -114,6 +115,24 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX;
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
+#else
+				// A simple dual linear torque algorithm to temporarily work around a motor controller
+				// issue. Max regen at pedal zero, linear ramp down to 15% pedal. Linear ramp from zero
+				// to 1.0 torque from 20% to 100% pedal.
+				if (pedal < 0.15) {
+					// Regen ramp
+					command.rpm = 0.0;
+					command.current = REGEN_MAX - (REGEN_MAX / 0.15) * pedal;
+				} else (if pedal > 0.20) {
+					// Power ramp
+					command.rpm = RPM_FWD_MAX;
+					command.current = (CURRENT_MAX / 0.80) * (pedal - 0.20);
+				} else {
+					// 5% coast region
+					command.rpm = 0.0;
+					command.current = 0.0;
+				}
+#endif
 				break;
 			}
 			case MODE_CHARGE:
