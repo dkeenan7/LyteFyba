@@ -123,7 +123,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					// Regen ramp
 					command.rpm = 0.0;
 					command.current = REGEN_MAX - (REGEN_MAX / 0.15) * pedal;
-				} else (if pedal > 0.20) {
+				} else if (pedal > 0.20) {
 					// Power ramp
 					command.rpm = RPM_FWD_MAX;
 					command.current = (CURRENT_MAX / 0.80) * (pedal - 0.20);

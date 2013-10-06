@@ -50,6 +50,7 @@ void bmu_timer();
 extern volatile unsigned int bmu_events;
 extern volatile unsigned int bmu_sent_timeout;
 extern float fRemoteCurLim;
+extern unsigned int uChgrCurrLim;				// Charger current limit, in tenths of a volt
 
 // BMU buffers
 extern queue bmu_tx_q;

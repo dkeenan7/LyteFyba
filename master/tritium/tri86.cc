@@ -67,7 +67,9 @@ float controller_temp = 0.0;
 float battery_voltage = 0.0;
 float battery_current = 0.0;
 
-float fRemoteCurLim = 1.0;				// DC bus current limit from the other DCU, if present
+float fRemoteCurLim = 1.0;						// DC bus current limit from the other DCU, if present
+unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
+												//	an ampere, e.g. 55 means 5.5 A.
 
 
 void fault() {
@@ -380,6 +382,10 @@ int main( void )
 					case DC_CAN_BASE + DC_LOC_CUR_LIM:
 						fRemoteCurLim = can.data.data_fp[0];
 						break;
+					case CHGR_LIM:
+						uChgrCurrLim = can.data.data_u16[0];
+						break;
+
 					}
 				}
 			} // End of if(can.status == CAN_OK)
@@ -594,7 +600,7 @@ void adc_init( void )
 __interrupt void timer_b0(void)
 {
 	static int gauge_count = 0;
-	static int i = 0;
+	// static int i = 0;
 	static int gauge1_toggle, gauge1_last_toggle = 0;
 	static int gauge2_toggle, gauge2_last_toggle = 0;
 
