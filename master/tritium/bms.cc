@@ -256,7 +256,8 @@ void handleBMUstatusByte(unsigned char status)
 
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
-		// which we want to map to 0 .. CHGR_CURR_LIMIT.
+		// which we want to map to 0 .. uChgrCurrLim (a global that defaults to CHGR_CURR_LIMIT, but
+		//	could be set lower via a CAN packet with ID CHGR_LIM)
 		// We have a hardware multiplier, so the most efficient way to do this is with a
 		// 16x16 bit multiply giving a 32-bit result, and taking the upper half of the result.
 		// But we also want to offset the output by 1.0 ($8000).
@@ -266,7 +267,7 @@ void handleBMUstatusByte(unsigned char status)
         //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
-		current = ((output + 0x8000L) * CHGR_CURR_LIMIT + 0x8000) >> 16;
+		current = ((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16;
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
 			if (chgr_sendCurrent(current))
