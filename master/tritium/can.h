@@ -45,7 +45,7 @@ extern can_variables	*can_push_ptr;
 // Receive buffer 0, can choose two different receive blocks, with a single mask
 #define RX_MASK_0		0x07E0			// Only care about upper 6 bits of 11-bit identifier
 #define RX_ID_0A		DC_CAN_BASE		// Receive driver controls (ourself) packets, for RTR and bootloader trigger
-#define RX_ID_0B		0x0000			// Unused
+#define RX_ID_0B		CHGR_LIM		// Was unused - now charger limit port
 // Receive buffer 1, can choose four different receive blocks, with a single mask
 #define RX_MASK_1		0x07E0			// Only care about upper 6 bits of 11-bit identifier
 #define RX_ID_1A		MC_CAN_BASE		// Receive packets from motor controller
