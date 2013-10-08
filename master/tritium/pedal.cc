@@ -98,10 +98,6 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
-				/* Equivalent to original no regen version
-				command.current = CURRENT_MAX * pedal;
-				command.rpm = RPM_FWD_MAX;
-				*/
 #if 0
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
@@ -132,6 +128,10 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = 0.0;
 					command.current = 0.0;
 				}
+
+				// Equivalent to original no regen version
+				command.current = CURRENT_MAX * pedal;
+				command.rpm = RPM_FWD_MAX;
 #endif
 				break;
 			}

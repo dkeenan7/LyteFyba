@@ -267,6 +267,12 @@ void handleBMUstatusByte(unsigned char status)
         //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
+		if (ADC12MEM1 < 4096/3)
+			uChgrCurrLim = CHGR_CURR_LIMIT;
+		else if (ADC12MEM1 > 4096*2/3)
+			uChgrCurrLim = CHGR_CURR_LIMIT/2;
+		else
+			uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
 		current = ((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16;
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
