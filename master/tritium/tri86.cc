@@ -70,6 +70,9 @@ float battery_current = 0.0;
 float fRemoteCurLim = 1.0;						// DC bus current limit from the other DCU, if present
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
+bool bDcuB;										// True if DCU B; false if DCU A
+unsigned char statusB;							// Status from DCU-B
+
 
 
 void fault() {
@@ -152,7 +155,8 @@ int main( void )
 	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
 	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, 0.0);	// Just to detect presence of pedal
-	if (command.flags != 0)			// If position error, i.e. pedal not present
+	bDcuB = command.flags != 0;
+	if (bDcuB)		// If position error, i.e. pedal not present
 		command.flags |= FAULT_NO_PEDAL;
 
 	// Check switch inputs and generate command packets to motor controller
@@ -172,7 +176,7 @@ int main( void )
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
 			// Update motor commands based on pedal and slider positions
-			if (!(command.flags & FAULT_NO_PEDAL))
+			if (!bDcuB)
 				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
 				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
 
@@ -194,7 +198,7 @@ int main( void )
 					else if ((switches & SW_CHARGE_CABLE)  	// else if our charge cable is present
 					|| (chgr_rx_timer > 0)) {				// or we received data from our charger
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
-						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
+						if (bDcuB)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
@@ -202,7 +206,7 @@ int main( void )
 						chgr_start();						// Start the charge controller (PID loop)
 						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
 					}
-					else if (!(command.flags & FAULT_NO_PEDAL)	// else if we're DCU-A
+					else if ((!bDcuB)						// else if we're DCU-A
 					&& !(switches & SW_BRAKE) 				// and DCU-B is not in charge mode
 					&& (switches & SW_IGN_START)) {			// and latched start is on
 						next_state = MODE_D;				// Go to drive mode
@@ -227,7 +231,7 @@ int main( void )
 					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither charge cable present
 					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
-						if (command.flags & FAULT_NO_PEDAL)	// If we don't have the pedal (DCU-B)
+						if (bDcuB)							// If DCU-B
 							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
 															// so it can allow traction
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
@@ -244,7 +248,7 @@ int main( void )
 			command.state = next_state;
 
 			// Control brake lights
-			if (command.flags & FAULT_NO_PEDAL) {
+			if (bDcuB) {
 				// If we're DCU-B
 				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-B is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
@@ -279,7 +283,7 @@ int main( void )
 		readChargerBytes();
 
 		// Handle outgoing communications events (to motor controller)
-		if ((events & EVENT_COMMS) && !(command.flags & FAULT_NO_PEDAL)) { 	// Every 100 ms
+		if ((events & EVENT_COMMS) && !bDcuB) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
 
 			// Transmit commands and telemetry
@@ -336,7 +340,7 @@ int main( void )
 				// We've received a packet, so must be connected to something
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				if (!(command.flags & FAULT_NO_PEDAL)) {
+				if (!bDcuB) {
 					switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -385,11 +389,14 @@ int main( void )
 					case CHGR_LIM:
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
+					case BMUB_STRESS:
+					  	statusB = can.data.data_u8[0];
+						break;
 
 					}
 				}
 			} // End of if(can.status == CAN_OK)
-			if ((can.status == CAN_RTR) && !(command.flags & FAULT_NO_PEDAL)) {
+			if ((can.status == CAN_RTR) && !bDcuB) {
 				// Remote request packet received - reply to it
 				switch(can.identifier){
 					case DC_CAN_BASE:
