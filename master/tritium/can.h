@@ -102,8 +102,9 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_LOC_CUR_LIM	6			// Local DC bus current limit, to send to other DCU
 #define DC_BOOTLOAD		22
 
-// CAN identifier for setting charger current limit
-#define CHGR_LIM		0x7F0
+
+#define CHGR_LIM		0x7F0		// CAN identifier for setting charger current limit
+#define BMUB_STRESS		0x7F2		// CAN identifier for sending BMS stress from DCU B to A
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_MODE_R		0x0001

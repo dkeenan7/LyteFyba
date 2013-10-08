@@ -306,7 +306,19 @@ void handleBMUstatusByte(unsigned char status)
 	} // End of else not charging
 
 	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-	can_queueCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and comms error bits etc.
+//	can_queueCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and comms error bits etc.
+	if (bDcuB) {
+		// If we are BMU B, send stress in CAN packet to DCU A
+		can_push_ptr->identifier = BMUB_STRESS;
+		can_push_ptr->status = 1;
+		can_push_ptr->data.data_u8[0] = status;
+		can_push();
+	} else {
+	  // If we are DCU A, send the stress information in the min and max cell voltage fields
+	  // Also comms error bits in min and max cell IDs
+	  can_queueCellMaxMin(stress*1000, (statusB & 0xF)*1000, (status & 0x60)>>5, (statusB & 0x60) >> 5);
+	}
+
 } // End of handleBMUstatusByte()
 
 
