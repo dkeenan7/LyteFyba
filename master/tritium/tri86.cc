@@ -373,8 +373,19 @@ int main( void )
 						break;
 				    }
 				}
-				else {
+				else {	// DCU B only
 				 	switch (can.identifier) {
+					case DC_CAN_BASE + DC_LOC_CUR_LIM:
+						fRemoteCurLim = can.data.data_fp[0];
+						break;
+					case BMUB_STRESS:
+					  	statusB = can.data.data_u8[0];
+						break;
+
+					}
+				}
+				// DCU A or B
+				switch (can.identifier) {
 					case DC_CAN_BASE + DC_BOOTLOAD:
 						// Switch to bootloader
 						if (		can.data.data_u8[0] == 'B' && can.data.data_u8[1] == 'O' && can.data.data_u8[2] == 'O' && can.data.data_u8[3] == 'T'
@@ -383,18 +394,11 @@ int main( void )
 							WDTCTL = 0x00;	// Force watchdog reset
 						}
 						break;
-					case DC_CAN_BASE + DC_LOC_CUR_LIM:
-						fRemoteCurLim = can.data.data_fp[0];
-						break;
 					case CHGR_LIM:
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
-					case BMUB_STRESS:
-					  	statusB = can.data.data_u8[0];
-						break;
-
-					}
 				}
+
 			} // End of if(can.status == CAN_OK)
 			if ((can.status == CAN_RTR) && !bDcuB) {
 				// Remote request packet received - reply to it
