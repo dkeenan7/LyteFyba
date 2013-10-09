@@ -1,5 +1,6 @@
 /*
  * SendProg: send a program over the BMS serial system to all BMUs
+ * Sends main program only
  */
 
 #define LINUX 0
@@ -18,7 +19,7 @@
 #endif
 
 /* Do NOT enable optimisation; delay loops required! */
-#define DELAY 300000		/* Approx one char delay */
+#define DELAY 700000		/* Approx one char delay */
 
 unsigned int address = 0;
 unsigned int sum;
@@ -267,14 +268,8 @@ int main(int argc, char* argv[]) {
 	int i, j, k;
 
 	/* Write the prefix */
-#define PASSWORD4 1
-#if PASSWORD4
-#define PASSLEN (2+4)
-	char* pfx = "\x01\x01\x03\x02\x01\x00";	/* ^a^a ^C ^B ^A ^@ */
-#else
-#define PASSLEN (2+3)
-	char* pfx = "\x01\x01\x02\x01\x04";	/* ^a^a ^B ^A ^D */
-#endif
+#define PASSLEN (1+4)
+	char* pfx = "\x1B\x07\x06\x05\x04\x00";	/* ESC ^G ^F ^E ^D */
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
     	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
@@ -284,12 +279,12 @@ int main(int argc, char* argv[]) {
 		the second delay can go away */
 	/* Allow extra time for bulk erase; approximately 3 characters */
 	for (k=0; k < (32+1)*DELAY; ++k);
-	/* Send the 4096-2 bytes of the binary image */
-	writeByte(progBuf);						/* Write first byte */
+	/* Send the $E00-2 bytes of the binary image */
+//	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 3 characters */
 	for (k=0; k < (32+1)*DELAY; ++k);
-	for (u=1; u < 4096-2; ++u) {
-		if ((u & 0xFF) == 0xFF)
+	for (u=0; u < 0xE00-2; ++u) {
+		if ((u & 0x7F) == 0x7F)
 		{
 			printf(".");
 			fflush(stdout);
