@@ -258,10 +258,10 @@ int main(int argc, char* argv[]) {
 	/* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
 		after reset */
 	sum = 0;
-	for (u=0; u < total_len-2; ++u)		/* -2 because reset vector (last 2 bytes) is not sent */
+	for (u=0; u < 0xE00-3; ++u)		/* -2 because reset vector (last 2 bytes) is not sent */
 		sum ^= progBuf[u];
-	sum ^= progBuf[total_len-3];		/* Remove the existing checksum */
-	progBuf[total_len-3] = sum;		/* Now it will checksum to zero */
+//	sum ^= progBuf[total_len-3];	/* Remove the existing checksum */
+	progBuf[0xE00-3] = sum;		/* Now it will checksum to zero */
 
 	/* Now send this image to the BMUs */
 	{
