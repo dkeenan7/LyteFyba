@@ -19,7 +19,7 @@
 #endif
 
 /* Do NOT enable optimisation; delay loops required! */
-#define DELAY 300000		/* Approx one char delay */
+#define DELAY 700000		/* Approx one char delay */
 
 unsigned int address = 0;
 unsigned int sum;
