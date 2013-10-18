@@ -457,7 +457,9 @@ void CBMUsendDoc::OnSend()
     }
 
     /* Allow time for segment erases (approximately 15 ms per segment) */
-	Sleep((theApp.m_len_to_send / 512 * 16) +1);
+	/* Note that m_len_to_send is sometimes 2 short of the real length, because of the reset vector */
+	/* Be conservative and use 21 ms per segment erase */
+	Sleep((((theApp.m_len_to_send + 2) / 512) * 21) +1);
     // Send the appropriate number of bytes of the binary image (excluding last byte, to be replaced with the checksum)
 	sum = 0;							// Checksum
     for (i=0, u = theApp.m_start_off; i < theApp.m_len_to_send-1; ++i, ++u) {
