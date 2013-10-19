@@ -258,10 +258,9 @@ int main(int argc, char* argv[]) {
 	/* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
 		after reset */
 	sum = 0;
-	for (u=0; u < 0xE00-3; ++u)		/* -2 because reset vector (last 2 bytes) is not sent */
+	for (u=0; u < 0xE00-1; ++u)
 		sum ^= progBuf[u];
-//	sum ^= progBuf[total_len-3];	/* Remove the existing checksum */
-	progBuf[0xE00-3] = sum;		/* Now it will checksum to zero */
+	progBuf[0xE00-1] = sum;		/* Now it will checksum to zero */
 
 	/* Now send this image to the BMUs */
 	{
@@ -283,7 +282,7 @@ int main(int argc, char* argv[]) {
 //	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 3 characters */
 	for (k=0; k < (32+1)*DELAY; ++k);
-	for (u=0; u < 0xE00-2; ++u) {
+	for (u=0; u < 0xE00; ++u) {
 		if ((u & 0x7F) == 0x7F)
 		{
 			printf(".");
