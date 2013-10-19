@@ -180,7 +180,7 @@ TIBEnd
 ; don't want to have to maintain a definition keeping it up to date. So we use any old address.
 ; But this means we should never use the BSL2 from monitor, only from TestICal:
 ; DO NOT USE MONITOR'S BSL2! It will not allow the TestICal 'i' command to work.
-waitingIDAddr:
+waitingIDAddr	EQU	$F754
 
 
 ;-------------------------------------------------------------------------------
