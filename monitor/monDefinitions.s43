@@ -20,7 +20,7 @@
 ; Freezing is stress ( boolean -- )			; 1 when charging or regenning, 0 when driving
 			xCODE	'f',FreezeIsStress,_FreezeIsStress
 			allBitsIfZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#bNotFreezeStress,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
+			movBits_B	Rtos,#bNotFreezeStress,&monFlags ; Move only bNotFreezeStress from Rtos to monFlags
 			ret
 
 #if PROG_START < $F800		// Commented out if need to save space
