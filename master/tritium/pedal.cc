@@ -98,7 +98,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
-#if 0
+#if 1
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
