@@ -162,7 +162,6 @@ void can_transmitBusCurrent(float bus_current)
 	can_push_ptr->data.data_fp[1] = bus_current;
 	can_push_ptr->data.data_fp[0] = 0.0;
 	can_push();
-	can_transmit();
 }
 
 // Send local bus current limit on CAN bus to other DCU immediately, so it will send our current limit
@@ -173,7 +172,6 @@ void can_transmitLocalCurrent(float bus_current)
 	can_push_ptr->status = 4;
 	can_push_ptr->data.data_fp[0] = bus_current;
 	can_push();
-	can_transmit();
 }
 
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
