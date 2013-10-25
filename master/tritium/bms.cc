@@ -226,8 +226,11 @@ void handleBMUstatusByte(unsigned char status)
 	if (!bValid)
 		stress = 8;				// Treat invalid status byte as most minor dis-stress
 
+	if (status & COM_ERR)	// If communications error
+	  if (stress < 8)
+		stress = 8;			//	treat as if stress 8 (charging or driving)
+
 	if (bCharging) {
-		// FIXME: not handling comms error bit yet
 		if (chgr_state & CHGR_IDLE)
 			return;
 #if 0
