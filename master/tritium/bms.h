@@ -24,6 +24,7 @@
 #define BMU_FAKESTATUS_RATE ((BMU_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
 										//	when detect BMU comms error
 #define LIMP_CURR			0.05		// DC bus current limit (fraction of max) when limping
+#define COM_ERR				(1<<6)		// Mask for comms error in status byte
 
 // BMU events
 #define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
