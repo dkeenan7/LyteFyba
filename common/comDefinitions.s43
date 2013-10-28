@@ -287,11 +287,7 @@ _prettyPrint:
 			push.b	&intFlags				; Save current number base
 			bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
 
-			tst		R8						; Treat zero as infinity
-			_IF		_Z
-				mov		#$FFFF,R8
-			_ENDIF
-			cmp		&resetCounter,R8		; Take min of that and resetCounter
+			cmp		&resetCounter,R8		; Take min of maxResetsToShow and resetCounter
 			_IF		_HS
 				mov		&resetCounter,R8
 			_ENDIF

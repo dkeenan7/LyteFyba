@@ -282,12 +282,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Miscellaneous initialisation
 ;
-			mov.b	#4,&passWordState		; Waiting for first byte of ^C ^B ^A ^@ sequence
+			mov.b	#4,&passWordState		; Waiting for first byte of ^G ^F ^E ^D sequence
 
 ; Main loop
 			_BEGIN
 				dint
-				;nop							; First instruction after dint not protected
+				nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
 				_IF		_NZ
 					eint
@@ -441,7 +441,7 @@ DoMeasurement:
 					; Act as a master -- send our status
 					mov.b	&localStatus,R8
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
-					call	#TX_ByteNW
+					call	#TX_Byte				; Send this encoded data. Wait until buffer not full
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
 			ret
@@ -533,7 +533,7 @@ DoStatus:
 					;	comms error, so just pass the incoming comms error bit through.
 
 					; Send the possibly-updated status byte. High bit already set.
-					call	#TX_ByteNW				; Send this encoded data if buffer not full
+					call	#TX_Byte				; Send this encoded data. Wait until buffer not full
 				_ENDIF							; End if no comms error
 			_ENDIF							; End if incoming valid
 			ret
@@ -543,8 +543,8 @@ DoStatus:
 DoPassword:
 ;
 ; Check for a password character
-; After decrementing passWordState below, 3 = waiting for ^C, 2 = waiting for ^B, 1 = waiting for ^A,
-; 0 = waiting for ^@ and erase if received. We should not receive any negative value
+; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
+; 0 = waiting for ^D and erase if received. We should not receive any negative value
 ; Trashes R9
 ;
 			dec.b	&passWordState
