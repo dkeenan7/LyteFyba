@@ -241,8 +241,19 @@ ACCEPT
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
+		_OFb	#$11,R8			; XON (ctrl-Q) to exit eXclusive mode (single BMU interaction)
+			bic.b	#bDontEcho,&intFlags ; Clear the don't-echo flag
+		_ENDOF					; EndOf XON
+
+		_OFb	#$13,R8			; XOFF (ctrl-S) to exit eXclusive mode (single BMU interaction)
+			bit.b	#bDontInterpret,&intFlags
+			_IF		_Z				; If the dont-interpret flag is clear
+				bis.b	#bDontEcho,&intFlags ; Set the don't-echo flag
+			_ENDIF
+		_ENDOF					; EndOf XOFF
+
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
-			bic.b	#bDontInterpret,&intFlags ; Clear the don't interpret flag
+			bic.b	#bDontInterpret,&intFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
 		; Default case, if not CR or BS
