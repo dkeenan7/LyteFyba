@@ -72,7 +72,7 @@ UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the ne
 // AL = Absolute Link voltage: One stress unit for every 20 mV above 0 mV, to a max of 15 at >= 300 mV
 // AL setpoint is 140 to 160 mV. Alarm at 220 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		100			; mV difference between one AL stress level and the next
+AL_STEP		EQU		1500		; mV difference between one AL stress level and the next
 
 NBYPLEV		EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
 BYPLEV		EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
