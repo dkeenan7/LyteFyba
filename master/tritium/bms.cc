@@ -215,8 +215,8 @@ void handleBMUstatusByte(unsigned char status)
 #define SET_POINT 7 // stress level
 	unsigned int current;
 	int output;
-	int stress = status & 0x0F;			// Isolate stress bits
-	int encoded = status & 0x1F;		// Stress bits and check bits
+	int stress = status & STRESS;			// Isolate stress bits
+	int encoded = status & ENC_STRESS;		// Stress bits and check bits
 	bool bValid;
 
 	// Check for validity
@@ -240,7 +240,7 @@ void handleBMUstatusByte(unsigned char status)
 		}
 #endif
 		// Check for normal charge termination -- all near bypass for sufficient time at low enough current
-		if (status & 0x20 && (chgr_lastCurrent <= CHGR_CUT_CURR)) {	// Bit 5 is all-near-bypass
+		if (status & ALL_NBYP && (chgr_lastCurrent <= CHGR_CUT_CURR)) {
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
 				chgr_idle();	// Terminate charging
 				return;
@@ -307,17 +307,18 @@ void handleBMUstatusByte(unsigned char status)
 	} // End of else not charging
 
 	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-//	can_queueCellMaxMin(0, stress*1000, 0, (status & 0x60)>>5);	// Debugging: stress and comms error bits etc.
+//	can_queueCellMaxMin(0, stress*1000, 0, (status & (COM_ERR | ALL_NBYP))>>5);	// Debugging: stress and comms error bits etc.
 	if (bDcuB) {
-		// If we are BMU B, send stress in CAN packet to DCU A
+		// If we are DCU B, send stress in CAN packet to DCU A
 		can_push_ptr->identifier = BMUB_STRESS;
 		can_push_ptr->status = 1;
 		can_push_ptr->data.data_u8[0] = status;
 		can_push();
 	} else {
-	  // If we are DCU A, send the stress information in the min and max cell voltage fields
-	  // Also comms error bits in min and max cell IDs
-	  can_queueCellMaxMin(stress*1000, (statusB & 0xF)*1000, (status & 0x60)>>5, (statusB & 0x60) >> 5);
+		// If we are DCU A, send the stress information in the min and max cell voltage fields
+		// Also comms error bits in min and max cell IDs
+		can_queueCellMaxMin(stress*1000, (statusB & STRESS)*1000,
+			(status & (COM_ERR | ALL_NBYP))>>5, (statusB & (COM_ERR | ALL_NBYP))>>5);
 	}
 
 } // End of handleBMUstatusByte()
@@ -474,7 +475,7 @@ void bmu_timer() {
 	{
 		bmuStatusTimeout = BMU_STATUS_TIMEOUT;	// Don't allow overflow
 		if (bmuFakeStatusCtr == 0)
-			handleBMUstatusByte(0x88);			// Fake status with stress of 8 (lowest distress)
+			handleBMUstatusByte(0x80 | stressTable[8]);	// Fake status with stress of 8 (lowest distress)
 		if (++bmuFakeStatusCtr == BMU_FAKESTATUS_RATE)
 			bmuFakeStatusCtr = 0;
 	}
