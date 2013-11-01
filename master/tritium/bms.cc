@@ -197,7 +197,7 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	return result;
 }
 
-#define max(x, y) (((x)>(y))?(x):(y))	// FIXME: debugging only
+#define max(x, y) (((x)>(y))?(x):(y))
 #define min(x, y) (((x)<(y))?(x):(y))
 
 void handleBMUstatusByte(unsigned char status)
@@ -207,7 +207,8 @@ void handleBMUstatusByte(unsigned char status)
 	int output;
 	int stress = status & STRESS;			// Isolate stress bits
 	int encoded = status & ENC_STRESS;		// Stress bits and check bits
-	bool bValid;
+	int stressB = -1, encodedB;				// Initialise to -1 only to avoid compiler warning
+	bool bValid, bValidB;
 
 	// Check for validity
 	bValid = stressTable[stress] == encoded;
@@ -217,6 +218,17 @@ void handleBMUstatusByte(unsigned char status)
 	if (status & COM_ERR)	// If communications error
 	  if (stress < 8)
 		stress = 8;			//	treat as if stress 8 (charging or driving)
+	if (!bDcuB) {
+		stressB = statusB & STRESS;			// Isolate stress bits for B
+		encodedB = statusB & ENC_STRESS;
+		bValidB = stressTable[stressB] == encodedB;
+		bValidB = stressTable[stressB] == encodedB;
+		if (!bValidB)
+			stressB = 8;				// Treat invalid status byte as most minor dis-stress
+		if (statusB & COM_ERR)			// If communications error
+		  if (stressB  < 8)
+			stressB = 8;				//	treat as if stress 8 (charging or driving)
+	}
 
 	if (bCharging) {
 		if (chgr_state & CHGR_IDLE)
@@ -284,20 +296,12 @@ void handleBMUstatusByte(unsigned char status)
 		}
 	}
 	else { // Not charging, assume driving.
-		int stressB = statusB & STRESS;			// Isolate stress bits for B
-		int encodedB = statusB & ENC_STRESS;
-		bool bValidB = stressTable[stressB] == encodedB;
-		if (!bValidB)
-			stressB = 8;				// Treat invalid status byte as most minor dis-stress
-
-		if (statusB & COM_ERR)			// If communications error
-		  if (stressB  < 8)
-			stressB = 8;				//	treat as if stress 8 (charging or driving)
-		stress = max(stress, stressB);	// Worst stress of A or B halfpacks
+		int maxStress;
+		maxStress = max(stress, stressB);	// Worst stress of A or B halfpacks
 		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-		output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+		output = pidDrive.tick(sat_minus((maxStress-8) << 12, (SET_POINT-8) << 12));
 
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 		float fCurLim = ((float)output + 32769.0F) / 65536.0F;
@@ -316,7 +320,7 @@ void handleBMUstatusByte(unsigned char status)
 	} else {
 		// If we are DCU A, send the stress information in the min and max cell voltage fields
 		// Also comms error bits in min and max cell IDs
-		can_queueCellMaxMin(stress*1000, (statusB & STRESS)*1000,
+		can_queueCellMaxMin(stress*1000, stressB*1000,
 			(status & (COM_ERR | ALL_NBYP))>>5, (statusB & (COM_ERR | ALL_NBYP))>>5);
 	}
 
@@ -474,7 +478,8 @@ void bmu_timer() {
 	{
 		bmuStatusTimeout = BMU_STATUS_TIMEOUT;	// Don't allow overflow
 		if (bmuFakeStatusCtr == 0)
-			handleBMUstatusByte(0x80 | stressTable[8]);	// Fake status with stress of 8 (lowest distress)
+			// Fake status with comms error and a stress of 8 (lowest distress)
+			handleBMUstatusByte(0x80 | COM_ERR | stressTable[8]);
 		if (++bmuFakeStatusCtr == BMU_FAKESTATUS_RATE)
 			bmuFakeStatusCtr = 0;
 	}
