@@ -284,6 +284,16 @@ void handleBMUstatusByte(unsigned char status)
 		}
 	}
 	else { // Not charging, assume driving.
+		int stressB = statusB & STRESS;			// Isolate stress bits for B
+		int encodedB = statusB & ENC_STRESS;
+		bool bValidB = stressTable[stressB] == encodedB;
+		if (!bValidB)
+			stressB = 8;				// Treat invalid status byte as most minor dis-stress
+
+		if (statusB & COM_ERR)			// If communications error
+		  if (stressB  < 8)
+			stressB = 8;				//	treat as if stress 8 (charging or driving)
+		stress = max(stress, stressB);	// Worst stress of A or B halfpacks
 		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
