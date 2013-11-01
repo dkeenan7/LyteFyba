@@ -70,7 +70,7 @@ float battery_current = 0.0;
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
 bool bDcuB;										// True if DCU B; false if DCU A
-unsigned char statusB;							// Status from DCU-B
+unsigned char statusB = 0;						// Status from DCU-B
 
 
 
