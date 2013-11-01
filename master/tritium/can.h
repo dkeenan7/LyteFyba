@@ -99,8 +99,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_POWER		2
 #define DC_RESET		3
 #define DC_SWITCH		5
-#define DC_LOC_CUR_LIM	6			// Local DC bus current limit, to send to other DCU
-#define DC_BMUB_STRESS	7			// Send BMS worst stress from DCU B to A
+#define DC_BMUB_STRESS	6			// Send BMS worst stress from DCU B to A
 #define DC_BOOTLOAD		22
 
 
