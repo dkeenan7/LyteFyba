@@ -164,16 +164,6 @@ void can_transmitBusCurrent(float bus_current)
 	can_push();
 }
 
-// Send local bus current limit on CAN bus to other DCU immediately, so it will send our current limit
-// in place of its own, if ours is lower. For cell protection.
-void can_transmitLocalCurrent(float bus_current)
-{
-	can_push_ptr->identifier = DC_CAN_BASE + DC_LOC_CUR_LIM;
-	can_push_ptr->status = 4;
-	can_push_ptr->data.data_fp[0] = bus_current;
-	can_push();
-}
-
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
 void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 								unsigned int bmu_min_id, unsigned int bmu_max_id)
@@ -300,10 +290,9 @@ void handleBMUstatusByte(unsigned char status)
 		output = pidDrive.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
 
 		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
-		float fLocalCurLim = ((float)output + 32769.0F) / 65536.0F;
-		fLocalCurLim = fLocalCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
-		can_transmitLocalCurrent(fLocalCurLim);
-		can_transmitBusCurrent(min(fLocalCurLim, fRemoteCurLim));
+		float fCurLim = ((float)output + 32769.0F) / 65536.0F;
+		fCurLim = fCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
+		can_transmitBusCurrent(fCurLim);
 	} // End of else not charging
 
 	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);

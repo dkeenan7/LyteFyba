@@ -67,7 +67,6 @@ float controller_temp = 0.0;
 float battery_voltage = 0.0;
 float battery_current = 0.0;
 
-float fRemoteCurLim = 1.0;						// DC bus current limit from the other DCU, if present
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
 bool bDcuB;										// True if DCU B; false if DCU A
@@ -321,6 +320,7 @@ int main( void )
 					comms_event_count = 0;
 					can_push_ptr->identifier = DC_CAN_BASE;
 					can_push_ptr->status = 8;
+					// Note this same ID is transmitted in reverse in response to RTR packets
 					can_push_ptr->data.data_u8[7] = 'T';
 					can_push_ptr->data.data_u8[6] = '0';
 					can_push_ptr->data.data_u8[5] = '8';
@@ -375,9 +375,6 @@ int main( void )
 				}
 				else {	// DCU B only
 				 	switch (can.identifier) {
-					case DC_CAN_BASE + DC_LOC_CUR_LIM:
-						fRemoteCurLim = can.data.data_fp[0];
-						break;
 					case DC_CAN_BASE + DC_BMUB_STRESS:
 					  	statusB = can.data.data_u8[0];
 						break;
@@ -396,6 +393,7 @@ int main( void )
 						break;
 					case CHGR_LIM:
 					  	// NOTE: at present, this gets overridden by the charger limit pot setting
+					  	// The filter and mask for this don't seem to work anyway
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
 				}
@@ -407,6 +405,7 @@ int main( void )
 					case DC_CAN_BASE:
 						can_push_ptr->identifier = can.identifier;
 						can_push_ptr->status = 8;
+						// Note this same ID is transmitted in reverse periodically
 						can_push_ptr->data.data_u8[3] = 'T';
 						can_push_ptr->data.data_u8[2] = '0';
 						can_push_ptr->data.data_u8[1] = '8';
