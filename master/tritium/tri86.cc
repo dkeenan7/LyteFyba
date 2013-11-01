@@ -378,7 +378,7 @@ int main( void )
 					case DC_CAN_BASE + DC_LOC_CUR_LIM:
 						fRemoteCurLim = can.data.data_fp[0];
 						break;
-					case BMUB_STRESS:
+					case DC_CAN_BASE + DC_BMUB_STRESS:
 					  	statusB = can.data.data_u8[0];
 						break;
 
@@ -395,6 +395,7 @@ int main( void )
 						}
 						break;
 					case CHGR_LIM:
+					  	// NOTE: at present, this gets overridden by the charger limit pot setting
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
 				}
