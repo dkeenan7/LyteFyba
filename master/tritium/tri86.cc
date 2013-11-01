@@ -371,16 +371,12 @@ int main( void )
 						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
+					case DC_CAN_BASE + DC_BMUB_STATUS:
+					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
+						break;
 				    }
 				}
-				else {	// DCU B only
-				 	switch (can.identifier) {
-					case DC_CAN_BASE + DC_BMUB_STRESS:
-					  	statusB = can.data.data_u8[0];
-						break;
 
-					}
-				}
 				// DCU A or B
 				switch (can.identifier) {
 					case DC_CAN_BASE + DC_BOOTLOAD:
