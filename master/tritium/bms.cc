@@ -310,7 +310,7 @@ void handleBMUstatusByte(unsigned char status)
 //	can_queueCellMaxMin(0, stress*1000, 0, (status & (COM_ERR | ALL_NBYP))>>5);	// Debugging: stress and comms error bits etc.
 	if (bDcuB) {
 		// If we are DCU B, send stress in CAN packet to DCU A
-		can_push_ptr->identifier = BMUB_STRESS;
+		can_push_ptr->identifier = DC_CAN_BASE + DC_BMUB_STRESS;
 		can_push_ptr->status = 1;
 		can_push_ptr->data.data_u8[0] = status;
 		can_push();
