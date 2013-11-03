@@ -144,7 +144,7 @@ void dint();
 extern volatile unsigned int events;
 extern volatile unsigned int chgr_events;		// Charger events
 extern volatile unsigned int bmu_events;		// BMU events
-extern bool bDcuB;								// True if DCU B; false if DCU A
+extern bool bDCUb;								// True if DCU B; false if DCU A
 extern unsigned char statusB;					// Status from DCU-B
 
 void fault() __attribute__ NOINLINE;			// Single flash the error LED
