@@ -8,6 +8,7 @@
 #include "charger.h"
 #include "queue.h"
 #include "can.h"			// For can_push(), but also general definitions
+#include "gauge.h"			// For gauge_stress_update()
 #include "assert2.h"		// assert-like function
 
 // Private function prototypes
@@ -205,30 +206,54 @@ void handleBMUstatusByte(unsigned char status)
 #define SET_POINT 7 // stress level
 	unsigned int current;
 	int output;
+
+	// Check for validity of local status byte
 	int stress = status & STRESS;			// Isolate stress bits
 	int encoded = status & ENC_STRESS;		// Stress bits and check bits
-	int stressB = -1, encodedB;				// Initialise to -1 only to avoid compiler warning
-	bool bValid, bValidB;
-
-	// Check for validity
-	bValid = stressTable[stress] == encoded;
+	bool bValid = stressTable[stress] == encoded;
 	if (!bValid)
 		stress = 8;				// Treat invalid status byte as most minor dis-stress
+	if (status & COM_ERR)		// If communications error
+		if (stress < 8)
+			stress = 8;			// Treat as if stress 8 (charging or driving)
 
-	if (status & COM_ERR)	// If communications error
-	  if (stress < 8)
-		stress = 8;			//	treat as if stress 8 (charging or driving)
-	if (!bDcuB) {
-		stressB = statusB & STRESS;			// Isolate stress bits for B
-		encodedB = statusB & ENC_STRESS;
-		bValidB = stressTable[stressB] == encodedB;
-		bValidB = stressTable[stressB] == encodedB;
+	if (bDCUb) { // If we are DCU-B
+		// Send stress in CAN packet to DCU A
+		can_push_ptr->identifier = DC_CAN_BASE + DC_BMUB_STATUS;
+		can_push_ptr->status = 1;
+		can_push_ptr->data.data_u8[0] = status;
+		can_push();
+	} else { // else we are DCU-A
+		// Check for validity of status byte received in CAN packet from DCU B
+		int stressB = statusB & STRESS;			// Isolate stress bits for B
+		int encodedB = statusB & ENC_STRESS;
+		bool bValidB = stressTable[stressB] == encodedB;
 		if (!bValidB)
 			stressB = 8;				// Treat invalid status byte as most minor dis-stress
 		if (statusB & COM_ERR)			// If communications error
-		  if (stressB  < 8)
-			stressB = 8;				//	treat as if stress 8 (charging or driving)
-	}
+			if (stressB  < 8)
+				stressB = 8;			// Treat as if stress 8 (charging or driving)
+		// Calculate max of stresses from A and B half-packs
+		int maxStress = max(stress, stressB);
+		// Send max stress info to the Oil Pressure gauge
+		gauge_stress_update( maxStress );
+		// Send the stress information in the min and max cell voltage fields for WSconfig
+		// Also comms error bits in min and max cell IDs
+		//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+		can_queueCellMaxMin(stress*1000, stressB*1000,
+			(status & (COM_ERR | ALL_NBYP))>>5, (statusB & (COM_ERR | ALL_NBYP))>>5);
+		if (!bCharging) { // If not charging, assume driving. (DCU-A only)
+			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
+			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
+			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
+			output = pidDrive.tick(sat_minus((maxStress-8) << 12, (SET_POINT-8) << 12));
+
+			// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
+			float fCurLim = ((float)output + 32769.0F) / 65536.0F;
+			fCurLim = fCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
+			can_transmitBusCurrent(fCurLim);
+		} // End if not charging
+	} // End else DCU-A
 
 	if (bCharging) {
 		if (chgr_state & CHGR_IDLE)
@@ -251,12 +276,17 @@ void handleBMUstatusByte(unsigned char status)
 		else if (chgr_bypCount != 0)			// Care! chgr_bypCount is unsigned
 			--chgr_bypCount;					// Saturate at zero
 
-
 		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
-
+		// Read the pot that sets the charger current limit
+		if (ADC12MEM1 < 4096/3)
+			uChgrCurrLim = CHGR_CURR_LIMIT;
+		else if (ADC12MEM1 > 4096*2/3)
+			uChgrCurrLim = CHGR_CURR_LIMIT/2;
+		else
+			uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. uChgrCurrLim (a global that defaults to CHGR_CURR_LIMIT, but
@@ -270,13 +300,8 @@ void handleBMUstatusByte(unsigned char status)
         //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
-		if (ADC12MEM1 < 4096/3)
-			uChgrCurrLim = CHGR_CURR_LIMIT;
-		else if (ADC12MEM1 > 4096*2/3)
-			uChgrCurrLim = CHGR_CURR_LIMIT/2;
-		else
-			uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
 		current = ((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16;
+		// Only send a packet to the charger if the current has changed, or on a timeout
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
 			if (chgr_sendCurrent(current))
@@ -294,36 +319,7 @@ void handleBMUstatusByte(unsigned char status)
 				bmu_sendPacket((const unsigned char*)"\\F\r\n");
 #endif
 		}
-	}
-	else { // Not charging, assume driving.
-		int maxStress;
-		maxStress = max(stress, stressB);	// Worst stress of A or B halfpacks
-		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
-		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
-		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-		output = pidDrive.tick(sat_minus((maxStress-8) << 12, (SET_POINT-8) << 12));
-
-		// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
-		float fCurLim = ((float)output + 32769.0F) / 65536.0F;
-		fCurLim = fCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
-		can_transmitBusCurrent(fCurLim);
-	} // End of else not charging
-
-	//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-//	can_queueCellMaxMin(0, stress*1000, 0, (status & (COM_ERR | ALL_NBYP))>>5);	// Debugging: stress and comms error bits etc.
-	if (bDcuB) {
-		// If we are DCU B, send stress in CAN packet to DCU A
-		can_push_ptr->identifier = DC_CAN_BASE + DC_BMUB_STATUS;
-		can_push_ptr->status = 1;
-		can_push_ptr->data.data_u8[0] = status;
-		can_push();
-	} else {
-		// If we are DCU A, send the stress information in the min and max cell voltage fields
-		// Also comms error bits in min and max cell IDs
-		can_queueCellMaxMin(stress*1000, stressB*1000,
-			(status & (COM_ERR | ALL_NBYP))>>5, (statusB & (COM_ERR | ALL_NBYP))>>5);
-	}
-
+	} // End of if charging
 } // End of handleBMUstatusByte()
 
 

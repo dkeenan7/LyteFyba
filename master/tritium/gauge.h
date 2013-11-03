@@ -30,14 +30,14 @@
 // Public function prototypes
 extern void gauge_init( void );
 extern void gauge_tach_update( float motor_rpm );
-extern void gauge_power_update( float battery_voltage, float battery_current );
+extern void gauge_stress_update( unsigned char BMS_stress );
 extern void gauge_temp_update( float motor_temp, float controller_temp );
 extern void gauge_fuel_update( float battery_voltage );
 
 // Public variables
 typedef struct _gauge_variables {
 	unsigned int g1_count[4];
-	unsigned int g2_count;
+	unsigned int g2_duty;
 	unsigned int g3_duty;
 	unsigned int g4_duty;
 } gauge_variables;

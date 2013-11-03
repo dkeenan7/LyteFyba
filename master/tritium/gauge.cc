@@ -41,8 +41,8 @@ gauge_variables	gauge;
 /*
  * Initialises gauge output channels
  *	- Sets PWM to 'zero' levels for various gauges
- *	- Gauges 1 & 2 are a pulse frequency output to simulate reed switches
- *	- Gauges 3 & 4 are a duty cycle output to simulate a variable resistor to GND
+ *	- Gauges 1 are a pulse frequency output to simulate reed switches
+ *	- Gauges 2 & 3 & 4 are a duty cycle output to simulate a variable resistor to GND
  */
 void gauge_init( void )
 {
@@ -50,7 +50,7 @@ void gauge_init( void )
 	gauge.g1_count[1] = 0;
 	gauge.g1_count[2] = 0;
 	gauge.g1_count[3] = 0;
-	gauge.g2_count = 0;
+	gauge.g2_duty = 0;
 	gauge.g3_duty = 0;
 	gauge.g4_duty = 0;
 	events |= (EVENT_GAUGE1 | EVENT_GAUGE2 | EVENT_GAUGE3 | EVENT_GAUGE4);
@@ -75,16 +75,15 @@ void gauge_tach_update( float motor_rpm )
 }
 
 /*
- * Updates the Power gauge output
+ * Updates the Stress gauge (repurposed Oil Pressure gauge) output
  */
-void gauge_power_update( float battery_voltage, float battery_current )
+void gauge_stress_update( unsigned char BMS_stress )
 {
-	float power;
-
-	power = battery_voltage * battery_current / 1000;
-	if( power > GAUGE2_MAX) power = GAUGE2_MAX;
-	if( power < GAUGE2_MIN) power = GAUGE2_MIN;
-	gauge.g2_count = (unsigned int)( ((float)GAUGE_FREQ * GAUGE2_SCALE) / power / 2.0 );
+	unsigned int stress;
+	// Scale for PWM output
+	stress = BMS_stress * 10;	// Testing only
+	if(stress > GAUGE_PWM_PERIOD) stress = GAUGE_PWM_PERIOD;
+	gauge.g2_duty = stress;
 	events |= EVENT_GAUGE2;
 }
 

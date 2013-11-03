@@ -69,7 +69,7 @@ float battery_current = 0.0;
 
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
-bool bDcuB;										// True if DCU B; false if DCU A
+bool bDCUb;										// True if DCU B; false if DCU A
 unsigned char statusB = 0x90;					// Status from DCU-B
 
 
@@ -154,8 +154,8 @@ int main( void )
 	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
 	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, 0.0);	// Just to detect presence of pedal
-	bDcuB = command.flags != 0;
-	if (bDcuB)		// If position error, i.e. pedal not present
+	bDCUb = command.flags != 0;
+	if (bDCUb)		// If position error, i.e. pedal not present
 		command.flags |= FAULT_NO_PEDAL;
 
 	// Check switch inputs and generate command packets to motor controller
@@ -175,7 +175,7 @@ int main( void )
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
 			// Update motor commands based on pedal and slider positions
-			if (!bDcuB)
+			if (!bDCUb)
 				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
 				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
 
@@ -197,7 +197,7 @@ int main( void )
 					else if ((switches & SW_CHARGE_CABLE)  	// else if our charge cable is present
 					|| (chgr_rx_timer > 0)) {				// or we received data from our charger
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
-						if (bDcuB)							// If DCU-B
+						if (bDCUb)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
@@ -205,7 +205,7 @@ int main( void )
 						chgr_start();						// Start the charge controller (PID loop)
 						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
 					}
-					else if ((!bDcuB)						// else if we're DCU-A
+					else if ((!bDCUb)						// else if we're DCU-A
 					&& !(switches & SW_BRAKE) 				// and DCU-B is not in charge mode
 					&& (switches & SW_IGN_START)) {			// and latched start is on
 						next_state = MODE_D;				// Go to drive mode
@@ -230,7 +230,7 @@ int main( void )
 					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither charge cable present
 					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
-						if (bDcuB)							// If DCU-B
+						if (bDCUb)							// If DCU-B
 							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
 															// so it can allow traction
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
@@ -247,7 +247,7 @@ int main( void )
 			command.state = next_state;
 
 			// Control brake lights
-			if (bDcuB) {
+			if (bDCUb) {
 				// If we're DCU-B
 				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-B is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
@@ -282,7 +282,7 @@ int main( void )
 		readChargerBytes();
 
 		// Handle outgoing communications events (to motor controller)
-		if ((events & EVENT_COMMS) && !bDcuB) { 	// Every 100 ms
+		if ((events & EVENT_COMMS) && !bDCUb) { 	// Every 100 ms
 			events &= ~EVENT_COMMS;
 
 			// Transmit commands and telemetry
@@ -340,7 +340,7 @@ int main( void )
 				// We've received a packet, so must be connected to something
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				if (!bDcuB) {
+				if (!bDCUb) {
 					switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -368,7 +368,6 @@ int main( void )
 						// Update battery voltage and current for fuel and power gauges
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
-						gauge_power_update( battery_voltage, battery_current );
 						gauge_fuel_update( battery_voltage );
 						break;
 					case DC_CAN_BASE + DC_BMUB_STATUS:
@@ -395,7 +394,7 @@ int main( void )
 				}
 
 			} // End of if(can.status == CAN_OK)
-			if ((can.status == CAN_RTR) && !bDcuB) {
+			if ((can.status == CAN_RTR) && !bDCUb) {
 				// Remote request packet received - reply to it
 				switch(can.identifier){
 					case DC_CAN_BASE:
@@ -562,11 +561,13 @@ void timerB_init( void )
 {
 	TBCTL = TBSSEL_2 | ID_3 | TBCLR;			// MCLK/8, clear TBR
 	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
+	TBCCR3 = 0;									// Gauge 2
+	TBCCTL2 = OUTMOD_7;
 	TBCCR2 = 0;									// Gauge 3
 	TBCCTL2 = OUTMOD_7;
 	TBCCR1 = 0;									// Gauge 4
 	TBCCTL1 = OUTMOD_7;
-	P4SEL |= GAUGE_3_OUT | GAUGE_4_OUT;			// PWM -> output pins for fuel and temp gauges (tacho and power are software freq outputs)
+	P4SEL |= GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT;			// PWM -> output pins for stress, fuel and temp gauges (tacho is software freq output)
 	TBCCTL0 = CCIE;								// Enable CCR0 interrupt
 	TBCTL |= MC_1;								// Set timer to 'up' count mode
 }
@@ -609,19 +610,12 @@ __interrupt void timer_b0(void)
 	static int gauge_count = 0;
 	// static int i = 0;
 	static int gauge1_toggle, gauge1_last_toggle = 0;
-	static int gauge2_toggle, gauge2_last_toggle = 0;
 
-	// Toggle gauge 1 & 2 pulse frequency outputs
+	// Toggle gauge 1 pulse frequency output
 	gauge1_toggle = gauge1_last_toggle + gauge.g1_count[0]; // i++ & 3];
 	if (gauge_count - gauge1_toggle >= 0) {
 		P4OUT ^= GAUGE_1_OUT;
 		gauge1_last_toggle = gauge_count;
-	}
-
-	gauge2_toggle = gauge2_last_toggle + gauge.g2_count;
-	if (gauge_count - gauge2_toggle >= 0) {
-		P4OUT ^= GAUGE_2_OUT;
-		gauge2_last_toggle = gauge_count;
 	}
 
 	// Update pulse output timebase counter
@@ -633,6 +627,7 @@ __interrupt void timer_b0(void)
 	}
 	if (events & EVENT_GAUGE2) {
 		events &= ~EVENT_GAUGE2;
+		TBCCR2 = gauge.g2_duty;
 	}
 	if (events & EVENT_GAUGE3) {
 		events &= ~EVENT_GAUGE3;
