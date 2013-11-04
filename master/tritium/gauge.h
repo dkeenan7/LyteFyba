@@ -21,7 +21,7 @@
  * - Implements the following gauge interface functions
  *	- gauge_init
  *	- gauge_tach_update
- *	- gauge_power_update
+ *	- gauge_stress_update
  *	- gauge_temp_update
  *	- gauge_fuel_update
  *
@@ -46,8 +46,8 @@ extern gauge_variables gauge;
 
 // Overall gauge definitions
 // Timer B ISR triggers at GAUGE_FREQUENCY
-// Tach and Speed outputs are software driven counters to produce freqency pulses
-// Fuel and Temp outputs are PWM hardware outputs
+// Tach output is software driven counter to produce freqency pulses
+// Stress, Fuel and Temp outputs are PWM hardware outputs
 #define GAUGE_FREQ			10000
 #define GAUGE_PWM_PERIOD	(INPUT_CLOCK / 8 / GAUGE_FREQ)
 

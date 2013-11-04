@@ -69,9 +69,9 @@ float battery_current = 0.0;
 
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
-bool bDCUb;										// True if DCU B; false if DCU A
-unsigned char statusB = 0x90;					// Status from DCU-B
-
+bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
+unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
+												// i.e. stress 8 with a comms error
 
 
 void fault() {
@@ -562,7 +562,7 @@ void timerB_init( void )
 	TBCTL = TBSSEL_2 | ID_3 | TBCLR;			// MCLK/8, clear TBR
 	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
 	TBCCR3 = 0;									// Gauge 2
-	TBCCTL2 = OUTMOD_7;
+	TBCCTL3 = OUTMOD_7;
 	TBCCR2 = 0;									// Gauge 3
 	TBCCTL2 = OUTMOD_7;
 	TBCCR1 = 0;									// Gauge 4
@@ -627,7 +627,7 @@ __interrupt void timer_b0(void)
 	}
 	if (events & EVENT_GAUGE2) {
 		events &= ~EVENT_GAUGE2;
-		TBCCR2 = gauge.g2_duty;
+		TBCCR3 = gauge.g2_duty;
 	}
 	if (events & EVENT_GAUGE3) {
 		events &= ~EVENT_GAUGE3;
