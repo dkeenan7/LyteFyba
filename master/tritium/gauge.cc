@@ -81,7 +81,7 @@ void gauge_stress_update( unsigned char BMS_stress )
 {
 	unsigned int stress;
 	// Scale for PWM output
-	stress = BMS_stress * 10;	// Testing only
+	stress = 100;	// BMS_stress * 10;	// Testing only
 	if(stress > GAUGE_PWM_PERIOD) stress = GAUGE_PWM_PERIOD;
 	gauge.g2_duty = stress;
 	events |= EVENT_GAUGE2;
