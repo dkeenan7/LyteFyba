@@ -208,33 +208,31 @@ void handleBMUstatusByte(unsigned char status)
 	int output;
 
 	// Check for validity of local status byte
-	int stress = status & STRESS;			// Isolate stress bits
-	int encoded = status & ENC_STRESS;		// Stress bits and check bits
+	unsigned char stress = status & STRESS;			// Isolate stress bits
+	unsigned char encoded = status & ENC_STRESS;	// Stress bits and check bits
 	bool bValid = stressTable[stress] == encoded;
 	if (!bValid)
 		stress = 8;				// Treat invalid status byte as most minor dis-stress
 	if (status & COM_ERR)		// If communications error
-		if (stress < 8)
-			stress = 8;			// Treat as if stress 8 (charging or driving)
+		stress = max(stress, 8);	// Treat as at least stress 8 (charging or driving)
 
 	if (bDCUb) { // If we are DCU-B
-		// Send stress in CAN packet to DCU A
+		// Send status in CAN packet to DCU A
 		can_push_ptr->identifier = DC_CAN_BASE + DC_BMUB_STATUS;
-		can_push_ptr->status = 1;
-		can_push_ptr->data.data_u8[0] = status;
+		can_push_ptr->status = 1;	// Packet size in bytes
+		can_push_ptr->data.data_u8[0] = status; // Note that this has not been checked for validity
 		can_push();
 	} else { // else we are DCU-A
 		// Check for validity of status byte received in CAN packet from DCU B
-		int stressB = statusB & STRESS;			// Isolate stress bits for B
-		int encodedB = statusB & ENC_STRESS;
+		unsigned char stressB = statusB & STRESS;			// Isolate stress bits for B
+		unsigned char encodedB = statusB & ENC_STRESS;
 		bool bValidB = stressTable[stressB] == encodedB;
 		if (!bValidB)
 			stressB = 8;				// Treat invalid status byte as most minor dis-stress
 		if (statusB & COM_ERR)			// If communications error
-			if (stressB  < 8)
-				stressB = 8;			// Treat as if stress 8 (charging or driving)
+			stressB = max(stressB, 8);	// Treat as at least stress 8
 		// Calculate max of stresses from A and B half-packs
-		int maxStress = max(stress, stressB);
+		unsigned char maxStress = max(stress, stressB);
 		// Send max stress info to the Oil Pressure gauge
 		gauge_stress_update( maxStress );
 		// Send the stress information in the min and max cell voltage fields for WSconfig
@@ -246,7 +244,7 @@ void handleBMUstatusByte(unsigned char status)
 			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 			// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-			output = pidDrive.tick(sat_minus((maxStress-8) << 12, (SET_POINT-8) << 12));
+			output = pidDrive.tick(sat_minus(((int)maxStress-8) << 12, (SET_POINT-8) << 12));
 
 			// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 			float fCurLim = ((float)output + 32769.0F) / 65536.0F;
@@ -279,7 +277,7 @@ void handleBMUstatusByte(unsigned char status)
 		// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 		// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
-		output = pidCharge.tick(sat_minus((stress-8) << 12, (SET_POINT-8) << 12));
+		output = pidCharge.tick(sat_minus(((int)stress-8) << 12, (SET_POINT-8) << 12));
 		// Read the pot that sets the charger current limit
 		if (ADC12MEM1 < 4096/3)
 			uChgrCurrLim = CHGR_CURR_LIMIT;

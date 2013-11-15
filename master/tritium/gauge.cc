@@ -79,11 +79,11 @@ void gauge_tach_update( float motor_rpm )
  */
 void gauge_stress_update( unsigned char BMS_stress )
 {
-	unsigned int stress;
+	unsigned int count;
 	// Scale for PWM output
-	stress = 100;	// BMS_stress * 10;	// Testing only
-	if(stress > GAUGE_PWM_PERIOD) stress = GAUGE_PWM_PERIOD;
-	gauge.g2_duty = stress;
+	count = 64000/(1664-91*(int)BMS_stress); // Stress 0 ~= 52R, Stress 4 ~= 41R, Stress 12 ~= 18R
+	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
+	gauge.g2_duty = count;
 	events |= EVENT_GAUGE2;
 }
 
