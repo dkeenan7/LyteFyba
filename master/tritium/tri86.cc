@@ -153,8 +153,8 @@ int main( void )
 	ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
 	while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
-	process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, 0.0);	// Just to detect presence of pedal
-	bDCUb = command.flags != 0;
+	// Detect presence of (unpressed) pedal to determine if we are DCU-A or DCU-B
+	bDCUb = (ADC12MEM0 < PEDAL_ERROR_MIN) || (ADC12MEM0 > PEDAL_TRAVEL_MIN*2-PEDAL_ERROR_MIN);
 	if (bDCUb)		// If position error, i.e. pedal not present
 		command.flags |= FAULT_NO_PEDAL;
 
