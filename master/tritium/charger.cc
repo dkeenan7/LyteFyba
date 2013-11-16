@@ -72,7 +72,7 @@ void chgr_stop() {
 }
 
 
-void chgr_timer(bool bCharging) {			// Called every timer tick, for charger related processing
+void chgr_timer() {				// Called every 10 ms timer tick, for charger related processing
 	if (chgr_tx_timer > 0) --chgr_tx_timer;	// Decrement without letting it wrap around
 	if (chgr_rx_timer > 0) --chgr_rx_timer;	// Decrement without letting it wrap around
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
