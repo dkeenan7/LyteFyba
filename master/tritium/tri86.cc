@@ -340,7 +340,13 @@ int main( void )
 				// We've received a packet, so must be connected to something
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				if (!bDCUb) {
+				if (bDCUb) {
+					switch(can.identifier) {
+					case DC_CAN_BASE + DC_CHGR_LIM:
+						uChgrLim = can.data.data_u16[0];
+						break;
+					}
+				} else {										// DCU-A
 					switch(can.identifier){
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
