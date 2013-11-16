@@ -273,7 +273,7 @@ int main( void )
 				events |= EVENT_REQ_SLEEP;
 			}
 
-			chgr_timer();
+			chgr_timer(command.state == MODE_CHARGE);
 			bmu_timer();
 
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms
@@ -357,7 +357,8 @@ int main( void )
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= ~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
-						gauge_tach_update( motor_rpm );
+						if (command.state == MODE_D)			// Tacho used for charge current when charging
+							gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
 						// Update regen status flags
@@ -378,6 +379,9 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMUB_STATUS:
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
+						break;
+					case DC_CAN_BASE + DC_CHGR_CURR:
+						uChgrCurrA = can.data.data_u16[0];	// Save charger B actual current
 						break;
 				    }
 				}

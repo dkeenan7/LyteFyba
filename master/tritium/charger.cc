@@ -4,11 +4,14 @@
 #include "charger.h"
 #include "bms.h"
 #include "tri86.h"			// For fault() etc
+#include "can.h"			// For can_push_ptr
+#include "gauge.h"			// For gauge_tach_update()
 
 // Private function prototypes
 bool chgr_sendByte(unsigned char ch);
 bool chgr_sendPacket(const unsigned char* ptr);
 void chgr_processPacket();
+void SendChgrCurr(unsigned int uChgrCurr);
 
 // Public variables
 volatile unsigned int chgr_events = 0;
@@ -20,6 +23,8 @@ unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 //unsigned int chgr_soakCnt = 0;		// Counter for soak phase
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
+unsigned int chgr_dsp_ctr = 0;			// Charger current display on tacho - count of timer ticks
+unsigned int uChgrCurrA=0, uChgrCurrB=0;// Charger A or B actual current
 
 // Charger buffers
 queue chgr_tx_q(CHGR_TX_BUFSZ);
@@ -29,6 +34,7 @@ queue chgr_rx_q(CHGR_RX_BUFSZ);
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
 unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
+
 
 // Program global
 extern unsigned int uCharging;
@@ -66,12 +72,19 @@ void chgr_stop() {
 }
 
 
-void chgr_timer() {				// Called every timer tick, for charger related processing
+void chgr_timer(bool bCharging) {			// Called every timer tick, for charger related processing
 	if (chgr_tx_timer > 0) --chgr_tx_timer;	// Decrement without letting it wrap around
 	if (chgr_rx_timer > 0) --chgr_rx_timer;	// Decrement without letting it wrap around
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
+	if (++chgr_dsp_ctr == 30) {
+		chgr_dsp_ctr = 0;
+		if (bCharging)
+			gauge_tach_update(uChgrCurrA * 100);// 2/3 of the time display charger A current
+	}
+	if ((chgr_dsp_ctr == 20) && bCharging)
+		gauge_tach_update(uChgrCurrB * 100);	// 1/3 of the time display charer B current
 }
 
 
@@ -157,7 +170,17 @@ void chgr_processPacket() {
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
+	if (bDCUb)
+		SendChgrCurr(chgr_lastrx[7]);
+	else
+		uChgrCurrA = chgr_lastrx[7];
 }
 
+void SendChgrCurr(unsigned int uChgrCurr) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_CHGR_CURR;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_u16[0] = uChgrCurr; 	// Send charger actual current to DCU-A
+	can_push();
+}
 
 
