@@ -78,14 +78,14 @@ void chgr_timer(bool bCharging) {			// Called every timer tick, for charger rela
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
-	if (!bDCUb) {
-		if (++chgr_dsp_ctr == 300) {
+	// If we're DCU-A and not in drive mode, display the charger currents on the tacho
+	if (!bDCUb && (command.state != MODE_D)) {
+		if (++chgr_dsp_ctr == 300) {				// 3 second display cycle
 			chgr_dsp_ctr = 0;
-			if (bCharging)
-				gauge_tach_update(uChgrCurrA * 100);// 2/3 of the time display charger A current
+			gauge_tach_update(uChgrCurrA * 100);	// 2 seconds displaying charger A current
 		}
-		if ((chgr_dsp_ctr == 200) && bCharging)
-			gauge_tach_update(uChgrCurrB * 100);	// 1/3 of the time display charer B current
+		if (chgr_dsp_ctr == 200)
+			gauge_tach_update(uChgrCurrB * 100);	// 1 second displaying charger B current
 	}
 }
 
