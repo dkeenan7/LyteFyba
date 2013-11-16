@@ -23,7 +23,8 @@
 #define BMU_STATUS_TIMEOUT	50			// Number of 10 ms ticks we tolerate with no BMU status byte
 #define BMU_FAKESTATUS_RATE ((BMU_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
 										//	when detect BMU comms error
-#define LIMP_CURR			0.05		// DC bus current limit (fraction of max) when limping
+#define LIMP_CURR			0.12		// DC bus current limit (fraction of max) when limping
+#define BUS_CURRENT_OFFSET	(7./180.)	// Overcome a constant ~ 7 A of bus current measurement error
 
 // Status-byte bit-masks
 #define COM_ERR				(1<<6)		// Communications error

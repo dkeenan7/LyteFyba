@@ -82,6 +82,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		pedal = pedal / PEDAL_TRAVEL;
 		// Check pedal limit and clip upper travel region
 		if(pedal > 1.0) pedal = 1.0;
+		pedal = 0.15 + 0.85 * pedal;		// Experimental: attempt creep by simulating 15% pedal min
 
 		// Scale regen input to a 0.0 to REGEN_MAX range
 		// Clip lower travel region of regen input
