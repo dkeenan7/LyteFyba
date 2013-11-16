@@ -291,7 +291,7 @@ void handleBMUstatusByte(unsigned char status)
 				uChgrCurrLim = CHGR_CURR_LIMIT/2;
 			else
 				uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
-			SendChgrLim(uChgrLim);
+			SendChgrLim(uChgrCurrLim);
 		}
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),

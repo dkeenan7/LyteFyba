@@ -172,10 +172,13 @@ void chgr_processPacket() {
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
-	if (bDCUb)
-		SendChgrCurr(chgr_lastrx[7]);
-	else
-		uChgrCurrA = chgr_lastrx[7];
+	if (*(unsigned long*)&chgr_lastrx[0] == 0xE550FF18)		// Might be other packet IDs
+	{
+		if (bDCUb)
+			SendChgrCurr(chgr_lastrx[7]);
+		else
+			uChgrCurrA = chgr_lastrx[7];
+	}
 }
 
 void SendChgrCurr(unsigned int uChgrCurr) {
