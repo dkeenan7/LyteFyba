@@ -162,7 +162,7 @@ void can_transmitBusCurrent(float bus_current)
 {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 	can_push_ptr->status = 8;
-	can_push_ptr->data.data_fp[1] = bus_current;
+	can_push_ptr->data.data_fp[1] = bus_current + BUS_CURRENT_OFFSET;
 	can_push_ptr->data.data_fp[0] = 0.0;
 	can_push();
 }
