@@ -78,13 +78,15 @@ void chgr_timer(bool bCharging) {			// Called every timer tick, for charger rela
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
-	if (++chgr_dsp_ctr == 30) {
-		chgr_dsp_ctr = 0;
-		if (bCharging)
-			gauge_tach_update(uChgrCurrA * 100);// 2/3 of the time display charger A current
+	if (!bDCUb) {
+		if (++chgr_dsp_ctr == 300) {
+			chgr_dsp_ctr = 0;
+			if (bCharging)
+				gauge_tach_update(uChgrCurrA * 100);// 2/3 of the time display charger A current
+		}
+		if ((chgr_dsp_ctr == 200) && bCharging)
+			gauge_tach_update(uChgrCurrB * 100);	// 1/3 of the time display charer B current
 	}
-	if ((chgr_dsp_ctr == 20) && bCharging)
-		gauge_tach_update(uChgrCurrB * 100);	// 1/3 of the time display charer B current
 }
 
 
