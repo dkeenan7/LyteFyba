@@ -100,6 +100,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_RESET		3
 #define DC_SWITCH		5
 #define DC_BMUB_STATUS	6			// Send BMS stress (containing worst stress) from DCU B to A
+#define DC_CHGR_LIM		7			// Send charger current limit from DCU-A to DCU-B
 #define DC_BOOTLOAD		22
 
 

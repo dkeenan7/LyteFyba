@@ -14,6 +14,7 @@
 // Private function prototypes
 bool bmu_sendByte(unsigned char ch);
 bool bmu_sendPacket(const unsigned char* ptr);
+void SendChgrLim(unsigned int uChgrLim);
 
 // Public variables
 volatile unsigned int bmu_events = 0;
@@ -21,6 +22,7 @@ volatile unsigned int bmu_events = 0;
 volatile unsigned int bmu_sent_timeout;
 volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 for voltage requests
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
+unsigned int uChgrLim = 0;							// Charger current limit for DCU-B, passed from DCU-A
 
 // BMU buffers
 queue bmu_tx_q(BMU_TX_BUFSZ);
@@ -279,12 +281,18 @@ void handleBMUstatusByte(unsigned char status)
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 		output = pidCharge.tick(sat_minus(((int)stress-8) << 12, (SET_POINT-8) << 12));
 		// Read the pot that sets the charger current limit
-		if (ADC12MEM1 < 4096/3)
-			uChgrCurrLim = CHGR_CURR_LIMIT;
-		else if (ADC12MEM1 > 4096*2/3)
-			uChgrCurrLim = CHGR_CURR_LIMIT/2;
+		if (bDCUb)
+			uChgrCurrLim = uChgrLim;			// Use limit sent from DCU-A
 		else
-			uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
+		{
+			if (ADC12MEM1 < 4096/3)
+				uChgrCurrLim = CHGR_CURR_LIMIT;
+			else if (ADC12MEM1 > 4096*2/3)
+				uChgrCurrLim = CHGR_CURR_LIMIT/2;
+			else
+				uChgrCurrLim = CHGR_CURR_LIMIT*3/4;
+			SendChgrLim(uChgrLim);
+		}
 		// Scale the output. +1.0 has to correspond to maximum charger current,
 		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
 		// which we want to map to 0 .. uChgrCurrLim (a global that defaults to CHGR_CURR_LIMIT, but
@@ -479,3 +487,9 @@ void bmu_timer() {
 	}
 }
 
+void SendChgrLim(unsigned int uChgrLim) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_CHGR_LIM;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_u16[0] = uChgrLim; 	// Send charger current limit to DCU-B
+	can_push();
+}
