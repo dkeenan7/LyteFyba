@@ -381,10 +381,10 @@ int main( void )
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
 						break;
 					case DC_CAN_BASE + DC_CHGR_CURR:
-						uChgrCurrA = can.data.data_u16[0];	// Save charger B actual current
+						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
 						break;
 				    }
-				}
+				}					// end DCU-A
 
 				// DCU A or B
 				switch (can.identifier) {
