@@ -273,7 +273,7 @@ int main( void )
 				events |= EVENT_REQ_SLEEP;
 			}
 
-			chgr_timer(command.state == MODE_CHARGE);
+			chgr_timer();
 			bmu_timer();
 
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms
