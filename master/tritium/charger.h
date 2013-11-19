@@ -16,7 +16,7 @@
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
 #define CHGR_EOC_SOAKT		(1 * 60 * BMU_STATUS_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger
-#define CHGR_CUT_CURR		8					// Charge termination max current in tenths of an amp,
+#define CHGR_CUT_CURR		10					// Charge termination max current in tenths of an amp,
 												// must be more than bypass plus max DC-DC loads
 #define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
 #define CHGR_RX_BUFSZ 		16
