@@ -204,8 +204,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
 			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
-			; NOTE: It depends on the assembler rounding toward negative infinity (floored division).
-			; There is a similar simple formula for rounding towards zero (truncated division).
+			; NOTE: It depends on the assembler rounding toward zero (truncated division).
+			; There is a similar simple formula for rounding towards negative infinity (floored division).
 #define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
 			; Initialise clocks. SMCLK is only used by comms timer and watchdog timer.
