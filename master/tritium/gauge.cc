@@ -81,7 +81,11 @@ void gauge_stress_update( unsigned char BMS_stress )
 {
 	unsigned int count;
 	// Scale for PWM output
-	count = 64000/(1664-91*(int)BMS_stress); // Stress 0 ~= 52R, Stress 4 ~= 41R, Stress 12 ~= 18R
+	// Stress 0 = gauge 0, Stress 6 = gauge 3, Stress 12 = gauge 6
+	if (BMS_stress == 0)
+		count = 140;
+	else
+		count = 145 + (BMS_stress*7)/2;
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g2_duty = count;
 	events |= EVENT_GAUGE2;
