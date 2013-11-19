@@ -56,6 +56,9 @@ void gauge_init( void )
 	events |= (EVENT_GAUGE1 | EVENT_GAUGE2 | EVENT_GAUGE3 | EVENT_GAUGE4);
 }
 
+#define max(x, y) (((x)>(y))?(x):(y))
+#define min(x, y) (((x)<(y))?(x):(y))
+
 /*
  * Updates the Tachometer gauge output
  */
@@ -96,14 +99,15 @@ void gauge_stress_update( unsigned char BMS_stress )
  */
 void gauge_temp_update( float motor_temp, float controller_temp )
 {
-	unsigned int temp;
+	unsigned int count;
+	float norm_temp;
 	// Scale both temperatures to 0.0 to 1.0 scales
 	// Pick highest reading
-	// Scale for PWM output
-	temp = controller_temp * 1.33;	// Testing only
+	norm_temp = max(0.0, min(1.0, max((motor_temp-40)/(150-40), (controller_temp-40)/(85-40))));
+	count = norm_temp * 200;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
-	if(temp > GAUGE_PWM_PERIOD) temp = GAUGE_PWM_PERIOD;
-	gauge.g3_duty = temp;
+	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
+	gauge.g3_duty = count;
 	events |= EVENT_GAUGE3;
 }
 
@@ -112,13 +116,13 @@ void gauge_temp_update( float motor_temp, float controller_temp )
  */
 void gauge_fuel_update( float battery_voltage )
 {
-	unsigned int temp;
+	unsigned int count;
 	// Use lookup table to convert battery voltage to SOC
 	// Scale for PWM output
-	temp = battery_voltage * 0.4;	// Testing only
+	count = battery_voltage * 0.4;	// Testing only
 	// Check limits
-	if(temp > GAUGE_PWM_PERIOD) temp = GAUGE_PWM_PERIOD;
-	gauge.g4_duty = temp;
+	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
+	gauge.g4_duty = count;
 	events |= EVENT_GAUGE4;
 }
 

@@ -61,6 +61,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 volatile unsigned int events = 0x0000;
 
 // Data from motor controller
+unsigned int limiter = 0;
 float motor_rpm = 0.0;
 float motor_temp = 0.0;
 float controller_temp = 0.0;
@@ -72,6 +73,7 @@ unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
+#define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
 
 
 void fault() {
@@ -346,8 +348,14 @@ int main( void )
 						uChgrLim = can.data.data_u16[0];
 						break;
 					}
-				} else {										// DCU-A
+				} else {	// DCU-A
 					switch(can.identifier){
+					case MC_CAN_BASE + MC_LIMITS:
+						// Update limiting control loop
+						limiter = can.data.data_u16[0];				// Limiting control loop
+						if (command.state == MODE_D)				// Tacho displays current when charging
+							gauge_tach_update( LOG2(limiter)*1000 ); // Display limiter number on tacho
+						break;
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
 						if(can.data.data_fp[1] > ENGAGE_VEL_F) events |= EVENT_FORWARD;
@@ -357,8 +365,8 @@ int main( void )
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= ~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
-						if (command.state == MODE_D)			// Tacho used for charge current when charging
-							gauge_tach_update( motor_rpm );
+					//	if (command.state == MODE_D)			// Tacho displays current when charging
+					//		gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
 						// Update regen status flags
@@ -384,7 +392,7 @@ int main( void )
 						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
 						break;
 				    }
-				}					// end DCU-A
+				}	// end DCU-A
 
 				// DCU A or B
 				switch (can.identifier) {
