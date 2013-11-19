@@ -420,6 +420,10 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
 		mov		#$7FFF,R10			; Default case, unknown type, set R10 to infinity
 		push	#1					; Save the field width, 1 digit
 		_ENDCASE
@@ -482,6 +486,10 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 			_OF #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 		mov		#$8000,R10			; Default case, unknown type, set R10 to neg infinity
