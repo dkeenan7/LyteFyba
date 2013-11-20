@@ -61,7 +61,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 volatile unsigned int events = 0x0000;
 
 // Data from motor controller
-unsigned int limiter = 0;
+unsigned char limiter = 0;
 float motor_rpm = 0.0;
 float motor_temp = 0.0;
 float controller_temp = 0.0;
@@ -352,9 +352,9 @@ int main( void )
 					switch(can.identifier){
 					case MC_CAN_BASE + MC_LIMITS:
 						// Update limiting control loop
-						limiter = can.data.data_u16[0];				// Limiting control loop
+						limiter = can.data.data_u8[0];				// Limiting control loop
 						if (command.state == MODE_D)				// Tacho displays current when charging
-							gauge_tach_update( LOG2(limiter)*1000 ); // Display limiter number on tacho
+							gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
 						break;
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
