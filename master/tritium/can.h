@@ -109,13 +109,13 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_MODE_R		0x0001
-#define SW_MODE_N		0x0002
-#define SW_MODE_B		0x0004
-#define SW_CRASH		0x0008
+#define SW_INH_TRACTION 0x0002		// On DCU-A, this is sent from DCU-B when it's charging
+#define SW_CRASH		0x0004		// Was SW_MODE_B
+#define SW_MODE_D		0x0008		// Now piezo output, not a switch input at all
 #define SW_IGN_ACC		0x0010
 #define SW_IGN_ON		0x0020
 #define SW_IGN_START	0x0040
-#define SW_BRAKE		0x0080		// On DCU A, this is inhibit traction from DCUB; DB37 high = inh
+#define SW_BRAKE		0x0080
 #define SW_CHARGE_CABLE	0x0100		// Was SW_FUEL_DOOR: true if charger mains cable present
 #define SW_SPARE1		0x0200
 #define SW_SPARE2		0x0400
