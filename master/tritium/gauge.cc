@@ -104,7 +104,9 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 	// Scale both temperatures to 0.0 to 1.0 scales
 	// Pick highest reading
 	norm_temp = max(0.0, min(1.0, max((motor_temp-40)/(150-40), (controller_temp-40)/(85-40))));
-	count = norm_temp * 200;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	// 150 and 85 are the limits set in WSconfig
+//	count = norm_temp * 200;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = 100; // testing
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g3_duty = count;
@@ -119,7 +121,8 @@ void gauge_fuel_update( float battery_voltage )
 	unsigned int count;
 	// Use lookup table to convert battery voltage to SOC
 	// Scale for PWM output
-	count = battery_voltage * 0.4;	// Testing only
+//	count = battery_voltage * 0.4;	// Testing only
+	count = 100;
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;

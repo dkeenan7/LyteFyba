@@ -31,8 +31,8 @@ void dint();
 #define P1_UNUSED			0x00
 
 // Port 2
-#define IN_GEAR_1			0x01	// Now crash switch, low at DB37 = crash
-#define IN_GEAR_2			0x02
+#define IN_GEAR_1			0x01	// Now Piezo speaker output using ACLK
+#define IN_GEAR_2			0x02	// Now crash switch input, low at DC37 connector = crash
 #define IN_GEAR_3			0x04
 #define IN_GEAR_4			0x08
 #define IN_GEAR_5			0x10

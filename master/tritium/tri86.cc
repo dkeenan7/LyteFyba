@@ -205,31 +205,32 @@ int main( void )
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
-						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
+//						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
 					}
 					else if ((!bDCUb)						// else if we're DCU-A
-					&& !(switches & SW_BRAKE) 				// and DCU-B is not in charge mode
-					&& (switches & SW_IGN_START)) {			// and latched start is on
+					&& !(switches & SW_INH_TRACTION) 		// and DCU-B is not in charge mode (IN_GEAR_3)
+					&& (switches & SW_IGN_START)) {			// and ignition key in start position
 						next_state = MODE_D;				// Go to drive mode
 						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
-						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
+//						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
 					}
 					else
 						next_state = MODE_OFF;
-					break;
-				case MODE_D:
+					break; // End case MODE_OFF
+				case MODE_D:	// DCU-B should never be in MODE_D
 					if ((switches & SW_CRASH) 				// if we've crashed
 					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
 					|| (chgr_rx_timer > 0)					// or we received data from our charger
-					|| !(switches & SW_IGN_START)) {		// or latched start is off
+					|| (switches & SW_INH_TRACTION) 		// or DCU-B is in charge mode (IN_GEAR_3)
+					|| !(switches & SW_IGN_ON)) {			// or key is off
 						next_state = MODE_OFF;				// Go to OFF mode
 					}
 					else
 						next_state = MODE_D;
-					break;
+					break; // End case MODE_D
 				case MODE_CHARGE:
 					if ((switches & SW_CRASH)  				// if we've crashed
-					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither charge cable present
+					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither our charge cable present
 					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
 						if (bDCUb)							// If DCU-B
@@ -240,7 +241,7 @@ int main( void )
 					}
 					else
 						next_state = MODE_CHARGE;
-					break;
+					break; // End case MODE_CHARGE
 				default:
 					next_state = MODE_OFF;
 					break;
@@ -507,7 +508,7 @@ void clock_init( void )
 	BCSCTL3 = 0x20; 				// ACLK source = VLOCLK (4 to 20 kHz typ 12 kHz)
 	BCSCTL1 = CALBC1_16MHZ | 0x20;	// ACLK divider 0x0000 = /1, 0x0100 = /2, 0x0200 = /4, 0x0300 = /8
 	DCOCTL = CALDCO_16MHZ;
-	P2OUT &= ~0x01;					// Set P2.0 output to zero
+	P2OUT &= ~0x01;					// Set P2.0 output to zero. Was IN_GEAR_1 input.
 	P2DIR |= 0x01;					// Set P2.0 direction to output (piezo speaker)
 //	BCSCTL1 = 0x8F;			// FIXME!
 //	DCOCTL = 0x83;
@@ -524,7 +525,7 @@ void io_init( void )
 	P1DIR = BRAKE_OUT | CHG_CONT_OUT | CAN_PWR_OUT | P1_UNUSED;
 
 	P2OUT = 0x00;
-	P2DIR = P2_UNUSED;
+	P2DIR = IN_GEAR_1 | P2_UNUSED; // IN_GEAR_1 now used as piezo speaker output
 
 //	P3OUT = CAN_CSn | EXPANSION_TXD | LED_REDn | LED_GREENn;
 	P3OUT = CAN_CSn | CHARGER_TXD | BMS_TXD;
@@ -724,22 +725,23 @@ void update_switches( unsigned int *state, unsigned int *difference)
 
 	// Import switches into register
 
-#if 0
 	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
 	else *state &= ~SW_MODE_R;
 
-	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;
-	else *state &= ~SW_MODE_N;
+//	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;	// IN_GEAR_3 now repurposed to inhibit traction
+//	else *state &= ~SW_MODE_N;
+	// Inh_traction is active (inhibit) when high at DB37, so active low at the port
+	if (P2IN & IN_GEAR_3) *state &= ~SW_INH_TRACTION;
+	else *state |= SW_INH_TRACTION;
 
-	if(P2IN & IN_GEAR_2) *state |= SW_MODE_B;
-	else *state &= ~SW_MODE_B;
-
-//	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;	// IN_GEAR_1 now repurposed to crash signal
-//	else *state &= ~SW_MODE_D;
+//	if(P2IN & IN_GEAR_2) *state |= SW_MODE_B;	// IN_GEAR_2 now repurposed to crash switch input
+//	else *state &= ~SW_MODE_B;
 	// Crash switch is active (crash state) when low at DB37, so active high at the port
-	if (P2IN & IN_GEAR_1) *state |= SW_CRASH;
+	if (P2IN & IN_GEAR_2) *state |= SW_CRASH;
 	else *state &= ~SW_CRASH;
-#endif
+
+//	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;	// IN_GEAR_1 now repurposed to piezo speaker output
+//	else *state &= ~SW_MODE_D;
 
 	if(P1IN & IN_IGN_ACCn) *state &= ~SW_IGN_ACC;
 	else *state |= SW_IGN_ACC;
