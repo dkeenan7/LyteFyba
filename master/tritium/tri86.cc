@@ -191,8 +191,9 @@ int main( void )
 													// Stop requesting brakelights if we're DCU-A
 													// Stop indicating charge mode if we're DCU-B
 					P1OUT &= ~CHG_CONT_OUT;			// Turn off our charger contactors
-					P1OUT &= ~BRAKE_OUT;			// Turn off traction contactors if we're DCU-A
-													// Turn off brake lights if we're DCU-B
+					if (!bDCUb)
+						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors if we're DCU-A
+													// Leave brake output alone if we're DCU-B (handled later)
 
 					if (switches & SW_CRASH)				// if we've crashed
 						next_state = MODE_OFF;				// Stay in the OFF mode
@@ -252,7 +253,7 @@ int main( void )
 			// Control brake lights
 			if (bDCUb) {
 				// If we're DCU-B
-				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-B is requesting
+				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-A is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
 				else P1OUT &= ~BRAKE_OUT;
 			}
