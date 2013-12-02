@@ -19,6 +19,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 > > maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain)
   a ADCScaled or r(A)wVoltage (TestICal only)
   c Calibrate
+c   Comms error - executed automatically by temporary master to report its ID
 d d Decimal output
 e e ErrorLED
   f FrequencyBurst (puts MCLK/22 = 182.5 - 183.5 kHz on TX+, TX- and activity LED)

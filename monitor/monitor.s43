@@ -52,15 +52,41 @@ ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 ; Constants
 
 ; Stress calculations
-; Stress set-point is intended to be 7. Alarm is given at stress 11 or more.
+; The stress set-point for both charger and motor controller back-off is 7.
+; This set-point of 7 is implemented in the DCUs.
+; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
+#define WHINGE 0
+#if !WHINGE
+// OV = Over Voltage: One stress unit for each 10 mV in excess of 3.450 V, to a max of 15 at >= 3.60 V
+// OV setpoint is 3.52 to 3.53 V. Alarm at 3.56 V.
+OV_ZERO		EQU		3450		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		10			; mV difference between one OV stress level and the next
+// UV = Under Voltage: One stress unit for each 100 mV below 3.100 V, to a maximum of 15 at <= 1.90 V
+// UV setpoint is 2.4 to 2.3 V. Alarm at 2.00 V.
+UV_ZERO		EQU		3100		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-100		; mV difference between one UV stress level and the next
+// OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
+// OT setpoint is 47 to 48 degC. Alarm at 51 degC.
+OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
+OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
+// UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
+// UT setpoint is 4 to 3 degC. Alarm at 0degC.
+UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
+UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
+// AL = Absolute Link voltage: Disabled because it does not work reliably.
+// Plan to implement positive and negative bolt voltages in future.
+AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
+AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
+
+#else
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
 // OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
-OV_ZERO		EQU		3500		; Threshold in mV between OV stress levels -1 and 0
+OV_ZERO		EQU		3400		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		10			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 40 mV below 2.500 V, to a maximum of 15 at <= 1.90 V
 // UV setpoint is 2.18 to 2.22 V. Alarm at 2.06 V.
-UV_ZERO		EQU		2500		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+UV_ZERO		EQU		3200		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-50			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
@@ -72,7 +98,8 @@ UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the ne
 // AL = Absolute Link voltage: One stress unit for every 20 mV above 0 mV, to a max of 15 at >= 300 mV
 // AL setpoint is 140 to 160 mV. Alarm at 220 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		1500		; mV difference between one AL stress level and the next
+AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
+#endif
 
 NBYPLEV		EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
 BYPLEV		EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
@@ -133,6 +160,7 @@ bNotFreezeStress EQU	1<<2		; Zero if undertemp should be included as stress (cha
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
+tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
 passWordState	DS		1			; State machine for password recogniser
 
 ; Serialio variables
@@ -399,6 +427,7 @@ DoMeasurement:
 				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
 
+#if 0
 			; Do link voltage measurement
 			call	#linkV					; Get link voltage in mV in R10
 			cmp		#9999,R10				; Special "invalid" value?
@@ -415,15 +444,14 @@ DoMeasurement:
 				push	#'l'					; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
 			_ENDIF
-
-			; Check for stress overflow and saturate it
-			cmp		#STRESS,Rstrs			; If the stress is worse than we can fit in status byte
-			_IF		_HS
-				mov		#STRESS,Rstrs			; Use the maximum we can fit
-			_ENDIF
+#endif
 
 			; Update local present stress, and worst stress for trip so far
 			mov.b	Rstrs,R8				; Copy stress. movBits_B instruction trashes its source.
+			cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
+			_IF		_HS
+				mov		#STRESS,R8				; Use the maximum we can fit
+			_ENDIF
 			mov.b	stressTable(R8),R8		; Encode it with checkbit
 			movBits_B R8,#ENC_STRESS,&localStatus ; Record for later use, preserving other status bits.
 			cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
@@ -448,9 +476,15 @@ DoMeasurement:
 				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
 				_IF		_HS
 					; If our ID is not 1, set the comms error bit in local status
+					; and send a comment with our ID followed by 'c' for comms error
+					; every 256 status bytes (approx every 17 seconds).
 					cmp.b	#1,&infoID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
+						inc.b	&tempMasterIDctr
+						_IF	_Z
+							call	#_commsError			; Call pretty-print
+						_ENDIF
 					_ENDIF
 
 					; Act as a master -- send our status
