@@ -32,6 +32,13 @@
 			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
+; Comms error ( -- )						; Report temporary master's ID
+			xCODE	'c',commsError,_commsError ; 'c' for comms error
+			mov		#'c',Rthd				; Type is comms error
+			mov		#0,Rsec					; Zero value (so no minus sign)
+			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
+			jmp		_prettyPrint			; Tail-call pretty-print and return
+
 ; Stress ( -- )								; Report local stress
 			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
 			mov		#'p',Rthd				; Type is stress

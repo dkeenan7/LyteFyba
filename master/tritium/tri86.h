@@ -66,13 +66,13 @@ void dint();
 // Port 5
 #define LED_FAULT_3			0x01
 #define LED_FAULT_2			0x02
-#define LED_FAULT_1			0x04
+#define LED_FAULT_1			0x04	// DCU-A: Alternator light
 #define LED_GEAR_BL			0x08
-#define LED_GEAR_4			0x10
+#define LED_GEAR_4			0x10	// DCU-B: Presence of this non-pedal DCU
 #define LED_GEAR_3			0x20	// DCU-A: heavy regen, request DCU-B to turn on brake light
 									// DCU-B: in charge mode, request DCU-A to inhibit traction
-#define LED_GEAR_2			0x40
-#define LED_GEAR_1			0x80
+#define LED_GEAR_2			0x40	// Indicates charge mode
+#define LED_GEAR_1			0x80	// Indicates drive mode
 #define P5_UNUSED			0x00
 
 #define LED_GEAR_ALL		(LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1)

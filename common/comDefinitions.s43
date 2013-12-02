@@ -296,8 +296,7 @@ _prettyPrint:
 			push	Rtos					; Save maxResetsToShow
 			mov.b	#'R',Rthd				; Type is reset-log query
 			mov		&resetCounter,Rsec		; Result
-			mov		#5,Rtos					; Print 5 digits
-			call	#_prettyPrint			; Pretty-print of 5 digits
+			call	#_prettyPrint3			; Pretty-print of 3 digits
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
@@ -330,7 +329,7 @@ _prettyPrint:
 			_IF		_LO
 				mov		#resetBuffer+15,R9
 			_ENDIF
-			mov		@R9,Rsec				; Result
+			mov.b	@R9,Rsec				; Result
 			push	R9
 			call	#_prettyPrint3			; Call pretty-print for 3 digits
 			pop		R9

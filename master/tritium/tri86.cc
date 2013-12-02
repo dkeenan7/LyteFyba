@@ -187,9 +187,11 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					P5OUT &= ~(LED_GEAR_ALL);		// Stop indicating drive mode or charge mode
-													// Stop requesting brakelights if we're DCU-A
-													// Stop indicating charge mode if we're DCU-B
+					P5OUT &= ~(LED_GEAR_ALL);		// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
+													// Stop requesting brakelights if we're DCU-A (LED_GEAR_3)
+													// Stop indicating charge mode if we're DCU-B (LED_GEAR_3)
+													// Stop indicating charge mode if we're DCU-B (LED_GEAR_4)
+													// Turn on alternator light (LED_FAULT_1)
 					P1OUT &= ~CHG_CONT_OUT;			// Turn off our charger contactors
 					if (!bDCUb)
 						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors if we're DCU-A
