@@ -57,14 +57,14 @@ ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 10 mV in excess of 3.450 V, to a max of 15 at >= 3.60 V
-// OV setpoint is 3.52 to 3.53 V. Alarm at 3.56 V.
-OV_ZERO		EQU		3450		; Threshold in mV between OV stress levels -1 and 0
-OV_STEP		EQU		10			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 100 mV below 3.100 V, to a maximum of 15 at <= 1.90 V
-// UV setpoint is 2.4 to 2.3 V. Alarm at 2.00 V.
-UV_ZERO		EQU		3100		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-100		; mV difference between one UV stress level and the next
+// OV = Over Voltage: One stress unit for each 20 mV in excess of 3.350 V, to a max of 15 at >= 3.65 V
+// OV setpoint is 3.49 to 3.50 V. Alarm at 3.57 V.
+OV_ZERO		EQU		3350		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		20			; mV difference between one OV stress level and the next
+// UV = Under Voltage: One stress unit for each 80 mV below 3.250 V, to a maximum of 15 at <= 2.05 V
+// UV setpoint is 2.69 to 2.61 V. Alarm at 2.37 V.
+UV_ZERO		EQU		3250		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-80		; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
@@ -73,7 +73,7 @@ OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the nex
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
-// AL = Absolute Link voltage: Disabled because it does not work reliably.
+// AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
 // Plan to implement positive and negative bolt voltages in future.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
