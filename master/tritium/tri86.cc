@@ -583,6 +583,8 @@ void timerB_init( void )
 {
 	TBCTL = TBSSEL_2 | ID_3 | TBCLR;			// MCLK/8, clear TBR
 	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
+	TBCCR6 = GAUGE_PWM_PERIOD / 8;				// Set CCR6 to interrupt 8 times per period
+	TBCCTL6 = CCIE;
 	TBCCR3 = 0;									// Gauge 2
 	TBCCTL3 = OUTMOD_7;
 	TBCCR2 = 0;									// Gauge 3
@@ -629,21 +631,7 @@ void adc_init( void )
 #pragma vector=TIMERB0_VECTOR
 __interrupt void timer_b0(void)
 {
-	static int gauge_count = 0;
-	// static int i = 0;
-	static int gauge1_toggle, gauge1_last_toggle = 0;
-
-	// Toggle gauge 1 pulse frequency output
-	gauge1_toggle = gauge1_last_toggle + gauge.g1_count[0]; // i++ & 3];
-	if (gauge_count - gauge1_toggle >= 0) {
-		P4OUT ^= GAUGE_1_OUT;
-		gauge1_last_toggle = gauge_count;
-	}
-
-	// Update pulse output timebase counter
-	gauge_count++;
-
-	// Update outputs if necessary
+	// Update gauge PWM outputs if necessary
 	if (events & EVENT_GAUGE1) {
 		events &= ~EVENT_GAUGE1;
 	}
@@ -658,6 +646,31 @@ __interrupt void timer_b0(void)
 	if (events & EVENT_GAUGE4) {
 		events &= ~EVENT_GAUGE4;
 		TBCCR1 = gauge.g4_duty;
+	}
+}
+
+/*
+ * Timer B overflow and CCR1-6 Interrupt Service Routine
+ *	- Interrupts on Timer B CCR6 match at 8 times GAUGE_FREQUENCY (80kHz)
+ */
+#pragma vector=TIMERB1_VECTOR
+__interrupt void timer_b1(void)
+{
+	static int gauge_count = 0;
+	static int gauge1_toggle, gauge1_last_toggle = 0;
+	if (TBIV == 6 << 1) { // If the interrupt is from CCR6
+		if (TBCCR6 >= GAUGE_PWM_PERIOD) TBCCR6 = 0;
+		TBCCR6 = TBCCR6 + GAUGE_PWM_PERIOD / 8;
+
+		// Toggle gauge 1 pulse frequency output
+		gauge1_toggle = gauge1_last_toggle + gauge.g1_count;
+		if (gauge_count - gauge1_toggle >= 0) {
+			P4OUT ^= GAUGE_1_OUT;
+			gauge1_last_toggle = gauge_count;
+		}
+
+		// Update pulse output timebase counter
+		gauge_count++;
 	}
 }
 
