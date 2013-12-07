@@ -99,8 +99,8 @@ void gauge_stress_update( unsigned char BMS_stress )
  */
 void gauge_temp_update( float motor_temp, float controller_temp )
 {
-	unsigned int count;
 	float norm_temp;
+	unsigned int count;
 	// Scale both temperatures to 0.0 to 1.0 scales
 	// Pick highest reading
 	norm_temp = max(0.0, min(1.0, max((motor_temp-40)/(150-40), (controller_temp-40)/(85-40))));
@@ -118,11 +118,12 @@ void gauge_temp_update( float motor_temp, float controller_temp )
  */
 void gauge_fuel_update( float battery_voltage )
 {
+	float norm_fuel;
 	unsigned int count;
-	// Use lookup table to convert battery voltage to SOC
-	// Scale for PWM output
-//	count = battery_voltage * 0.4;	// Testing only
-	count = 100;
+	// Scale to a 0.0 to 1.0 scale
+	norm_fuel = (battery_voltage / 109.0 - 3.25) / 0.1;
+//	count = 90 + 100 * norm_fuel;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = 100; // testing
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;
