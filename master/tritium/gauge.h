@@ -36,7 +36,7 @@ extern void gauge_fuel_update( float battery_voltage );
 
 // Public variables
 typedef struct _gauge_variables {
-	unsigned int g1_count[4];
+	unsigned int g1_count;
 	unsigned int g2_duty;
 	unsigned int g3_duty;
 	unsigned int g4_duty;
@@ -57,8 +57,8 @@ extern gauge_variables gauge;
 // We want 60 / 2 = 30 scale (4 cylinder)
 // Do scaling in floating point maths to make user modifications simple
 // Do not send frequencies outside of those representing min and max below.
-#define GAUGE1_SCALE		32.0f	// 32 instead of 30, compensates for some gauge error
-#define GAUGE1_MIN			200.0f
+#define GAUGE1_SCALE		32.0f	// Not used
+#define GAUGE1_MIN			250.0f
 #define GAUGE1_MAX			7000.0f
 
 // Speedometer gauge scaling
