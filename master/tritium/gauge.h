@@ -59,7 +59,7 @@ extern gauge_variables gauge;
 // Do not send frequencies outside of those representing min and max below.
 #define GAUGE1_SCALE		32.0f	// 32 instead of 30, compensates for some gauge error
 #define GAUGE1_MIN			200.0f
-#define GAUGE1_MAX			8000.0f
+#define GAUGE1_MAX			7000.0f
 
 // Speedometer gauge scaling
 // BMW e36 gauge cluster: 325Hz = 260km/h = full scale
