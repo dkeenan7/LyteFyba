@@ -46,7 +46,7 @@ gauge_variables	gauge;
  */
 void gauge_init( void )
 {
-	gauge.g1_count = 0;
+	gauge.g1_half_period = 0;
 	gauge.g2_duty = 0;
 	gauge.g3_duty = 0;
 	gauge.g4_duty = 0;
@@ -61,10 +61,12 @@ void gauge_init( void )
  */
 void gauge_tach_update( float motor_rpm )
 {
+	unsigned int adj_rpm;
 	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
-	gauge.g1_count = 18.2 + 449672.0 / (motor_rpm + 81.0);
+	adj_rpm = (unsigned int)motor_rpm + 100;
+	gauge.g1_half_period = (642335 - (adj_rpm >> 1)) / adj_rpm; // = Round(642335 / adj_rpm) - 1
 	events |= EVENT_GAUGE1;
 }
 
@@ -94,10 +96,9 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 	unsigned int count;
 	// Scale both temperatures to 0.0 to 1.0 scales
 	// Pick highest reading
-	norm_temp = max(0.0, min(1.0, max((motor_temp-40)/(150-40), (controller_temp-40)/(85-40))));
-	// 150 and 85 are the limits set in WSconfig
-//	count = norm_temp * 200;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
-	count = 100; // testing
+	norm_temp = max(-0.25, min(1.25, max((motor_temp-40)/(160-40), (controller_temp-40)/(80-40))));
+	// C = 40. H = 160 for motor and 80 for controller. Middle = 100 for motor, 60 for controller.
+	count = 320.8 * (1 - 1/(norm_temp + 1.295));	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g3_duty = count;
@@ -111,10 +112,10 @@ void gauge_fuel_update( float battery_voltage )
 {
 	float norm_fuel;
 	unsigned int count;
-	// Scale to a 0.0 to 1.0 scale
+	// Scale to a 0.0 to 1.0 scale between 3.25 and 3.35 V per cell
 	norm_fuel = (battery_voltage / 109.0 - 3.25) / 0.1;
-//	count = 90 + 100 * norm_fuel;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
-	count = 100; // testing
+//	count = 120 + 100 * norm_fuel;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = 160; // testing
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;
