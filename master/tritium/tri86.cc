@@ -191,11 +191,12 @@ int main( void )
 													// Stop requesting brakelights if we're DCU-A (LED_GEAR_3)
 													// Stop indicating charge mode if we're DCU-B (LED_GEAR_3)
 													// Stop indicating charge mode if we're DCU-B (LED_GEAR_4)
-													// Turn on alternator light (LED_FAULT_1)
 					P1OUT &= ~CHG_CONT_OUT;			// Turn off our charger contactors
-					if (!bDCUb)
+					if (!bDCUb) {
 						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
+						P5OUT |= LED_FAULT_1;		// Turn off alternator light (LED_FAULT_1)
+					}
 
 					if (switches & SW_CRASH)				// if we've crashed
 						next_state = MODE_OFF;				// Stay in the OFF mode
@@ -205,6 +206,8 @@ int main( void )
 						if (bDCUb)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
+						else								// If DCU-A,
+							P5OUT &= ~LED_FAULT_1;			//	turn on the charge indicator light
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
@@ -357,8 +360,8 @@ int main( void )
 					case MC_CAN_BASE + MC_LIMITS:
 						// Update limiting control loop
 						limiter = can.data.data_u8[0];				// Limiting control loop
-						if (command.state == MODE_D)				// Tacho displays current when charging
-							gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
+					//	if (command.state == MODE_D)				// Tacho displays current when charging
+					//		gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
 						break;
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -369,8 +372,8 @@ int main( void )
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= ~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
-					//	if (command.state == MODE_D)			// Tacho displays current when charging
-					//		gauge_tach_update( motor_rpm );
+						if (command.state == MODE_D)			// Tacho displays current when charging
+							gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
 						// Update regen status flags
@@ -538,7 +541,7 @@ void io_init( void )
 	P4OUT = LED_PWM | LED_REDn | LED_GREENn;
 	P4DIR = GAUGE_1_OUT | GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT | LED_PWM | LED_REDn | LED_GREENn;
 
-	P5OUT = 0x00;
+	P5OUT = LED_FAULT_1;		// Active low
 	P5DIR = LED_FAULT_1 | LED_FAULT_2 | LED_FAULT_3 | LED_GEAR_BL | LED_GEAR_4 | LED_GEAR_3 | LED_GEAR_2 | LED_GEAR_1 | P5_UNUSED;
 
 	P6OUT = ANLG_V_ENABLE; // Enable the 5V supply for the pedal etc.
@@ -582,16 +585,16 @@ void timerA_init( void )
 void timerB_init( void )
 {
 	TBCTL = TBSSEL_2 | ID_3 | TBCLR;			// MCLK/8, clear TBR
-	TBCCR0 = GAUGE_PWM_PERIOD;					// Set timer to count to this value
-	TBCCR6 = GAUGE_PWM_PERIOD / 8;				// Set CCR6 to interrupt 8 times per period
-	TBCCTL6 = CCIE;
+	TBCCR0 = GAUGE_PWM_PERIOD-1;				// Set timer to count to this value (199)
+	TBCCR6 = 0;									// CCR6 is used to get more resolution for frequency outputs
+	TBCCTL6 = CCIE;								// Enable interrupts from CCR6 on match
 	TBCCR3 = 0;									// Gauge 2
-	TBCCTL3 = OUTMOD_7;
+	TBCCTL3 = OUTMOD_7;							// Toggle on match
 	TBCCR2 = 0;									// Gauge 3
-	TBCCTL2 = OUTMOD_7;
+	TBCCTL2 = OUTMOD_7;							// Toggle on match
 	TBCCR1 = 0;									// Gauge 4
-	TBCCTL1 = OUTMOD_7;
-	P4SEL |= GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT;			// PWM -> output pins for stress, fuel and temp gauges (tacho is software freq output)
+	TBCCTL1 = OUTMOD_7;							// Toggle on match
+	P4SEL |= GAUGE_2_OUT | GAUGE_3_OUT | GAUGE_4_OUT; // PWM -> output pins for stress, fuel and temp gauges (tacho is software freq output)
 	TBCCTL0 = CCIE;								// Enable CCR0 interrupt
 	TBCTL |= MC_1;								// Set timer to 'up' count mode
 }
@@ -651,27 +654,32 @@ __interrupt void timer_b0(void)
 
 /*
  * Timer B overflow and CCR1-6 Interrupt Service Routine
- *	- Interrupts on Timer B CCR6 match at 8 times GAUGE_FREQUENCY (80kHz)
+ *	- Interrupts on Timer B CCR6 match at 4 times GAUGE_FREQUENCY
+ * to give better tacho resolution at high rpm.
  */
 #pragma vector=TIMERB1_VECTOR
 __interrupt void timer_b1(void)
 {
-	static int gauge_count = 0;
-	static int gauge1_toggle, gauge1_last_toggle = 0;
-	if (TBIV == 6 << 1) { // If the interrupt is from CCR6
-		if (TBCCR6 >= GAUGE_PWM_PERIOD) TBCCR6 = 0;
-		TBCCR6 = TBCCR6 + GAUGE_PWM_PERIOD / 8;
+	static int gauge_freq_timer = 0; // These must be signed for circular comparison to work below
+	static int gauge1_last_toggle = 0;
 
-		// Toggle gauge 1 pulse frequency output
-		gauge1_toggle = gauge1_last_toggle + gauge.g1_count;
-		if (gauge_count - gauge1_toggle >= 0) {
-			P4OUT ^= GAUGE_1_OUT;
-			gauge1_last_toggle = gauge_count;
+	if (TBIV == 6 << 1) { // If the interrupt is from CCR6
+		// Keep CCR6 interrupting 4 times per timer cycle
+		TBCCR6 = TBCCR6 + GAUGE_PWM_PERIOD / 4;
+		if (TBCCR6 >= GAUGE_PWM_PERIOD) TBCCR6 = 0;
+
+		// Toggle the gauge_1 pulse frequency output if the time (now)
+		// is ON_OR_AFTER the last toggle time plus a half period.
+		// The half period may change at any time -- greater or smaller.
+		// Only this form of the comparison works correctly with timer wraparound.
+		if (gauge_freq_timer - (gauge1_last_toggle + gauge.g1_half_period) >= 0) {
+			P4OUT ^= GAUGE_1_OUT;	// Toggle the gauge 1 output
+			gauge1_last_toggle = gauge_freq_timer; // Update the last toggle time
 		}
 
-		// Update pulse output timebase counter
-		gauge_count++;
-	}
+		// Update the pulse frequency output timer
+		gauge_freq_timer++;
+	}	// End If the interrupt is from CCR6
 }
 
 /*
