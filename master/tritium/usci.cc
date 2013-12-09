@@ -54,7 +54,7 @@ void usci_init( unsigned char clock )
 	else UCB0CTL1 = UCSSEL_1 | UCSWRST;					// BRCLK = ACLK
 	UCB0BR0 = 0x02;										// /2
 	UCB0BR1 = 0;										//
-	UCB0CTL1 &= ~UCSWRST;								// Initialize USCI state machine
+	UCB0CTL1 &= (uchar)~UCSWRST;						// Initialize USCI state machine
 }
 
 /*
@@ -93,7 +93,7 @@ __interrupt void usciab0tx(void)
 		unsigned char ch = 0;					// Get byte from the
 		chgr_tx_q.dequeue(ch);					//	transmit queue
 		if (chgr_tx_q.empty())					// Queue empty and therefore TX complete?
-			IE2 &= ~UCA0TXIE;					// Yes, disable USCI_A0 TX interrupt
+			IE2 &= (uchar)~UCA0TXIE;			// Yes, disable USCI_A0 TX interrupt
 		UCA0TXBUF = ch;							// TX this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}
@@ -108,7 +108,7 @@ __interrupt void usciab1tx(void)
 		unsigned char ch = 0;					// Get byte from the
 		bmu_tx_q.dequeue(ch);					//	transmit queue
 		if (bmu_tx_q.empty())					// Queue empty and therefore TX complete?
-			UC1IE &= ~UCA1TXIE;					// Yes, disable USCI_A1 TX interrupt
+			UC1IE &= (uchar)~UCA1TXIE;			// Yes, disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 	}

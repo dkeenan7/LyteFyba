@@ -17,6 +17,7 @@ void dint();
 #define NOINLINE ((noinline))
 #endif
 
+#define uchar unsigned char			// For brevity of type casting
 
 // Pin Definitions
 // Port 1

@@ -57,7 +57,7 @@ void chgr_start() {
 void chgr_idle() {
 	chgr_sendRequest(0, 0, false); // Zero volts, zero amps, but let it keep sending data
 	chgr_state = CHGR_IDLE;
-	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
+	P1OUT &= (uchar)~CHG_CONT_OUT;		// Turn off the charger contactor.
 								// External relays and diodes should ensure that we also
 								// turn off the battery contactors.
 }
@@ -66,7 +66,7 @@ void chgr_idle() {
 void chgr_stop() {
 	chgr_sendRequest(0, 0, false); // Zero volts, zero amps, but let it keep sending data
 	chgr_state = CHGR_IDLE;
-	P1OUT &= ~CHG_CONT_OUT;		// Turn off the charger contactor.
+	P1OUT &= (uchar)~CHG_CONT_OUT;		// Turn off the charger contactor.
 								// External relays and diodes should ensure that we also
 								// turn off the battery contactors.
 }
@@ -96,17 +96,17 @@ bool chgr_sendCurrent(unsigned int iCurr) {
 }
 
 
-bool chgr_sendRequest(int voltage, int current, bool chargerOff) {
+bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff) {
     bool ret;
 	// Charger is on the UART in UCI0
 	chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 	chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
 	chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
 	chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
-	chgr_txbuf[4] = voltage >> 8;
+	chgr_txbuf[4] = (uchar)(voltage >> 8);
 	chgr_txbuf[5] = voltage & 0xFF;
-	chgr_txbuf[6] = current >> 8;
-	chgr_txbuf[7] = current;
+	chgr_txbuf[6] = (uchar)(current >> 8);
+	chgr_txbuf[7] = current & 0xFF;
 	chgr_txbuf[8] = chargerOff;
 	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
 	ret = chgr_sendPacket(chgr_txbuf);
@@ -172,7 +172,10 @@ void chgr_processPacket() {
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
 	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
-	if (*(unsigned long*)&chgr_lastrx[0] == 0xE550FF18)		// Might be other packet IDs
+	if (chgr_lastrx[3] == 0xE5 &&
+		chgr_lastrx[2] == 0x50 &&
+		chgr_lastrx[1] == 0xFF &&
+		chgr_lastrx[0] == 0x18)		// Might be other packet IDs
 	{
 		if (bDCUb)
 			SendChgrCurr(chgr_lastrx[7]);
