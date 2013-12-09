@@ -244,6 +244,7 @@ int main( void )
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
 							if (tacho_display == LIM) tacho_display = RPM;
 							else tacho_display = TachoDisplayType(tacho_display + 1);
+							fault(); // beep to reveal spurios start signals``````````````````````````````````````````````````
 						}
 					}
 					break; // End case MODE_D
@@ -262,9 +263,9 @@ int main( void )
 						next_state = MODE_CHARGE;
 						// Cycle through the 3 charge rates on rising edges of IGN_START
 						if (!bDCUb && (switches & switches_diff & SW_IGN_START)) {
-							uChgrCurrLim = uChgrCurrLim + CHGR_CURR_LIMIT/4;
-							if (uChgrCurrLim >= CHGR_CURR_LIMIT)
-								uChgrCurrLim = CHGR_CURR_LIMIT/2;
+							uChgrCurrLim = uChgrCurrLim + (CHGR_CURR_LIMIT+2)/4;
+							if (uChgrCurrLim > CHGR_CURR_LIMIT)
+								uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
 							SendChgrLimForB(uChgrCurrLim); // Send the new charge current limit to DCU-B
 						}
 					}
