@@ -662,7 +662,6 @@ __interrupt void timer_b1(void)
 {
 	static int gauge_freq_timer = 0; // These must be signed for circular comparison to work below
 	static int gauge1_last_toggle = 0;
-//	int gauge1_toggle;
 
 	if (TBIV == 6 << 1) { // If the interrupt is from CCR6
 		// Keep CCR6 interrupting 4 times per timer cycle
@@ -674,8 +673,6 @@ __interrupt void timer_b1(void)
 		// The half period may change at any time -- greater or smaller.
 		// Only this form of the comparison works correctly with timer wraparound.
 		if (gauge_freq_timer - (gauge1_last_toggle + (int)gauge.g1_half_period) >= 0) {
-//		gauge1_toggle = gauge1_last_toggle + gauge.g1_half_period;
-//		if (gauge_freq_timer - gauge1_toggle >= 0) {
 			P4OUT ^= GAUGE_1_OUT;	// Toggle the gauge 1 output
 			gauge1_last_toggle = gauge_freq_timer; // Update the last toggle time
 		}

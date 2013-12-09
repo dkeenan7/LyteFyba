@@ -62,7 +62,6 @@ void gauge_init( void )
 void gauge_tach_update( float motor_rpm )
 {
 	unsigned int adj_rpm;
-	motor_rpm = 250.0; // testing
 	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
