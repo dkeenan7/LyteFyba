@@ -147,7 +147,6 @@ extern volatile unsigned int chgr_events;		// Charger events
 extern volatile unsigned int bmu_events;		// BMU events
 extern bool bDCUb;								// True if DCU B; false if DCU A
 extern unsigned char statusB;					// Status from DCU-B
-extern unsigned int uChgrLim;					// Charger current limit for DCU-B, passed from DCU-A
 extern unsigned int uChgrCurrA, uChgrCurrB;		// Charger actual currents in tenths of an amp
 
 

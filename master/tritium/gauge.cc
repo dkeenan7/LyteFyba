@@ -66,7 +66,7 @@ void gauge_tach_update( float motor_rpm )
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
 	adj_rpm = (unsigned int)motor_rpm + 120;
-	gauge.g1_half_period = (unsigned int)((690561 + (adj_rpm >> 1)) / adj_rpm) - 11; // = Round(652935 / adj_rpm) - 11
+	gauge.g1_half_period = (unsigned int)((690561 + (adj_rpm >> 1)) / adj_rpm) - 11; // = Round(690561 / adj_rpm) - 11
 	events |= EVENT_GAUGE1;
 }
 

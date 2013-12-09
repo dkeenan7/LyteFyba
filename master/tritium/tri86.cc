@@ -24,6 +24,7 @@
 #include <msp430x24x.h>
 //#include <signal.h>
 #include <intrinsics.h>
+#include <math.h> // For fabsf()
 #include "tri86.h"
 #include "can.h"
 #include "usci.h"
@@ -47,7 +48,7 @@ void __dint();
 // Macro needed to swap from little to big endian for 16-bit charger quantities:
 #define SWAP16(x) ((x >> 8) | ((x & 0xFF) << 8))
 
-// Function prototypes
+// Private function prototypes
 void clock_init( void );
 void io_init( void );
 void timerA_init( void );
@@ -55,6 +56,8 @@ void timerB_init( void );
 void adc_init( void );
 static void __inline__ brief_pause(register unsigned int n);
 void update_switches( unsigned int *state, unsigned int *difference);
+void SendChgrLimForB(unsigned int uChgrLim);
+
 
 // Global variables
 // Status and event flags
@@ -67,12 +70,16 @@ float motor_temp = 0.0;
 float controller_temp = 0.0;
 float battery_voltage = 0.0;
 float battery_current = 0.0;
+float torque_current = 0.0;
+float field_current = 0.0;
 
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
 												//	an ampere, e.g. 55 means 5.5 A.
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
+enum TachoDisplayType {RPM, PWR, TRQ, LIM};
+TachoDisplayType tacho_display = RPM;
 #define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
 
 
@@ -231,8 +238,14 @@ int main( void )
 					|| !(switches & SW_IGN_ON)) {			// or key is off
 						next_state = MODE_OFF;				// Go to OFF mode
 					}
-					else
+					else {  // Stay in drive  mode
 						next_state = MODE_D;
+						// Cycle through the 4 tacho displays on rising edges of IGN_START
+						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
+							if (tacho_display == LIM) tacho_display = RPM;
+							else tacho_display = TachoDisplayType(tacho_display + 1);
+						}
+					}
 					break; // End case MODE_D
 				case MODE_CHARGE:
 					if ((switches & SW_CRASH)  				// if we've crashed
@@ -245,8 +258,16 @@ int main( void )
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
 						chgr_stop();						// Stop the charge controller (PID loop)
 					}
-					else
+					else { // Stay in charge  mode
 						next_state = MODE_CHARGE;
+						// Cycle through the 3 charge rates on rising edges of IGN_START
+						if (!bDCUb && (switches & switches_diff & SW_IGN_START)) {
+							uChgrCurrLim = uChgrCurrLim + CHGR_CURR_LIMIT/4;
+							if (uChgrCurrLim >= CHGR_CURR_LIMIT)
+								uChgrCurrLim = CHGR_CURR_LIMIT/2;
+							SendChgrLimForB(uChgrCurrLim); // Send the new charge current limit to DCU-B
+						}
+					}
 					break; // End case MODE_CHARGE
 				default:
 					next_state = MODE_OFF;
@@ -271,7 +292,7 @@ int main( void )
 			}
 
 			// Control CAN bus and pedal sense power
-			if((switches & SW_IGN_ACC) || (switches & SW_IGN_ON) || (switches & SW_IGN_START)) {
+			if((switches & SW_IGN_ON) || (switches & SW_IGN_START)) {
 			  	P1OUT |= CAN_PWR_OUT;
 				P6OUT |= ANLG_V_ENABLE;
 			}
@@ -352,7 +373,7 @@ int main( void )
 				if (bDCUb) {
 					switch(can.identifier) {
 					case DC_CAN_BASE + DC_CHGR_LIM:
-						uChgrLim = can.data.data_u16[0];
+						uChgrCurrLim = can.data.data_u16[0];
 						break;
 					}
 				} else {	// DCU-A
@@ -360,8 +381,8 @@ int main( void )
 					case MC_CAN_BASE + MC_LIMITS:
 						// Update limiting control loop
 						limiter = can.data.data_u8[0];				// Limiting control loop
-					//	if (command.state == MODE_D)				// Tacho displays current when charging
-					//		gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
+						if (command.state == MODE_D && tacho_display == LIM)	// Tacho displays current when charging
+							gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
 						break;
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -372,18 +393,22 @@ int main( void )
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= (unsigned)~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
-						if (command.state == MODE_D)			// Tacho displays current when charging
+						if (command.state == MODE_D && tacho_display == RPM)	// Tacho displays current when charging
 							gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
+						torque_current = can.data.data_fp[0];
+						field_current = can.data.data_fp[1];
+						if (command.state == MODE_D && tacho_display == TRQ)	// Tacho displays current when charging
+							gauge_tach_update( fabsf(torque_current) * 10.0 );
 						// Update regen status flags
-						if(can.data.data_fp[0] < REGEN_THRESHOLD) events |= EVENT_REGEN;
+						if(torque_current < REGEN_THRESHOLD) events |= EVENT_REGEN;
 						else events &= (unsigned)~EVENT_REGEN;
 						break;
 					case MC_CAN_BASE + MC_TEMP1:
 						// Update data for temp gauge
-						controller_temp = can.data.data_fp[1];
 						motor_temp = can.data.data_fp[0];
+						controller_temp = can.data.data_fp[1];
 						gauge_temp_update( motor_temp, controller_temp );
 						break;
 					case MC_CAN_BASE + MC_BUS:
@@ -391,6 +416,8 @@ int main( void )
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
 						gauge_fuel_update( battery_voltage );
+						if (command.state == MODE_D && tacho_display == PWR)	// Tacho displays current when charging
+							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
 						break;
 					case DC_CAN_BASE + DC_BMUB_STATUS:
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
@@ -482,6 +509,15 @@ int main( void )
 	// Will never get here, keeps compiler happy
 	return(1);
 } // End of main
+
+
+// Send the charger current limit on the CAN bus, for DCU-B to read.
+void SendChgrLimForB(unsigned int uChgrLim) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_CHGR_LIM;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_u16[0] = uChgrLim; 	// Send charger current limit to DCU-B
+	can_push();
+}
 
 
 /*
