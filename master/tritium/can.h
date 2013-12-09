@@ -31,7 +31,7 @@ extern void can_wake( void );
 
 // Public variables
 typedef struct _can_variables {
-	unsigned int		status;
+	unsigned char		status;		// data length for tx packet, status for rx packet
 	unsigned int 		identifier;
 	group_64			data;
 } can_variables;
@@ -65,7 +65,7 @@ unsigned char 			can_read_filter( void );
 void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char data );
 
 // SPI port interface macros
-#define can_select		P3OUT &= ~CAN_CSn
+#define can_select		P3OUT &= (uchar)~CAN_CSn
 #define can_deselect	P3OUT |= CAN_CSn
 
 // CAN Bitrates
@@ -140,11 +140,11 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define EG_STATE_HIGH		4
 
 // Status values (for message reception)
-#define CAN_ERROR		0xFFFF
-#define CAN_MERROR		0xFFFE
-#define CAN_WAKE		0xFFFD
-#define CAN_RTR			0xFFFC
-#define CAN_OK			0x0001
+#define CAN_ERROR		0xFF
+#define CAN_MERROR		0xFE
+#define CAN_WAKE		0xFD
+#define CAN_RTR			0xFC
+#define CAN_OK			0x01
 
 // MCP2515 command bytes
 #define MCP_RESET		0xC0

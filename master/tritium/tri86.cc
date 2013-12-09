@@ -168,7 +168,7 @@ int main( void )
 
 		// Monitor switch positions & analog inputs
 		if( events & EVENT_TIMER ) { // Every 10 ms
-			events &= ~EVENT_TIMER;
+			events &= (unsigned)~EVENT_TIMER;
 
 			// Convert potentiometer and current monitoring inputs
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
@@ -187,13 +187,13 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					P5OUT &= ~(LED_GEAR_ALL);		// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
+					P5OUT &= (uchar)~LED_GEAR_ALL; // Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
 													// Stop requesting brakelights if we're DCU-A (LED_GEAR_3)
 													// Stop indicating charge mode if we're DCU-B (LED_GEAR_3)
 													// Stop indicating charge mode if we're DCU-B (LED_GEAR_4)
-					P1OUT &= ~CHG_CONT_OUT;			// Turn off our charger contactors
+					P1OUT &= (uchar)~CHG_CONT_OUT; // Turn off our charger contactors
 					if (!bDCUb) {
-						P1OUT &= ~BRAKE_OUT;		// Turn off traction contactors if we're DCU-A
+						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
 						P5OUT |= LED_FAULT_1;		// Turn off alternator light (LED_FAULT_1)
 					}
@@ -207,7 +207,7 @@ int main( void )
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						else								// If DCU-A,
-							P5OUT &= ~LED_FAULT_1;			//	turn on the charge indicator light
+							P5OUT &= (uchar)~LED_FAULT_1; //	turn on the charge indicator light
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
@@ -240,7 +240,7 @@ int main( void )
 					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
 						if (bDCUb)							// If DCU-B
-							P5OUT &= ~LED_GEAR_3;			// tell DCU-A that we're not in charge mode
+							P5OUT &= (uchar)~LED_GEAR_3;	// tell DCU-A that we're not in charge mode
 															// so it can allow traction
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
 						chgr_stop();						// Stop the charge controller (PID loop)
@@ -260,14 +260,14 @@ int main( void )
 				// If we're DCU-B
 				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-A is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
-				else P1OUT &= ~BRAKE_OUT;
+				else P1OUT &= (uchar)~BRAKE_OUT;
 			}
 			else {
 				// else we're DCU-A
 				if (events & EVENT_REGEN)   // If we're in heavy regen
 					P5OUT |= LED_GEAR_3;	// Request DCU-B to turn on brake lights
 				else
-					P5OUT &= ~LED_GEAR_3;
+					P5OUT &= (uchar)~LED_GEAR_3;
 			}
 
 			// Control CAN bus and pedal sense power
@@ -276,9 +276,9 @@ int main( void )
 				P6OUT |= ANLG_V_ENABLE;
 			}
 			else {
-				P1OUT &= ~CAN_PWR_OUT;
-				P6OUT &= ~ANLG_V_ENABLE;
-				events &= ~EVENT_CONNECTED;
+				P1OUT &= (uchar)~CAN_PWR_OUT;
+				P6OUT &= (uchar)~ANLG_V_ENABLE;
+				events &= (unsigned)~EVENT_CONNECTED;
 				events |= EVENT_REQ_SLEEP;
 			}
 
@@ -292,7 +292,7 @@ int main( void )
 
 		// Handle outgoing communications events (to motor controller)
 		if ((events & EVENT_COMMS) && !bDCUb) { 	// Every 100 ms
-			events &= ~EVENT_COMMS;
+			events &= (unsigned)~EVENT_COMMS;
 
 			// Transmit commands and telemetry
 			if(events & EVENT_CONNECTED){
@@ -366,11 +366,11 @@ int main( void )
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
 						if(can.data.data_fp[1] > ENGAGE_VEL_F) events |= EVENT_FORWARD;
-						else events &= ~EVENT_FORWARD;
+						else events &= (unsigned)~EVENT_FORWARD;
 						if(can.data.data_fp[1] < ENGAGE_VEL_R) events |= EVENT_REVERSE;
-						else events &= ~EVENT_REVERSE;
+						else events &= (unsigned)~EVENT_REVERSE;
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
-						else events &= ~EVENT_SLOW;
+						else events &= (unsigned)~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
 						if (command.state == MODE_D)			// Tacho displays current when charging
 							gauge_tach_update( motor_rpm );
@@ -378,7 +378,7 @@ int main( void )
 					case MC_CAN_BASE + MC_I_VECTOR:
 						// Update regen status flags
 						if(can.data.data_fp[0] < REGEN_THRESHOLD) events |= EVENT_REGEN;
-						else events &= ~EVENT_REGEN;
+						else events &= (unsigned)~EVENT_REGEN;
 						break;
 					case MC_CAN_BASE + MC_TEMP1:
 						// Update data for temp gauge
@@ -471,10 +471,10 @@ int main( void )
 
 		// Check sleep mode requests
 /*		if(events & EVENT_REQ_SLEEP){
-			events &= ~EVENT_REQ_SLEEP;
+			events &= (unsigned)~EVENT_REQ_SLEEP;
 			can_abort_transmit();
 			can_sleep();
-			P4OUT &= ~LED_PWM;
+			P4OUT &= (uchar)~LED_PWM;
 			__bis_SR_register(LPM3_bits);     // Enter LPM3
 		}
 */	} // End of while(True) do
@@ -514,7 +514,7 @@ void clock_init( void )
 	BCSCTL3 = 0x20; 				// ACLK source = VLOCLK (4 to 20 kHz typ 12 kHz)
 	BCSCTL1 = CALBC1_16MHZ | 0x20;	// ACLK divider 0x0000 = /1, 0x0100 = /2, 0x0200 = /4, 0x0300 = /8
 	DCOCTL = CALDCO_16MHZ;
-	P2OUT &= ~0x01;					// Set P2.0 output to zero. Was IN_GEAR_1 input.
+	P2OUT &= (uchar)~0x01;					// Set P2.0 output to zero. Was IN_GEAR_1 input.
 	P2DIR |= 0x01;					// Set P2.0 direction to output (piezo speaker)
 //	BCSCTL1 = 0x8F;			// FIXME!
 //	DCOCTL = 0x83;
@@ -555,8 +555,8 @@ void io_init( void )
 	UCA0BR1=0x01; UCA0BR0=0xA0; UCA0MCTL=0xB1;
 	// Baud rate BMS     9600 b/s, 16000 / 9.6 / 16 = 104.167 = 0x0068 with 0x31 for the fractional part
 	UCA1BR1=0x00; UCA1BR0=0x68; UCA1MCTL=0x31;
-	UCA0CTL1 &= ~UCSWRST;					// **Initialize USCI state machine**
-	UCA1CTL1 &= ~UCSWRST;
+	UCA0CTL1 &= (uchar)~UCSWRST;					// **Initialize USCI state machine**
+	UCA1CTL1 &= (uchar)~UCSWRST;
 	IE2 |= UCA0RXIE;						// Enable charger RX interrupt
 	UC1IE |= UCA1RXIE;						// Enable BMS RX interrupt
 }
@@ -636,18 +636,18 @@ __interrupt void timer_b0(void)
 {
 	// Update gauge PWM outputs if necessary
 	if (events & EVENT_GAUGE1) {
-		events &= ~EVENT_GAUGE1;
+		events &= (unsigned)~EVENT_GAUGE1;
 	}
 	if (events & EVENT_GAUGE2) {
-		events &= ~EVENT_GAUGE2;
+		events &= (unsigned)~EVENT_GAUGE2;
 		TBCCR3 = gauge.g2_duty;
 	}
 	if (events & EVENT_GAUGE3) {
-		events &= ~EVENT_GAUGE3;
+		events &= (unsigned)~EVENT_GAUGE3;
 		TBCCR2 = gauge.g3_duty;
 	}
 	if (events & EVENT_GAUGE4) {
-		events &= ~EVENT_GAUGE4;
+		events &= (unsigned)~EVENT_GAUGE4;
 		TBCCR1 = gauge.g4_duty;
 	}
 }
@@ -662,19 +662,20 @@ __interrupt void timer_b1(void)
 {
 	static int gauge_freq_timer = 0; // These must be signed for circular comparison to work below
 	static int gauge1_last_toggle = 0;
-	int gauge_toggle;
+//	int gauge1_toggle;
 
 	if (TBIV == 6 << 1) { // If the interrupt is from CCR6
 		// Keep CCR6 interrupting 4 times per timer cycle
-		TBCCR6 = TBCCR6 + GAUGE_PWM_PERIOD / 4;
+		TBCCR6 = TBCCR6 + (unsigned int)GAUGE_PWM_PERIOD / 4;
 		if (TBCCR6 >= GAUGE_PWM_PERIOD) TBCCR6 = 0;
 
 		// Toggle the gauge_1 pulse frequency output if the time (now)
 		// is ON_OR_AFTER the last toggle time plus a half period.
 		// The half period may change at any time -- greater or smaller.
 		// Only this form of the comparison works correctly with timer wraparound.
-		gauge_toggle = gauge1_last_toggle + gauge.g1_half_period;
-		if (gauge_freq_timer - gauge_toggle >= 0) {
+		if (gauge_freq_timer - (gauge1_last_toggle + (int)gauge.g1_half_period) >= 0) {
+//		gauge1_toggle = gauge1_last_toggle + gauge.g1_half_period;
+//		if (gauge_freq_timer - gauge1_toggle >= 0) {
 			P4OUT ^= GAUGE_1_OUT;	// Toggle the gauge 1 output
 			gauge1_last_toggle = gauge_freq_timer; // Update the last toggle time
 		}
@@ -711,9 +712,9 @@ __interrupt void timer_a0(void)
 
 	// Check for CAN activity events and blink LED
 	if(events & EVENT_ACTIVITY){
-		events &= ~EVENT_ACTIVITY;
+		events &= (unsigned)~EVENT_ACTIVITY;
 		activity_count = ACTIVITY_SPEED;
-		LED_PORT &= ~LED_GREENn;
+		LED_PORT &= (uchar)~LED_GREENn;
 	}
 	if( activity_count == 0 ){
 		LED_PORT |= LED_GREENn;
@@ -724,14 +725,14 @@ __interrupt void timer_a0(void)
 
 	// MVE: similarly for FAULT LED
 	if (events & EVENT_FAULT) {
-		events &= ~EVENT_FAULT;
+		events &= (unsigned)~EVENT_FAULT;
 		fault_count = FAULT_SPEED;
-		LED_PORT &= ~LED_REDn;
+		LED_PORT &= (uchar)~LED_REDn;
 		P2SEL |= 0x01;  	// Turn on beeper
 	}
 	if ( fault_count == 0) {
 		LED_PORT |= LED_REDn;
-		P2SEL &= ~0x01;  	// Turn off beeper
+		P2SEL &= (uchar)~0x01;  	// Turn off beeper
 	}
 	else
 		--fault_count;
@@ -752,37 +753,37 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	// Import switches into register
 
 	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
-	else *state &= ~SW_MODE_R;
+	else *state &= (unsigned)~SW_MODE_R;
 
 //	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;	// IN_GEAR_3 now repurposed to inhibit traction
-//	else *state &= ~SW_MODE_N;
+//	else *state &= (unsigned)~SW_MODE_N;
 	// Inh_traction is active (inhibit) when high at DB37, so active low at the port
-	if (P2IN & IN_GEAR_3) *state &= ~SW_INH_TRACTION;
+	if (P2IN & IN_GEAR_3) *state &= (unsigned)~SW_INH_TRACTION;
 	else *state |= SW_INH_TRACTION;
 
 //	if(P2IN & IN_GEAR_2) *state |= SW_MODE_B;	// IN_GEAR_2 now repurposed to crash switch input
-//	else *state &= ~SW_MODE_B;
+//	else *state &= (unsigned)~SW_MODE_B;
 	// Crash switch is active (crash state) when low at DB37, so active high at the port
 	if (P2IN & IN_GEAR_2) *state |= SW_CRASH;
-	else *state &= ~SW_CRASH;
+	else *state &= (unsigned)~SW_CRASH;
 
 //	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;	// IN_GEAR_1 now repurposed to piezo speaker output
-//	else *state &= ~SW_MODE_D;
+//	else *state &= (unsigned)~SW_MODE_D;
 
-	if(P1IN & IN_IGN_ACCn) *state &= ~SW_IGN_ACC;
+	if(P1IN & IN_IGN_ACCn) *state &= (unsigned)~SW_IGN_ACC;
 	else *state |= SW_IGN_ACC;
 
-	if(P1IN & IN_IGN_ONn) *state &= ~SW_IGN_ON;
+	if(P1IN & IN_IGN_ONn) *state &= (unsigned)~SW_IGN_ON;
 	else *state |= SW_IGN_ON;
 
-	if(P1IN & IN_IGN_STARTn) *state &= ~SW_IGN_START;
+	if(P1IN & IN_IGN_STARTn) *state &= (unsigned)~SW_IGN_START;
 	else *state |= SW_IGN_START;
 
-	if(P1IN & IN_BRAKEn) *state &= ~SW_BRAKE;
+	if(P1IN & IN_BRAKEn) *state &= (unsigned)~SW_BRAKE;
 	else *state |= SW_BRAKE;
 
 	if(P1IN & IN_FUEL) *state |= SW_CHARGE_CABLE;
-	else *state &= ~SW_CHARGE_CABLE;
+	else *state &= (unsigned)~SW_CHARGE_CABLE;
 
 	// Update changed switches
 	*difference = *state ^ old_switches;

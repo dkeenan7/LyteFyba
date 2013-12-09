@@ -49,12 +49,12 @@ fract pid::tick(fract measure) {
 #else					// Use the hardware multiply-accumulate registers
 	__dint();			// Disable interrupts, in case use multiply hardware there
 	nop();				// First instruction not protected
-	MPYS = Kp;			// First operation is a multiply, to ignore previous results
-	OP2 = deriv;
-	MACS = Ki;			// Subsequent operations are multiply-accumulate
-	OP2 = error;
-	MACS = Kd;
-	OP2 = deriv2;
+	MPYS = (unsigned)Kp;			// First operation is a multiply, to ignore previous results
+	OP2  = (unsigned)deriv;
+	MACS = (unsigned)Ki;			// Subsequent operations are multiply-accumulate
+	OP2  = (unsigned)error;
+	MACS = (unsigned)Kd;
+	OP2  = (unsigned)deriv2;
 	// Allow accessing multiplier result as a _signed_ long instead of two unsigned ints.
 	static volatile signed long RESLONG asm("0x013A");
 	output = prev_output + (RESLONG >> 8);
@@ -66,8 +66,8 @@ fract pid::tick(fract measure) {
 
 	prev_error = error;
 	prev_deriv = deriv;
-	prev_output = output;
-	return output;
+	prev_output = (fract)output;
+	return (fract)output;
 }
 
 // This function is for when we have an invalid measurement, e.g. we get a status byte, but it fails

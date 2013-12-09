@@ -66,8 +66,8 @@ void gauge_tach_update( float motor_rpm )
 	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
 	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
 	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
-	adj_rpm = motor_rpm + 120;
-	gauge.g1_half_period = (690561 + (adj_rpm >> 1)) / adj_rpm - 11; // = Round(652935 / adj_rpm) - 11
+	adj_rpm = (unsigned int)motor_rpm + 120;
+	gauge.g1_half_period = (unsigned int)((690561 + (adj_rpm >> 1)) / adj_rpm) - 11; // = Round(652935 / adj_rpm) - 11
 	events |= EVENT_GAUGE1;
 }
 
@@ -82,7 +82,7 @@ void gauge_stress_update( unsigned char BMS_stress )
 	if (BMS_stress == 0)
 		count = 140;
 	else
-		count = 145 + (BMS_stress*7)/2;
+		count = 145 + ((unsigned int)BMS_stress * 7) / 2;
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g2_duty = count;
 	events |= EVENT_GAUGE2;
@@ -99,7 +99,7 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 	// Pick highest reading
 	norm_temp = max(-0.25, min(1.25, max((motor_temp-40.0)/(160.0-40.0), (controller_temp-40.0)/(80.0-40.0))));
 	// C = 40. H = 160 for motor and 80 for controller. Middle = 100 for motor, 60 for controller.
-	count = 320.8 * (1.0 - 1.0/(norm_temp + 1.295));	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = (unsigned int)(320.8 * (1.0 - 1.0/(norm_temp + 1.295)));	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g3_duty = count;
@@ -115,7 +115,7 @@ void gauge_fuel_update( float battery_voltage )
 	unsigned int count;
 	// Scale to a 0.0 to 1.0 scale between 3.25 and 3.35 V per cell
 	norm_fuel = (battery_voltage / 109.0 - 3.25) / 0.1;
-	count = 120.0 + 100.0 * norm_fuel;	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = (unsigned int)(120.0 + 100.0 * norm_fuel);	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;

@@ -34,16 +34,16 @@ unsigned char bmu_lastrxidx;			// Index into the above
 // BMU private variables
 volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
 volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
-volatile unsigned int  bmu_min_id = 0;	// Id of the cell with minimum voltage
-volatile unsigned int  bmu_max_id = 0;	// Id of the cell with maximum voltage
-unsigned int bmu_curr_cell = 1;			// ID of BMU to send to next
+volatile unsigned char  bmu_min_id = 0;	// Id of the cell with minimum voltage
+volatile unsigned char  bmu_max_id = 0;	// Id of the cell with maximum voltage
+unsigned char bmu_curr_cell = 1;		// ID of BMU to send to next
 bool bCharging = FALSE;					// Whether we are in charge mode
 // Static globals
 static unsigned int bmuStatusTimeout = 0;	// Counts timer ticks with no status byte received
 static unsigned int bmuFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
 
 // Stress table with check bits
-static int stressTable[16] = {
+static unsigned char stressTable[16] = {
 			(1<<4) + 0,		// Stress 0   $10
 			(1<<4) + 1,		// Stress 1   $11
 			(1<<4) + 2,		// Stress 2   $12
@@ -112,7 +112,7 @@ void bms_init()
 	bmu_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
 #endif
 	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
-	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
+	bmu_state &= (uchar)~BMU_SENT;			// Don't expect these packets to be acknowledged or resent if not
 #if USE_VOLT_REQ
 	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
 #endif
@@ -129,21 +129,21 @@ bool bmu_sendByte(unsigned char ch) {
 
 // Make a voltage request command at *cmd for cell number cellNo
 // Called by bmu_sendVoltReq below
-void makeVoltCmd(unsigned char* cmd, int cellNo)
+void makeVoltCmd(unsigned char* cmd, unsigned char cellNo)
 {
 	unsigned char* p; p = cmd;
-	int n = cellNo;
-	int h = n / 100;
+	unsigned char n = cellNo;
+	unsigned char h = n / 100;
 	if (h) {						// If any hundreds
-		*p++ = h + '0';					// then emit hundreds digit
-		n -= h * 100;
+		*p++ = (uchar)(h + '0');	// then emit hundreds digit
+		n = (uchar)(n - h * 100);
 	}
 	int t = n / 10;
 	if (h || t) {					// If hundreds or tens
-		*p++ = t + '0';					// then emit tens digit
-		n -= t * 10;
+		*p++ = (uchar)(t + '0');	// then emit tens digit
+		n = (uchar)(n - t * 10);
 	}
-	*p++ = n + '0';					// Emit units digit
+	*p++ = (uchar)(n + '0');		// Emit units digit
 	*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) cmnds
 }														// and terminate with return and null
 
@@ -190,13 +190,13 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	// \ C H G _ _ n n S _ n . n A \r
 	// 0 1 2 3 4 5 6 7 8 9 a b c d e
 	static unsigned char szChgrVolt[16] = "\\CHG nnnS n.nA\r";
-	szChgrVolt[5] = nVolt / 1000 + '0';				// Voltage hundreds
-	szChgrVolt[6] = (nVolt % 1000) / 100 + '0';		//	tens
-	szChgrVolt[7] = (nVolt % 100) / 10 + '0';		//	units
-	szChgrVolt[10] = (nAmp / 10) + '0';	// Current units
-	szChgrVolt[12] = (nAmp % 10) + '0';	//	tenths
+	szChgrVolt[5] = (uchar)(nVolt / 1000 + '0');			// Voltage hundreds
+	szChgrVolt[6] = (uchar)((nVolt % 1000) / 100 + '0');	//	tens
+	szChgrVolt[7] = (uchar)((nVolt % 100) / 10 + '0');		//	units
+	szChgrVolt[10] = (uchar)((nAmp / 10) + '0');			// Current units
+	szChgrVolt[12] = (uchar)((nAmp % 10) + '0');			//	tenths
 	bool result = bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
-	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
+	bmu_state &= (unsigned)~BMU_SENT;		// Don't expect these packets to be acknowledged or resent if not
 	return result;
 }
 
@@ -216,7 +216,7 @@ void handleBMUstatusByte(unsigned char status)
 	if (!bValid)
 		stress = 8;				// Treat invalid status byte as most minor dis-stress
 	if (status & COM_ERR)		// If communications error
-		stress = max(stress, 8);	// Treat as at least stress 8 (charging or driving)
+		stress = (uchar)max(stress, 8);	// Treat as at least stress 8 (charging or driving)
 
 	if (bDCUb) { // If we are DCU-B
 		// Send status in CAN packet to DCU A
@@ -232,7 +232,7 @@ void handleBMUstatusByte(unsigned char status)
 		if (!bValidB)
 			stressB = 8;				// Treat invalid status byte as most minor dis-stress
 		if (statusB & COM_ERR)			// If communications error
-			stressB = max(stressB, 8);	// Treat as at least stress 8
+			stressB = (uchar)max(stressB, 8);	// Treat as at least stress 8
 		// Calculate max of stresses from A and B half-packs
 		unsigned char maxStress = max(stress, stressB);
 		// Send max stress info to the Oil Pressure gauge
@@ -240,8 +240,10 @@ void handleBMUstatusByte(unsigned char status)
 		// Send the stress information in the min and max cell voltage fields for WSconfig
 		// Also comms error bits in min and max cell IDs
 		//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
-		can_queueCellMaxMin(stress*1000, stressB*1000,
-			(status & (COM_ERR | ALL_NBYP))>>5, (statusB & (COM_ERR | ALL_NBYP))>>5);
+		can_queueCellMaxMin((unsigned)(stress*1000),
+							(unsigned)(stressB*1000),
+							(unsigned)((status & (COM_ERR | ALL_NBYP))>>5),
+							(unsigned)((statusB & (COM_ERR | ALL_NBYP))>>5));
 		if (!bCharging) { // If not charging, assume driving. (DCU-A only)
 			// We need to scale the measurement (stress 0-15) to make good use of the s0.15
 			// fixedpoint range (-0x8000 to 0x7FFF) while being biased so that the set-point
@@ -306,7 +308,7 @@ void handleBMUstatusByte(unsigned char status)
         //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
-		current = ((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16;
+		current = (unsigned int)(((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16);
 		// Only send a packet to the charger if the current has changed, or on a timeout
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
@@ -360,7 +362,7 @@ void bmu_changeDirection(bool chargeOrRegen)
 	bCharging = chargeOrRegen;
 	if (chargeOrRegen) bmu_sendPacket((unsigned char*)"1f\r");
 	else bmu_sendPacket((unsigned char*)"0f\r");
-	bmu_state &= ~BMU_SENT;				// Don't expect these packets to be acknowledged or resent if not
+	bmu_state &= (unsigned)~BMU_SENT;		// Don't expect these packets to be acknowledged or resent if not
 }
 
 unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
@@ -395,8 +397,8 @@ bool bmu_sendPacket(const unsigned char* ptr)
 // Returns true on success
 bool bmu_resendLastPacket(void)
 {
-	int i, len = strlen((char*)bmu_lastSentPacket);
-	if ((int)bmu_tx_q.queue_space() < len) {
+	unsigned int i, len = strlen((char*)bmu_lastSentPacket);
+	if (bmu_tx_q.queue_space() < len) {
 		fault();
 		return false;
 	}
@@ -432,18 +434,18 @@ void bmu_processPacket()
 	// Expecting \123:1234 V  ret
 	//           0   45    10 11  (note space before the 'V'
 	if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'V') {
-		unsigned int bmu_id = 100 * (bmu_lastrx[1] - '0') + (bmu_lastrx[2] - '0') * 10 +
-			bmu_lastrx[3] - '0';
+		unsigned char bmu_id = (uchar)(100 * (bmu_lastrx[1] - '0') +
+			 (bmu_lastrx[2] - '0') * 10 + bmu_lastrx[3] - '0');
 		if (bmu_id == bmu_curr_cell) {
-			bmu_state &= ~BMU_SENT;				// Call this valid and no longer unacknowledged
-			unsigned int rxvolts =
+			bmu_state &= (unsigned)~BMU_SENT;		// Call this valid and no longer unacknowledged
+			unsigned int rxvolts = (unsigned)(
 				(bmu_lastrx[5] - '0') * 100 +
 				(bmu_lastrx[6] - '0') * 10 +
-				(bmu_lastrx[7] - '0');
+				(bmu_lastrx[7] - '0'));
 			// We expect voltage responses during driving only now
 			// We use the voltage measurements to find the min and max cell voltages
 			// Get the whole 4-digit number
-			rxvolts *= 10; rxvolts += bmu_lastrx[8] - '0';
+			rxvolts = rxvolts * 10 + bmu_lastrx[8] - '0';
 			if (rxvolts < bmu_min_mV) {
 				bmu_min_mV = rxvolts;
 				bmu_min_id = bmu_id;

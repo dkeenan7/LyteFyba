@@ -58,18 +58,18 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 	// Error Flag updates
 	// Pedal too low
 	if(analog_a < PEDAL_ERROR_MIN) command.flags |= FAULT_ACCEL_LOW;
-	else command.flags &= ~FAULT_ACCEL_LOW;
+	else command.flags &= (uchar)~FAULT_ACCEL_LOW;
 	// Pedal too high
 	if(analog_a > PEDAL_ERROR_MAX) command.flags |= FAULT_ACCEL_HIGH;
-	else command.flags &= ~FAULT_ACCEL_HIGH;
+	else command.flags &= (uchar)~FAULT_ACCEL_HIGH;
 	// Pedal A & B mismatch
 	// not implemented...
 	// Regen pot too low
 	if(analog_c < REGEN_ERROR_MIN) command.flags |= FAULT_REGEN_LOW;
-	else command.flags &= ~FAULT_REGEN_LOW;
+	else command.flags &= (uchar)~FAULT_REGEN_LOW;
 	// Regen pot too high
 	if(analog_c > REGEN_ERROR_MAX) command.flags |= FAULT_REGEN_HIGH;
-	else command.flags &= ~FAULT_REGEN_HIGH;
+	else command.flags &= (uchar)~FAULT_REGEN_HIGH;
 
 
 	// Run command calculations only if there are no pedal faults detected

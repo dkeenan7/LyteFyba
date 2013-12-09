@@ -60,18 +60,18 @@ void can_init( unsigned int bitrate_index )
 	can_reset();
 	for(i = 0; i < 1000; i++);
 	can_mod( CANCTRL, 0x03, 0x00 );			// CANCTRL register, modify lower 2 bits, CLK = /1 = 16 MHz
-	
+
 	// Set up bit timing
 	switch(bitrate_index){
 		case CAN_BITRATE_50:
 			buffer[0] = 0x05;
 			buffer[1] = 0xF8;
-			buffer[2] = 0x09;						
+			buffer[2] = 0x09;
 			break;
 		case CAN_BITRATE_100:
 			buffer[0] = 0x05;
 			buffer[1] = 0xF8;
-			buffer[2] = 0x04;						
+			buffer[2] = 0x04;
 			break;
 		case CAN_BITRATE_125:
 			buffer[0] = 0x05;
@@ -81,26 +81,26 @@ void can_init( unsigned int bitrate_index )
 		case CAN_BITRATE_250:
 			buffer[0] = 0x05;
 			buffer[1] = 0xF8;
-			buffer[2] = 0x01;						
+			buffer[2] = 0x01;
 			break;
 		case CAN_BITRATE_1000:
 			buffer[0] = 0x02;
 			buffer[1] = 0xD0;
-			buffer[2] = 0x00;						
+			buffer[2] = 0x00;
 			break;
 		case CAN_BITRATE_500:
 		default:
 			buffer[0] = 0x05;
 			buffer[1] = 0xF8;
-			buffer[2] = 0x00;						
+			buffer[2] = 0x00;
 			break;
-	}	
+	}
 	// Set up interrupts
 	buffer[3] = 0x63;						// CANINTE register: enable WAKE, ERROR, RX0 & RX1 interrupts on IRQ pin
 	buffer[4] = 0x00;						// CANINTF register: clear all IRQ flags
 	buffer[5] = 0x00;						// EFLG register: clear all user-changable error flags
 	can_write( CNF3, &buffer[0], 6);		// Write to registers
-	
+
 	// Set up receive filtering & masks
 	// RXF0 - Buffer 0
 	buffer[ 0] = (unsigned char)(RX_ID_0A >> 3);
@@ -118,7 +118,7 @@ void can_init( unsigned int bitrate_index )
 	buffer[10] = 0x00;
 	buffer[11] = 0x00;
 	can_write( RXF0SIDH, &buffer[0], 12 );
-	
+
 	// RXF3 - Buffer 1
 	buffer[ 0] = (unsigned char)(RX_ID_1B >> 3);
 	buffer[ 1] = (unsigned char)(RX_ID_1B << 5);
@@ -147,7 +147,7 @@ void can_init( unsigned int bitrate_index )
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
 	can_write( RXM0SIDH, &buffer[0], 8 );
-	
+
 	// Switch out of config mode into normal operating mode
 	can_mod( CANCTRL, 0xE0, 0x00 );			// CANCTRL register, modify upper 3 bits, mode = Normal
 }
@@ -164,7 +164,7 @@ void can_init( unsigned int bitrate_index )
 void can_receive( void )
 {
 	unsigned char flags;
-	
+
 	// Read out the interrupt flags register
 	can_read( CANINTF, &flags, 1 );
 	// Check for errors
@@ -183,7 +183,7 @@ void can_receive( void )
 		can.data.data_u8[3] = buffer[2];	// REC
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_ERR, 0x00 );
-	}	
+	}
 	// No error, check for received messages, buffer 0
 	else if(( flags & MCP_IRQ_RXB0 ) != 0x00 ){
 		// Read in the info, identifier & message data
@@ -211,7 +211,7 @@ void can_receive( void )
 		// Fill in the identifier
 		can.identifier = buffer[1];
 		can.identifier = can.identifier << 3;
-		buffer[2] = buffer[2] >> 5;
+		buffer[2] = (uchar)(buffer[2] >> 5);
 		can.identifier = can.identifier | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB0, 0x00 );
@@ -243,7 +243,7 @@ void can_receive( void )
 		// Fill in the identifier
 		can.identifier = buffer[1];
 		can.identifier = can.identifier << 3;
-		buffer[2] = buffer[2] >> 5;
+		buffer[2] = (uchar)(buffer[2] >> 5);
 		can.identifier = can.identifier | buffer[2];
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB1, 0x00 );
@@ -343,7 +343,7 @@ void can_abort_transmit( void )
 void can_sleep( void )
 {
 	unsigned char status;
-	
+
 	// Switch to sleep mode
 	can_mod( CANCTRL, 0xE0, 0x20 );			// CANCTRL register, modify upper 3 bits, mode = Sleep
 
@@ -388,7 +388,7 @@ void can_reset( void )
 void can_read( unsigned char address, unsigned char *ptr, unsigned char bytes )
 {
 	unsigned char i;
-	
+
 	can_select;
 	usci_transmit( MCP_READ );
 	usci_transmit( address );
@@ -405,14 +405,14 @@ void can_read( unsigned char address, unsigned char *ptr, unsigned char bytes )
 void can_read_rx( unsigned char address, unsigned char *ptr )
 {
 	unsigned char i;
-	
+
 	address &= 0x03;						// Force upper bits of address to be zero (they're invalid)
-	address <<= 1;							// Shift input bits to correct location in command byte
+	address = (uchar)(address << 1);		// Shift input bits to correct location in command byte
 	address |= MCP_READ_RX;					// Construct command byte for MCP2515
-	
+
 	can_select;
 	usci_transmit( address );
-	
+
 	if(( address & 0x02 ) == 0x00 ){		// Start at address registers
 		for( i = 0; i < 13; i++ ){
 			*ptr++ = usci_exchange( 0x00 );
@@ -433,7 +433,7 @@ void can_read_rx( unsigned char address, unsigned char *ptr )
 void can_write( unsigned char address, unsigned char *ptr, unsigned char bytes )
 {
 	unsigned char i;
-	
+
 	can_select;
 	usci_transmit( MCP_WRITE );
 	usci_transmit( address );
@@ -453,13 +453,13 @@ void can_write( unsigned char address, unsigned char *ptr, unsigned char bytes )
 void can_write_tx( unsigned char address, unsigned char *ptr )
 {
 	unsigned char i;
-	
+
 	address &= 0x07;						// Force upper bits of address to be zero (they're invalid)
 	address |= MCP_WRITE_TX;				// Construct command byte for MCP2515
-	
+
 	can_select;
 	usci_transmit( address );
-	
+
 	if(( address & 0x01 ) == 0x00 ){		// Start at address registers
 		for( i = 0; i < 13; i++ ){
 			usci_transmit( *ptr++ );
@@ -480,13 +480,13 @@ void can_write_tx( unsigned char address, unsigned char *ptr )
 void can_rts( unsigned char address )
 {
 	unsigned char i;
-	
+
 	// Set up address bits in command byte
 	i = MCP_RTS;
 	if( address == 0 ) i |= 0x01;
 	else if( address == 1 ) i |= 0x02;
 	else if( address == 2 ) i |= 0x04;
-	
+
 	// Write command
 	can_select;
 	usci_transmit( i );
@@ -499,7 +499,7 @@ void can_rts( unsigned char address )
 unsigned char can_read_status( void )
 {
 	unsigned char status;
-	
+
 	can_select;
 	usci_transmit( MCP_STATUS );
 	status = usci_exchange( 0x00 );
@@ -513,7 +513,7 @@ unsigned char can_read_status( void )
 unsigned char can_read_filter( void )
 {
 	unsigned char status;
-	
+
 	can_select;
 	usci_transmit( MCP_FILTER );
 	status = usci_exchange( 0x00 );

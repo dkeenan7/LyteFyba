@@ -18,7 +18,7 @@ bool queue::enqueue(unsigned char ch )	// ch: the byte to enqueue
 	buf[wr_copy++] = ch;				// Tentatively write the byte to the queue; there is always
 										//	one free space, but don't update write index yet
 										// Also increments the index copy
-	wr_copy &= (bufSize-1);				//	modulo the buffer size
+	wr_copy &= (uchar)(bufSize-1);				//	modulo the buffer size
 	if (wr_copy == rd)					// Does the incremented write pointer equal the read pointer?
 		return false;					// Yes means queue is full, error return
 	wr = wr_copy;						// Update write pointer; byte is officially in the queue now
@@ -32,7 +32,7 @@ bool queue::dequeue(unsigned char& ch )	// ch: reference to the char to be read 
 	if (wr == rd_copy)					// Indexes equal?
 		return false;					// If so, buffer is empty
 	ch = buf[rd_copy++];				// Read the byte, increment read index
-	rd_copy &= (bufSize-1);				//	modulo the buffer size
+	rd_copy &= (uchar)(bufSize-1);				//	modulo the buffer size
 	rd = rd_copy;						// Atomic update
 	return true;
 }
@@ -40,8 +40,8 @@ bool queue::dequeue(unsigned char& ch )	// ch: reference to the char to be read 
 // Amouunt of space in the queue. This is the capacity of the queue minus the number already in the queue.
 // The capacity is actually bufSize-1, so space = (bufSize-1 - (wr - rd)) & bufSize-1, which is the same
 // as (rd - wr - 1) & (bufSize-1)
-unsigned int queue::queue_space() {
-	return (rd - wr - 1) & (bufSize-1);
+unsigned char queue::queue_space() {
+	return (uchar)((rd - wr - 1) & (bufSize-1));
 }
 
 

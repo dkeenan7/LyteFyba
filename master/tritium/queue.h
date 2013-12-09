@@ -7,6 +7,8 @@ typedef unsigned char bool;				// C does not define type bool
 #define false 0
 #endif
 
+#define uchar unsigned char
+
 // Define a base queue type for serial transmit and receive (charger and BMUs)
 // Always derive a type from this, so that the buffer size gets set automatically
 class queue {
@@ -23,7 +25,7 @@ public:
 	// Dequeue a byte. Returns true on success (queue was not empty).
 	bool dequeue(unsigned char& ch );	// ch is a reference to the char to be read to
 
-	unsigned int queue_space();			// Amount of space in the queue.
+	unsigned char queue_space();			// Amount of space in the queue.
 	bool empty() {return rd == wr;}		// True if the queue is empty. Defining it here makes it inline.
 };
 

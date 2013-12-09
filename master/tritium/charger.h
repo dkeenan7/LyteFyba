@@ -40,7 +40,7 @@ void chgr_idle();								// Called in charge mode when the battery finishes char
 void chgr_stop();								// Called when leaving charge mode
 void chgr_timer();								// Called every 10 ms timer tick, for charger related processing
 bool chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
-bool chgr_sendRequest(int voltage, int current, bool chargerOff);
+bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff);
 bool chgr_resendLastPacket(void);
 void readChargerBytes();
 void chgr_processPacket();
