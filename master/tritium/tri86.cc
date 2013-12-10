@@ -371,11 +371,13 @@ int main( void )
 				// We've received a packet, so must be connected to something
 				events |= EVENT_CONNECTED;
 				// Process the packet
-				if (bDCUb) {
+				if (bDCUb) {	// DCU-B
 					switch(can.identifier) {
 					case DC_CAN_BASE + DC_CHGR_LIM:
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
+					case DC_CAN_BASE + DC_BMS_B_INJECT:
+						bmu_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 					}
 				} else {	// DCU-A
 					switch(can.identifier){
@@ -420,11 +422,14 @@ int main( void )
 						if (command.state == MODE_D && tacho_display == PWR)	// Tacho displays current when charging
 							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
 						break;
-					case DC_CAN_BASE + DC_BMUB_STATUS:
+					case DC_CAN_BASE + DC_BMS_B_STATUS:
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
 						break;
 					case DC_CAN_BASE + DC_CHGR_CURR:
 						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
+						break;
+					case DC_CAN_BASE + DC_BMS_A_INJECT:
+						bmu_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 						break;
 				    }
 				}	// end DCU-A

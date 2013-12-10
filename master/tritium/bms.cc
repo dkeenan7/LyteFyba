@@ -12,7 +12,6 @@
 #include "assert2.h"		// assert-like function
 
 // Private function prototypes
-bool bmu_sendByte(unsigned char ch);
 bool bmu_sendPacket(const unsigned char* ptr);
 void SendChgrLim(unsigned int uChgrLim);
 
@@ -166,6 +165,15 @@ void can_transmitBusCurrent(float bus_current)
 	can_push();
 }
 
+// Send BMS character on CAN bus so we can sniff it on a netbook via the CAN-Ethernet Bridge
+void can_transmitBMSchar(unsigned char ch)
+{
+	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_A_SNIFF + (unsigned)bDCUb; // DC_BMS_B_SNIFF if so
+	can_push_ptr->status = 1; // Data length 1 byte
+	can_push_ptr->data.data_u8[0] = ch;
+	can_push();
+}
+
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
 void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
 								unsigned int bmu_min_id, unsigned int bmu_max_id)
@@ -219,7 +227,7 @@ void handleBMUstatusByte(unsigned char status)
 
 	if (bDCUb) { // If we are DCU-B
 		// Send status in CAN packet to DCU A
-		can_push_ptr->identifier = DC_CAN_BASE + DC_BMUB_STATUS;
+		can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_B_STATUS;
 		can_push_ptr->status = 1;	// Packet size in bytes
 		can_push_ptr->data.data_u8[0] = status; // Note that this has not been checked for validity
 		can_push();
@@ -320,7 +328,8 @@ void handleBMUstatusByte(unsigned char status)
 // Read incoming bytes from BMUs
 void readBMUbytes()
 {	unsigned char ch;
-	while (	bmu_rx_q.dequeue(ch)) {				// Get a byte from the BMU receive queue
+	while (	bmu_rx_q.dequeue(ch)) {		// Get a byte from the BMU receive queue
+		can_transmitBMSchar(ch);		// Send on CAN bus so it can be sniffed via ethernet bridge
 		if (ch >= 0x80) {
 			handleBMUstatusByte(ch);
 			bmuStatusTimeout = 0;		// Reset timeout counter

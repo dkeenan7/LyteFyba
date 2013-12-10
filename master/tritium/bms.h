@@ -41,6 +41,7 @@
 
 // Public Function prototypes
 void bms_init();
+bool bmu_sendByte(unsigned char ch);
 bool bmu_sendVoltReq();
 bool bmu_sendVAComment(int nVolt, int nAmp);
 void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
