@@ -114,7 +114,7 @@ void gauge_fuel_update( float battery_voltage )
 	unsigned int count;
 	// Scale to a 0.0 to 1.0 scale between 3.25 and 3.35 V per cell
 	norm_fuel = (battery_voltage / 109.0 - 3.25) / 0.1;
-	count = (unsigned int)(120.0 + 100.0 * norm_fuel);	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = (unsigned int)(119.0 + 79.0 * norm_fuel);	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;
