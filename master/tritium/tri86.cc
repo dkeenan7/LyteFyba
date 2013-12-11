@@ -244,7 +244,6 @@ int main( void )
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
 							if (tacho_display == LIM) tacho_display = RPM;
 							else tacho_display = TachoDisplayType(tacho_display + 1);
-							fault(); // beep to reveal spurios start signals``````````````````````````````````````````````````
 						}
 					}
 					break; // End case MODE_D
