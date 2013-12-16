@@ -207,14 +207,14 @@ int main( void )
 
 					if (switches & SW_CRASH)				// if we've crashed
 						next_state = MODE_OFF;				// Stay in the OFF mode
-					else if ((switches & SW_CHARGE_CABLE)  	// else if our charge cable is present
-					|| (chgr_rx_timer > 0)) {				// or we received data from our charger
+					else if ((chgr_rx_timer > 0)  			// else if we received data from our charger
+				/*	|| (switches & SW_CHARGE_CABLE) */ ) {	// or our charge cable is present (disabled until 1k pullup)
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
 						if (bDCUb)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						else								// If DCU-A,
-							P5OUT &= (uchar)~LED_FAULT_1; //	turn on the charge indicator light
+							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the charge indicator light
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
@@ -231,11 +231,11 @@ int main( void )
 						next_state = MODE_OFF;
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
-					if ((switches & SW_CRASH) 				// if we've crashed
-					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
+					if (!(switches & SW_IGN_ON)				// if key is off
+				//	|| (switches & SW_CRASH) 				// or we've crashed (disabled until 1k pullup)
+				//	|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present (disabled until 1k pullup)
 					|| (chgr_rx_timer > 0)					// or we received data from our charger
-					|| (switches & SW_INH_TRACTION) 		// or DCU-B is in charge mode (IN_GEAR_3)
-					|| !(switches & SW_IGN_ON)) {			// or key is off
+					|| (switches & SW_INH_TRACTION)) { 		// or DCU-B is in charge mode (IN_GEAR_3)
 						next_state = MODE_OFF;				// Go to OFF mode
 					}
 					else {  // Stay in drive  mode
