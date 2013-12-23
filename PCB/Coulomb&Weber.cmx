@@ -1,5 +1,9 @@
 1WP_NO||#DSC=1
 4-2WP||#DSC=2
+5W R||#0805=2||@=||#1206=2||#2512=2||#0805 HV=2
+C||#SM=2||@=||#DSC=2||@=||#C0805=2||#C1210=2
+C1210||#SM=2||@=||#DSC=2||@=||#C1210=2
+DC-DC||#DC-DC=7||@=||@=||@=||@=||@=
 DIODE 2010||#SM=2
 DIODE SMC||#SMC=2
 Dual diode||#SOL=3||@=
@@ -9,10 +13,13 @@ FUSE IEC||#SM=2||#2410=2
 IFO LED||#MISC=5
 IFO PT||#MISC=0
 LED (shine thru PCB)||#SM=2
+MCP6001-X_OT||#SOT-23-5_MC=5
 MSP430G2xx2IRSA||#QFN=17||@=
 OPTO||#SM=4
+OPTO AC||#SM=4
 PIEZO||#BUZZER-17mm=2||@=
 R||#0805=2||@=||#1206=2||#2512=2||#0805 HV=2
+Reed relay||#DSC=4
 Schottky SOD123||#SOD123=2
 SMD capacitor 6.3mm dia||#SM=2
 Supercap||#8mm=2||#DSCV=2||@=
