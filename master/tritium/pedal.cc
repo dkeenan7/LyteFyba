@@ -152,4 +152,11 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		command.current = 0.0;
 		command.rpm = 0.0;
 	}
+
+	// Queue drive command frame
+	can_push_ptr->identifier = DC_CAN_BASE + DC_DRIVE;
+	can_push_ptr->status = 8;
+	can_push_ptr->data.data_fp[1] = command.current;
+	can_push_ptr->data.data_fp[0] = command.rpm;
+	can_push();
 }
