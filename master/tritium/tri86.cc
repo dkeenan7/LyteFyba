@@ -183,10 +183,6 @@ int main( void )
 
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
-			// Update motor commands based on pedal and slider positions
-			if (!bDCUb)
-				// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
-				process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
 
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
@@ -395,6 +391,9 @@ int main( void )
 						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
 						else events &= (unsigned)~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
+						// Update motor commands based on pedal and slider positions
+						// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
+						process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
 						if (command.state == MODE_D && tacho_display == RPM)	// Tacho displays current when charging
 							gauge_tach_update( motor_rpm );
 						break;
