@@ -379,8 +379,9 @@ int main( void )
 					case MC_CAN_BASE + MC_LIMITS:
 						// Update limiting control loop
 						limiter = can.data.data_u8[0];				// Limiting control loop
-						if (command.state == MODE_D && tacho_display == LIM)	// Tacho displays current when charging
-							gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) ); // Display limiter number on tacho
+						if (command.state == MODE_D && tacho_display == LIM)
+							// Display limiter number on tacho (shows DC current in charge mode)
+							gauge_tach_update( (limiter==0)?7000:(LOG2(limiter)*1000) );
 						break;
 					case MC_CAN_BASE + MC_VELOCITY:
 						// Update speed threshold event flags
@@ -388,20 +389,24 @@ int main( void )
 						else events &= (unsigned)~EVENT_FORWARD;
 						if(can.data.data_fp[1] < ENGAGE_VEL_R) events |= EVENT_REVERSE;
 						else events &= (unsigned)~EVENT_REVERSE;
-						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F)) events |= EVENT_SLOW;
-						else events &= (unsigned)~EVENT_SLOW;
-						motor_rpm = can.data.data_fp[0];		// DCK: Was [1] for m/s (confirmed with TJ)
-						// Update motor commands based on pedal and slider positions
-						// MVE: For now, pass constant regen as 3rd arg (like regen pot at max)
+						if((can.data.data_fp[1] >= ENGAGE_VEL_R) && (can.data.data_fp[1] <= ENGAGE_VEL_F))
+							events |= EVENT_SLOW;
+						else
+							events &= (unsigned)~EVENT_SLOW;
+						motor_rpm = can.data.data_fp[0];
+						// Update motor commands based on pedal and slider positions and actual rpm
+						// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
 						process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm );
-						if (command.state == MODE_D && tacho_display == RPM)	// Tacho displays current when charging
+						if (command.state == MODE_D && tacho_display == RPM)
+							// Display motor rpm x 1000 on tacho (shows DC current in charge mode)
 							gauge_tach_update( motor_rpm );
 						break;
 					case MC_CAN_BASE + MC_I_VECTOR:
 						torque_current = can.data.data_fp[0];
 						field_current = can.data.data_fp[1];
-						if (command.state == MODE_D && tacho_display == TRQ)	// Tacho displays current when charging
-							gauge_tach_update( fabsf(torque_current) * 10.0 );
+						if (command.state == MODE_D && tacho_display == TRQ)
+							// Display torque on tacho, in "square amps" x 1000 (shows DC current in charge mode)
+							gauge_tach_update( fabsf(torque_current * field_current));
 						// Update regen status flags
 						if(torque_current < REGEN_THRESHOLD) events |= EVENT_REGEN;
 						else events &= (unsigned)~EVENT_REGEN;
@@ -417,7 +422,8 @@ int main( void )
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
 						gauge_fuel_update( battery_voltage );
-						if (command.state == MODE_D && tacho_display == PWR)	// Tacho displays current when charging
+						if (command.state == MODE_D && tacho_display == PWR)
+							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
 						break;
 					case DC_CAN_BASE + DC_BMS_B_STATUS:
@@ -436,8 +442,10 @@ int main( void )
 				switch (can.identifier) {
 					case DC_CAN_BASE + DC_BOOTLOAD:
 						// Switch to bootloader
-						if (		can.data.data_u8[0] == 'B' && can.data.data_u8[1] == 'O' && can.data.data_u8[2] == 'O' && can.data.data_u8[3] == 'T'
-								&&	can.data.data_u8[4] == 'L' && can.data.data_u8[5] == 'O' && can.data.data_u8[6] == 'A' && can.data.data_u8[7] == 'D' )
+						if (		can.data.data_u8[0] == 'B' && can.data.data_u8[1] == 'O'
+								&& can.data.data_u8[2] == 'O' && can.data.data_u8[3] == 'T'
+								&&	can.data.data_u8[4] == 'L' && can.data.data_u8[5] == 'O'
+								&& can.data.data_u8[6] == 'A' && can.data.data_u8[7] == 'D' )
 						{
 							WDTCTL = 0x00;	// Force watchdog reset
 						}
