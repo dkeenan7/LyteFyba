@@ -51,29 +51,5 @@ extern gauge_variables gauge;
 #define GAUGE_FREQ			10000
 #define GAUGE_PWM_PERIOD	(INPUT_CLOCK / 8 / GAUGE_FREQ)
 
-// Tachometer gauge scaling
-// With timer ISR at 10kHz, output count = (10000 * 30) / rpm
-// MX-5: 266.7 Hz = 8000 rpm = full scale
-// We want 60 / 2 = 30 scale (4 cylinder)
-// Do scaling in floating point maths to make user modifications simple
-// Do not send frequencies outside of those representing min and max below.
-#define GAUGE1_SCALE		32.0f	// Not used
-#define GAUGE1_MIN			250.0f
-#define GAUGE1_MAX			7000.0f
-
-// Speedometer gauge scaling
-// BMW e36 gauge cluster: 325Hz = 260km/h = full scale
-// With timer ISR at 10kHz, output count = (10000 * 0.8) / km/h
-// Do not send frequencies outside of those representing min and max below.
-#define GAUGE2_SCALE		0.8f
-#define GAUGE2_MIN			10.0f
-#define GAUGE2_MAX			260.0f
-
-// Fuel gauge scaling
-// BMW e36 gauge cluster: 10 Ohm = Empty, 100 Ohm = Full
-
-
-// Temperature gauge scaling
-// BMW e36 gauge cluster:
 
 

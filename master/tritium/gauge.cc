@@ -62,9 +62,16 @@ void gauge_init( void )
 void gauge_tach_update( float motor_rpm )
 {
 	unsigned int adj_rpm;
-	if( motor_rpm < 0.0) motor_rpm = motor_rpm * -1.0;
-	if( motor_rpm > GAUGE1_MAX) motor_rpm = GAUGE1_MAX;
-	if( motor_rpm < GAUGE1_MIN) motor_rpm = GAUGE1_MIN;
+	if( motor_rpm < 0.0) motor_rpm = 0.0;
+	// Prevent tacho needle wrapping around and getting stuck on the wrong side of the zero stop.
+	if( motor_rpm > 7000.0) motor_rpm = 7000.0;
+	// The MX-5 tacho only has 3 divisions between 0 and 1 (r/min x 1000) while it has 4 divisions
+	// between the other integers (0.25 steps). Normally the needle wouldn't move off zero until
+	// it got to 0.25 (the petrol engine idled faster than that anyway) and the next two marks would
+	// represent 0.5 and 0.75. But because we also use the tacho to display things other than rpm,
+	// we offset and rescale that section so these marks represent 0.33 and 0.67.
+	if( motor_rpm < 1000.0) motor_rpm = motor_rpm * 0.75 + 250.0;
+	// The following calibration function is an approximate fit based on many measurements.
 	adj_rpm = (unsigned int)motor_rpm + 120;
 	gauge.g1_half_period = (unsigned int)((690561 + (adj_rpm >> 1)) / adj_rpm) - 11; // = Round(690561 / adj_rpm) - 11
 	events |= EVENT_GAUGE1;

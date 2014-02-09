@@ -423,8 +423,8 @@ int main( void )
 						battery_current = can.data.data_fp[1];
 						gauge_fuel_update( battery_voltage );
 						if (command.state == MODE_D && tacho_display == BATV)
-							// Display battery voltage on tacho, in V x 100 (shows DC current in charge mode)
-							gauge_tach_update( battery_voltage * 10.0 );
+							// Display battery voltage on tacho with expanded scale, V-300 x 10 (shows DC current in charge mode)
+							gauge_tach_update( (battery_voltage - 300.0) * 100.0 );
 						if (command.state == MODE_D && tacho_display == PWR)
 							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
