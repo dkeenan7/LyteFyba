@@ -78,7 +78,7 @@ unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
-enum TachoDisplayType {RPM, PWR, TRQ, LIM};
+enum TachoDisplayType {RPM, PWR, TRQ, BATV, LIM};
 TachoDisplayType tacho_display = RPM;
 #define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
 
@@ -236,7 +236,7 @@ int main( void )
 					}
 					else {  // Stay in drive  mode
 						next_state = MODE_D;
-						// Cycle through the 4 tacho displays on rising edges of IGN_START
+						// Cycle through the 5 tacho displays on rising edges of IGN_START
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
 							if (tacho_display == LIM) tacho_display = RPM;
 							else tacho_display = TachoDisplayType(tacho_display + 1);
@@ -422,6 +422,9 @@ int main( void )
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
 						gauge_fuel_update( battery_voltage );
+						if (command.state == MODE_D && tacho_display == BATV)
+							// Display battery voltage on tacho, in V x 100 (shows DC current in charge mode)
+							gauge_tach_update( battery_voltage * 10.0 );
 						if (command.state == MODE_D && tacho_display == PWR)
 							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
