@@ -327,7 +327,7 @@ int main( void )
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.bus_current;
-				can_push_ptr->data.data_fp[0] = 0.0;
+				can_push_ptr->data.data_fp[0] = ADC12MEM0; // Pedal position. Shows in log as Misc SP
 				can_push();
 
 				// Queue switch position/activity frame and clear switch differences variables
