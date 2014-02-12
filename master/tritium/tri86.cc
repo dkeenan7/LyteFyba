@@ -322,14 +322,16 @@ int main( void )
 				can_push_ptr->data.data_fp[1] = command.current;
 				can_push_ptr->data.data_fp[0] = command.rpm;
 				can_push();
-#if 0
+				
+#if 0			// Don't send bus current here, we now send it from handleBMUstatusByte()
 				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 				can_push_ptr->status = 8;
 				can_push_ptr->data.data_fp[1] = command.bus_current;
-				can_push_ptr->data.data_fp[0] = ADC12MEM0; // Pedal position. Shows in log as Misc SP
+				can_push_ptr->data.data_fp[0] = 0.0;
 				can_push();
 
+				// This is likely only used by DCtest.exe, so save CAN bandwidth
 				// Queue switch position/activity frame and clear switch differences variables
 				can_push_ptr->identifier = DC_CAN_BASE + DC_SWITCH;
 				can_push_ptr->status = 8;
