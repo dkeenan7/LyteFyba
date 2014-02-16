@@ -100,8 +100,8 @@
 			clr.b	&worstStress
 			clr.b	&worstStressType
 			clr		&worstOV
-			clr		&worstUV
-			clr		&worstOT
-			clr		&worstUT
+			mov		#9999,&worstUV
+			mov		#-99,&worstOT
+			mov		#99,&worstUT
 			clr		&worstAL
 			ret
