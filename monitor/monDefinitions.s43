@@ -60,14 +60,48 @@
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
 			; Now prettyPrint the reason for the worst stress
-			mov.b	&worstStressType,Rthd	; Type of measurement that caused worst stress
-			mov		&worstStressMeas,Rsec	; Result
+			mov		#'n',Rthd				; 'n' for number
+			mov.b	&worstStressType,Rsec	; Index of measurement below that caused worst stress
+			mov		#1,Rtos					; Print 1 digit
+			call	_prettyPrint			; Call pretty-print
+
+			; Now prettyPrint the worst over-voltage
+			mov.b	#'v',Rthd				; 'v' for voltage
+			mov		&worstOV,Rsec			; Result
+			mov		#4,Rtos					; Print 4 digits
+			call	_prettyPrint			; Call pretty-print
+
+			; Now prettyPrint the worst under-voltage
+			mov.b	#'v',Rthd				; 'v' for voltage
+			mov		&worstUV,Rsec			; Result
+			mov		#4,Rtos					; Print 4 digits
+			call	_prettyPrint			; Call pretty-print
+
+			; Now prettyPrint the worst over-temperature
+			mov.b	#'t',Rthd				; 't' for temperature
+			mov		&worstOT,Rsec			; Result
+			mov		#2,Rtos					; Print 2 digits
+			call	_prettyPrint			; Call pretty-print
+
+			; Now prettyPrint the worst under-temperature
+			mov.b	#'t',Rthd				; 't' for temperature
+			mov		&worstUT,Rsec			; Result
+			mov		#2,Rtos					; Print 2 digits
+			jmp		_prettyPrint			; Call pretty-print
+
+			; Now prettyPrint the worst absolute link voltage
+			mov.b	#'l',Rthd				; 'l' for link
+			mov		&worstAL,Rsec			; Result
 			mov		#4,Rtos					; Print 4 digits
 			jmp		_prettyPrint			; Tail-call pretty-print and return
 
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
 			clr.b	&worstStress
-			mov.b	#' ',&worstStressType
-			clr		&worstStressMeas
+			clr.b	&worstStressType
+			clr		&worstOV
+			clr		&worstUV
+			clr		&worstOT
+			clr		&worstUT
+			clr		&worstAL
 			ret
