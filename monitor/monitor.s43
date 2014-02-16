@@ -196,14 +196,20 @@ bDontEcho		EQU		1<<3		; Are we echoing?
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
-worstStressType	DS		1			; Character giving type of measurement that caused worst stress
-worstStressMeas	DS		2			; Value of measurement that caused worst stress
+worstStressType	DS		1			; Type of measurement that caused worst stress
+worstOV			DS		2			; Worst over-voltage since the last resetWorstStress command
+worstUV			DS		2			; Worst under-voltage since the last resetWorstStress command
+worstOT			DS		2			; Worst over-temperature since the last resetWorstStress command
+worstUT			DS		2			; Worst under-temperature since the last resetWorstStress command
+worstAL			DS		2			; Worst absolute link voltage since the last resetWorstStress command
+; The 5 variables above are also treated as an array indexed from worstStress, so order matters
 
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes minimum)
+STACKSPACE		EQU		$300-$		; Look at listing to see what this is
 
 ; FIXME! The below is to allow monitor to assemble. It is needed because in BSL2, we need to compare
 ; a return address with an address defined in TestICal. This value is not defined in monitor, and we
@@ -371,7 +377,7 @@ DoMeasurement:
 
 			clr		Rstrs					; Init present stress to zero
 			clr		Rmeas					; Init measurement causing zero stress to zero
-			mov.b	' ',Rtype				; Init type of measurement causing zero stress to blank
+			clr		Rtype					; Init type of measurement causing zero stress to zero
 
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
 			_IF		_C						; If unsigned overflow
@@ -394,14 +400,14 @@ DoMeasurement:
 			push	R10						; Measurement for overvoltage stress calc
 			push	#OV_STEP				; For every OV_STEP (millivolts)
 			push	#OV_ZERO				;	over OV_ZERO, we add one level of stress
-			push	#'v'					; Type of measurement
+			push	#1						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 			; Calculate stress due to undervoltage
 											; Measurement saved on stack earlier
 			push	#UV_STEP				; For every UV_STEP (millivolts)
 			push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-			push	#'v'					; Type of measurement
+			push	#2						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
 
 			; Do temperature measurement
@@ -412,7 +418,7 @@ DoMeasurement:
 			push	R10						; Measurement for overtemperature stress calc
 			push	#OT_STEP				; For every OT_STEP (degrees Celsius)
 			push	#OT_ZERO				;	over OV_ZERO, we add one level of stress
-			push	#'t'					; Type of measurement
+			push	#3						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
 			; Calculate stress due to undertemperature if required
@@ -421,7 +427,7 @@ DoMeasurement:
 												; Measurement saved on stack earlier
 				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
-				push	#'t'					; Type of measurement
+				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ELSE
 				pop		R10						; Drop unused temp measurement off stack
@@ -441,7 +447,7 @@ DoMeasurement:
 				push	R10						; Measurement for absolute link stress calc
 				push	#AL_STEP				; For every AL_STEP (millivolts)
 				push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
-				push	#'l'					; Type of measurement
+				push	#5						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
 			_ENDIF
 #endif
@@ -459,7 +465,6 @@ DoMeasurement:
 				tst.b	Rstrs					; and it's an actual, nonzero stress
 				_IF	_NZ
 					mov.b	Rstrs,&worstStress		; Update worstStress
-					mov		Rmeas,&worstStressMeas	; Update value of measurement causing worst stress
 					mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 				_ENDIF
 			_ENDIF
@@ -499,7 +504,7 @@ DoMeasurement:
 
 DoStress:
 ;
-; Called repeatedly by DoMeasurement to calculate the various kinds of stress
+; Called 5 times by DoMeasurement to calculate the various kinds of stress
 ; and keep track of which is worse.
 ; It takes 4 parameters on the stack and updates 3 registers as required (Rstrs, Rmeas, Rtype).
 ;
@@ -509,12 +514,22 @@ zero	EQU		4				; The measurement corresponding to zero stress
 step	EQU		6				; The change in measurement corresp to a change of one stress level
 meas	EQU		8				; The measurement
 
+			mov		meas(SP),R9				; Get meas in R9
+			mov		type(SP),R10			; Get type * 2 in R9 for use as word index
+			rla		R10
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
 			_IF		_GE
-				mov		meas(SP),R9				; Get meas - zero in R9
-				sub		zero(SP),R9
+				cmp		worstStress(R10),R9
+				_IF		_GE						; If this is a worse measurement of this type
+					mov		R9,worstStress(R10)		; Update the worst
+				_ENDIF
+				sub		zero(SP),R9				; Get meas - zero in R9
 			_ELSE
+				cmp		worstStress(R10),R9
+				_IF		_L						; If this is a worse measurement of this type
+					mov		R9,worstStress(R10)		; Update the worst
+				_ENDIF
 				inv		R8						; Get absolute value of step in R8
 				inc		R8
 				mov		zero(SP),R9				; Get zero - meas + step -1 in R9
