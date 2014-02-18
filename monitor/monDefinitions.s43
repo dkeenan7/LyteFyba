@@ -53,47 +53,86 @@
 			_IF		_LO
 				ret
 			_ENDIF
-			mov.b	#'q',Rthd				; Type is worst stress level
-			mov.b	&worstStress,Rsec		; Result
-			call	#_prettyPrint3			; Pretty-print of 3 digits
+			push.b	&intFlags				; Save current number base
+			bic.b	#bHexOutput,&intFlags	; Set to decimal output
+
+			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
+			mov		#EXIT,R8				; Send initial slosh (EXIT command or comment character)
+			call	#TX_ByteCk				; which stops rest of packet being interpreted
+
+			mov.b	&ID,Rsec				; Emit the ID
+			mov		#3,Rtos					; as 3 digits
+			call	#_emitNum
+			mov		#':',R8					; Colon separator
+			call	#TX_ByteCk
+
+			mov		#'q',R8					; 'q' as type of result
+			call	#TX_ByteCk
+			mov		#' ',R8					; Space separator
+			call	#TX_ByteCk
+
+			mov		&worstStress,Rsec		; Emit worstStress
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Space separator
+			call	#TX_ByteCk
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
-			; Now prettyPrint the reason for the worst stress
-			mov		#'n',Rthd				; 'n' for number
-			mov.b	&worstStressType,Rsec	; Index of measurement below that caused worst stress
-			mov		#1,Rtos					; Print 1 digit
-			call	_prettyPrint			; Call pretty-print
+			; Now send the index of the following measurement that caused the worst stress
+			mov.b	&worstStressType,Rsec	; Send index of following measurement that caused worst stress
+			mov		#1,Rtos					; as 1 digit
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
 
-			; Now prettyPrint the worst over-voltage
-			mov.b	#'v',Rthd				; 'v' for voltage
-			mov		&worstOV,Rsec			; Result
-			mov		#4,Rtos					; Print 4 digits
-			call	_prettyPrint			; Call pretty-print
+			; Now send the worst over-voltage
+			mov		&worstOV,Rsec			; Send worst over-voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
+	#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+	#endif
+			; Now send the worst under-voltage
+			mov		&worstUV,Rsec			; Send worst under-voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
 
-			; Now prettyPrint the worst under-voltage
-			mov.b	#'v',Rthd				; 'v' for voltage
-			mov		&worstUV,Rsec			; Result
-			mov		#4,Rtos					; Print 4 digits
-			call	_prettyPrint			; Call pretty-print
+			; Now send the worst over-temperature
+			mov		&worstOT,Rsec			; Send worst over-temperature
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
+	#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+	#endif
+			; Now send the worst under-temperature
+			mov		&worstUT,Rsec			; Send worst under-temperature
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
 
-			; Now prettyPrint the worst over-temperature
-			mov.b	#'t',Rthd				; 't' for temperature
-			mov		&worstOT,Rsec			; Result
-			mov		#2,Rtos					; Print 2 digits
-			call	_prettyPrint			; Call pretty-print
+			; Now send the worst absolute link voltage
+			mov		&worstAL,Rsec			; Send worst absolute link voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TX_ByteCk
 
-			; Now prettyPrint the worst under-temperature
-			mov.b	#'t',Rthd				; 't' for temperature
-			mov		&worstUT,Rsec			; Result
-			mov		#2,Rtos					; Print 2 digits
-			jmp		_prettyPrint			; Call pretty-print
+			call	#TX_Cksum				; Transmit checksum if required, then clear checksum.
 
-			; Now prettyPrint the worst absolute link voltage
-			mov.b	#'l',Rthd				; 'l' for link
-			mov		&worstAL,Rsec			; Result
-			mov		#4,Rtos					; Print 4 digits
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+			mov		#'\r',R8				; Emit carriage return
+			call	#TX_Byte				; without updating checksum
+
+			bic.b	#ACTLED,&P1OUT			; Set the (inverted) activity LED here to mimic old behaviour
+			pop.b	&intFlags				; Restore number base
+			ret
 
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
