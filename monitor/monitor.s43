@@ -172,9 +172,9 @@ BitCntTx		DS		1			; Bit count 10 -> 1
 BitCntRx		DS		1			; Bit count 8 -> 1
 TXCksum			DS		1			; Transmit checksum
 
-rxsz			EQU		16			; Receive queue size. Must be a power of 2 no greater than 256
+rxsz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
-txsz			EQU		16			; Transmit queue size. Must be a power of 2 no greater than 256
+txsz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
 rxbuf			DS		rxsz		; Receive queue buffer
