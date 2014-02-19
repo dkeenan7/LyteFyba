@@ -73,8 +73,9 @@ float battery_current = 0.0;
 float torque_current = 0.0;
 float field_current = 0.0;
 
-unsigned int uChgrCurrLim = CHGR_CURR_LIMIT;	// Default to maximum current limit. Integer tenths of
-												//	an ampere, e.g. 55 means 5.5 A.
+unsigned int uChgrCurrLim = CHGR_CURR_LIMIT - ((CHGR_CURR_LIMIT+2)/4);
+												// Default to medium current limit. Integer tenths of
+												//	an ampere, e.g. 41 means 4.1 A.
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
@@ -322,7 +323,7 @@ int main( void )
 				can_push_ptr->data.data_fp[1] = command.current;
 				can_push_ptr->data.data_fp[0] = command.rpm;
 				can_push();
-				
+
 #if 0			// Don't send bus current here, we now send it from handleBMUstatusByte()
 				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
