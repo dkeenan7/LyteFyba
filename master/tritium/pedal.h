@@ -36,6 +36,8 @@ typedef struct _command_variables {
 	float bus_current;
 	unsigned char flags;
 	unsigned char state;
+	float prev_current;
+	int ramp_state;
 } command_variables;
 
 extern command_variables command;

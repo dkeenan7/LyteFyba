@@ -112,6 +112,20 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX;
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
+
+				// Apply a slew-rate-limit to torque zero-crossings
+				// to try to avoid problems with backlash causing clutch slip
+				if (command.ramp_state) {
+					command.current = -command.prev_current;
+					command.rpm = motor_rpm - copysignf(300.0, command.prev_current);
+					command.ramp_state = 0;
+				}
+				else if (copysignf(1.0, command.current) != copysignf(1.0, command.prev_current)) {
+					command.current = copysignf(0.01, command.prev_current);
+					command.rpm = motor_rpm + copysignf(300.0, command.prev_current);
+					command.ramp_state = 1;
+				}
+				command.prev_current = command.current;
 #else
 				// A simple dual linear torque algorithm to temporarily work around a motor controller
 				// issue. Max regen at pedal zero, linear ramp down to 15% pedal. Linear ramp from zero
