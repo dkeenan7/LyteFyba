@@ -142,6 +142,8 @@ int main( void )
 	command.bus_current = 1.0;
 	command.flags = 0x00;
 	command.state = MODE_OFF;
+	command.prev_current = 0.0;
+	command.ramp_state = 0;
 
 	// Init gauges
 	gauge_init();
