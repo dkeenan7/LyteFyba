@@ -113,6 +113,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
 
+// Return the (signed) value of whichever floating point argument has the smallest absolute value
 #define fminabs(x, y) ((fabsf(x)<fabsf(y))?(x):(y))
 
 				// Apply a slew-rate-limit to torque zero-crossings
@@ -137,7 +138,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 						break;
 					default:
 						if (copysignf(1.0, command.current) != copysignf(1.0, command.prev_current)) {
-							command.current = copysignf(0.1, command.prev_current);
+							command.current = fminabs(copysignf(0.1, command.prev_current), command.prev_current);
 							command.rpm = motor_rpm + copysignf(300.0, command.current);
 							command.ramp_state = 3;
 						} // End if
