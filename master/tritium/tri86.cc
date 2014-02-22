@@ -319,6 +319,7 @@ int main( void )
 				// Blink activity LED
 				// events |= EVENT_ACTIVITY;
 
+				// This is now primarily done in process_pedal()
 				// Queue drive command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_DRIVE;
 				can_push_ptr->status = 8;
@@ -360,7 +361,14 @@ int main( void )
 					can_push();
 				}
 			} // End of if(events & EVENT_CONNECTED)
-		} // End of if(events & EVENT_COMMS) // Every 100 ms
+
+			if (command.state == MODE_OFF)
+				// Display 12V battery voltage on tacho, with expanded scale V-10
+				// Assumes DCU-A has been modified so BulbSense2 (Reversing light current sense) is
+				// replaced with a voltage divider off the 12 V supply (820k above 160k).
+				gauge_tach_update( (ADC12MEM5 * 3.7384 - 10000 );
+
+		} // End of if((events & EVENT_COMMS) && !bDCUb) // Every 100 ms
 
 		// Check for CAN packet reception
 		if((P2IN & CAN_INTn) == 0x00){
@@ -428,7 +436,8 @@ int main( void )
 						battery_current = can.data.data_fp[1];
 						gauge_fuel_update( battery_voltage );
 						if (command.state == MODE_D && tacho_display == BATV)
-							// Display battery voltage on tacho with expanded scale, V-300 x 10 (shows DC current in charge mode)
+							// Display traction battery voltage on tacho with expanded scale, V-300 x 10
+							// 	(shows DC current in charge mode)
 							gauge_tach_update( (battery_voltage - 300.0) * 100.0 );
 						if (command.state == MODE_D && tacho_display == PWR)
 							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
