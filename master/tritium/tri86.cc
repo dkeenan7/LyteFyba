@@ -79,7 +79,7 @@ unsigned int uChgrCurrLim = CHGR_CURR_LIMIT - ((CHGR_CURR_LIMIT+2)/4);
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
-enum TachoDisplayType {RPM, PWR, TRQ, BATV, LIM};
+enum TachoDisplayType {RPM, PWR, TRQ, BATV, AUXV, LIM};
 TachoDisplayType tacho_display = RPM;
 #define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
 
@@ -151,7 +151,7 @@ int main( void )
 	// Init BMS and charger
 	bms_init();
 	chgr_init();
-	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end f the BMU
+	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end of the BMU
 	//	string. Otherwise, the 'k' and 0K commands won't work from about BMU 14 onwards
 	for (i = 0; i < 3000; i++) {
 		readChargerBytes();		// So we update chgr_rx_timer
@@ -362,11 +362,11 @@ int main( void )
 				}
 			} // End of if(events & EVENT_CONNECTED)
 
-			if (command.state == MODE_OFF)
+			if ((command.state == MODE_OFF) || (command.state == MODE_D && tacho_display == AUXV))
 				// Display 12V battery voltage on tacho, with expanded scale V-10
 				// Assumes DCU-A has been modified so BulbSense2 (Reversing light current sense) is
 				// replaced with a voltage divider off the 12 V supply (820k above 160k).
-				gauge_tach_update( (ADC12MEM5 * 3.7384 - 10000 );
+				gauge_tach_update(ADC12MEM5 * 3.7384 - 10000 );
 
 		} // End of if((events & EVENT_COMMS) && !bDCUb) // Every 100 ms
 
