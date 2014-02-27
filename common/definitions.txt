@@ -15,8 +15,8 @@ $ $ dollarHex (set number input mode to hex for next literal)
 ' ' characterLiteral
 - - change-sign (postfix negate)
 : : characterLiteral (same as single-quote)
-< < minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain)
-> > maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain)
+<   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
+>   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
   a ADCScaled or r(A)wVoltage (TestICal only)
   c Calibrate
 c   Comms error - executed automatically by temporary master to report its ID
@@ -91,8 +91,8 @@ f   FreezingIsStress, '1f' to include undertemperature as stress, '0f' to ignore
 <XOFF> Stop echoing
 <XON> Resume echoing
 : : characterLiteral (same as single-quote)
-< < minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain)
-> > maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain)
+<   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
+>   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 N N Number of cells
 
   i set(I)Ds
