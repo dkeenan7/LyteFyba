@@ -47,7 +47,7 @@ _CS_TOP SET _CS_TOP^_CS2
 
 ; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.
 ; For convenience they are defined as bits 12..10 of the machine-code for the jump instruction
-; with the opposite condition.
+; with the inverse condition.
 
 ; MSP430 condition codes
 _Z  EQU 0 ; (jnz) Zero
@@ -193,19 +193,56 @@ _REPEAT MACRO
 ;
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
+; Short-circuit conditionals
+
+; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
+; is written as
+;       ...
+;       _IF _CC1_inverse
+;           ...
+;           _IF _CC2_inverse
+;               ...
+;               _IF _CC3
+;           _END_PRIOR_IF
+;       _END_PRIOR_IF
+;                   ...
+;				_ELSE
+;                   ...
+;               _ENDIF
+
+; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
+; is written as
+;       ...
+;       _IF _CC1
+;           ...
+;           _IF _CC2
+;               ...
+;               _IF _CC3
+;                   ...
+;				_ELSE
+;           _END_PRIOR_IF
+;       _END_PRIOR_IF
+;                   ...
+;               _ENDIF
+
+_END_PRIOR_IF	MACRO
+		_CS_SWAP
+		_ENDIF
+		ENDM
+
 
 ; CASE statement macros
 
 ; Typical use:
 
 ;       _CASE
-;         _OF src,dest        ; OF uses CMP (word comparison)
-;            ...
-;         _ENDOF
-;         _OFb src,dest       ; OFb uses CMP.B (byte comparison)
-;           ...
-;         _ENDOF
-;         ... ( default case )
+;           _OF src,dest        ; OF uses CMP (word comparison)
+;                ...
+;           _ENDOF
+;           _OFb src,dest       ; OFb uses CMP.B (byte comparison)
+;               ...
+;           _ENDOF
+;           ... ( default case )
 ;       _ENDCASE
 
 
