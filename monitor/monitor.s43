@@ -359,8 +359,7 @@ DoEcho:
 			_IF		_NE						; If it's an XON (ctrl-Q) character OR
 				bit.b	#bDontEcho,&intFlags
 				_IF		_Z						; If the dont-echo flag is clear
-			_CS_SWAP						; [Control-flow Stack SWAP so next _ENDIF applies to _IF _EQ]
-			_ENDIF
+			_END_PRIOR_IF ; _NE
 					call	#TX_Byte				; Echo the character
 				_ENDIF
 			ret

@@ -215,8 +215,7 @@ ACCEPT
 						_IF		_LO
 							mov		#TIB,R9
 						_ENDIF
-				_CS_SWAP				; [ Make next ENDIF apply to _IF _NZ ]
-				_ENDIF					; Endif checksumming
+				_END_PRIOR_IF			; Endif checksumming
 						mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
 						bit.b	#bDontInterpret,&intFlags
 						_IF		_Z				; If the dont-interpret flag is clear

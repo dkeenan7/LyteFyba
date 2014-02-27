@@ -39,8 +39,7 @@ mainLoop2:
 			_IF		_GE				; If Vcc power-up or /RST pin pulsed low
 				cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
 				_IF		_NE				; If no main program
-			_CS_SWAP				; [Make next _ENDIF apply to _IF _GE above]
-			_ENDIF					; Endif Vcc power-up or /RST pin pulsed low
+			_END_PRIOR_IF			; Endif Vcc power-up or /RST pin pulsed low
 				mov.b	#WDTIFG,&IFG1	; Set watchdog int flag to indicate not to call jInterpretByte
 				_ENDIF					; Endif no main program
 

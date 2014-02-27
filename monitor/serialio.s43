@@ -78,7 +78,7 @@ TX_ByteNW:
 			cmp.b	&txrd,R9				; If wr+1 mod sz = rd then it's full
 			_IF		_NE
 				mov.b	R9,&txwr			; Increment write index so char is officially in tx queue
-				
+
 				; If transmit interrupts are disabled, set up the timer for a new start bit
 				; and enable transmit compare interrupts.
 				bit		#CCIE,&TACCTLt		; Test transmit interrupts enabled bit
@@ -88,7 +88,7 @@ TX_ByteNW:
 					mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
-					dint						
+					dint
 					; We want the max number of clock cycles till both TAR and TACCTLt are correctly set up.
 					; First number is sum of cycles in parentheses below. The +MckPerTAck-1 is for rounding up.
 					; The +1 is in case the TAR increments just after we read it.
@@ -96,11 +96,10 @@ TX_ByteNW:
 					add		&TAR,R9				; (3) R9 := timer value + setup time
 					bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
 					_IF		_Z					; (2) If previous stop bit has not completed
-					
+
 						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
 						_IF		_NN					; (2) If existing TACCRt is AFTER TAR+setup, keep TACCRt
-					_CS_SWAP					; [ Make the next _ENDIF apply to the _IF _Z ]
-					_ENDIF ; _Z					; Endif previous stop bit has not completed
+					_END_PRIOR_IF ; _Z			; Endif previous stop bit has not completed
 							mov		R9,&TACCRt			; (4) Set the new compare value start-bit
 						_ENDIF ; _NN				; Endif existing TACCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
@@ -108,7 +107,7 @@ TX_ByteNW:
 
 					bic.b	#ACTLED,&P1OUT		; Turn on the (inverted) activity LED for visual feedback.
 				_ENDIF 						; Endif transmit interrupts disabled
-				
+
 				clrz						; Indicate char was accepted
 			_ENDIF
 			ret
@@ -137,10 +136,10 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 			add.w	#Bitime,&TACCRt			; (5) Time to next bit, when next bit is due
 			dec.b	&BitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
-			
+
 				cmp.b	#9,&BitCntTx			; (5) Test if start bit just started
 				_IF		_EQ						; (2) If start bit just started
-					push	R9	
+					push	R9
 					mov.b 	&txrd,R9				; Get read index in R9
 					mov.b	txbuf(R9),&TXData		; Get next char from queue into TXData
 					inc.b 	R9						; Increment the read index
@@ -168,7 +167,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 													;   will continue to be an inversion of TXDm (TA0 P1.1).
 					mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits
 					mov.w	#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit
-					
+
 					bic.b	#ACTLED,&P1OUT			; Turn on the activity LED for visual feedback.
 				_ENDIF							; Endif TX queue is not empty
 			_ENDIF							; Endif Stop bit initiated
@@ -182,7 +181,7 @@ RX_TIOV_ISR	; Combined Receive (timer capture/compare 1) and timer overflow inte
 			jeq		RX_ISR					; (2) Yes, was CC1
 			; Can't be CC2 interrupt source; MSP430F201x doesn't have this
 			; So must be timer overflow
-			
+
 ;
 ;	Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
@@ -206,7 +205,7 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 				_IF		_Z						; (2) If this is the last data bit
 					mov.b	#8,&BitCntRx			; Setup bit counter for next byte
 					bis		#CAP,&TACCTLr			; Set back to capture mode
-					
+
 					; Put received data into the queue if there's space, otherwise it's lost
 					push	R9
 					mov.b	&rxwr,R9				; Get the write index
@@ -222,7 +221,7 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 														;	(note 2 bytes (saved R9) on stack)
 					_ENDIF							; Endif queue not full
 					pop		R9
-					
+
 				_ENDIF							; Endif last data bit
 			_ENDIF							; Endif data bit sampled
 			reti							; (5) Return from interrupt

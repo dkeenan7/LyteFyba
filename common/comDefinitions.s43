@@ -124,8 +124,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			_BEGIN
 				mov		Rsec,R8				; Radix (10 or 16) into R8
 				call	#UMStar				; R9 * R8 -> R10:R9, clears R11
-		_CS_SWAP					; [Make next _ENDIF apply to prev _ELSE so decimal skips first multiply]
-		_ENDIF						; End hexadecimal
+		_END_PRIOR_IF				; End hexadecimal
 				cmp		Rtos,R12			; Only convert and send the digit if it was asked for
 				_IF		_LO					; Equivalent to _IF _NC. So clrc isn't necessary below
 					mov.b	R10,R8				; ASCII conversion follows
