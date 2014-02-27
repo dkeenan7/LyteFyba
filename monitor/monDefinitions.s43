@@ -144,3 +144,138 @@
 			mov		#99,&worstUT
 			clr		&worstAL
 			ret
+
+; Min  ( id type value -- ) ; Gives the minimum voltage or temperature and the ID of the cell
+		xCODE	'<',min,_min
+			NO_ECHO_CMD	doMin0,doMin			; Use the no-echo wrapper macro
+doMin0:
+		mov		#0,Rthd				; Default ID
+		mov		Rtos,Rsec			; Type
+		mov		#$7FFF,Rtos			; Default value infinity
+doMin:	; Emit another Min command with its last parameter min-ed with the
+		; relevant local value. The second parameter tells which type of local value, voltage or temp.
+		; The first parameter gives the ID of the cell having the max value.
+ 		_CASE
+			_OF #'v',Rsec
+				call	#cellV			; Get cell voltage in millivolts in R10
+				push	#4				; Save the field width, 4 digits
+			_ENDOF
+			_OF #'t',Rsec
+				call	#temp			; Get temperature in degrees Celsius in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'p',Rsec
+				mov.b	&localStatus,R10 ; Get stress level in R10
+				and.b	#$0F,R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+		mov		#$7FFF,R10			; Default case, unknown type, set R10 to infinity
+		push	#1					; Save the field width, 1 digit
+		_ENDCASE
+
+		cmp		Rtos,R10			; Find min of parameter and local value
+		_IF		_L
+			mov		R10,Rtos
+			mov.b	&ID,Rthd			; If new min, update ID
+		_ENDIF
+
+		push	Rtos				; Save value
+		push	Rsec				; Save type
+
+		mov		Rthd,Rsec			; Put ID into Rsec
+		mov		#3,Rtos				; Use a 3 digit field width
+		call	#_emitNum			; Transmit the ID as text in the current number base
+
+		mov		#':',R8				; Transmit a colon, an alias for tick
+		call	#TX_ByteCk
+
+		pop		R8					; Pop and transmit the type, 'v' or 't'
+		call	#TX_ByteCk
+
+		mov		#' ',R8				; Transmit a space
+		call	#TX_ByteCk
+
+		pop		Rsec				; Pop the min value
+		pop		Rtos				; Pop the field width
+		call	#_emitNum			; Transmit the value as text in the current number base
+
+		mov		#'<',R8				; Transmit a "<"
+		call	#TX_ByteCk
+
+		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+
+		mov		#'\r',R8			; Transmit a carriage return.
+		call	#TX_Byte
+		ret
+
+
+; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
+		xCODE	'>',max,_max
+			NO_ECHO_CMD	doMax0,doMax	; Use the no-echo wrapper macro
+doMax0:
+		mov		#0,Rthd				; Default ID
+		mov		Rtos,Rsec			; Type
+		mov		#$8000,Rtos			; Default value neg infinity
+doMax:	; Emit another Max command with its last parameter max-ed with the
+		; relevant local value. The second parameter tells which type of local value, voltage or temp.
+		; The first parameter gives the ID of the cell having the max value.
+ 		_CASE
+			_OF #'v',Rsec
+				call	#cellV			; Get cell voltage in millivolts in R10
+				push	#4				; Save the field width, 4 digits
+			_ENDOF
+			_OF #'t',Rsec
+				call	#temp			; Get temperature in degrees Celsius in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'p',Rsec
+				mov.b	&localStatus,R10 ; Get stress level in R10
+				and.b	#$0F,R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+		mov		#$8000,R10			; Default case, unknown type, set R10 to neg infinity
+		push	#1					; Save the field width, 1 digit
+		_ENDCASE
+
+		cmp		R10,Rtos			; Find max of parameter and local value
+		_IF		_L
+			mov		R10,Rtos
+			mov.b	&ID,Rthd			; If new max, update ID
+		_ENDIF
+
+		push	Rtos				; Save value
+		push	Rsec				; Save type
+
+		mov		Rthd,Rsec			; Put ID into Rsec
+		mov		#3,Rtos				; Use a 3 digit field width
+		call	#_emitNum			; Transmit the ID as text in the current number base
+
+		mov		#':',R8				; Transmit a colon, an alias for tick
+		call	#TX_ByteCk
+
+		pop		R8					; Pop and transmit the type, 'v' or 't'
+		call	#TX_ByteCk
+
+		mov		#' ',R8				; Transmit a space
+		call	#TX_ByteCk
+
+		pop		Rsec				; Pop the max value
+		pop		Rtos				; Pop the field width
+		call	#_emitNum			; Transmit the value as text in the current number base
+
+		mov		#'>',R8				; Transmit a ">"
+		call	#TX_ByteCk
+
+		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+
+		mov		#'\r',R8			; Transmit a carriage return.
+		call	#TX_Byte
+		ret
