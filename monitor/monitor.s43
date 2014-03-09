@@ -514,7 +514,7 @@ step	EQU		6				; The change in measurement corresp to a change of one stress lev
 meas	EQU		8				; The measurement
 
 			mov		meas(SP),R9				; Get meas in R9
-			mov		type(SP),R10			; Get type * 2 in R9 for use as word index
+			mov		type(SP),R10			; Get type * 2 in R10 for use as word index
 			rla		R10
 			mov		step(SP),R8				; Get step in R8
 			tst		R8

@@ -71,7 +71,7 @@
 			mov		#' ',R8					; Space separator
 			call	#TX_ByteCk
 
-			mov		&worstStress,Rsec		; Emit worstStress
+			mov.b	&worstStress,Rsec		; Emit worstStress
 			mov		#2,Rtos					; as 2 digits
 			call	#_emitNum
 			mov		#' ',R8					; Space separator
