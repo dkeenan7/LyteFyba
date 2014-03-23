@@ -99,7 +99,6 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
-#if 1
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
@@ -120,52 +119,39 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// to try to avoid problems with backlash causing clutch slip
 				// e.g. On a positive-going zero crosssing we spend 40 ms each
 				// at -10%, -1%, +1%, +10% motor current (ramp states 3, 2, 1, 0).
-				switch (command.ramp_state) {
+				switch (command.tq_ramp_state) {
 					case 3:
 						command.current = command.prev_current * 0.1;
 						command.rpm = motor_rpm + copysignf(300.0, command.current);
-						command.ramp_state = 2;
+						command.tq_ramp_state = 2;
 						break;
 					case 2:
 						command.current = -command.prev_current;
 						command.rpm = motor_rpm + copysignf(300.0, command.current);
-						command.ramp_state = 1;
+						command.tq_ramp_state = 1;
 						break;
 					case 1:
 						command.current = fminabs(command.prev_current * 10, command.current);
 						command.rpm = motor_rpm + copysignf(300.0, command.current);
-						command.ramp_state = 0;
+						command.tq_ramp_state = 0;
 						break;
 					default:
 						if (copysignf(1.0, command.current) != copysignf(1.0, command.prev_current)) {
 							command.current = fminabs(copysignf(0.1, command.prev_current), command.prev_current);
 							command.rpm = motor_rpm + copysignf(300.0, command.current);
-							command.ramp_state = 3;
+							command.tq_ramp_state = 3;
 						} // End if
-				} // End switch (command.ramp_state)
-				command.prev_current = command.current;
-#else
-				// A simple dual linear torque algorithm to temporarily work around a motor controller
-				// issue. Max regen at pedal zero, linear ramp down to 15% pedal. Linear ramp from zero
-				// to 1.0 torque from 20% to 100% pedal.
-				if (pedal < 0.15) {
-					// Regen ramp
-					command.rpm = 0.0;
-					command.current = REGEN_MAX - (REGEN_MAX / 0.15) * pedal;
-				} else if (pedal > 0.20) {
-					// Power ramp
-					command.rpm = RPM_FWD_MAX;
-					command.current = (CURRENT_MAX / 0.80) * (pedal - 0.20);
-				} else {
-					// 5% coast region
-					command.rpm = 0.0;
-					command.current = 0.0;
-				}
+				} // End switch (command.tq_ramp_state)
 
-				// Equivalent to original no regen version
-				command.current = CURRENT_MAX * pedal;
-				command.rpm = RPM_FWD_MAX;
-#endif
+				// Apply a slew-rate-limit to motor rpm
+				// to try to prevent the 5 Hz drivetrain oscillation.
+#define delta_rpm_limit 28.0	// 28 rpm per 40 ms (700 rpm per second)
+				float delta_rpm = command.rpm - command.prev_rpm;
+				if (delta_rpm > delta_rpm_limit) command.rpm = command.prev_rpm + delta_rpm_limit;
+				else if (delta_rpm < -delta_rpm_limit) command.rpm = command.prev_rpm - delta_rpm_limit;
+
+				command.prev_rpm = command.rpm;
+				command.prev_current = command.current;
 				break;
 			}
 			case MODE_CHARGE:
