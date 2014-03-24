@@ -51,7 +51,7 @@ command_variables	command;
  * Implement Dave's square law algorithm; channel C is ready for a regen pot
  *
  */
-void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c , float motor_rpm)
+void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c , float motor_rpm, float torque_current)
 {
 	float pedal, regen;
 
@@ -82,7 +82,6 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		pedal = pedal / PEDAL_TRAVEL;
 		// Check pedal limit and clip upper travel region
 		if(pedal > 1.0) pedal = 1.0;
-		pedal = 0.15 + 0.85 * pedal;		// Experimental: attempt creep by simulating 15% pedal min
 
 		// Scale regen input to a 0.0 to REGEN_MAX range
 		// Clip lower travel region of regen input
@@ -99,10 +98,12 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
+#if 0
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
 				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
+				pedal = 0.15 + 0.85 * pedal;	// Experimental: attempt creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
 				command.current = (CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm));
 				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
@@ -111,7 +112,19 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX;
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
+#endif
+				// Ross Pink's pedal regen algorithm
+			  	// See http://forums.aeva.asn.au/forums/ac-drive-programming-and-pedal-mapping_topic1859.html
+				// Max torque_current is sqrt(2) * Sine current limit
+				command.rpm = RPM_FWD_MAX * (pedal - 0.2 * torque_current / 283.0);
+				command.current = pedal;
+		//		if (pedal > 0.0)
+		//			command.current = 1.0;
+		//		else
+		//			command.current = 0.0;
 
+
+#if 0
 // Return the (signed) value of whichever floating point argument has the smallest absolute value
 #define fminabs(x, y) ((fabsf(x)<fabsf(y))?(x):(y))
 
@@ -142,14 +155,15 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 							command.tq_ramp_state = 3;
 						} // End if
 				} // End switch (command.tq_ramp_state)
-
+#endif
+#if 0
 				// Apply a slew-rate-limit to motor rpm
 				// to try to prevent the 5 Hz drivetrain oscillation.
-#define delta_rpm_limit 28.0	// 28 rpm per 40 ms (700 rpm per second)
+#define delta_rpm_limit 56.0	// 56 rpm per 40 ms (1400 rpm per second)
 				float delta_rpm = command.rpm - command.prev_rpm;
 				if (delta_rpm > delta_rpm_limit) command.rpm = command.prev_rpm + delta_rpm_limit;
-				else if (delta_rpm < -delta_rpm_limit) command.rpm = command.prev_rpm - delta_rpm_limit;
-
+// Down ramp is dangerous.	else if (delta_rpm < -delta_rpm_limit) command.rpm = command.prev_rpm - delta_rpm_limit;
+#endif
 				command.prev_rpm = command.rpm;
 				command.prev_current = command.current;
 				break;

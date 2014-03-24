@@ -27,7 +27,7 @@
 #define __PEDAL_H_
 
 // Public function prototypes
-void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm);
+void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm, float torque_current);
 
 // Public variables
 typedef struct _command_variables {
