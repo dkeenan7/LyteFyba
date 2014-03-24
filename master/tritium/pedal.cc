@@ -117,7 +117,8 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			  	// See http://forums.aeva.asn.au/forums/ac-drive-programming-and-pedal-mapping_topic1859.html
 				// Max torque_current is sqrt(2) * Sine current limit
 				command.rpm = RPM_FWD_MAX * (pedal - 0.2 * torque_current / 283.0);
-				command.current = pedal;
+				if (command.rpm < 0.0) command.rpm = 0.0;
+				command.current = 0.3 + 0.7 * pedal;
 		//		if (pedal > 0.0)
 		//			command.current = 1.0;
 		//		else
