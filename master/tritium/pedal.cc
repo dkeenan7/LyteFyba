@@ -98,6 +98,11 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
+#if 1
+				// Tritium's pedal mapping -- no regen
+				command.current = pedal * CURRENT_MAX;
+				command.rpm = RPM_FWD_MAX;
+#endif
 #if 0
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
@@ -113,6 +118,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
 #endif
+#if 0
 				// Ross Pink's pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/ac-drive-programming-and-pedal-mapping_topic1859.html
 				// Max torque_current is sqrt(2) * Sine current limit
@@ -123,7 +129,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		//			command.current = 1.0;
 		//		else
 		//			command.current = 0.0;
-
+#endif
 
 #if 0
 // Return the (signed) value of whichever floating point argument has the smallest absolute value
