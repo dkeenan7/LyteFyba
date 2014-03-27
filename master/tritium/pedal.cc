@@ -107,6 +107,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
+
 				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
 				pedal = 0.15 + 0.85 * pedal;	// Experimental: attempt creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
@@ -119,7 +120,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
 #endif
 #if 0
-				// Ross Pink's pedal regen algorithm
+				// Ross Pink's pedal regen algorithm (best with wsConfig mass = 50 kg)
 			  	// See http://forums.aeva.asn.au/forums/ac-drive-programming-and-pedal-mapping_topic1859.html
 				// Max torque_current is sqrt(2) * Sine current limit
 				command.rpm = RPM_FWD_MAX * (pedal - 0.2 * torque_current / 283.0);
@@ -132,13 +133,12 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 #endif
 
 #if 0
-// Return the (signed) value of whichever floating point argument has the smallest absolute value
-#define fminabs(x, y) ((fabsf(x)<fabsf(y))?(x):(y))
-
 				// Apply a slew-rate-limit to torque zero-crossings
 				// to try to avoid problems with backlash causing clutch slip
 				// e.g. On a positive-going zero crosssing we spend 40 ms each
 				// at -10%, -1%, +1%, +10% motor current (ramp states 3, 2, 1, 0).
+// Return the (signed) value of whichever floating point argument has the smallest absolute value
+#define fminabs(x, y) ((fabsf(x)<fabsf(y))?(x):(y))
 				switch (command.tq_ramp_state) {
 					case 3:
 						command.current = command.prev_current * 0.1;
@@ -164,13 +164,65 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				} // End switch (command.tq_ramp_state)
 #endif
 #if 0
-				// Apply a slew-rate-limit to motor rpm
+				// Apply a slew-rate-limit to the motor rpm setpoint
 				// to try to prevent the 5 Hz drivetrain oscillation.
-#define delta_rpm_limit 56.0	// 56 rpm per 40 ms (1400 rpm per second)
+#define delta_rpm_limit 28.0	// 28 rpm per 40 ms (700 rpm per second)
 				float delta_rpm = command.rpm - command.prev_rpm;
 				if (delta_rpm > delta_rpm_limit) command.rpm = command.prev_rpm + delta_rpm_limit;
 // Down ramp is dangerous.	else if (delta_rpm < -delta_rpm_limit) command.rpm = command.prev_rpm - delta_rpm_limit;
+// Even the up ramp is dangerous when changing gears
 #endif
+
+#if 1
+				// Apply a notch filter to the torque setpoint
+				// to try to prevent the 5 Hz drivetrain oscillation.
+
+				// Digital Notch Filter design by Hirano, K.; Nishimura, S.; Mitra, S.K.,
+				// “Design of Digital Notch Filters,” Communications, IEEE Transactions on ,
+				// vol.22, no.7, pp.964,970, Jul 1974.
+				// as described by Krishna Sankar on July 14, 2013 in
+				// http://www.dsplog.com/2013/07/14/digital-notch-filter/
+
+				// The parameters a1 and a2 below determine the center frequency and bandwidth
+				// (or damping ratio) of the notch filter, but not in any straightforward manner.
+				// They must be calculated as follows, where
+				// fs is the sample frequency,
+				// fn is the notch frequency, and
+				// fb is the bandwidth or twice the damping ratio times fn.
+				// Typical damping ratios are 0.4 to 0.7.
+				// omega0T = fn/(fs/2)*pi;
+				// deltaT  = fb/(fs/2)*pi;
+				// a2 = (1-tan(deltaT/2))/(1+tan(deltaT/2));
+				// a1 = (1+a2)*cos(omega0T);
+
+				// fs=25, fn=5, fb=4 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
+// #define a2 0.290526857;
+// #define a1 0.39879473;
+				// fs=25, fn=5, fb=7 Hz (damping 0.7)
+#define a2 -0.094527831
+#define a1 0.279806288
+				static float b1 = 0.0;
+				static float b2 = 0.0;
+/*
+      ,------------------------------.
+      |                b1        b2  v               ^
+in ---+-->(+)--->[z^-1]-+->[z^-1]-->(+)          < arrows >          (+)    adder
+           ^            |            |               v               (x)    multiplier
+           |            v            | g                             (/2)   divide by 2
+           |     a1--->(x)     a2    |            ,-------.          [z^-1] delay
+           |            |      |     |            | wires |
+           |     h      v      v     |            `-------'           |
+           +-----------(+)<---(x)<---+                              --+-- junction
+           |                         v                                |
+           `----------------------->(+)-->(/2)--> out
+*/
+				float g = command.current + b2;
+				float h = a1*b1 - a2*g;
+				b2 = b1;
+				b1 = command.current + h;
+				command.current = (g - h) / 2.0;
+#endif
+				// Record the command rpm and current for next time
 				command.prev_rpm = command.rpm;
 				command.prev_current = command.current;
 				break;
