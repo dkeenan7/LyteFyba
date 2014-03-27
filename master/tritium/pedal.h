@@ -37,6 +37,7 @@ typedef struct _command_variables {
 	unsigned char flags;
 	unsigned char state;
 	float prev_rpm;
+	float prev_rpm_fb;
 	float prev_current;
 	int tq_ramp_state;
 } command_variables;
@@ -53,7 +54,7 @@ extern command_variables command;
 
 
 // Command parameter limits
-#define CURRENT_MAX				1.0					// %, absolute value
+#define CURRENT_MAX				0.9					// %, absolute value
 #define REGEN_MAX				0.5					// %, absolute value
 #define RPM_FWD_MAX				6500				// Forwards max speed, rpm
 #define RPM_REV_MAX				-2500				// Reverse max speed, rpm
