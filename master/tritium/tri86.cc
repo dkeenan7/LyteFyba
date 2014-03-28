@@ -320,6 +320,7 @@ int main( void )
 				// Blink activity LED
 				// events |= EVENT_ACTIVITY;
 
+#if 0	// Don't send here, to make graph plotting from log easier
 				// This is now primarily done in process_pedal()
 				// Queue drive command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_DRIVE;
@@ -327,7 +328,7 @@ int main( void )
 				can_push_ptr->data.data_fp[1] = command.current;
 				can_push_ptr->data.data_fp[0] = command.rpm;
 				can_push();
-
+#endif
 #if 0			// Don't send bus current here, we now send it from handleBMUstatusByte()
 				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
