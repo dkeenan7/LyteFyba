@@ -202,11 +202,23 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 // #define a2 0.117402225
 // #define a1 0.645381024
 				// fs=25, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-#define a2 0.268847301
-#define a1 0.330968041
+// #define a2 0.268847301
+// #define a1 0.330968041
 				// fs=25, fn=5.2, fb=7.28 Hz (damping 0.7)
 // #define a2 -0.130161297
 // #define a1 0.226890037
+				// fs=100, fn=3.4, fb=2.72 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
+// #define a2 0.842197516
+// #define a1 1.800320909
+				// fs=100, fn=3.4, fb=4.76 Hz (damping 0.7)
+// #define a2 0.738126025
+// #define a1 1.698615159
+				// fs=100, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
+// #define a2 0.767659797
+// #define a1 1.674147598
+				// fs=100, fn=5.2, fb=7.28 Hz (damping 0.7)
+#define a2 0.622348323
+#define a1 1.536523346
 				static float b1 = 0.0;
 				static float b2 = 0.0;
 /*
