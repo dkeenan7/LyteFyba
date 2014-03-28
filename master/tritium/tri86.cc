@@ -196,7 +196,7 @@ int main( void )
 #if !PEDAL_ON_VEL		// If not processing on 25 Hz velocity packets, do pedal commands at 100 Hz
 			// Update motor commands based on pedal and slider positions and actual rpm
 			// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
-			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
+			if (!bDCUb) process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
 #endif
 			// Track current operating state
 			switch(command.state){
