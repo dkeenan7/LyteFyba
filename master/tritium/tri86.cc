@@ -20,6 +20,8 @@
  *
  */
 
+#define PEDAL_ON_VEL 0						// 1 for pedal commands to be sent on receipt of velocity packets
+
 // Include files
 #include <msp430x24x.h>
 //#include <signal.h>
@@ -191,6 +193,11 @@ int main( void )
 			// Update current state of the switch inputs
 			update_switches(&switches, &switches_diff);
 
+#if !PEDAL_ON_VEL		// If not processing on 25 Hz velocity packets, do pedal commands at 100 Hz
+			// Update motor commands based on pedal and slider positions and actual rpm
+			// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
+			process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
+#endif
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
@@ -409,9 +416,11 @@ int main( void )
 						else
 							events &= (unsigned)~EVENT_SLOW;
 						motor_rpm = can.data.data_fp[0];
+#if PEDAL_ON_VEL
 						// Update motor commands based on pedal and slider positions and actual rpm
 						// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
 						process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
+#endif
 						if (command.state == MODE_D && tacho_display == RPM)
 							// Display motor rpm x 1000 on tacho (shows DC current in charge mode)
 							gauge_tach_update( motor_rpm );
