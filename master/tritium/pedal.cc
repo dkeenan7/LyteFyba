@@ -195,12 +195,18 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// a2 = (1-tan(deltaT/2))/(1+tan(deltaT/2));
 				// a1 = (1+a2)*cos(omega0T);
 
-				// fs=25, fn=5, fb=4 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-// #define a2 0.290526857;
-// #define a1 0.39879473;
-				// fs=25, fn=5, fb=7 Hz (damping 0.7)
-#define a2 -0.094527831
-#define a1 0.279806288
+				// fs=25, fn=3.8, fb=3.04 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
+// #define a2 0.426783712;
+// #define a1 0.824071326;
+				// fs=25, fn=3.8, fb=5.32 Hz (damping 0.7)
+// #define a2 0.117402225
+// #define a1 0.645381024
+				// fs=25, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
+#define a2 0.268847301
+#define a1 0.330968041
+				// fs=25, fn=5.2, fb=7.28 Hz (damping 0.7)
+// #define a2 -0.130161297
+// #define a1 0.226890037
 				static float b1 = 0.0;
 				static float b2 = 0.0;
 /*
@@ -209,11 +215,11 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 in ---+-->(+)--->[z^-1]-+->[z^-1]-->(+)          < arrows >          (+)    adder
            ^            |            |               v               (x)    multiplier
            |            v            | g                             (/2)   divide by 2
-           |     a1--->(x)     a2    |            ,-------.          [z^-1] delay
+           |     a1--->(x)    -a2    |            ,-------.          [z^-1] delay
            |            |      |     |            | wires |
            |     h      v      v     |            `-------'           |
            +-----------(+)<---(x)<---+                              --+-- junction
-           |                         v                                |
+           |                       _ v                                |
            `----------------------->(+)-->(/2)--> out
 */
 				float g = command.current + b2;
