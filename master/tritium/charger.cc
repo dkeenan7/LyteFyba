@@ -79,7 +79,7 @@ void chgr_timer() {				// Called every 10 ms timer tick, for charger related pro
 		fault();						// Turn on fault LED (eventually)
 	}
 	// If we're DCU-A and not in drive mode, display the charger currents on the tacho
-	if (!bDCUb && (command.state != MODE_D)) {
+	if (!bDCUb && (command.state == MODE_CHARGE)) {
 		if (++chgr_dsp_ctr == 300) {				// 3 second display cycle
 			chgr_dsp_ctr = 0;
 			gauge_tach_update(uChgrCurrA * 100);	// 2 seconds displaying charger A current

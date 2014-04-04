@@ -98,18 +98,18 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
-#if 1
+#if 0
 				// Tritium's pedal mapping -- no regen
 				command.current = pedal * CURRENT_MAX;
 				command.rpm = RPM_FWD_MAX;
 #endif
-#if 0
+#if 1
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
-				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
 
+				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
 				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
-				pedal = 0.15 + 0.85 * pedal;	// Experimental: attempt creep by simulating 15% pedal min
+				pedal = 0.15 + 0.85 * pedal;	// Implement creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
 				command.current = (CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm));
 				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
@@ -217,8 +217,14 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 // #define a2 0.767659797
 // #define a1 1.674147598
 				// fs=100, fn=5.2, fb=7.28 Hz (damping 0.7)
-#define a2 0.622348323
-#define a1 1.536523346
+// #define a2 0.622348323
+// #define a1 1.536523346
+				// fs=100, fn=4.2, fb=5.88 Hz (damping 0.7)
+#define a2 0.685124545
+#define a1 1.626788294
+				// fs=100, fn=6.0, fb=8.40 Hz (damping 0.7)
+// #define a2 0.574561111
+// #define a1 1.463989897
 				static float b1 = 0.0;
 				static float b2 = 0.0;
 /*
