@@ -125,12 +125,15 @@ PIEZO		EQU		1<<0			; Piezo on P1.0
 ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
 ; Port 2 bit masks
 BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
+RELAYm		EQU		1<<6			; IMU relay for HazV- test on pin P2.6
 ERRLED		EQU		1<<7			; Error LED (red) on P2.7
+RELAYp		EQU		1<<7			; IMU relay for HazV+ test on P2.7
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$6				; ADC channel number for link voltage
+TouchVChan	EQU		$3				; ADC channel number for touch voltage (IMUs only)
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; Serialio definitions (Here because used in initialisation)
@@ -269,9 +272,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; no way to get differential outputs from that without external hardware.
 			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
 			mov.b	#ACTLED,&P1OUT				; Turn off (inverted) ActLED
-			mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ActLED, VREFp, TX bits and piezo to output
+			cmp.b	#0,&infoID					; If we're not an IMU
+			_IF		_NE
+				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+			_ELSE
+				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			_ENDIF
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off
+			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if we're IMU)
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
 
 			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
@@ -300,15 +308,21 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
-			mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			cmp.b	#0,&infoID					; If we're not an IMU (Insulation Monitoring Unit)
+			_IF		_NE
+				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			_ELSE
+				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			_ENDIF
 			; Initialise ADC10
 			; SREF_1	= +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT	= connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
 			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
-			; Other ADC10 initialisation is done every time "measure" is called, to save code
+			; Other ADC10 initialisation is done every time "measure" is called, to save code space
 
 ;
 ; Initialise the command character interpreter
@@ -388,12 +402,15 @@ DoMeasurement:
 			push	R10						; Save measurement for undervoltage stress calc
 
 			; Set bypass as required
-			cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to the bypass threshold
-			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-			movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-			cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
-			CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-			movBits_B	R8,#ALL_NBYP,&localStatus ; Move only the #ALL_NBYP bit from R8 to &localStatus.
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF		_NE
+				cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to the bypass threshold
+				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
+				cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
+				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only the #ALL_NBYP bit from R8 to &localStatus.
+			_ENDIF
 
 			; Calculate stress due to overvoltage
 			push	R10						; Measurement for overvoltage stress calc
@@ -633,7 +650,7 @@ DoPassword:
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
-			clr.b	&P2OUT				; Set bypass and error LED off
+			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised a password

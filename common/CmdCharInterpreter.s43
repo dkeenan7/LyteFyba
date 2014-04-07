@@ -91,8 +91,8 @@ MinusROT	MACRO
 ; It contains one word per command character from $21 to $7F.
 ; That word is the address of the code that implements the operation.
 
-_LO_CMDCHR	EQU	' '+1						; Lowest definable command-character is the char after space
-_HI_CMDCHR	EQU	$7F							; Highest definable command-character is the char after space
+_LO_CMDCHR	EQU	' '+1						; Lowest definable cmd-character is char after space, "!"
+_HI_CMDCHR	EQU	$7F							; Highest definable cmd-character has low 7 bits set, DEL
 
 _CMDCHRTBL	EQU	$FDEE-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest used
 											; interrupt vector (FDEE is used for the JTAGstart "vector")
@@ -255,7 +255,7 @@ ACCEPT
 			bic.b	#bDontInterpret,&intFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
-		; Default case, if not CR or BS
+		; Default case, if not CR, BS, XON, XOFF or ESC
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer

@@ -263,17 +263,56 @@ _prettyPrint:
 		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
+;
+; TouchVolt ( -- )
+; Transmit the touch voltage measurement in millivolts (0 to 4095 mV)
+;
+		xCODE		'T',touchVolt,_touchVolt
+		cmp.b	#0,&infoID				; If we're an IMU
+		_IF		_EQ
+			call		#touchV				; Return cell voltage in millivolts in R10
+			mov			#'T',Rthd			; Type is touch Voltage
+			mov			R10,Rsec			; Result in millivolts
+			mov			#4,Rtos				; Print 4 digits
+			call		#_prettyPrint		; Call pretty-print
+		_ENDIF
+		ret
+
+#if PROG_START < $F800	// Commented out if need to save space
+;
+; Turn on or off bypass resistors (relay- on IMU) ( bool -- )
+;
+		xCODE	'y',bypass,_bypass
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
+;		pop		Rtos				; Remove operand
+		ret
+;
+; Turn on or off relay+ on IMU ( bool -- )
+;
+		xCODE	'Y',relayP,_relayP
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
+;		pop		Rtos				; Remove operand
+		ret
+#endif
 
 ;
-; Turn on or off the error LED (bool -- )
+; Turn on or off the error LED and piezo beeper (bool -- )
 ;
 		xCODE	'e',errorLed,_errorLed
 		tst		Rtos
 		_IF		_Z
-			bic.b	#ERRLED,&P2OUT			; Turn off the error LED
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF	_NE
+				bic.b	#ERRLED,&P2OUT			; Turn off the error LED
+			_ENDIF
 			bic.b	#PIEZO,&P1SEL			; Short out the piezo
 		_ELSE
-			bis.b	#ERRLED,&P2OUT			; Turn on the error LED
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF	_NE
+				bis.b	#ERRLED,&P2OUT			; Turn on the error LED
+			_ENDIF
 			bis.b	#PIEZO,&P1SEL			; Make the piezo squeal
 		_ENDIF
 
