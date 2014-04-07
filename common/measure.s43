@@ -5,7 +5,7 @@
 
 ; measure
 ; Input:  R8 = analog channel number shifted left 12 bits.
-; 			   e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
+; 			   e.g. $7000 for cell voltage, $A000 for temperature, $6000 for link voltage.
 ; Output: R8 = uncalibrated 12.2-bit fixed-point result.
 ; Trashes R9-R10.
 ; Formerly assumed 4 MHz MCLK.
@@ -218,4 +218,11 @@ linkV:
 				_ENDIF
 			_ENDIF
 			ret
+
+touchV:
+; Trashes: R8, R9
+; Output: R10 = calibrated in millivolts, approx range 0 to 4095
+			mov		#TouchVChan<<12,R8
+			jmp		measAndScale				; Tail-call measAndScale and return
+
 

@@ -352,17 +352,6 @@ failCompare mov		#3,rERR
 #endif
 
 
-#if PROG_START < $F800	// Commented out if need to save space
-;
-; Turn on or off bypass resistors ( bool -- )
-;
-		xCODE	'y',bypass,_bypass
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
-;		pop		Rtos				; Remove operand
-		ret
-#endif
-
 ;
 ; f command ( -- )
 ; This outputs a fixed frequency to the error LED and LI (Link in) reconfigured as an output

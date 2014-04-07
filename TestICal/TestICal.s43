@@ -69,6 +69,7 @@
 CellVChan	EQU		$7				; ADC channel number for cell voltage
 TempChan	EQU		$A				; ADC channel number for temperature
 LinkVChan	EQU		$6				; ADC channel number for link voltage
+TouchVChan	EQU		$3				; ADC channel number for touch voltage (IMUs only)
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
@@ -231,9 +232,14 @@ initialise:
 			; bottom of the link voltage divider, so we can test with paralleled boards,
 			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
 			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
-			mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ActLED, VREFp, TX bits and PIEZO to output
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF		_NE
+				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+			_ELSE
+				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			_ENDIF
 			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off
+			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off (RLY- and RLY+ if we're an IMU)
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
 
 			cmp.b	#DATAVERS,&infoDataVers
@@ -251,8 +257,14 @@ initialise:
 ;
 ; Initialise the ADC10
 ;
-			; Enable cell and link analog inputs. Enable ADC function of P1.4 (Vref+ out)
-			mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			cmp.b	#0,&infoID					; If we're not an IMU (Insulation Monitoring Unit)
+			_IF		_NE
+				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			_ELSE
+				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+			_ENDIF
 			; Initialise ADC10
 			; SREF_1    = +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)

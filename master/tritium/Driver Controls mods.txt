@@ -1,3 +1,7 @@
+Here is the procedure for modifying a Tritium Driver Controls Unit to read the voltage of its nominally 12 V supply (the auxiliary battery) instead of the reversing light current.
+
+Cut U10 pin 4, replace R20 with 160k (0603 or 0805 SMD) and put a (leaded) 820k from U10 pin 6 to the ungrounded side of R20.
+
 Here is the procedure for modifying a Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins.
 
 Pin  Description
