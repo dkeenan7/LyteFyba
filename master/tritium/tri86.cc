@@ -79,6 +79,8 @@ unsigned int uChgrCurrLim = CHGR_CURR_LIMIT - ((CHGR_CURR_LIMIT+2)/4);
 												// Default to medium current limit. Integer tenths of
 												//	an ampere, e.g. 41 means 4.1 A.
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
+bool bAuxBatNeedsCharge = false;				// True if auxiliary battery (12 V) needs charging
+unsigned int iAuxBatMilliVolts = 0;				// Voltage of auxiliary battery in millivolts
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
 enum TachoDisplayType {RPM, PWR, TRQ, BATV, AUXV, LIM};
@@ -89,6 +91,19 @@ TachoDisplayType tacho_display = RPM;
 void fault() {
 	events |= EVENT_FAULT;				// Breakpoint this instruction and use stack backtrace
 										//	(but beware the compiler may well inline it)
+}
+
+// Allow use of the hardware multiplier for mixed (16x16=32 bit) multiplication
+inline unsigned long ULongMultiplyUInts ( unsigned int op1, unsigned int op2)
+{
+	__dint();			// Disable interrupts, in case they use hardware multiply
+	MPY  = op1;			// Unsigned multiply
+	OP2  = op2;
+	// Allow accessing multiplier result as an unsigned long instead of two unsigned ints.
+	static volatile unsigned long RESULONG asm("0x013A");
+	unsigned long result = RESULONG;
+	__eint();			// Enable interrupts
+	return result;
 }
 
 // Main routine
@@ -187,6 +202,10 @@ int main( void )
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
 			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
+			iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 30625) >> 16);
+			if (iAuxBatMilliVolts < 12500) bAuxBatNeedsCharge = true;
+			if (iAuxBatMilliVolts > 14000) bAuxBatNeedsCharge = false;
+
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
 
@@ -201,11 +220,18 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					P5OUT &= (uchar)~LED_GEAR_ALL; // Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
-													// Stop requesting brakelights if we're DCU-A (LED_GEAR_3)
-													// Stop indicating charge mode if we're DCU-B (LED_GEAR_3)
-													// Stop indicating charge mode if we're DCU-B (LED_GEAR_4)
-					P1OUT &= (uchar)~CHG_CONT_OUT; // Turn off our charger contactors
+					P5OUT &= (uchar)~LED_GEAR_ALL;
+							// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
+							// Stop requesting brakelights from DCU-B if we're DCU-A (LED_GEAR_3).
+							// Stop telling DCU-A we're in charge mode if we're DCU-B (LED_GEAR_3).
+							// Stop telling DCU-A we're available to control brakelights
+							// on heavy regen if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
+
+					if (bAuxBatNeedsCharge && !(switches & SW_CRASH))
+						P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
+					else
+						P1OUT |= (uchar)CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
+
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
@@ -375,7 +401,7 @@ int main( void )
 				// Display 12V battery voltage on tacho, with expanded scale V-10
 				// Assumes DCU-A has been modified so BulbSense2 (Reversing light current sense) is
 				// replaced with a voltage divider off the 12 V supply (820k above 160k).
-				gauge_tach_update(ADC12MEM5 * 3.7384 - 10000 );
+				gauge_tach_update(iAuxBatMilliVolts - 10000 );
 
 		} // End of if((events & EVENT_COMMS) && !bDCUb) // Every 100 ms
 

@@ -10,7 +10,7 @@
 #define short_accum int	// s7.8 fixed point, range -128.0 to almost +128.0
 
 class pid {
-//	fract		set_point;			// Desired set point
+//	fract		set_point;			// Desired set point, always zero in this implementation
 	fract		prev_error;			// Previous error
 	fract		prev_deriv;			// Previous derivative, to find second derivative
 	fract		prev_output;		// Previous output
@@ -46,7 +46,7 @@ inline int sat_minus (register int x, register int y)
 	: "=r" (x) 			/* output %0 is any reg and is x */
 	: "r" (y), "0" (x)	/* input %1 is any reg and is y, another input is same reg as output (%0) and is x */
 	: 					/* no clobbered regs */ );
-	
+
 	return x;
 #endif
 }
