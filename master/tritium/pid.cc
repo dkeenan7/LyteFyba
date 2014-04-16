@@ -1,7 +1,6 @@
 // Implementation for a simple PID controller
-// State variables like measure, set_point and the output are assumed to be signed 2.14 fixedpoint
-// values.
-// These values are also "normalised", i.e. biased such that the set point is zero and scaled to fit
+// Input and output are treated as signed 0.15 fixed point values and the setpoint is zero, so other
+// values must be "normalised", i.e. biased such that the set point is zero and scaled to fit
 // within -1.0 .. +1.0.
 // So for example a stress setpoint of 3.5 (of a maximum of 7) is represented as 0, with a measured
 // stress of +7 biased to +3.5, and shifted by 14-3 = 11 bits to become $1C00; similarly 0 maps to -3.5
@@ -9,7 +8,7 @@
 // The output will be clipped at +1.0 and -1.0, and should be scaled and biased appropriately to the
 // control signal.
 
-// Control constants Kp, Ki, and Kd are assumed to be 8.8 fixed point signed.
+// Control constants Kp, Ki, and Kd are treated as signed 7.8 fixed point.
 
 // Note that we use the "velocity form" of the classical PID equations, to avoid "integral wind-up".
 // The charger algorithm would be particularly upset by this, causing overflows and worse delaying
