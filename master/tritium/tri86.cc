@@ -228,9 +228,9 @@ int main( void )
 							// on heavy regen if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
 
 					if (bAuxBatNeedsCharge && !(switches & SW_CRASH))
-						P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
+						P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
 					else
-						P1OUT |= (uchar)CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
+						P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
 
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
