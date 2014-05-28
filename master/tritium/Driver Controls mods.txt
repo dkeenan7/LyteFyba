@@ -1,8 +1,12 @@
+The pulldown for IGN_START (R39) and the pullups for FUEL_DOOR (charge cable) (R47) and GEAR_2 (crash switch) (R36) need to have 1k resistors soldered in parallel with the existing 10k to avoid spurious triggering by noise in drive mode.
+
+
 Here is the procedure for modifying a Tritium Driver Controls Unit to read the voltage of its nominally 12 V supply (the auxiliary battery) instead of the reversing light current.
 
 Cut U10 pin 4, replace R20 with 160k (0603 or 0805 SMD) and put a (leaded) 820k from U10 pin 6 to the ungrounded side of R20.
 
-Here is the procedure for modifying a Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins.
+
+Here is the procedure for modifying a Tritium Driver Controls Unit to bring two async serial ports out on DB37 pins. But we don't do this any more. We add Industrial Fiber Optic connectors instead. See 'DCU IFO mods.jpg'.
 
 Pin  Description
 ------------------------------

@@ -736,6 +736,11 @@ void adc_init( void )
 #pragma vector=TIMERB0_VECTOR
 __interrupt void timer_b0(void)
 {
+	static unsigned char tick_rate_count = GAUGE_FREQ/TICK_RATE;
+	static unsigned char comms_count = COMMS_SPEED;
+	static unsigned char activity_count;
+	static unsigned char fault_count;
+
 	// Update gauge PWM outputs if necessary
 	if (events & EVENT_GAUGE1) {
 		events &= (unsigned)~EVENT_GAUGE1;
@@ -752,7 +757,48 @@ __interrupt void timer_b0(void)
 		events &= (unsigned)~EVENT_GAUGE4;
 		TBCCR1 = gauge.g4_duty;
 	}
-}
+
+	// Check if it's time for a 100 Hz tick.
+	// This used to be done with a Timer A interrupt but we want those for a software UART.
+	tick_rate_count--;
+	if (tick_rate_count == 0) {
+		tick_rate_count = GAUGE_FREQ/TICK_RATE;
+		events |= EVENT_TIMER;	// Trigger timer based events
+
+		comms_count--;
+		if( comms_count == 0 ){
+			comms_count = COMMS_SPEED;
+			events |= EVENT_COMMS;	// Trigger comms events (command packet transmission)
+		}
+
+		// Check for CAN activity events and blink LED
+		if(events & EVENT_ACTIVITY){
+			events &= (unsigned)~EVENT_ACTIVITY;
+			activity_count = ACTIVITY_SPEED;
+			LED_PORT &= (uchar)~LED_GREENn;
+		}
+		if( activity_count == 0 ){
+			LED_PORT |= LED_GREENn;
+		}
+		else {
+			activity_count--;
+		}
+
+		// MVE: similarly for FAULT LED
+		if (events & EVENT_FAULT) {
+			events &= (unsigned)~EVENT_FAULT;
+			fault_count = FAULT_SPEED;
+			LED_PORT &= (uchar)~LED_REDn;
+			P2SEL |= 0x01;  	// Turn on beeper
+		}
+		if (fault_count == 0) {
+			LED_PORT |= LED_REDn;
+			P2SEL &= (uchar)~0x01;  	// Turn off beeper
+		}
+		else
+			--fault_count;
+	} // End if (tick_rate_count == 0)
+} // End timer_b0 interrupt
 
 /*
  * Timer B overflow and CCR1-6 Interrupt Service Routine
@@ -782,7 +828,7 @@ __interrupt void timer_b1(void)
 		// Update the pulse frequency output timer
 		gauge_freq_timer++;
 	}	// End If the interrupt is from CCR6
-}
+} // End timer_b1 interrupt
 
 /*
  * Timer A CCR0 Interrupt Service Routine
@@ -793,6 +839,7 @@ __interrupt void timer_b1(void)
 #pragma vector=TIMERA0_VECTOR
 __interrupt void timer_a0(void)
 {
+#if 0
 	static unsigned char comms_count = COMMS_SPEED;
 	static unsigned char activity_count;
 	static unsigned char fault_count;
@@ -835,8 +882,8 @@ __interrupt void timer_a0(void)
 	}
 	else
 		--fault_count;
-
-}
+#endif
+} // End timer_a0 interrupt
 
 /*
  * Collect switch inputs from hardware and fill out current state, and state changes
