@@ -34,6 +34,7 @@
 #include "gauge.h"
 #include "bms.h"
 #include "charger.h"
+#include "voice.h"
 #include "pid.h"
 
 #ifdef __ICC430__								// MVE: attempt to make the source code more IAR friendly, in case
@@ -633,7 +634,8 @@ void io_init( void )
 	P1DIR = BRAKE_OUT | CHG_CONT_OUT | CAN_PWR_OUT | P1_UNUSED;
 
 	P2OUT = 0x00;
-	P2DIR = IN_GEAR_1 | P2_UNUSED; // IN_GEAR_1 now used as piezo speaker output
+	P2DIR = IN_GEAR_1 | IN_GEAR_4 | P2_UNUSED; // IN_GEAR_1 used as piezo beeper output, IN_GEAR_4 as TX
+	P2SEL = IN_GEAR_3 | IN_GEAR_4; // IN_GEAR_3 and 4 used as Timer A software UART RX and TX
 
 //	P3OUT = CAN_CSn | EXPANSION_TXD | LED_REDn | LED_GREENn;
 	P3OUT = CAN_CSn | CHARGER_TXD | BMS_TXD;
@@ -663,17 +665,22 @@ void io_init( void )
 	UC1IE |= UCA1RXIE;						// Enable BMS RX interrupt
 }
 
+#define BITIME		(INPUT_CLOCK/8/9600)	// 9600 baud bit-time in timer A clock cycles
+#define BITIME_5	(BITIME/2)				// half bit-time
+
 
 /*
  * Initialise Timer A
- *	- Provides timer tick timebase at 100 Hz
+ *	- Provides software UART for voice synthesiser
  */
 void timerA_init( void )
 {
-	TACTL = TASSEL_2 | ID_3 | TACLR;			// MCLK/8, clear TAR
-	TACCR0 = (INPUT_CLOCK/8/TICK_RATE);			// Set timer to count to this value = TICK_RATE overflow
-	TACCTL0 = CCIE;								// Enable CCR0 interrrupt
-	TACTL |= MC_1;								// Set timer to 'up' count mode
+	// Timer A control register
+	TACTL = TASSEL_2 | ID_3 | MC_2;				// MCLK/8, continuous mode
+	// Timer A compare 0 (receive) control register
+	TACCTL0 = CM_2+CCIS_1+SCS+CAP+CCIE;			// Falling edge, Input B, Sync, Capture, Enable interrrupt
+	// Timer A compare 1 (transmit) control register
+	TACCTL1 = OUT;								// Set TX output to 1 (idle)
 }
 
 
@@ -732,6 +739,7 @@ void adc_init( void )
 /*
  * Timer B CCR0 Interrupt Service Routine
  *	- Interrupts on Timer B CCR0 match at GAUGE_FREQUENCY (10kHz)
+ *  - Also generates 100 Hz ticks
  */
 #pragma vector=TIMERB0_VECTOR
 __interrupt void timer_b0(void)
@@ -830,60 +838,74 @@ __interrupt void timer_b1(void)
 	}	// End If the interrupt is from CCR6
 } // End timer_b1 interrupt
 
-/*
- * Timer A CCR0 Interrupt Service Routine
- *	- Interrupts on Timer A CCR0 match at 100Hz
- *	- Sets Time_Flag variable
- */
 
+/* Receive interrupt
+ * Timer A CCR0 Interrupt Service Routine
+ *	- Interrupts on Timer A CCR0 capture, for software UART receive
+ */
 #pragma vector=TIMERA0_VECTOR
 __interrupt void timer_a0(void)
 {
-#if 0
-	static unsigned char comms_count = COMMS_SPEED;
-	static unsigned char activity_count;
-	static unsigned char fault_count;
+	static unsigned char BitCntRx = 8;
+	static unsigned char RXData;
 
-
-	// Trigger timer based events
-	events |= EVENT_TIMER;
-
-
-	// Trigger comms events (command packet transmission)
-	comms_count--;
-	if( comms_count == 0 ){
-		comms_count = COMMS_SPEED;
-		events |= EVENT_COMMS;
-	}
-
-	// Check for CAN activity events and blink LED
-	if(events & EVENT_ACTIVITY){
-		events &= (unsigned)~EVENT_ACTIVITY;
-		activity_count = ACTIVITY_SPEED;
-		LED_PORT &= (uchar)~LED_GREENn;
-	}
-	if( activity_count == 0 ){
-		LED_PORT |= LED_GREENn;
-	}
-	else {
-		activity_count--;
-	}
-
-	// MVE: similarly for FAULT LED
-	if (events & EVENT_FAULT) {
-		events &= (unsigned)~EVENT_FAULT;
-		fault_count = FAULT_SPEED;
-		LED_PORT &= (uchar)~LED_REDn;
-		P2SEL |= 0x01;  	// Turn on beeper
-	}
-	if ( fault_count == 0) {
-		LED_PORT |= LED_REDn;
-		P2SEL &= (uchar)~0x01;  	// Turn off beeper
-	}
-	else
-		--fault_count;
-#endif
+	TACCR0 += (unsigned int)BITIME;		// Set time for next bit
+	if (TACCTL0 & CAP) { 				// If in capture mode it's a start bit edge
+		TACCTL0 &= (unsigned)~CAP;			// Switch to compare mode
+		TACCR0 += (unsigned int)BITIME_5;	// First databit 1.5 bits from edge
+	}									// End If in capture mode
+	else {								// Else a data bit was sampled
+		RXData = (unsigned char)(RXData >> 1);// Shift RXData ready for next bit
+		if (TACCTL0 & SCCI) RXData |= (unsigned char)(1<<7);// Store received bit
+		if (--BitCntRx == 0) {				// If this is the last data bit
+			BitCntRx = 8;						// Setup bit counter for next byte
+			TACCTL0 |= CAP;						// Set back to capture mode
+			if (!voice_rx_q.enqueue(RXData))	// Put received data into the queue if there's space
+				fault();							// otherwise Fault if queue is full
+		}									// End if last data bit
+	}									// End Else data bit sampled
 } // End timer_a0 interrupt
+
+
+/* Transmit interrupt
+ * Timer A overflow and CCR1-2 Interrupt Service Routine
+ *	- Interrupts on Timer A CCR1 match, for software UART transmit
+ */
+#pragma vector=TIMERA1_VECTOR
+__interrupt void timer_a1(void)
+{
+	static unsigned char BitCntTx = 10;
+	static unsigned char TXData;
+
+	// First interrupt BitCntTx is 10 (decrements to 9), start bit just sent, LSB needs sending now
+	// 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
+	// 9th interrupt, BitCntTx is 2, MSB just sent, stop bit needs sending now
+	// 10th interrupt, BitCntTx is 1 (decrements to 0), stop bit just sent, need to send idle state;
+	//	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
+
+	if (TBIV == 1 << 1) {				// If the interrupt is from CCR1
+		TACCR1 += (unsigned int)BITIME;		// Set time for next bit
+		if (--BitCntTx != 0) { 				// If not Stop bit initiated
+			if (BitCntTx == 9) {				// If start bit just started
+				voice_tx_q.dequeue(TXData);			// Get next byte from transmit queue
+			}									// End If start bit just started
+			if (TXData & 1)						// If next bit is 1
+				TACCTL1 = OUTMOD_1+CCIE;			// Set TX = TA0 output high
+			else								// Else next bit is 0
+				TACCTL1 = OUTMOD_5+CCIE;			// Set TX = TA0 output low
+			TXData = (unsigned char)(TXData >> 1);// Shift TXData ready for next bit
+			TXData |= (unsigned char)(1<<7);	// Ensure stop and idle bits are like data 1s
+		}									// End If not stop bit initiated
+		else {								// Else Stop bit initiated
+			if (voice_tx_q.empty())				// If TX queue is empty
+				TACCTL1 &= (unsigned)~CCIE;			// Disable TX interrupts
+			else								// Else TX queue not empty
+				TACCTL1 = OUTMOD_5+CCIE;			// Set output mode for start bit
+			BitCntTx = 10; 						// Load bit transition counter: 10 bits
+		}									// End Else Stop bit initiated
+	}									// End If the interrupt is from CCR1
+} // End timer_a1 interrupt
+
 
 /*
  * Collect switch inputs from hardware and fill out current state, and state changes
