@@ -107,6 +107,7 @@ void dint();
 #define MODE_B				5
 #define MODE_D				6
 #define MODE_CHARGE			7
+#define MODE_CRASH			8
 
 // Event timing
 #define INPUT_CLOCK			16000000			// Hz

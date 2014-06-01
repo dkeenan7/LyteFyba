@@ -42,7 +42,7 @@ p   Stress level (Pain) (local to each BMU)
   q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 Q Q Quiet. Stop piezo beeper coming on with error LED
-r ReadCalValue (TestICal only. 'r' is RxState in monitor)
+  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 R R query the Reset log
 s s select

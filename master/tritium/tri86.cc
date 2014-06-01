@@ -228,11 +228,6 @@ int main( void )
 							// Stop telling DCU-A we're available to control brakelights
 							// on heavy regen if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
 
-					if (bAuxBatNeedsCharge && !(switches & SW_CRASH))
-						P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
-					else
-						P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
-
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
@@ -240,8 +235,8 @@ int main( void )
 					}
 
 					if (switches & SW_CRASH)				// if we've crashed
-						next_state = MODE_OFF;				// Stay in the OFF mode
-					else if ((chgr_rx_timer > 0)  			// else if we received data from our charger
+						next_state = MODE_CRASH;			// go to crash mode
+					else if ((chgr_rx_timer > 0)  			// if we received data from our charger
 				/*	|| (switches & SW_CHARGE_CABLE) */ ) {	// or our charge cable is present (disabled until 1k pullup)
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
 						if (bDCUb)							// If DCU-B
@@ -257,12 +252,17 @@ int main( void )
 					else if ((!bDCUb)						// else if we're DCU-A
 					&& !(switches & SW_INH_TRACTION) 		// and DCU-B is not in charge mode (IN_GEAR_3)
 					&& (switches & SW_IGN_START)) {			// and ignition key in start position
-						next_state = MODE_D;				// Go to drive mode
+						next_state = MODE_D;				// Go to Drive mode
 						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
 //						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
 					}
-					else
+					else {	  // Stay in OFF mode
 						next_state = MODE_OFF;
+						if (bAuxBatNeedsCharge)
+							P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
+						else
+							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
+					}
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
 					if (!(switches & SW_IGN_ON)				// if key is off
@@ -272,7 +272,7 @@ int main( void )
 					|| (switches & SW_INH_TRACTION)) { 		// or DCU-B is in charge mode (IN_GEAR_3)
 						next_state = MODE_OFF;				// Go to OFF mode
 					}
-					else {  // Stay in drive  mode
+					else {  // Stay in Drive  mode
 						next_state = MODE_D;
 						// Cycle through the 5 tacho displays on rising edges of IGN_START
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
@@ -292,7 +292,7 @@ int main( void )
 						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
 						chgr_stop();						// Stop the charge controller (PID loop)
 					}
-					else { // Stay in charge  mode
+					else { // Stay in CHARGE  mode
 						next_state = MODE_CHARGE;
 						// Cycle through the 3 charge rates on rising edges of IGN_START
 						if (!bDCUb && (switches & switches_diff & SW_IGN_START)) {
@@ -300,9 +300,18 @@ int main( void )
 							if (uChgrCurrLim > CHGR_CURR_LIMIT)
 								uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
 							SendChgrLimForB(uChgrCurrLim); // Send the new charge current limit to DCU-B
+
+						if ((chgr_state == CHGR_IDLE) && bAuxBatNeedsCharge)
+							P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
+						else
+							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
 						}
 					}
 					break; // End case MODE_CHARGE
+				case MODE_CRASH:
+					if (!(switches & SW_CRASH))  			// if crash switch is reset
+						next_state = MODE_OFF;				// go to OFF mode
+					break; // End case MODE_CRASH
 				default:
 					next_state = MODE_OFF;
 					break;
