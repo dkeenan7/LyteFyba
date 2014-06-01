@@ -256,6 +256,7 @@ in ---+-->(+)--->[z^-1]-+->[z^-1]-->(+)          < arrows >          (+)    adde
 			case MODE_START:
 			case MODE_ON:
 			case MODE_OFF:
+			case MODE_CRASH:
 			default:
 				command.current = 0.0;
 				command.rpm = 0.0;
