@@ -64,14 +64,14 @@ extern command_variables command;
 // Channel A = 0.00 to 5.00 Volts = 0 to 4096 counts
 // Channel B = Unused
 #define ADC_MAX					4096
-#define PEDAL_TRAVEL_MIN		270		// Possibly a little high, but may stop zero pedal jitter
-#define PEDAL_TRAVEL_MAX		3850
+#define PEDAL_TRAVEL_MIN		241
+#define PEDAL_TRAVEL_MAX		3831
 #define PEDAL_TRAVEL			(PEDAL_TRAVEL_MAX - PEDAL_TRAVEL_MIN)
 #define PEDAL_ERROR_MIN			(PEDAL_TRAVEL_MIN >> 1)
 #define PEDAL_ERROR_MAX			((ADC_MAX + PEDAL_TRAVEL_MAX) >> 1)
 #define PEDAL_MISMATCH_MAX		100
 
-// Analog input for linear slider type pot for regenerative strenght control
+// Analog input for hand-adjusted pot for regenerative strength control
 // Channel C = 0.00 to 5.00 Volts = 0 to 4096 counts
 #define REGEN_TRAVEL_MIN		100
 #define REGEN_TRAVEL_MAX		(ADC_MAX - 100)
