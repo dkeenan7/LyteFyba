@@ -54,8 +54,8 @@ extern command_variables command;
 
 
 // Command parameter limits
-#define CURRENT_MAX				0.974				// %, absolute value
-#define REGEN_MAX				0.5					// %, absolute value
+#define CURRENT_MAX				0.974				// %, absolute value, leave room for notch filter overshoot
+#define REGEN_MAX				0.7					// %, absolute value
 #define RPM_FWD_MAX				6500				// Forwards max speed, rpm
 #define RPM_REV_MAX				-2500				// Reverse max speed, rpm
 
@@ -64,8 +64,8 @@ extern command_variables command;
 // Channel A = 0.00 to 5.00 Volts = 0 to 4096 counts
 // Channel B = Unused
 #define ADC_MAX					4096
-#define PEDAL_TRAVEL_MIN		241
-#define PEDAL_TRAVEL_MAX		3831
+#define PEDAL_TRAVEL_MIN		241					// Found by logging ADC12MEM0 values as Misc SP
+#define PEDAL_TRAVEL_MAX		3831				// "
 #define PEDAL_TRAVEL			(PEDAL_TRAVEL_MAX - PEDAL_TRAVEL_MIN)
 #define PEDAL_ERROR_MIN			(PEDAL_TRAVEL_MIN >> 1)
 #define PEDAL_ERROR_MAX			((ADC_MAX + PEDAL_TRAVEL_MAX) >> 1)
