@@ -205,7 +205,7 @@ int main( void )
 
 			iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 30625) >> 16);
 			if (iAuxBatMilliVolts < 12500) bAuxBatNeedsCharge = !bDCUb; // FIXME! when DCU-B analog inputs are fixed
-			if (iAuxBatMilliVolts > 14000) bAuxBatNeedsCharge = false;
+			if (iAuxBatMilliVolts > 14180) bAuxBatNeedsCharge = false;
 
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
@@ -237,7 +237,7 @@ int main( void )
 					if (switches & SW_CRASH)				// if we've crashed
 						next_state = MODE_CRASH;			// go to crash mode
 					else if ((chgr_rx_timer > 0)  			// if we received data from our charger
-				/*	|| (switches & SW_CHARGE_CABLE) */ ) {	// or our charge cable is present (disabled until 1k pullup)
+					|| (switches & SW_CHARGE_CABLE)) {		// or our charge cable is present
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
 						if (bDCUb)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
@@ -266,8 +266,8 @@ int main( void )
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
 					if (!(switches & SW_IGN_ON)				// if key is off
-				//	|| (switches & SW_CRASH) 				// or we've crashed (disabled until 1k pullup)
-				//	|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present (disabled until 1k pullup)
+					|| (switches & SW_CRASH) 				// or we've crashed
+					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
 					|| (chgr_rx_timer > 0)					// or we received data from our charger
 					|| (switches & SW_INH_TRACTION)) { 		// or DCU-B is in charge mode (IN_GEAR_3)
 						next_state = MODE_OFF;				// Go to OFF mode
@@ -628,7 +628,7 @@ void clock_init( void )
 	DCOCTL = CALDCO_16MHZ;
 	P2OUT &= (uchar)~0x01;					// Set P2.0 output to zero. Was IN_GEAR_1 input.
 	P2DIR |= 0x01;					// Set P2.0 direction to output (piezo speaker)
-//	BCSCTL1 = 0x8F;			// FIXME!
+//	BCSCTL1 = 0x8F;					// Only used if calibration values are lost from info flash
 //	DCOCTL = 0x83;
 }
 
@@ -922,48 +922,52 @@ __interrupt void timer_a1(void)
  */
 void update_switches( unsigned int *state, unsigned int *difference)
 {
-	unsigned int old_switches;
-
-	// Save state for difference tracking
-	old_switches = *state;
+	unsigned int switches = 0, old_state;
+	static unsigned int old_switches; // Save old switches for debounce
 
 	// Import switches into register
 
-	if(P2IN & IN_GEAR_4) *state |= SW_MODE_R;
-	else *state &= (unsigned)~SW_MODE_R;
+	if(P2IN & IN_GEAR_4) switches |= SW_MODE_R;
+	else switches &= (unsigned)~SW_MODE_R;
 
-//	if(P2IN & IN_GEAR_3) *state |= SW_MODE_N;	// IN_GEAR_3 now repurposed to inhibit traction
-//	else *state &= (unsigned)~SW_MODE_N;
+//	if(P2IN & IN_GEAR_3) switches |= SW_MODE_N;	// IN_GEAR_3 now repurposed to inhibit traction
+//	else switches &= (unsigned)~SW_MODE_N;
 	// Inh_traction is active (inhibit) when high at DB37, so active low at the port
-	if (P2IN & IN_GEAR_3) *state &= (unsigned)~SW_INH_TRACTION;
-	else *state |= SW_INH_TRACTION;
+	if (P2IN & IN_GEAR_3) switches &= (unsigned)~SW_INH_TRACTION;
+	else switches |= SW_INH_TRACTION;
 
-//	if(P2IN & IN_GEAR_2) *state |= SW_MODE_B;	// IN_GEAR_2 now repurposed to crash switch input
-//	else *state &= (unsigned)~SW_MODE_B;
+//	if(P2IN & IN_GEAR_2) switches |= SW_MODE_B;	// IN_GEAR_2 now repurposed to crash switch input
+//	else switches &= (unsigned)~SW_MODE_B;
 	// Crash switch is active (crash state) when low at DB37, so active high at the port
-	if (P2IN & IN_GEAR_2) *state |= SW_CRASH;
-	else *state &= (unsigned)~SW_CRASH;
+	if (P2IN & IN_GEAR_2) switches |= SW_CRASH;
+	else switches &= (unsigned)~SW_CRASH;
 
-//	if(P2IN & IN_GEAR_1) *state |= SW_MODE_D;	// IN_GEAR_1 now repurposed to piezo speaker output
-//	else *state &= (unsigned)~SW_MODE_D;
+//	if(P2IN & IN_GEAR_1) switches |= SW_MODE_D;	// IN_GEAR_1 now repurposed to piezo speaker output
+//	else switches &= (unsigned)~SW_MODE_D;
 
-	if(P1IN & IN_IGN_ACCn) *state &= (unsigned)~SW_IGN_ACC;
-	else *state |= SW_IGN_ACC;
+	if(P1IN & IN_IGN_ACCn) switches &= (unsigned)~SW_IGN_ACC;
+	else switches |= SW_IGN_ACC;
 
-	if(P1IN & IN_IGN_ONn) *state &= (unsigned)~SW_IGN_ON;
-	else *state |= SW_IGN_ON;
+	if(P1IN & IN_IGN_ONn) switches &= (unsigned)~SW_IGN_ON;
+	else switches |= SW_IGN_ON;
 
-	if(P1IN & IN_IGN_STARTn) *state &= (unsigned)~SW_IGN_START;
-	else *state |= SW_IGN_START;
+	if(P1IN & IN_IGN_STARTn) switches &= (unsigned)~SW_IGN_START;
+	else switches |= SW_IGN_START;
 
-	if(P1IN & IN_BRAKEn) *state &= (unsigned)~SW_BRAKE;
-	else *state |= SW_BRAKE;
+	if(P1IN & IN_BRAKEn) switches &= (unsigned)~SW_BRAKE;
+	else switches |= SW_BRAKE;
 
-	if(P1IN & IN_FUEL) *state |= SW_CHARGE_CABLE;
-	else *state &= (unsigned)~SW_CHARGE_CABLE;
+	if(P1IN & IN_FUEL) switches |= SW_CHARGE_CABLE;
+	else switches &= (unsigned)~SW_CHARGE_CABLE;
+
+	// Debounce, 10 ms
+	old_state = *state;			// Save state for difference tracking
+	*state =  (switches & old_switches)
+		   | ((switches | old_switches) & old_state);
+	old_switches = switches;	// Save switches for next debounce
 
 	// Update changed switches
-	*difference = *state ^ old_switches;
+	*difference = *state ^ old_state;
 }
 
 /*
