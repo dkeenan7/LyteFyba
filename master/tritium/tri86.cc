@@ -300,11 +300,12 @@ int main( void )
 							if (uChgrCurrLim > CHGR_CURR_LIMIT)
 								uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
 							SendChgrLimForB(uChgrCurrLim); // Send the new charge current limit to DCU-B
-
-						if ((chgr_state == CHGR_IDLE) && bAuxBatNeedsCharge)
-							P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
-						else
-							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
+						}
+						if (chgr_state == CHGR_IDLE) {
+							if (bAuxBatNeedsCharge)
+								P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our chgr (and bat) contactors
+							else
+								P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our chgr (and bat) contactors
 						}
 					}
 					break; // End case MODE_CHARGE
