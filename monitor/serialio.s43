@@ -41,8 +41,8 @@ SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/StatusFreq+(1<<15))/(1<<16)
 											; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
 MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
-Bitime		EQU		(TAfreq+4800)/9600		; 104.17 us bit length in timer clock periods
-Bitime_5	EQU		Bitime/2				; 0.5 bit length
+BitTime96	EQU		(TAfreq+4800)/9600		; 104.17 us bit length in timer clock periods for 9600 baud
+BitTime24	EQU		(TAfreq+1200)/4800		; 416.68 us bit length in timer clock periods for 2400 baud
 
 
 ;-------------------------------------------------------------------------------
@@ -133,7 +133,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
 
 											; (6) for interrupt accepted
-			add.w	#Bitime,&TACCRt			; (5) Time to next bit, when next bit is due
+			add.w	&BitTime,&TACCRt		; (6) Time to next bit, when next bit is due
 			dec.b	&BitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
@@ -193,11 +193,14 @@ TIOV_ISR:
 ;
 ;	Receive interrupt
 ;
-RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
+RX_ISR:		push	R9
+			add		&BitTime,&TACCRr		; (6) Time to next bit
 			bit		#CAP,&TACCTLr			; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
-				bic		#CAP,&TACCTLr			; (5) Switch to compare mode
-				add		#Bitime_5,&TACCRr		; (5) First databit 1.5 bits from edge
+				bic		#CAP,&TACCTLr		; (5) Switch to compare mode
+				mov		&BitTime,R9			; (3)
+				rra		R9					; (1)
+				add		R9,&TACCRr			; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
 				bit		#SCCI,&TACCTLr			; (4) Sampled bit to carry
 				rrc.b	&RXData					; (4) Store received bit
@@ -207,7 +210,6 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 					bis		#CAP,&TACCTLr			; Set back to capture mode
 
 					; Put received data into the queue if there's space, otherwise it's lost
-					push	R9
 					mov.b	&rxwr,R9				; Get the write index
 					mov.b	&RXData,rxbuf(R9)		; Tentatively write the character to the receive queue
 													;  there's always at least one free space,
@@ -220,10 +222,10 @@ RX_ISR:		add		#Bitime,&TACCRr			; (5) Time to next bit
 						bic		#CPUOFF,2(SP)			; When return, wake CPU if needed
 														;	(note 2 bytes (saved R9) on stack)
 					_ENDIF							; Endif queue not full
-					pop		R9
 
 				_ENDIF							; Endif last data bit
 			_ENDIF							; Endif data bit sampled
+			pop		R9
 			reti							; (5) Return from interrupt
 
 
