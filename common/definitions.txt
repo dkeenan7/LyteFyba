@@ -18,8 +18,8 @@ $ $ dollarHex (set number input mode to hex for next literal)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
   a ADCScaled or r(A)wVoltage (TestICal only)
-  c Calibrate
 c   Charging, '1c' to include undertemp and exclude undervolt as stresses
+  c Calibrate
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (puts MCLK/22 = 182.5 - 183.5 kHz on TX+, TX- and activity LED)
@@ -28,21 +28,22 @@ h h Hex output
   i set(I)Ds
 I I Insulation test - touch current in mA (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
-K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
+K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
 m m e(m)itCharacter
 n n emit(n)um
 N N Number of cells
+o   C(o)ntr(o)l Charger
   o Change Octave of piezo alarm
   O StOre wOrd (poke wOrd) [disabled to save space]
 p   Stress level (Pain) (local to each BMU)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
-  q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
+  q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Q Q Quiet. Stop piezo beeper coming on with error LED
-  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
+  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
 R R query the Reset log
 s s select
 S S deSelect
@@ -55,8 +56,8 @@ x x e(x)clusive   (single-BMU interaction mode)
 X X e(X)clude     (single-BMU ignore mode)
 y y b(y)pass (Yellow) (relaY- on IMU)
 Y Y relaY+ (on IMU only)
-  Z Ztore byte (poke byte)
   z send nulls (send (z)eros)
+  Z Ztore byte (poke byte)
 {   resetWorstStress :-{
 \ \ exit or comment
 ^ ^ reset the Reset log
@@ -92,6 +93,7 @@ t t Temperature
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each BMU)
 c   Charging, '1c' to include undertemp and exclude undervolt as stresses
+o   C(o)ntr(o)l Charger
 T T Touch voltage (only when ID=0, insulation monitoring unit)
 I I Insulation test - touch current in mA (only when ID=0, insulation monitoring unit)
 
