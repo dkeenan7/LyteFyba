@@ -145,7 +145,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ;
 ; RAM allocation
 ;
-				ORG		$200			; Start of RAM. Ends at $27F
+				ORG		$200		; Start of RAM. Ends at $27F
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
@@ -159,7 +159,7 @@ sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
 bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
-bNotFreezeStress EQU	1<<2		; Zero if undertemp should be included as stress (charging or regen)
+bCharging		EQU		1<<2		; 1 if charging or regen
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
@@ -419,12 +419,17 @@ DoMeasurement:
 			push	#1						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
-			; Calculate stress due to undervoltage
+			; Calculate stress due to undervoltage if required
+			bit.b	#bCharging,&monFlags	; If not charging (including not regen braking)
+			_IF		_Z
 											; Measurement saved on stack earlier
 			push	#UV_STEP				; For every UV_STEP (millivolts)
 			push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
 			push	#2						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
+			_ELSE
+				pop		R10						; Drop unused voltage measurement off stack
+			_ENDIF
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
@@ -438,8 +443,8 @@ DoMeasurement:
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
 			; Calculate stress due to undertemperature if required
-			bit.b	#bNotFreezeStress,&monFlags	; If charging (including regen braking)
-			_IF		_Z
+			bit.b	#bCharging,&monFlags	; If charging (including regen braking)
+			_IF		_NZ
 												; Measurement saved on stack earlier
 				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress

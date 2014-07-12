@@ -17,10 +17,10 @@
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 
-; Freezing is stress ( boolean -- )			; 1 when charging or regenning, 0 when driving
-			xCODE	'f',FreezeIsStress,_FreezeIsStress
+; Charging ( boolean -- )			; 1 when charging or regenning, 0 when driving
+			xCODE	'c',Charging,_Charging
 			allBitsIfZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#bNotFreezeStress,&monFlags ; Move only bNotFreezeStress from Rtos to monFlags
+			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
 #if PROG_START < $F800		// Commented out if need to save space
@@ -33,7 +33,7 @@
 #endif
 
 ; Comms error ( -- )						; Report temporary master's ID
-			xCODE	'c',commsError,_commsError ; 'c' for comms error
+_commsError	; No command character since it never needs to be interpreted and 'c' is used for Charging
 			mov		#'c',Rthd				; Type is comms error
 			mov		#0,Rsec					; Zero value (so no minus sign)
 			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
