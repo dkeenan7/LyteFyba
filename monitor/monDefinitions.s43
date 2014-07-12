@@ -23,6 +23,18 @@
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
+; ControlCharger ( boolean -- )			; 1 to control a charger (only makes sense for the last BMU)
+			xCODE	'o',ControlCharger,_ControlCharger
+			tst		Rtos
+			_IF		_Z
+				bic.b	#bControlCharger,&monFlags	; Clear the bControlCharger bit in monFlags
+				mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600 (default)
+			_ELSE
+				bis.b	#bControlCharger,&monFlags	; Set the bControlCharger bit in monFlags
+				mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+			_ENDIF
+			ret
+
 #if PROG_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal

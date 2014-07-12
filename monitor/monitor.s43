@@ -160,11 +160,16 @@ monFlags		DS		1			; Monitor flags, bitmask definitions follow
 bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
 bCharging		EQU		1<<2		; 1 if charging or regen
+bControlCharger	EQU		1<<3		; 1 if controlling a charger (masterless operation)
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
 passWordState	DS		1			; State machine for password recogniser
+
+				ALIGNRAM 1
+pi_prev_output	DS		2			; State of PI controller
+pi_prev_error	DS		2			; State of PI controller
 
 ; Serialio variables
 
@@ -518,7 +523,7 @@ DoMeasurement:
 					; Act as a master -- send our status
 					mov.b	&localStatus,R8
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
-					call	#TX_Byte				; Send this encoded data. Wait until buffer not full
+					call	#SendStatus				; Send status or control a charger
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
 			ret
@@ -620,11 +625,123 @@ DoStatus:
 					;	comms error, so just pass the incoming comms error bit through.
 
 					; Send the possibly-updated status byte. High bit already set.
-					call	#TX_Byte				; Send this encoded data. Wait until buffer not full
+					call	#SendStatus				; Send status or control a charger
 				_ENDIF							; End if no comms error
 			_ENDIF							; End if incoming valid
 			ret
 ; End of DoStatus
+
+
+SendStatus:
+;
+; Status byte is in R8. Send it or feed it to a PI controller to control a charger
+;
+			bit.b	#bControlCharger,&monFlags
+			_IF		_Z
+				call	#TX_Byte				; Send the status byte. Wait until buffer not full
+			_ELSE
+				bit.b	#bCharging,&monFlags
+				_IF		_NZ
+					bit		#ALL_NBYP,R8				; If all near bypass
+					_IF		_NZ
+						; Send command packet to charger to turn it off
+						mov		#1<<15,R8					; Charger-off bit
+						call	#SendChargerPacket
+						mov		#0,Rtos
+						call	#_Charging
+					_ELSE
+						bit		#COM_ERR,R8
+						_IF		_NZ
+							mov		#8,R8					; Treat comms error as stress 8
+						_ELSE
+							and		#STRESS,R8				; Otherwise use the stress value (0-15)
+							call	#PIController			; Call PI controller with R8 as input and output
+							call	#SendChargerPacket		; Send command packet to charger to set current
+						_ENDIF		; COM_ERR
+					_ENDIF		; ALL_NBYP
+				_ENDIF		; bCharging
+			_ENDIF		; bControlCharger
+			ret
+; End of SendStatus
+
+SendChargerPacket:
+VOLTAGE		EQU		292				; 29.2 V = 8 cells * 3.65 V per cell
+;
+; Send a charger command packet with fixed voltage, and current from R8 (in tenths of an amp)
+; and high bit of R8 as charger-off bit.
+;
+; Send 18 06 E5 F4 0V VV 0W WW 0X 00 00 00
+;	where VVV is the voltage in tenths of a volt,
+;	WWW is current limit in tenths of an amp, and
+;	X is 0 to turn charger on
+			push		R8
+			mov.b		#$18,R8
+			call		#TX_Byte
+			mov.b		#$06,R8
+			call		#TX_Byte
+			mov.b		#$E5,R8
+			call		#TX_Byte
+			mov.b		#$F4,R8
+			call		#TX_Byte
+			mov.b		#(VOLTAGE >> 8),R8
+			call		#TX_Byte
+			mov.b		#(VOLTAGE & $FF),R8
+			call		#TX_Byte
+			mov			@SP,R8
+			bic			#1<<15,R8			; Clear the high bit
+			swpb		R8					; High byte of current
+			call		#TX_Byte
+			mov			@SP,R8				; Low byte of current
+			call		#TX_Byte
+			pop			R8
+			rlc			R8
+			rlc			R8
+			and			#1,R8				; Charger-off bit
+			call		#TX_Byte
+			mov			#$00,R8
+			call		#TX_Byte
+			mov			#$00,R8
+			call		#TX_Byte
+			mov			#$00,R8
+			call		#TX_Byte
+			ret
+; End of SendChargerPacket
+
+
+PIController:
+;
+; A PI controller whose input and output are in R8
+; Input range is 0 to 15 (stress levels). Setpoint is 7.
+; Output range is 0 to 300 (tenths of an amp).
+;
+#define Rerror R10			// Error register
+#define Rderiv R9			// Derivative register
+#define Routput R8			// Output register
+			mov		#7,Rerror				; error = setpoint - measurement
+			sub		R8,Rerror
+			mov		Rerror,Rderiv			; deriv = error - prev_error
+			sub		&pi_prev_error,Rderiv
+
+			mov		&pi_prev_output,Routput ; ouptut = prev_output + Kp * deriv + Ki * error
+			rla		Rderiv					; Kp = 4
+			rla		Rderiv
+			add		Rderiv,Routput
+			add		Rerror,Routput			; Ki = 1
+
+			cmp		#0,Routput				; Clamp output between 0 and 300
+			_IF		_L
+				mov		#0,Routput
+			_ELSE
+				cmp		#301,Routput
+				_IF		_GE
+					mov		#300,Routput
+				_ENDIF
+			_ENDIF
+
+			mov		Rerror,&pi_prev_error	; prev_error = error
+			mov		Routput,&pi_prev_output ; prev_output = output
+			ret
+; End of PIController
 
 
 DoPassword:
