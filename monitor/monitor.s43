@@ -169,7 +169,7 @@ passWordState	DS		1			; State machine for password recogniser
 ; Serialio variables
 
 				ALIGNRAM 1
-BitTime			DS		2			; Determines baud rate. 104 for 9600 baud, 417 for 2400 baud
+TxBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
 TXData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 RXData			DS		1			; Received char
 BitCntTx		DS		1			; Bit count 10 -> 1
@@ -296,7 +296,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
 
-			mov.w	#BitTime96,&BitTime			; Set the bit time for 9600 baud
+			mov.w	#BitTime96,&TxBitTime		; Set the bit time for 9600 baud
 			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
 												;	idle bit)
 			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits

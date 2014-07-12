@@ -133,7 +133,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
 
 											; (6) for interrupt accepted
-			add.w	&BitTime,&TACCRt		; (6) Time to next bit, when next bit is due
+			add.w	&TxBitTime,&TACCRt		; (6) Time to next bit, when next bit is due
 			dec.b	&BitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
@@ -194,11 +194,11 @@ TIOV_ISR:
 ;	Receive interrupt
 ;
 RX_ISR:		push	R9
-			add		&BitTime,&TACCRr		; (6) Time to next bit
+			add		#BitTime96,&TACCRr		; (5) Time to next bit
 			bit		#CAP,&TACCTLr			; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
 				bic		#CAP,&TACCTLr		; (5) Switch to compare mode
-				mov		&BitTime,R9			; (3)
+				mov		#BitTime96,R9		; (2)
 				rra		R9					; (1)
 				add		R9,&TACCRr			; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
