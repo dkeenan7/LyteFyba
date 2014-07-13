@@ -311,6 +311,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.b	&rxrd						;	Already cleared by loop above
 ;			clr.b	&txwr
 ;			clr.b	&txrd
+;			clr.w	&pi_prev_output				; Initialise PI controller state
+;			clr.w	&pi_prev_error				;	Already cleared by loop above
+
 
 ;
 ; Initialise the ADC10
@@ -647,7 +650,7 @@ SendStatus:
 						; Send command packet to charger to turn it off
 						mov		#1<<15,R8					; Charger-off bit
 						call	#SendChargerPacket
-						mov		#0,Rtos
+						mov		#0,Rtos						; Tell ourselves we've stop charging
 						call	#_Charging
 					_ELSE
 						bit		#COM_ERR,R8
@@ -670,13 +673,15 @@ VOLTAGE		EQU		292				; 29.2 V = 8 cells * 3.65 V per cell
 ; Send a charger command packet with fixed voltage, and current from R8 (in tenths of an amp)
 ; and high bit of R8 as charger-off bit.
 ;
+; Trashes R8 and R9
+;
 ; Send 18 06 E5 F4 0V VV 0W WW 0X 00 00 00
 ;	where VVV is the voltage in tenths of a volt,
 ;	WWW is current limit in tenths of an amp, and
 ;	X is 0 to turn charger on
 			push		R8
 			mov.b		#$18,R8
-			call		#TX_Byte
+			call		#TX_Byte			; Preserves R8, trashes R9
 			mov.b		#$06,R8
 			call		#TX_Byte
 			mov.b		#$E5,R8
@@ -696,13 +701,13 @@ VOLTAGE		EQU		292				; 29.2 V = 8 cells * 3.65 V per cell
 			pop			R8
 			rlc			R8
 			rlc			R8
-			and			#1,R8				; Charger-off bit
+			and.b		#1,R8				; Charger-off bit
 			call		#TX_Byte
-			mov			#$00,R8
+			mov.b			#$00,R8
 			call		#TX_Byte
-			mov			#$00,R8
+			mov.b			#$00,R8
 			call		#TX_Byte
-			mov			#$00,R8
+			mov.b			#$00,R8
 			call		#TX_Byte
 			ret
 ; End of SendChargerPacket

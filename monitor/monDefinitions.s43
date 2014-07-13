@@ -19,7 +19,7 @@
 
 ; Charging ( boolean -- )			; 1 when charging or regenning, 0 when driving
 			xCODE	'c',Charging,_Charging
-			allBitsIfZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
+			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
