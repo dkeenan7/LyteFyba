@@ -1,0 +1,23 @@
+We want to have access to both sides of the PCB where the bolts are, as separate nets.
+DesignSpark doesn't seem to support this directly. We tried a SMD pad with a hole in
+it, to be able to create a hole in the drill file. But it seems that any pad on the
+other side of the centre of the hole is considered connected to both sides. This is
+despite the fact that we make the pad unplated. So we use a copper shape or pour for
+the other side, avoiding the short circuit. However, SMD pads create holes in the
+paste mask, meaning that the stencils would have large holes where the bolt holes are.
+So now we shrink the size of the SMD pad to be equal to that of the hole; this creates
+a hole with no copper. Somehow that seems to prevent a hole in the paste mask. We
+untick the box in the pad properties to make it unplated.
+
+We need solder mask holes over both sides of the bolt holes. We can't stop the pad from
+having copper right up to the hole. So we have to put the pad on the blue side of the
+board, since it is meant to connect to the bolt anyway. That means that on the red side,
+we need a pad on the solder mask layer (6 mils larger in diameter than the pad), to
+achieve the solder mask hole. We also need (still on the red side) a keep-out shape to
+prevent copper from reaching the hole, otherwise burrs may short out to the bolt.
+
+To create the "perforation" holes in the ears, we used pads on the [all] layer with
+zero size but the hole size that we want. The pour keeps away from the zero sized pad,
+so the pour only keeps 10 thou away from the zero sized hole. If it stayed away from the
+actual diameter of the hole, there would not be enough copper left to carry the bypass
+current.
