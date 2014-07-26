@@ -81,5 +81,6 @@ Zoom in near the top of the 8 BMUs
 Select around the top squiggle join; delete
 Remove dangling tracks and via at top and dangling tracks at bottom.
 Deselect all; Context menu in space Pour copper (may not be necessary)
-Save. Output manufacturing plots.
+Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
+plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
 
