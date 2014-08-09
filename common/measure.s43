@@ -144,7 +144,7 @@ measure:
 ;
 measAndScale:
 			call		#measure
-			mov.w		&infoVoltCal,R9			; Get voltage calibration word as multiplicand in R9
+			mov.w		&VoltCal,R9			; Get voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
 			inc			R10						; For correct rounding
@@ -172,7 +172,7 @@ temp:
 			mov		#6760,R9
 			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
 			sub		#273,R10				; M/9.694 - 273
-			mov.b	&infoTempCal,R8
+			mov.b	&TempCal,R8
 			sxt		R8
 			sub		R8,R10					; R10 has temperature in degrees Celsius
 			ret
@@ -182,7 +182,7 @@ linkV:
 ; Output: R10 = calibrated in millivolts, approx range -1500 to +1500.
 ; 9999 means linkV not valid, ignore.
 ; Trashes: R8, R9
-			mov.b		&infoLinkCal,R8	; Link offset calibration
+			mov.b		&LinkCal,R8		; Link offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
 			_IF			_EQ				; If link calibration value is $80
 				mov		#9999,R10			; then use special value
@@ -199,7 +199,7 @@ linkV:
 				; Vin = (R - 2048)/1.3653 mV
 				; To divide by 1.3653, multiply by 65536/1.3653 = 48001 and keep the top half
 				sub			#2048,R10
-				mov.b		&infoLinkCal,R8	; Link offset calibration
+				mov.b		&LinkCal,R8		; Link offset calibration
 				sxt			R8				; Sign extend
 				sub			R8,R10
 				_IF			_NN
