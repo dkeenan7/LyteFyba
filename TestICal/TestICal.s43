@@ -354,7 +354,8 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 			ret
 
 
-; Some definitions so the common code will work
+; Some definitions so the measure.s43 code will work
+; Monitor defines these as their inf-flash counterparts instead of ram
 #define VoltCal ramVoltCal
 #define TempCal	ramTempCal
 #define LinkCal	ramLinkCal

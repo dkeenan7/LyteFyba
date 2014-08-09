@@ -8,7 +8,13 @@
 ; "Monitor" is the standard operating software for our cell-top
 ; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
 
-			LSTOUT-
+; Some definitions so the measure.s43 code will work
+; TestICal defines these as their ram counterparts instead of info-flash
+#define VoltCal infoVoltCal
+#define TempCal	infoTempCal
+#define LinkCal	infoLinkCal
+
+LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
