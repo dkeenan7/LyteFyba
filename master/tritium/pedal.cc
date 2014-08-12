@@ -190,8 +190,8 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// fn is the notch frequency, and
 				// fb is the bandwidth or twice the damping ratio times fn.
 				// Typical damping ratios are 0.4 to 0.7.
-				// omega0T = fn/(fs/2)*pi;
-				// deltaT  = fb/(fs/2)*pi;
+				// omega0T = 2*pi*fn/fs;
+				// deltaT  = 2*pi*fb/fs;
 				// a2 = (1-tan(deltaT/2))/(1+tan(deltaT/2));
 				// a1 = (1+a2)*cos(omega0T);
 
@@ -225,26 +225,27 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// fs=100, fn=6.0, fb=8.40 Hz (damping 0.7)
 // #define a2 0.574561111
 // #define a1 1.463989897
-				static float b1 = 0.0;
-				static float b2 = 0.0;
+				static float z1 = 0.0;
+				static float z2 = 0.0;
 /*
       ,------------------------------.
-      |                b1        b2  v               ^
-in ---+-->(+)--->[z^-1]-+->[z^-1]-->(+)          < arrows >          (+)    adder
+      |      z0        z1        z2  v               ^
+in ---+-->(+)-->[z^-1]--+->[z^-1]-->(+)          < arrows >          (+)    adder
            ^            |            |               v               (x)    multiplier
-           |            v            | g                             (/2)   divide by 2
+           |            v            |                               (/2)   divide by 2
            |     a1--->(x)    -a2    |            ,-------.          [z^-1] delay
            |            |      |     |            | wires |
-           |     h      v      v     |            `-------'           |
+           | h          v      v   g |            `-------'           |
            +-----------(+)<---(x)<---+                              --+-- junction
            |                       _ v                                |
            `----------------------->(+)-->(/2)--> out
 */
-				float g = command.current + b2;
-				float h = a1*b1 - a2*g;
-				b2 = b1;
-				b1 = command.current + h;
-				command.current = (g - h) / 2.0;
+				float g = command.current + z2;
+				float h = a1*z1 - a2*g;
+				float z0 = command.current + h;
+				command.current = (g - h) / 2.0; // For bandpass use (z0-z2)/2.0
+				z2 = z1;
+				z1 = z0;
 #endif
 				// Record the command rpm and current for next time
 				command.prev_rpm = command.rpm;

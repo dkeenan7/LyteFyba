@@ -55,3 +55,12 @@ void voice_readBytes()
 		// FIXME! Do whatever needs doing with it
 	} // End while
 }
+
+
+void voice_sendString(const char* messagePtr)
+{
+	unsigned int i, len;
+	len = strlen(messagePtr);
+	for (i=0; i < len; ++i)							// Send the bytes of the message
+		voice_sendByte((uchar)messagePtr[i]);
+}

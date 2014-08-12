@@ -8,13 +8,14 @@
 #include "queue.h"
 
 // Voice synth constants
-#define VOICE_TX_BUFSZ		64
-#define VOICE_RX_BUFSZ		64
+#define VOICE_TX_BUFSZ		128
+#define VOICE_RX_BUFSZ		8
 
 // Public Function prototypes
 void voice_init();
 bool voice_sendByte(unsigned char ch);
 void voice_readBytes();
+void voice_sendString(const char* messagePtr);
 
 // Voice synth buffers
 extern queue voice_tx_q;
