@@ -517,11 +517,11 @@ DoMeasurement:
 			_IF		_Z
 				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
 				_IF		_HS
-					; If our ID is not 1, set the comms error bit in local status
+					; If our ID is not 0 (IMU) or 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
 					; every 256 status bytes (approx every 17 seconds).
-					cmp.b	#1,&infoID
-					_IF		_NE
+					cmp.b	#2,&infoID
+					_IF		_HS
 						bis.b	#COM_ERR,&localStatus
 						inc.b	&tempMasterIDctr
 						_IF	_Z
