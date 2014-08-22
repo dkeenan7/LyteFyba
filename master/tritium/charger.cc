@@ -23,7 +23,6 @@ unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 //unsigned int chgr_soakCnt = 0;		// Counter for soak phase
 unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
-unsigned int chgr_dsp_ctr = 0;			// Charger current display on tacho - count of timer ticks
 unsigned int uChgrCurrA=0, uChgrCurrB=0;// Charger A or B actual current
 
 // Charger buffers
@@ -34,6 +33,7 @@ queue chgr_rx_q(CHGR_RX_BUFSZ);
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
 unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
+unsigned int chgr_dsp_ctr = 0;			// Charger current display on tacho - count of timer ticks
 
 
 // Program global
@@ -78,14 +78,15 @@ void chgr_timer() {				// Called every 10 ms timer tick, for charger related pro
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
-	// If we're DCU-A and not in drive mode, display the charger currents on the tacho
+	// If we're DCU-A and not in drive mode, display the charger currents on the tacho alternately
+	// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
 	if (!bDCUb && (command.state == MODE_CHARGE)) {
 		if (++chgr_dsp_ctr == 300) {				// 3 second display cycle
 			chgr_dsp_ctr = 0;
-			gauge_tach_update(uChgrCurrA * 100);	// 2 seconds displaying charger A current
+			gauge_tach_update(uChgrCurrB * 100);	// 2 seconds displaying charger B current
 		}
 		if (chgr_dsp_ctr == 200)
-			gauge_tach_update(uChgrCurrB * 100);	// 1 second displaying charger B current
+			gauge_tach_update(uChgrCurrA * 100);	// 1 second displaying charger A current
 	}
 }
 

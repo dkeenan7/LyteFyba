@@ -409,7 +409,7 @@ int main( void )
 				}
 			} // End of if(events & EVENT_CONNECTED)
 
-			if ((command.state == MODE_OFF) || (command.state == MODE_D && tacho_display == AUXV))
+			if ( /* (command.state == MODE_OFF) || */ (command.state == MODE_D && tacho_display == AUXV))
 				// Display 12V battery voltage on tacho, with expanded scale V-10
 				// Assumes DCU-A has been modified so BulbSense2 (Reversing light current sense) is
 				// replaced with a voltage divider off the 12 V supply (820k above 160k).
@@ -466,11 +466,13 @@ int main( void )
 					case MC_CAN_BASE + MC_I_VECTOR:
 						torque_current = can.data.data_fp[0];
 						field_current = can.data.data_fp[1];
+#if 0
 						if (command.state == MODE_D && tacho_display == TRQ)
 							// Display torque on tacho, in "square amps" x 1000 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(torque_current * field_current));
+#endif
 						// Update regen status flags
-						if(torque_current < REGEN_THRESHOLD) events |= EVENT_REGEN;
+						if (torque_current < REGEN_THRESHOLD) events |= EVENT_REGEN;
 						else events &= (unsigned)~EVENT_REGEN;
 						break;
 					case MC_CAN_BASE + MC_TEMP1:
@@ -497,6 +499,21 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_CHGR_CURR:
 						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
+						break;
+					case DC_CAN_BASE + DC_BMS_CURR:
+						uBMScurrB = can.data.data_u16[0];	// Save half-pack B current from IMU
+						if ((command.state == MODE_OFF) || (command.state == MODE_D && tacho_display == TRQ)) {
+							// Display half-pack currents on tacho, in amps x 50 (shows DC curr in chg mode)
+							// Shows A current for 0.5 s and B current for 1 s
+							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
+							static unsigned int curr_dsp_ctr = 0;
+							if (++curr_dsp_ctr == 150) {				// 1.5 second display cycle
+								curr_dsp_ctr = 0;
+								gauge_tach_update(uBMScurrB * 20.0);	// 1 seconds displaying B current
+							}
+							if (curr_dsp_ctr == 100)
+								gauge_tach_update(uBMScurrA * 20.0);	// 0.5 second displaying A current
+						}
 						break;
 					case DC_CAN_BASE + DC_BMS_A_INJECT:
 						bmu_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS

@@ -102,6 +102,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_BMS_B_STATUS	6			// Send BMS status (containing max stress) from DCU-B to DCU-A
 #define DC_CHGR_LIM		7			// Send charger current limit from DCU-A to DCU-B
 #define DC_CHGR_CURR	8			// Send charger actual current from DCU-B to DCU-A
+#define DC_BMS_CURR		9			// Send B half-pack current from DCU-B to DCU-A
 #define DC_BMS_A_SNIFF	0x0A
 #define DC_BMS_B_SNIFF	0x0B
 #define DC_BMS_A_INJECT	0x0C
