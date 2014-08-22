@@ -14,6 +14,7 @@
 // Private function prototypes
 bool bmu_sendPacket(const unsigned char* ptr);
 void SendChgrLim(unsigned int uChgrLim);
+void SendBMScurr(unsigned int uBMScurr);
 
 // Public variables
 volatile unsigned int bmu_events = 0;
@@ -21,6 +22,7 @@ volatile unsigned int bmu_events = 0;
 volatile unsigned int bmu_sent_timeout;
 volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 for voltage requests
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
+unsigned int uBMScurrA=0, uBMScurrB=0;				// Half-pack A or B actual current
 
 // BMU buffers
 queue bmu_tx_q(BMU_TX_BUFSZ);
@@ -111,6 +113,7 @@ void bms_init()
 #endif
 	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
 	bmu_state &= (uchar)~BMU_SENT;			// Don't expect these packets to be acknowledged or resent if not
+	bmu_sendCurrentReq();					// Send the first current request packet;driving or charging
 #if USE_VOLT_REQ
 	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
 #endif
@@ -125,9 +128,9 @@ bool bmu_sendByte(unsigned char ch) {
 	return false;
 }
 
-// Make a voltage request command at *cmd for cell number cellNo
-// Called by bmu_sendVoltReq below
-void makeVoltCmd(unsigned char* cmd, unsigned char cellNo)
+// Make a command at *cmd for BMU number cellNo
+// Called by bmu_sendVoltReq and bmu_sendCurrentReq below
+void makeBMUcmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
 {
 	unsigned char* p; p = cmd;
 	unsigned char n = cellNo;
@@ -142,15 +145,24 @@ void makeVoltCmd(unsigned char* cmd, unsigned char cellNo)
 		n = (uchar)(n - t * 10);
 	}
 	*p++ = (uchar)(n + '0');		// Emit units digit
-	*p++ = 's'; *p++ = 'v'; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) cmnds
-}														// and terminate with return and null
+	*p++ = 's'; *p++ = cmdchar; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) or
+}									// l (link or IMU current) commnd and terminate with return and null
 
 // Send a request for a voltage reading, to a specific BMU
 // Returns true on success
 bool bmu_sendVoltReq()
 {
 	unsigned char cmd[8];
-	makeVoltCmd(cmd, bmu_curr_cell);	// cmd := "XXXsv\r"
+	makeBMUcmd(cmd, bmu_curr_cell, 'v');	// cmd := "XXXsv\r"
+	return bmu_sendPacket(cmd);
+}
+
+// Send a request for a current reading, to BMU 0 which is the IMU.
+// Returns true on success
+bool bmu_sendCurrentReq()
+{
+	unsigned char cmd[8];
+	makeBMUcmd(cmd, 0, 'l');	// cmd := "0sl\r"
 	return bmu_sendPacket(cmd);
 }
 
@@ -426,10 +438,32 @@ void bmu_processPacket()
 	}
 #endif
 
-	// Check for a voltage response
-	// Expecting \123:1234 V  ret
-	//           0   45    10 11  (note space before the 'V'
-	if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'V') {
+	// Check for a valid current response from the IMU (ID = 0)
+	// Expecting \000:1234 l  ret
+	//           0   45    10 11  (note space before the 'l'
+	if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'l') {
+		unsigned char bmu_id = (uchar)(100 * (bmu_lastrx[1] - '0') +
+			 (bmu_lastrx[2] - '0') * 10 + bmu_lastrx[3] - '0');
+		if (bmu_id == 0) {
+			bmu_state &= (unsigned)~BMU_SENT;		// Call this valid and no longer unacknowledged
+			unsigned int rxvolts = (unsigned)(
+				(bmu_lastrx[5] - '0') * 100 +
+				(bmu_lastrx[6] - '0') * 10 +
+				(bmu_lastrx[7] - '0'));
+			// Get the whole 4-digit number
+			rxvolts = rxvolts * 10 + bmu_lastrx[8] - '0';
+			// Set global or CAN-send value to be displayed on the tacho by DCU-A
+			if (bDCUb)
+				SendBMScurr(2 * rxvolts); 	// Tenths of an amp
+			else
+				uBMScurrA = 2 * rxvolts;	// Tenths of an amp
+			bmu_sendCurrentReq();				// ??? Send another current request
+		} // End if (bmu_id == 0)
+	} // End if valid current response
+	// Check for a valid voltage response
+	// Expecting \123:1234 v  ret
+	//           0   45    10 11  (note space before the 'v'
+	else if (bmu_lastrx[0] == '\\' && bmu_lastrx[4] == ':' && bmu_lastrx[10] == 'v') {
 		unsigned char bmu_id = (uchar)(100 * (bmu_lastrx[1] - '0') +
 			 (bmu_lastrx[2] - '0') * 10 + bmu_lastrx[3] - '0');
 		if (bmu_id == bmu_curr_cell) {
@@ -461,9 +495,9 @@ void bmu_processPacket()
 			else {
 				bmu_sendVoltReq();				// Send another voltage request for the next cell
 			}
-		} // End if (bCharging)
+		} // End if (bmu_id == bmu_curr_cell)
 	} // End if valid voltage response
-}
+} // End bmu_processPacket()
 
 
 // Called every timer tick from the mainline, for BMU related processing
@@ -483,4 +517,11 @@ void bmu_timer() {
 		if (++bmuFakeStatusCtr == BMU_FAKESTATUS_RATE)
 			bmuFakeStatusCtr = 0;
 	}
+}
+
+void SendBMScurr(unsigned int uBMScurr) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_CURR;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_u16[0] = uBMScurr; 	// Send B half-pack current to DCU-A
+	can_push();
 }
