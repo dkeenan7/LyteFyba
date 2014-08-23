@@ -501,18 +501,19 @@ int main( void )
 						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
 						break;
 					case DC_CAN_BASE + DC_BMS_CURR:
-						uBMScurrB = can.data.data_u16[0];	// Save half-pack B current from IMU
+						uBMScurrB = can.data.data_16[0];	// Save half-pack B current from IMU
 						if ((command.state == MODE_OFF) || (command.state == MODE_D && tacho_display == TRQ)) {
 							// Display half-pack currents on tacho, in amps x 50 (shows DC curr in chg mode)
-							// Shows A current for 0.5 s and B current for 1 s
+							// Shows A current for 0.5 s and B current for 1 s. Absolute values.
 							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
+							// So B is displayed twice as long as A.
 							static unsigned int curr_dsp_ctr = 0;
 							if (++curr_dsp_ctr == 150) {				// 1.5 second display cycle
 								curr_dsp_ctr = 0;
-								gauge_tach_update(uBMScurrB * 20.0);	// 1 seconds displaying B current
+								gauge_tach_update(fabsf(uBMScurrB * 20.0));	// 1 seconds displaying B current
 							}
 							if (curr_dsp_ctr == 100)
-								gauge_tach_update(uBMScurrA * 20.0);	// 0.5 second displaying A current
+								gauge_tach_update(fabsf(uBMScurrA * 20.0));	// 0.5 second displaying A current
 						}
 						break;
 					case DC_CAN_BASE + DC_BMS_A_INJECT:
