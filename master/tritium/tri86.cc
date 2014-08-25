@@ -255,7 +255,7 @@ int main( void )
 						next_state = MODE_D;				// Go to Drive mode
 						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
 //						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
-						voice_sendString("r\np0\nv-10\nw180\ns[:name 2][:dv br 40 sm 50 ri 50][:phoneme]Mekseee the electric MX5 is in [\"]drive mode.\n");
+						voice_sendString("r\np0\nv-10\nw180\ns[:name 2][:dv br 40 sm 50 ri 50][:phoneme]Mekseee the electric MX5 is in [\"]drive mode.\n\0");
 					}
 					else {	  // Stay in OFF mode
 						next_state = MODE_OFF;
