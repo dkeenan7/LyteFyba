@@ -947,13 +947,16 @@ void update_switches( unsigned int *state, unsigned int *difference)
 
 	// Import switches into register
 
-	if(P2IN & IN_GEAR_4) switches |= SW_MODE_R;
-	else switches &= (unsigned)~SW_MODE_R;
+//	if(P2IN & IN_GEAR_4) switches |= SW_MODE_R;
+//	else switches &= (unsigned)~SW_MODE_R;
+	// Neutral_or_clutch is active when low at the DB37, so active high at the port
+	if(P2IN & IN_GEAR_6) switches |= SW_NEUT_OR_CLCH;
+	else switches &= (unsigned)~SW_NEUT_OR_CLCH;
 
 //	if(P2IN & IN_GEAR_3) switches |= SW_MODE_N;	// IN_GEAR_3 now repurposed to inhibit traction
 //	else switches &= (unsigned)~SW_MODE_N;
 	// Inh_traction is active (inhibit) when high at DB37, so active low at the port
-	if (P2IN & IN_GEAR_3) switches &= (unsigned)~SW_INH_TRACTION;
+	if (P2IN & IN_GEAR_5) switches &= (unsigned)~SW_INH_TRACTION;
 	else switches |= SW_INH_TRACTION;
 
 //	if(P2IN & IN_GEAR_2) switches |= SW_MODE_B;	// IN_GEAR_2 now repurposed to crash switch input

@@ -113,8 +113,8 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define CHGR_LIM		0x7F0		// CAN identifier for setting charger current limit
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
-#define SW_MODE_R		0x0001
-#define SW_INH_TRACTION 0x0002		// On DCU-A, this is sent from DCU-B when it's charging
+#define SW_NEUT_OR_CLCH	0x0001		// DCU-A: Was SW_MODE_R
+#define SW_INH_TRACTION 0x0002		// DCU-A: Sent from DCU-B when it's charging. Was SW_MODE_N
 #define SW_CRASH		0x0004		// Was SW_MODE_B
 #define SW_MODE_D		0x0008		// Now piezo output, not a switch input at all
 #define SW_IGN_ACC		0x0010

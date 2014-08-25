@@ -32,12 +32,12 @@ void dint();
 #define P1_UNUSED			0x00
 
 // Port 2
-#define IN_GEAR_1			0x01	// Now Piezo speaker output using ACLK
-#define IN_GEAR_2			0x02	// Now crash switch input, low at DC37 connector = crash
-#define IN_GEAR_3			0x04
-#define IN_GEAR_4			0x08
-#define IN_GEAR_5			0x10
-#define IN_GEAR_6			0x20
+#define IN_GEAR_1			0x01	// Piezo speaker output using ACLK
+#define IN_GEAR_2			0x02	// Crash switch input, low at DC37 connector = crash
+#define IN_GEAR_3			0x04	// DCU-A: Voice synth RX input
+#define IN_GEAR_4			0x08	// DCU-A: Voice synth TX output
+#define IN_GEAR_5			0x10	// DCU-A: Inhibit traction (because DCU-B is in charge mode)
+#define IN_GEAR_6			0x20	// DCU-A: Neutral or clutch
 #define EXPANSION_IRQ		0x40
 #define CAN_INTn			0x80
 #define P2_UNUSED			0x00
