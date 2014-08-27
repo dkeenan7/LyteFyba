@@ -496,6 +496,7 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMS_B_STATUS:
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
+						bmsStatusBtimeout = 0;				// Reset statusB timeout counter
 						break;
 					case DC_CAN_BASE + DC_CHGR_CURR:
 						uChgrCurrB = can.data.data_u16[0];	// Save charger B actual current
