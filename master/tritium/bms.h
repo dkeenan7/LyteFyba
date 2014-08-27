@@ -10,19 +10,19 @@
 #include "pid.h"
 #include "pedal.h"						// For command_variables and command
 
-// BMU constants
-#define USE_CKSUM 1						// Set non-zero to send and expect checksums to BMUs
-#define BMU_STATUS_RATE		15			// Number of BMU status bytes per second
-#define BMU_STATUS_PER		(1000/BMU_STATUS_RATE)	// Period in ms of BMU status bytes
-#define BMU_TX_BUFSZ		64
-#define BMU_RX_BUFSZ		64
-#define BMU_TIMEOUT			100			// BMU timeout in timer ticks; absolute minimum is
+// BMS constants
+#define USE_CKSUM 1						// Set non-zero to send and expect checksums to/from IMU and CMUs
+#define BMS_STATUS_RATE		15			// Number of BMS status bytes per second
+#define BMS_STATUS_PER		(1000/BMS_STATUS_RATE)	// Period in ms of BMS status bytes
+#define BMS_TX_BUFSZ		64
+#define BMS_RX_BUFSZ		64
+#define BMS_TIMEOUT			100			// BMS timeout in timer ticks; absolute minimum is
 										//   about 250 ms = 25 ticks
-#define BMU_VR_SPEED		4500		// Number of 10 ms ticks per voltage request
-										// Note: it takes > 30s to send a voltage request to 114 BMUs
-#define BMU_STATUS_TIMEOUT	50			// Number of 10 ms ticks we tolerate with no BMU status byte
-#define BMU_FAKESTATUS_RATE ((BMU_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
-										//	when detect BMU comms error
+#define BMS_VR_SPEED		4500		// Number of 10 ms ticks per voltage request
+										// Note: it takes > 30s to send a voltage request to 109 CMUs
+#define BMS_STATUS_TIMEOUT	50			// Number of 10 ms ticks we tolerate with no BMS status byte
+#define BMS_FAKESTATUS_RATE ((BMS_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
+										//	when detect BMS comms error
 #define LIMP_CURR			0.12		// DC bus current limit (fraction of max) when limping
 #define BUS_CURRENT_OFFSET	(7./180.)	// Overcome a constant ~ 7 A of bus current measurement error
 
@@ -32,36 +32,36 @@
 #define ENC_STRESS			0x1F		// Encoded stress. Bits 0-4. Bit 4 is a check bit
 #define STRESS				0x0F		// Raw stress. Bits 0-3
 
-// BMU events
-#define BMU_SENT			0x0001				// We have sent the BMU a command, no response yet
-//#define	BMU_REC			0x0002				// We have received a response from the BMU string
-//#define BMU_BADNESS		0x0004				// We have received a badness value from the BMU string
-//#define BMU_VOLTREQ		0x0008				// Time to send a voltage request to BMUs
-//#define BMU_RESEND		0x0010				// Resend the last BMU packet from main loop
+// BMS events
+#define BMS_SENT			0x0001				// We have sent the BMS a command, no response yet
+//#define	BMS_REC			0x0002				// We have received a response from the BMS
+//#define BMS_BADNESS		0x0004				// We have received a badness value from the BMS
+//#define BMS_VOLTREQ		0x0008				// Time to send a voltage request to BMS
+//#define BMS_RESEND		0x0010				// Resend the last BMS packet from main loop
 
 // Public Function prototypes
 void bms_init();
-bool bmu_sendByte(unsigned char ch);
-bool bmu_sendVoltReq();
-bool bmu_sendCurrentReq();
-bool bmu_sendVAComment(int nVolt, int nAmp);
-void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
-							unsigned int bmu_min_id, unsigned int bmu_max_id);
-void handleBMUstatusByte(unsigned char status);
-void readBMUbytes();
-void bmu_processPacket();
-void bmu_changeDirection(bool charging);
-bool bmu_resendLastPacket(void);
-void bmu_timer();
+bool bms_sendByte(unsigned char ch);
+bool bms_sendVoltReq();
+bool bms_sendCurrentReq();
+bool bms_sendVAComment(int nVolt, int nAmp);
+void can_queueCellMaxMin(unsigned int bms_min_mV, unsigned int bms_max_mV,
+							unsigned int bms_min_id, unsigned int bms_max_id);
+void bms_processStatusByte(unsigned char status);
+void readBMSbytes();
+void bms_processPacket();
+void bms_changeDirection(bool charging);
+bool bms_resendLastPacket(void);
+void bms_timer();
 
 
 // Public variables
-extern volatile unsigned int bmu_events;
-extern volatile unsigned int bmu_sent_timeout;
+extern volatile unsigned int bms_events;
+extern volatile unsigned int bms_sent_timeout;
 extern float fRemoteCurLim;
 extern unsigned int uChgrCurrLim;				// Charger current limit, in tenths of a volt
 
-// BMU buffers
-extern queue bmu_tx_q;
-extern queue bmu_rx_q;
+// BMS buffers
+extern queue bms_tx_q;
+extern queue bms_rx_q;
 

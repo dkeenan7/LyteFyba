@@ -9,12 +9,12 @@
 #include "queue.h"
 
 // Charger constants
-#define NUMBER_OF_CELLS		109
-#define NUMBER_OF_BMUS		109
+#define NUMBER_OF_CELLS		109					// Number of cells in each charger's half-pack
+#define NUMBER_OF_CMUS		109					// Number of cell monitoring units in half-pack's BMS
 #define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.00 * 1.021))// Charger voltage limit in tenths of a volt
 							// Charger-B reads the battery voltage as 2.1% higher than it really is.
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
-#define CHGR_EOC_SOAKT		(1 * 60 * BMU_STATUS_RATE)// Number of ticks from first detect of all bypass to
+#define CHGR_EOC_SOAKT		(1 * 60 * BMS_STATUS_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger
 #define CHGR_CUT_CURR		10					// Charge termination max current in tenths of an amp,
 												// must be more than bypass plus max DC-DC loads
@@ -27,7 +27,7 @@
 // Charger state
 #define CHGR_IDLE			0x0000				// Not charging -- bat is full or not in charge mode
 #define CHGR_CHARGING		0x0001				// We are charging
-// #define CHGR_SOAKING		0x0002				// We are soaking with all BMUs in bypass -- not used
+// #define CHGR_SOAKING		0x0002				// We are soaking with all CMUs in bypass -- not used
 
 // Charger events
 // 	None at present
@@ -55,7 +55,7 @@ extern unsigned int charger_volt;			// MVE: charger voltage in tenths of a volt
 extern unsigned int charger_curr;			// MVE: charger current in tenths of an ampere
 extern unsigned char charger_status;		// MVE: charger status (e.g. bit 1 on = overtemp)
 extern unsigned int chgr_soakCnt;			// Counter for soak phase
-extern unsigned int chgr_bypCount;			// Balance count in BMU ticks when all in bypass and under
+extern unsigned int chgr_bypCount;			// Balance count in BMS ticks when all in bypass and under
 											//	cutoff current
 // Charger buffers
 extern queue chgr_tx_q;

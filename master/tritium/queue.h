@@ -9,7 +9,7 @@ typedef unsigned char bool;				// C does not define type bool
 
 #define uchar unsigned char
 
-// Define a base queue type for serial transmit and receive (charger and BMUs)
+// Define a base queue type for serial transmit and receive (charger and BMS)
 // Always derive a type from this, so that the buffer size gets set automatically
 class queue {
 	unsigned char rd;					// Read index

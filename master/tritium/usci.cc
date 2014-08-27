@@ -23,7 +23,7 @@
  *	- transmit
  *	- exchange
  *
- *  - 4 interrupt routines (for talking to/from BMUs and chargers)
+ *  - 4 interrupt routines (for talking to/from BMS and chargers)
  *
  *  Higher level UART functions are in charger.c and bms.c now
  */
@@ -35,7 +35,7 @@
 
 #include "tri86.h"					// For CAN_MOSI etc
 #include "usci.h"
-#include "bms.h"					// For the BMU and
+#include "bms.h"					// For the BMS and
 #include "charger.h"				//	charger queues
 #include "queue.h"
 
@@ -106,8 +106,8 @@ __interrupt void usciab1tx(void)
 	if (UC1IFG & UCA1TXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
 		unsigned char ch = 0;					// Get byte from the
-		bmu_tx_q.dequeue(ch);					//	transmit queue
-		if (bmu_tx_q.empty())					// Queue empty and therefore TX complete?
+		bms_tx_q.dequeue(ch);					//	transmit queue
+		if (bms_tx_q.empty())					// Queue empty and therefore TX complete?
 			UC1IE &= (uchar)~UCA1TXIE;			// Yes, disable USCI_A1 TX interrupt
 		UCA1TXBUF = ch;							// Transmit this byte
 		events |= EVENT_ACTIVITY;				// Turn on activity light
@@ -133,7 +133,7 @@ __interrupt void usciab1rx(void)
 {
 	if (UC1IFG & UCA1RXIFG)						// Make sure it's UCA1 causing the interrupt
 	{
-		if (!bmu_rx_q.enqueue(UCA1RXBUF))
+		if (!bms_rx_q.enqueue(UCA1RXBUF))
 			fault();							// Fault if queue is full
 		else
 			events |= EVENT_ACTIVITY;			// Turn on activity light
