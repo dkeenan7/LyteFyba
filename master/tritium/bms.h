@@ -59,7 +59,8 @@ void bms_timer();
 extern volatile unsigned int bms_events;
 extern volatile unsigned int bms_sent_timeout;
 extern float fRemoteCurLim;
-extern unsigned int uChgrCurrLim;				// Charger current limit, in tenths of a volt
+extern unsigned int uChgrCurrLim;			// Charger current limit, in tenths of a volt
+extern unsigned int bmsStatusBtimeout;		// Timeout for status via CAN from DCU-B to DCU-A
 
 // BMS buffers
 extern queue bms_tx_q;

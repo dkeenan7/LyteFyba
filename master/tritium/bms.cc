@@ -23,6 +23,7 @@ volatile unsigned int bms_sent_timeout;
 volatile unsigned int bms_vr_count = BMS_VR_SPEED;	// Counts BMS_VR_SPEED to 1 for voltage requests
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 int uBMScurrA=0, uBMScurrB=0;						// Half-pack A or B current (neg means charging)
+unsigned int bmsStatusBtimeout = 0;			// Timeout for BMS status via CAN from DCU-B to DCU-A
 
 // BMS buffers
 queue bms_tx_q(BMS_TX_BUFSZ);
@@ -37,8 +38,8 @@ volatile unsigned char  bms_max_id = 0;	// Id of the cell with maximum voltage
 unsigned char bms_curr_cell = 1;		// ID of CMU to send to next
 bool bCharging = FALSE;					// Whether we are in charge mode
 // Static globals
-static unsigned int bmsStatusTimeout = 0;	// Counts timer ticks with no status byte received
 static unsigned int bmsFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
+static unsigned int bmsStatusTimeout = 0;	// Counts timer ticks with no status byte received from BMS
 
 // Stress table with check bits
 static unsigned char stressTable[16] = {
@@ -500,14 +501,18 @@ void bms_timer() {
 			bms_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
-	if (++bmsStatusTimeout >= BMS_STATUS_TIMEOUT)
-	{
+	if (++bmsStatusTimeout >= BMS_STATUS_TIMEOUT) {
 		bmsStatusTimeout = BMS_STATUS_TIMEOUT;	// Don't allow overflow
 		if (bmsFakeStatusCtr == 0)
 			// Fake status with comms error and a stress of 8 (lowest distress)
 			bms_processStatusByte(0x80 | COM_ERR | stressTable[8]);
 		if (++bmsFakeStatusCtr == BMS_FAKESTATUS_RATE)
 			bmsFakeStatusCtr = 0;
+	}
+	if (!bDCUb && (++bmsStatusBtimeout >= BMS_STATUS_TIMEOUT)) {
+		bmsStatusBtimeout = BMS_STATUS_TIMEOUT;	// Don't allow overflow
+		// Fake statusB with comms error and a stress of 8 (lowest distress)
+		statusB = 0x80 | COM_ERR | stressTable[8];
 	}
 }
 
