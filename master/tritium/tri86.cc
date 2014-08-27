@@ -170,8 +170,8 @@ int main( void )
 	// Init BMS and charger
 	bms_init();
 	chgr_init();
-	// Delay 3 seconds so the reset problem with BMU 6 has a chance to propagate to the end of the BMU
-	//	string. Otherwise, the 'k' and 0K commands won't work from about BMU 14 onwards
+	// Delay 3 seconds so the reset problem with CMU 6 has a chance to propagate to the end of the CMU
+	//	string. Otherwise, the 'k' and 0K commands won't work from about CMU 14 onwards
 	for (i = 0; i < 3000; i++) {
 		readChargerBytes();		// So we update chgr_rx_timer
 		brief_pause(5333);		// 3000 ms = 3 seconds
@@ -190,7 +190,7 @@ int main( void )
 		command.flags |= FAULT_NO_PEDAL;
 
 	// Check switch inputs and generate command packets to motor controller
-	// and control charging while monitoring BMUs.
+	// and control charging while monitoring CMUs.
 	while(TRUE){
 		// Process CAN transmit queue
 		can_transmit();
@@ -245,7 +245,7 @@ int main( void )
 						else								// If DCU-A,
 							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the charge indicator light
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
-						bmu_changeDirection(TRUE);			// Tell BMUs direction of current flow
+						bms_changeDirection(TRUE);			// Tell CMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
 //						P5OUT |= LED_GEAR_2;				// Indicate we're in charge mode
 					}
@@ -255,7 +255,7 @@ int main( void )
 						next_state = MODE_D;				// Go to Drive mode
 						P1OUT |= BRAKE_OUT;					// Turn on traction contactors
 //						P5OUT |= LED_GEAR_1;				// Indicate we're in drive mode
-						voice_sendString("r\np0\nv-10\nw180\ns[:name 2][:dv br 40 sm 50 ri 50][:phoneme]Mekseee the electric MX5 is in [\"]drive mode.\n\0");
+//						voice_sendString("r\np0\nv-10\nw180\ns[:name 2][:dv br 40 sm 50 ri 50][:phoneme]Mekseee the electric MX5 is in [\"]drive mode.\n\0");
 					}
 					else {	  // Stay in OFF mode
 						next_state = MODE_OFF;
@@ -290,7 +290,7 @@ int main( void )
 						if (bDCUb)							// If DCU-B
 							P5OUT &= (uchar)~LED_GEAR_3;	// tell DCU-A that we're not in charge mode
 															// so it can allow traction
-						bmu_changeDirection(FALSE); 		// Tell BMUs direction of current
+						bms_changeDirection(FALSE); 		// Tell CMUs direction of current
 						chgr_stop();						// Stop the charge controller (PID loop)
 					}
 					else { // Stay in CHARGE  mode
@@ -349,11 +349,11 @@ int main( void )
 			}
 
 			chgr_timer();
-			bmu_timer();
+			bms_timer();
 
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms
 
-		readBMUbytes();
+		readBMSbytes();
 		readChargerBytes();
 
 		// Handle outgoing communications events (to motor controller)
@@ -374,7 +374,7 @@ int main( void )
 				can_push_ptr->data.data_fp[0] = command.rpm;
 				can_push();
 #endif
-#if 0			// Don't send bus current here, we now send it from handleBMUstatusByte()
+#if 0			// Don't send bus current here, we now send it from bms_processStatusByte()
 				// Queue bus command frame
 				can_push_ptr->identifier = DC_CAN_BASE + DC_POWER;
 				can_push_ptr->status = 8;
@@ -432,7 +432,7 @@ int main( void )
 						uChgrCurrLim = can.data.data_u16[0];
 						break;
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
-						bmu_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
+						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 					}
 				} else {	// DCU-A
 					switch(can.identifier){
@@ -508,16 +508,16 @@ int main( void )
 							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
 							// So B is displayed twice as long as A.
 							static unsigned int curr_dsp_ctr = 0;
-							if (++curr_dsp_ctr == 150) {				// 1.5 second display cycle
+							if (++curr_dsp_ctr == 15) {				// 1.5 second display cycle
 								curr_dsp_ctr = 0;
-								gauge_tach_update(fabsf(uBMScurrB * 20.0));	// 1 seconds displaying B current
+								gauge_tach_update(fabsf(uBMScurrB * 2.0));	// 1 seconds displaying B current
 							}
-							if (curr_dsp_ctr == 100)
-								gauge_tach_update(fabsf(uBMScurrA * 20.0));	// 0.5 second displaying A current
+							if (curr_dsp_ctr == 10)
+								gauge_tach_update(fabsf(uBMScurrA * 2.0));	// 0.5 second displaying A current
 						}
 						break;
 					case DC_CAN_BASE + DC_BMS_A_INJECT:
-						bmu_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
+						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 						break;
 				    }
 				}	// end DCU-A

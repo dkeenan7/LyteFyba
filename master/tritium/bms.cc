@@ -12,35 +12,33 @@
 #include "assert2.h"		// assert-like function
 
 // Private function prototypes
-bool bmu_sendPacket(const unsigned char* ptr);
+bool bms_sendPacket(const unsigned char* ptr);
 void SendChgrLim(unsigned int uChgrLim);
 void SendBMScurr(int uBMScurr);
 
 // Public variables
-volatile unsigned int bmu_events = 0;
-		 unsigned int bmu_state = 0;
-volatile unsigned int bmu_sent_timeout;
-volatile unsigned int bmu_vr_count = BMU_VR_SPEED;	// Counts BMU_VR_SPEED to 1 for voltage requests
+volatile unsigned int bms_events = 0;
+		 unsigned int bms_state = 0;
+volatile unsigned int bms_sent_timeout;
+volatile unsigned int bms_vr_count = BMS_VR_SPEED;	// Counts BMS_VR_SPEED to 1 for voltage requests
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 int uBMScurrA=0, uBMScurrB=0;						// Half-pack A or B current (neg means charging)
 
-// BMU buffers
-queue bmu_tx_q(BMU_TX_BUFSZ);
-queue bmu_rx_q(BMU_RX_BUFSZ);
-unsigned char bmu_lastrx[BMU_RX_BUFSZ];	// Buffer for the last received BMU response
-unsigned char bmu_lastrxidx;			// Index into the above
+// BMS buffers
+queue bms_tx_q(BMS_TX_BUFSZ);
+queue bms_rx_q(BMS_RX_BUFSZ);
+unsigned char bms_lastrx[BMS_RX_BUFSZ];	// Buffer for the last received BMS packet
 
-
-// BMU private variables
-volatile unsigned int  bmu_min_mV = 9999;	// The minimum cell voltage in mV
-volatile unsigned int  bmu_max_mV = 0;	// The maximum cell voltage in mV
-volatile unsigned char  bmu_min_id = 0;	// Id of the cell with minimum voltage
-volatile unsigned char  bmu_max_id = 0;	// Id of the cell with maximum voltage
-unsigned char bmu_curr_cell = 1;		// ID of BMU to send to next
+// BMS private variables
+volatile unsigned int  bms_min_mV = 9999;	// The minimum cell voltage in mV
+volatile unsigned int  bms_max_mV = 0;	// The maximum cell voltage in mV
+volatile unsigned char  bms_min_id = 0;	// Id of the cell with minimum voltage
+volatile unsigned char  bms_max_id = 0;	// Id of the cell with maximum voltage
+unsigned char bms_curr_cell = 1;		// ID of CMU to send to next
 bool bCharging = FALSE;					// Whether we are in charge mode
 // Static globals
-static unsigned int bmuStatusTimeout = 0;	// Counts timer ticks with no status byte received
-static unsigned int bmuFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
+static unsigned int bmsStatusTimeout = 0;	// Counts timer ticks with no status byte received
+static unsigned int bmsFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
 
 // Stress table with check bits
 static unsigned char stressTable[16] = {
@@ -69,7 +67,7 @@ pid pidCharge(						// State for the PID control algorithm for charge current
 		// 1 stress level will cause a change of 0.4 A. With this Kp, 0.4 A is the lowest non-zero
 		// current that can be stable (except that we can achieve 0.3 A occasionally thanks to Kd).
 		// If Kp was any larger we would not be able to achieve a stable 0.4 A (except occasionally
-		// thanks to Kd). 0.4 A is the BMUs' typical bypass current.
+		// thanks to Kd). 0.4 A is the CMUs' typical bypass current.
 		(int)(0.291*256),		// Ki as s7.8 fixed-point
 		// Integral gain of (0.1/5.5)/(1/16) = 16/55 = 0.291 means that when the stress is 1 level
 		// away from the setpoint, the requested current will change by 0.1 A per tick.
@@ -86,7 +84,7 @@ pid pidDrive(						// State for the PID control algorithm for charge current
 		// 1 stress level will cause a change of 0.4 A. With this Kp, 0.4 A is the lowest non-zero
 		// current that can be stable (except that we can achieve 0.3 A occasionally thanks to Kd).
 		// If Kp was any larger we would not be able to achieve a stable 0.4 A (except occasionally
-		// thanks to Kd). 0.4 A is the BMUs' typical bypass current.
+		// thanks to Kd). 0.4 A is the CMUs' typical bypass current.
 		(int)(0.291*256/4),		// Ki as s7.8 fixed-point
 		// Integral gain of (0.1/5.5)/(1/16) = 16/55 = 0.291 means that when the stress is 1 level
 		// away from the setpoint, the requested current will change by 0.1 A per tick.
@@ -98,29 +96,28 @@ pid pidDrive(						// State for the PID control algorithm for charge current
 
 void bms_init()
 {
-	bmu_lastrxidx = 0;
 #if USE_CKSUM
-	// Turn on checksumming in BMUs.
-	// The "k" packet is ignored if BMU checksumming is on (bad checksum), but toggles BMU
+	// Turn on checksumming in CMUs.
+	// The "k" packet is ignored if CMU checksumming is on (bad checksum), but toggles CMU
 	// checksumming on if it was off.
-	bmu_sendByte('k'); bmu_sendByte('\r');		// NOTE: can't use bmu_SendPacket as it would insert a
+	bms_sendByte('k'); bms_sendByte('\r');		// NOTE: can't use bms_SendPacket as it would insert a
 												// checksum giving "kk\r" and having opposite effect
 #else
-	// Turn off checksumming in BMUs.
-	// The "kk" packet toggles BMU checksumming off if it was on (single k command with good checksum),
-	// but toggles BMU checksumming twice if it was off, thereby leaving it off.
-	bmu_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
+	// Turn off checksumming in CMUs.
+	// The "kk" packet toggles CMU checksumming off if it was on (single k command with good checksum),
+	// but toggles CMU checksumming twice if it was off, thereby leaving it off.
+	bms_sendPacket((unsigned char*)"kk\r");		// DCU checksumming is off, so it won't change the pkt
 #endif
-	bmu_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMU badness sending
-	bmu_state &= (uchar)~BMU_SENT;			// Don't expect these packets to be acknowledged or resent if not
-	bmu_sendCurrentReq();					// Send the first current request packet;driving or charging
+	bms_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMS badness sending
+	bms_state &= (uchar)~BMS_SENT;			// Don't expect these packets to be acknowledged or resent if not
+	bms_sendCurrentReq();					// Send the first current request packet;driving or charging
 #if USE_VOLT_REQ
-	bmu_sendVoltReq();						// Send the first voltage request packet;driving or charging
+	bms_sendVoltReq();						// Send the first voltage request packet;driving or charging
 #endif
 }
 
-bool bmu_sendByte(unsigned char ch) {
-	if (bmu_tx_q.enqueue(ch)) {
+bool bms_sendByte(unsigned char ch) {
+	if (bms_tx_q.enqueue(ch)) {
     	UC1IE |= UCA1TXIE;                        		// Enable USCI_A1 TX interrupt
 		events |= EVENT_ACTIVITY;						// Turn on activity light
 		return true;
@@ -128,9 +125,9 @@ bool bmu_sendByte(unsigned char ch) {
 	return false;
 }
 
-// Make a command at *cmd for BMU number cellNo
-// Called by bmu_sendVoltReq and bmu_sendCurrentReq below
-void makeBMUcmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
+// Make a command at *cmd for IMU or CMU number cellNo
+// Called by bms_sendVoltReq and bms_sendCurrentReq below
+void makeBMScmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
 {
 	unsigned char* p; p = cmd;
 	unsigned char n = cellNo;
@@ -148,22 +145,22 @@ void makeBMUcmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
 	*p++ = 's'; *p++ = cmdchar; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) or
 }									// l (link or IMU current) commnd and terminate with return and null
 
-// Send a request for a voltage reading, to a specific BMU
+// Send a request for a voltage reading, to a specific CMU
 // Returns true on success
-bool bmu_sendVoltReq()
+bool bms_sendVoltReq()
 {
 	unsigned char cmd[8];
-	makeBMUcmd(cmd, bmu_curr_cell, 'v');	// cmd := "XXXsv\r"
-	return bmu_sendPacket(cmd);
+	makeBMScmd(cmd, bms_curr_cell, 'v');	// cmd := "XXXsv\r"
+	return bms_sendPacket(cmd);
 }
 
-// Send a request for a current reading, to BMU 0 which is the IMU.
+// Send a request for a current reading, to "CMU" 0 which is the IMU.
 // Returns true on success
-bool bmu_sendCurrentReq()
+bool bms_sendCurrentReq()
 {
 	unsigned char cmd[8];
-	makeBMUcmd(cmd, 0, 'l');	// cmd := "0sl\r"
-	return bmu_sendPacket(cmd);
+	makeBMScmd(cmd, 0, 'l');	// cmd := "0sl\r"
+	return bms_sendPacket(cmd);
 }
 
 // Send bus current setpoint on CAN bus to wavesculptor immediately.
@@ -187,23 +184,23 @@ void can_transmitBMSchar(unsigned char ch)
 }
 
 // Send min and max cell voltage and ids on CAN bus so telemetry software on PC can display them
-void can_queueCellMaxMin(unsigned int bmu_min_mV, unsigned int bmu_max_mV,
-								unsigned int bmu_min_id, unsigned int bmu_max_id)
+void can_queueCellMaxMin(unsigned int bms_min_mV, unsigned int bms_max_mV,
+								unsigned int bms_min_id, unsigned int bms_max_id)
 {
 	// We have the min and max cell voltage information. Send a CAN packet so the telemetry
 	//	software can display them. Use CAN id 0x266, as the IQcell BMS would
 	can_push_ptr->identifier = 0x266;
 	can_push_ptr->status = 8;
-	can_push_ptr->data.data_u16[0] = bmu_min_mV;
-	can_push_ptr->data.data_u16[1] = bmu_max_mV;
-	can_push_ptr->data.data_u16[2] = bmu_min_id;
-	can_push_ptr->data.data_u16[3] = bmu_max_id;
+	can_push_ptr->data.data_u16[0] = bms_min_mV;
+	can_push_ptr->data.data_u16[1] = bms_max_mV;
+	can_push_ptr->data.data_u16[2] = bms_min_id;
+	can_push_ptr->data.data_u16[3] = bms_max_id;
 	can_push();
 }
 
 // Only used for debugging.
-// Send total battery voltage as a comment packet on BMU channel
-bool bmu_sendVAComment(int nVolt, int nAmp)
+// Send total battery voltage as a comment packet on BMS channel
+bool bms_sendVAComment(int nVolt, int nAmp)
 {
 	// Packet to announce the charger's meas of total voltage and current
 	// \ C H G _ _ n n S _ n . n A \r
@@ -214,15 +211,15 @@ bool bmu_sendVAComment(int nVolt, int nAmp)
 	szChgrVolt[7] = (uchar)((nVolt % 100) / 10 + '0');		//	units
 	szChgrVolt[10] = (uchar)((nAmp / 10) + '0');			// Current units
 	szChgrVolt[12] = (uchar)((nAmp % 10) + '0');			//	tenths
-	bool result = bmu_sendPacket(szChgrVolt); // Send as comment packet on BMU channel for debugging
-	bmu_state &= (unsigned)~BMU_SENT;		// Don't expect these packets to be acknowledged or resent if not
+	bool result = bms_sendPacket(szChgrVolt); // Send as comment packet on BMS channel for debugging
+	bms_state &= (unsigned)~BMS_SENT;		// Don't expect these packets to be acknowledged or resent if not
 	return result;
 }
 
 #define max(x, y) (((x)>(y))?(x):(y))
 #define min(x, y) (((x)<(y))?(x):(y))
 
-void handleBMUstatusByte(unsigned char status)
+void bms_processStatusByte(unsigned char status)
 {
 #define SET_POINT 7 // stress level
 	unsigned int current;
@@ -258,7 +255,7 @@ void handleBMUstatusByte(unsigned char status)
 		gauge_stress_update( maxStress );
 		// Send the stress information in the min and max cell voltage fields for WSconfig
 		// Also comms error bits in min and max cell IDs
-		//can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+		//can_queueCellMaxMin(bms_min_mV, bms_max_mV, bms_min_id, bms_max_id);
 		can_queueCellMaxMin((unsigned)(stress*1000),
 							(unsigned)(stressB*1000),
 							(unsigned)((status & (COM_ERR | ALL_NBYP))>>5),
@@ -324,194 +321,193 @@ void handleBMUstatusByte(unsigned char status)
 			if (chgr_sendCurrent(current)) {
 				chgr_lastCurrent = current;
 				if (bValid)
-					bmu_sendVAComment(stress*10, current); // for debugging
+					bms_sendVAComment(stress*10, current); // for debugging
 				else
-					bmu_sendVAComment(99, current); // for debugging
+					bms_sendVAComment(99, current); // for debugging
 			}
 			else
 				// Charger failed to send. Indicate this
-				bmu_sendPacket((const unsigned char*)"\\F\r\n");
+				bms_sendPacket((const unsigned char*)"\\F\r\n");
 #endif
 		}
 	} // End of if charging
-} // End of handleBMUstatusByte()
+} // End of bms_processStatusByte()
 
 
-// Read incoming bytes from BMUs
-void readBMUbytes()
+// Read incoming bytes from BMS
+void readBMSbytes()
 {	unsigned char ch;
-	while (	bmu_rx_q.dequeue(ch)) {		// Get a byte from the BMU receive queue
+	static unsigned char wr = 0;		// Write index into the received packet buffer
+	static unsigned char sum = 0;		// For checking packet checksum
+
+	while (bms_rx_q.dequeue(ch)) {		// While we can get a byte from the BMS receive queue
 		can_transmitBMSchar(ch);		// Send on CAN bus so it can be sniffed via ethernet bridge
-		if (ch >= 0x80) {
-			handleBMUstatusByte(ch);
-			bmuStatusTimeout = 0;		// Reset timeout counter
-			bmuFakeStatusCtr = 0;		// Ensure fake status is sent immediately on timeout
+		if (ch >= 0x80) {				// If it's a status byte
+			bms_processStatusByte(ch);	// Process it
+			bmsStatusTimeout = 0;		// Reset timeout counter
+			bmsFakeStatusCtr = 0;		// Ensure fake status is sent immediately on timeout
 		}
-		else {
-			if (bmu_lastrxidx >= BMU_RX_BUFSZ) {
-				fault();
-				break;
+		else {							// Else it's part of a command or response packet
+			if (wr < BMS_RX_BUFSZ)		// If the packet buffer is not full
+				bms_lastrx[wr++] = ch;	// Append the character to the packet buffer
+			if (ch != '\r')				// If it's not the end of a packet (a carriage return)
+				sum ^= ch;				// Accumulate the XOR checksum
+			else if ((sum != 0) || (wr >= BMS_RX_BUFSZ)) { // Else it is the end of a packet
+											// and if the checksum is bad or the buffer is full
+				wr = 0;					// Reset the write index
+				sum = 0;				// Reset the checksum accumulator
+				fault();				// Flash the red LED and beep
 			}
-			bmu_lastrx[bmu_lastrxidx++] = ch;	// !!! Need to check for buffer overflow
-			if (ch == '\r')	{					// All BMU responses end with a carriage return
-				bmu_processPacket();
-				break;
-			}
-		}
-	}
-}
+			else {						// Else it's the end of a good packet
+				bms_processPacket();	// Process it
+				wr = 0;					// Reset the write index
+				sum = 0;				// Reset the checksum accumulator
+			} // End of Else it's the end of a good packet
+		} // End of Else it's part of a packet
+	} // End of While we can get a byte from the BMS receive queue
+} // End of readBMSbytes()
+
 
 // Act on any change in the direction of current flow.
 // Temperatures below zero constitute stress when charging or regen-braking but not when accelerating.
 // And vice versa for undervoltage.
-// So send appropriate 'c' (Charging) command to BMUs.
-void bmu_changeDirection(bool chargeOrRegen)
+// So send appropriate 'c' (Charging) command to CMUs.
+void bms_changeDirection(bool chargeOrRegen)
 {
 	bCharging = chargeOrRegen;
-	if (chargeOrRegen) bmu_sendPacket((unsigned char*)"1c\r");
-	else bmu_sendPacket((unsigned char*)"0c\r");
-	bmu_state &= (unsigned)~BMU_SENT;		// Don't expect these packets to be acknowledged or resent if not
+	if (chargeOrRegen) bms_sendPacket((unsigned char*)"1c\r");
+	else bms_sendPacket((unsigned char*)"0c\r");
+	bms_state &= (unsigned)~BMS_SENT;		// Don't expect these packets to be acknowledged or resent if not
 }
 
-unsigned char bmu_lastSentPacket[BMU_TX_BUFSZ];		// Copy of the last packet sent to the BMUs
+
+unsigned char bms_lastSentPacket[BMS_TX_BUFSZ];		// Copy of the last packet sent to the BMS
 
 // Returns true on success
-bool bmu_sendPacket(const unsigned char* ptr)
+bool bms_sendPacket(const unsigned char* ptr)
 {
 #if USE_CKSUM
 	unsigned char ch, i = 0, sum = 0;
 	do {
 		ch = *ptr++;
 		sum ^= ch;									// Calculate XOR checksum
-		bmu_lastSentPacket[i++] = ch;				// Copy the data to the transmit buffer
+		bms_lastSentPacket[i++] = ch;				// Copy the data to the transmit buffer
 	} while (ch != '\r');
 	sum ^= '\r';									// CR is not part of the checksum
 	if (sum < ' ') {
 		// If the checksum would be a control character that could be confused with a CR, BS,
 		//	etc, then send a space, which will change the checksum to a non-control character
-		bmu_lastSentPacket[i++-1] = ' ';			// Replace CR with space
+		bms_lastSentPacket[i++-1] = ' ';			// Replace CR with space
 		sum ^= ' ';									// Update checksum
 	}
-	bmu_lastSentPacket[i++-1] = sum;				// Insert the checksum
-	bmu_lastSentPacket[i-1] = '\r';					// Add CR
-	bmu_lastSentPacket[i] = '\0';					// Null terminate; bmu_resendLastPacket expects this
+	bms_lastSentPacket[i++-1] = sum;				// Insert the checksum
+	bms_lastSentPacket[i-1] = '\r';					// Add CR
+	bms_lastSentPacket[i] = '\0';					// Null terminate; bms_resendLastPacket expects this
 #else
-	strcpy((char*)bmu_lastSentPacket, (char*)ptr);	// Copy the buffer in case we have to resend
+	strcpy((char*)bms_lastSentPacket, (char*)ptr);	// Copy the buffer in case we have to resend
 #endif
-	return bmu_resendLastPacket();					// Call the main transmit function
+	return bms_resendLastPacket();					// Call the main transmit function
 }
 
-// bmu_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
+// bms_resendLastPacket is used for resending after a timeout, but also used for sending the first time.
 // Returns true on success
-bool bmu_resendLastPacket(void)
+bool bms_resendLastPacket(void)
 {
-	unsigned int i, len = strlen((char*)bmu_lastSentPacket);
-	if (bmu_tx_q.queue_space() < len) {
+	unsigned int i, len = strlen((char*)bms_lastSentPacket);
+	if (bms_tx_q.queue_space() < len) {
 		fault();
 		return false;
 	}
 	for (i=0; i < len; ++i)							// Send the bytes of the packet
-		bmu_sendByte(bmu_lastSentPacket[i]);
-	bmu_state |= BMU_SENT;							// Flag that packet is sent but not yet ack'd
-	bmu_sent_timeout = BMU_TIMEOUT;					// Initialise timeout counter
+		bms_sendByte(bms_lastSentPacket[i]);
+	bms_state |= BMS_SENT;							// Flag that packet is sent but not yet ack'd
+	bms_sent_timeout = BMS_TIMEOUT;					// Initialise timeout counter
 	return true;
 }
 
 
-void bmu_processPacket()
+void bms_processPacket()
 {
-#if USE_CKSUM
-	{	unsigned char sum = 0, j = 0;
-		while (bmu_lastrx[j] != '\r')
-			sum ^= bmu_lastrx[j++];
-		if (sum != 0) {
-			// Checksum error; set the error LED and resend the last command
-			fault();
-	//		bmu_resendLastPacket();					// Resend
-			return;									// Don't process this packet
-		}
-	}
-#endif
-
 	// Check for a valid response from the BMS
-	// Expecting \000:v 1234  ret
-	//           0   45 7  10 11  (note the space after the 'v' or 'l', and a possible minus sign)
-	if (bmu_lastrx[4] == ':' &&
-		bmu_lastrx[0] == '\\') {
+	// Expecting \000:l 1234  ret
+	//           0   45 7  10 11  (note the space after the 'l' or 'v', and a possible minus sign)
+	if (bms_lastrx[0] == '\\' &&
+		bms_lastrx[4] == ':') {
 		// Extract the CMU ID
-		unsigned char rx_id = (uchar)((bmu_lastrx[1] - '0') * 100);
-		rx_id = (uchar)(rx_id + (bmu_lastrx[2] - '0') * 10);
-		rx_id = (uchar)(rx_id + (bmu_lastrx[3] - '0'));
+		unsigned char rx_id = (uchar)
+			( (bms_lastrx[1] - '0') * 100
+			+ (bms_lastrx[2] - '0') * 10
+			+ (bms_lastrx[3] - '0')    );
 		// Extract the command character that this is a response to
-		unsigned char rx_cmd = bmu_lastrx[5];	// Only expecting 'v' or 'l'
+		unsigned char rx_cmd = bms_lastrx[5];	// Only expecting 'v' or 'l'
 		// Extract any minus sign
-		int rx_sign = (bmu_lastrx[7] == '-');
+		int rx_sign = (bms_lastrx[7] == '-');
 		unsigned int i1 = 7, i2 = 8, i3 = 9, i4 = 10;
 		if (rx_sign)							// If there was a minus sign, skip it
 			i1 = 8, i2 = 9, i3 = 10, i4 = 11;
 		// Extract the absolute value
-		int rx_value = (bmu_lastrx[i1] - '0') * 1000;
-		rx_value += (bmu_lastrx[i2] - '0') * 100;
-		rx_value += (bmu_lastrx[i3] - '0') * 10;
-		rx_value += (bmu_lastrx[i4] - '0');
+		int rx_value =
+			( (bms_lastrx[i1] - '0') * 1000
+			+ (bms_lastrx[i2] - '0') * 100
+			+ (bms_lastrx[i3] - '0') * 10
+			+ (bms_lastrx[i4] - '0')    );
 		// Calculate the signed value
 		if (rx_sign) rx_value = -rx_value;
 
 		// Check for a current (amps) response from the IMU (ID = 0)
 		if (rx_cmd == 'l' && rx_id == 0) {
-			bmu_state &= (unsigned)~BMU_SENT;	// Call this valid and no longer unacknowledged
+			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
 			// Set global or CAN-send value to be displayed on the tacho by DCU-A
 			if (bDCUb)
 				SendBMScurr(2 * rx_value); 		// Tenths of an amp
 			else
 				uBMScurrA = 2 * rx_value;		// Tenths of an amp
-			bmu_sendCurrentReq();				// Send another current request
+			bms_sendCurrentReq();				// Send another current request
 		}
-		// Check for a voltage response from a particular BMU
-		else if (rx_cmd == 'v' && rx_id == bmu_curr_cell) {
-			bmu_state &= (unsigned)~BMU_SENT;	// Call this valid and no longer unacknowledged
+		// Check for a voltage response from a particular CMU
+		else if (rx_cmd == 'v' && rx_id == bms_curr_cell) {
+			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
 			// We use the voltage measurements to find the min and max cell voltages
-			if ((unsigned)rx_value < bmu_min_mV) {
-				bmu_min_mV = (unsigned)rx_value;
-				bmu_min_id = rx_id;
+			if ((unsigned)rx_value < bms_min_mV) {
+				bms_min_mV = (unsigned)rx_value;
+				bms_min_id = rx_id;
 			}
-			if ((unsigned)rx_value > bmu_max_mV) {
-				bmu_max_mV = (unsigned)rx_value;
-				bmu_max_id = rx_id;
+			if ((unsigned)rx_value > bms_max_mV) {
+				bms_max_mV = (unsigned)rx_value;
+				bms_max_id = rx_id;
 			}
-			if (rx_id >= NUMBER_OF_BMUS) {
+			if (rx_id >= NUMBER_OF_CMUS) {
 				// We have the min and max information. Send a CAN packet so the telemetry
 				//	software can display them.
-				can_queueCellMaxMin(bmu_min_mV, bmu_max_mV, bmu_min_id, bmu_max_id);
+				can_queueCellMaxMin(bms_min_mV, bms_max_mV, bms_min_id, bms_max_id);
 			}
-			// Move to the next BMU, only if packet valid
-			if (++bmu_curr_cell > NUMBER_OF_BMUS)
-				bmu_curr_cell = 1;
+			// Move to the next CMU, only if packet valid
+			if (++bms_curr_cell > NUMBER_OF_CMUS)
+				bms_curr_cell = 1;
 			else {
-				bmu_sendVoltReq();				// Send another voltage request for the next cell
+				bms_sendVoltReq();				// Send another voltage request for the next cell
 			}
 		} // End if (rx_cmd == 'v')
 	} // End if valid response
-	bmu_lastrxidx = 0;								// Ready for next BMU response to overwrite this one
-} // End bmu_processPacket()
+} // End bms_processPacket()
 
 
-// Called every timer tick from the mainline, for BMU related processing
-void bmu_timer() {
-	if (bmu_state & BMU_SENT) {
-		if (--bmu_sent_timeout == 0) {
+// Called every timer tick from the mainline, for BMS related processing
+void bms_timer() {
+	if (bms_state & BMS_SENT) {
+		if (--bms_sent_timeout == 0) {
 			fault();
-			bmu_resendLastPacket();			// Resend; will loop until a complete packet is recvd
+			bms_resendLastPacket();			// Resend; will loop until a complete packet is recvd
 		}
 	}
-	if (++bmuStatusTimeout >= BMU_STATUS_TIMEOUT)
+	if (++bmsStatusTimeout >= BMS_STATUS_TIMEOUT)
 	{
-		bmuStatusTimeout = BMU_STATUS_TIMEOUT;	// Don't allow overflow
-		if (bmuFakeStatusCtr == 0)
+		bmsStatusTimeout = BMS_STATUS_TIMEOUT;	// Don't allow overflow
+		if (bmsFakeStatusCtr == 0)
 			// Fake status with comms error and a stress of 8 (lowest distress)
-			handleBMUstatusByte(0x80 | COM_ERR | stressTable[8]);
-		if (++bmuFakeStatusCtr == BMU_FAKESTATUS_RATE)
-			bmuFakeStatusCtr = 0;
+			bms_processStatusByte(0x80 | COM_ERR | stressTable[8]);
+		if (++bmsFakeStatusCtr == BMS_FAKESTATUS_RATE)
+			bmsFakeStatusCtr = 0;
 	}
 }
 

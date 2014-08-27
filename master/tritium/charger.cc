@@ -22,7 +22,7 @@ unsigned int charger_volt = 0;			// MVE: charger voltage in tenths of a volt
 unsigned int charger_curr = 0;			// MVE: charger current in tenths of an ampere
 unsigned char charger_status = 0;		// MVE: charger status (e.g. bit 1 on = overtemp)
 //unsigned int chgr_soakCnt = 0;		// Counter for soak phase
-unsigned int chgr_bypCount = 0;			// Count of BMU ticks where all in bypass and current low
+unsigned int chgr_bypCount = 0;			// Count of BMS ticks where all in bypass and current low
 unsigned int uChgrCurrA=0, uChgrCurrB=0;// Charger A or B actual current
 
 // Charger buffers
@@ -172,7 +172,7 @@ void chgr_processPacket() {
 
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
-	// bmu_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
+	// bms_sendVAComment((chgr_lastrx[4] << 8) + chgr_lastrx[5], chgr_lastrx[7]); // For debugging
 	if (chgr_lastrx[3] == 0xE5 &&
 		chgr_lastrx[2] == 0x50 &&
 		chgr_lastrx[1] == 0xFF &&
