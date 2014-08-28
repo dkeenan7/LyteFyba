@@ -252,6 +252,11 @@ void bms_processStatusByte(unsigned char status)
 			stressB = (uchar)max(stressB, 8);	// Treat as at least stress 8
 		// Calculate max of stresses from A and B half-packs
 		unsigned char maxStress = max(stress, stressB);
+		// Turn on the cell stress alarm if stress is 11 or more
+		if (maxStress < 11)
+			P5OUT |= LED_FAULT_2;			// Turn off cell stress alarm
+		else
+			P5OUT &= (uchar)~LED_FAULT_2;	// Turn on cell stress alarm
 		// Send max stress info to the Oil Pressure gauge
 		gauge_stress_update( maxStress );
 		// Send the stress information in the min and max cell voltage fields for WSconfig
