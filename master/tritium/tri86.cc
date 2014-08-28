@@ -231,7 +231,7 @@ int main( void )
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
-						P5OUT |= LED_FAULT_1;		// Turn off alternator light (LED_FAULT_1)
+						P5OUT |= LED_FAULT_1;		// Turn off alternator light (charge mode indicator)
 					}
 
 					if (switches & SW_CRASH)				// if we've crashed
@@ -243,7 +243,7 @@ int main( void )
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						else								// If DCU-A,
-							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the charge indicator light
+							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the alternator light (charge mode indicator)
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bms_changeDirection(TRUE);			// Tell CMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)
@@ -275,7 +275,7 @@ int main( void )
 					}
 					else {  // Stay in Drive  mode
 						next_state = MODE_D;
-						// Cycle through the 5 tacho displays on rising edges of IGN_START
+						// Cycle through the various tacho displays on rising edges of IGN_START
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
 							if (tacho_display == LIM) tacho_display = RPM;
 							else tacho_display = TachoDisplayType(tacho_display + 1);

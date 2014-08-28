@@ -66,7 +66,7 @@ void dint();
 
 // Port 5
 #define LED_FAULT_3			0x01
-#define LED_FAULT_2			0x02
+#define LED_FAULT_2			0x02	// DCU-A: Cell stress alarm
 #define LED_FAULT_1			0x04	// DCU-A: Alternator light
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10	// DCU-B: Presence of this non-pedal DCU
