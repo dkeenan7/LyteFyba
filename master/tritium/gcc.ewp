@@ -2016,6 +2016,12 @@
   <file>
     <name>$PROJ_DIR$\usci.h</name>
   </file>
+  <file>
+    <name>$PROJ_DIR$\voice.cc</name>
+  </file>
+  <file>
+    <name>$PROJ_DIR$\voice.h</name>
+  </file>
 </project>
 
 
