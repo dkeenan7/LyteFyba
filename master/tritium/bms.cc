@@ -269,7 +269,12 @@ void bms_processStatusByte(unsigned char status)
 
 			// Map fract -1.0 .. almost +1.0 to float almost 0.0 .. 1.0
 			float fCurLim = ((float)output + 32769.0F) / 65536.0F;
-			fCurLim = fCurLim * (1 - LIMP_CURR) + LIMP_CURR;	// Map 0.0 .. 1.0 to LIMP .. 1.0
+			// When the DC current limit needs to be cut back
+			// to keep the stress at or below the setpoint,
+			// continue to allow a minimum current for getting out of danger,
+			// but progressively reduce this current to zero as the stress increases to 15.
+			float fMinCurr = LIMP_CURR/8.0 * (15 - max(maxStress, SET_POINT));
+			fCurLim = fCurLim * (1 - fMinCurr) + fMinCurr;	// Map 0.0 .. 1.0 to fMinCurr .. 1.0
 			can_transmitBusCurrent(fCurLim);
 		} // End if not charging
 	} // End else DCU-A
