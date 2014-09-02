@@ -22,7 +22,7 @@ c   Charging, '1c' to include undertemp and exclude undervolt as stresses
   c Calibrate
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
-  f FrequencyBurst (puts MCLK/22 = 182.5 - 183.5 kHz on TX+, TX- and activity LED)
+  f FrequencyBurst (between TX+or- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
@@ -126,7 +126,7 @@ R R queryResetLog
   O St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 
-  f FrequencyBurst (puts MCLK/22 = 181.5 kHz on TX+, TX- and activity LED)
+  f FrequencyBurst (between TX+or- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
 
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
   w WriteCalValue
