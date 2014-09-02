@@ -266,11 +266,12 @@ _prettyPrint:
 ;
 ; TouchVolt ( -- )
 ; Transmit the touch voltage measurement in millivolts (0 to 4095 mV)
+; This is the touch current times the opto's CTR (0.63 to 1.25) times R17 (120R).
 ;
 		xCODE		'T',touchVolt,_touchVolt
 		cmp.b	#0,&infoID				; If we're an IMU
 		_IF		_EQ
-			call		#touchV				; Return cell voltage in millivolts in R10
+			call		#touchV				; Return touch voltage in millivolts in R10
 			mov			#'T',Rthd			; Type is touch Voltage
 			mov			R10,Rsec			; Result in millivolts
 			mov			#4,Rtos				; Print 4 digits
