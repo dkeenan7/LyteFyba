@@ -352,11 +352,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				dint
-				nop							; First instruction after dint not protected
+				;dint
+				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
 				_IF		_NZ
-					eint
+					;eint
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
@@ -368,7 +368,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
 					_IF		_Z							; If not, skip measurement and set/clear of bypass
-						eint
+						;eint
 						bis.b	#bNotMeasureTime,&monFlags
 						call	#DoMeasurement			; May send status
 					_ELSE
