@@ -126,14 +126,19 @@ waitTxCmpl:
 ;-------------------------------------------------------------------------------
 TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;-------------------------------------------------------------------------------
-; First interrupt BitCntTx is 10 (decrements to 9), start bit just sent, LSB needs sending now
-; 8th interrupt, BitCntTx is 3, data bit 6 just sent, MSB needs sending now
-; 9th interrupt, BitCntTx is 2, MSB just sent, stop bit needs sending now
-; 10th interrupt, BitCntTx is 1 (decrements to 0), stop bit just sent, need to send idle state;
-;	need to disable Tx interrupts, transmit is complete (safe to start another at end of stop bit)
+; 1st interrupt BitCntTx is 10 (dec to 9), falling edge of start-bit just sent, need to set up for LSB
+; 8th interrupt, BitCntTx is 3, just transitioned to data bit 6, need to set up for transition to MSB
+; 9th interrupt, BitCntTx is 2, just transitioned to MSB, need to set up for transition to stop bit (1)
+; 10th interrupt, BitCntTx is 1 (dec to 0), just transitioned to stop bit,
+; need to set up for transition to next start bit if there is another byte in the tx queue
+; or disable Tx interrupts if there are no more characters.
+; But perhaps we should instead setup for transition to idle state (same as stop bit)
+; if there are no more characters.
+; Then we would have an 11th interrupt where stop bit is complete and we disable Tx interrupts.
 
 											; (6) for interrupt accepted
-			add.w	&TxBitTime,&TACCRt		; (6) Time to next bit, when next bit is due
+;			add.w	#BitTime96,&TACCRt		; (5) Set timer compare reg for when next transition is due
+			add.w	&TxBitTime,&TACCRt		; (6) Set timer compare reg for when next transition is due
 			dec.b	&BitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
@@ -146,9 +151,9 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					and.b 	#txsz-1,R9				;	modulo the queue size.
 					mov.b 	R9,&txrd				; Update the read index
 					pop		R9
-					; I think the below just wastes time and space; we never sleep (at present) because
-					; of the lack of TX buffer space - MVE
-;					bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
+					; The below would just waste time and space. We don't need to wake up to do anything
+					; in the mainline after taking a byte from the TX queue. -- DK
+					; bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 				_ENDIF							; Endif start bit just started
 				rra.w	&TXData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
 												;	so stop and idle bits are always treated like data 1s
@@ -193,14 +198,11 @@ TIOV_ISR:
 ;
 ;	Receive interrupt
 ;
-RX_ISR:		push	R9
-			add		#BitTime96,&TACCRr		; (5) Time to next bit
+RX_ISR:		add		#BitTime96,&TACCRr		; (5) Time to next bit
 			bit		#CAP,&TACCTLr			; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
 				bic		#CAP,&TACCTLr		; (5) Switch to compare mode
-				mov		#BitTime96,R9		; (2)
-				rra		R9					; (1)
-				add		R9,&TACCRr			; (5) First databit 1.5 bits from edge
+				add		#BitTime96/2,&TACCRr; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
 				bit		#SCCI,&TACCTLr			; (4) Sampled bit to carry
 				rrc.b	&RXData					; (4) Store received bit
@@ -210,6 +212,7 @@ RX_ISR:		push	R9
 					bis		#CAP,&TACCTLr			; Set back to capture mode
 
 					; Put received data into the queue if there's space, otherwise it's lost
+					push	R9
 					mov.b	&rxwr,R9				; Get the write index
 					mov.b	&RXData,rxbuf(R9)		; Tentatively write the character to the receive queue
 													;  there's always at least one free space,
@@ -222,10 +225,9 @@ RX_ISR:		push	R9
 						bic		#CPUOFF,2(SP)			; When return, wake CPU if needed
 														;	(note 2 bytes (saved R9) on stack)
 					_ENDIF							; Endif queue not full
-
+					pop		R9
 				_ENDIF							; Endif last data bit
 			_ENDIF							; Endif data bit sampled
-			pop		R9
 			reti							; (5) Return from interrupt
 
 
