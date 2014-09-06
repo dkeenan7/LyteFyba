@@ -181,17 +181,22 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ;-------------------------------------------------------------------------------
 RX_TIOV_ISR	; Combined Receive (timer capture/compare 1) and timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
+			; We don't know why, but the below seems to fix an intermittent bug where rarely a start
+			; bit would get ignored
 											; (6) for interrupt accepted
-			cmp		#2,&TAIV				; (4) Combined interrupt: was it CC1? TAIV_TACCR1 = TA0IV_TACCR1
-			jeq		RX_ISR					; (2) Yes, was CC1
-			; Can't be CC2 interrupt source; MSP430F201x doesn't have this
-			; So must be timer overflow
+			add		&TAIV,PC				; (4) Combined interrupt: was it CC1? TAIV_TACCR1 = TA0IV_TACCR1
+			reti							; Iqnore 0 (no interrupt)
+			jmp		RX_ISR					; (2) Yes, was CC1
+			reti							; Ignore 4
+			reti							; Ignore 6
+			reti							; Ignore 8
+			; Fall thru to timer overflow handler
 
 ;
 ;	Regular timer overflow interrupt: cause the mainline code to measure voltages etc
 ;
 TIOV_ISR:
-			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
+ 			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
 			bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 			reti
 
