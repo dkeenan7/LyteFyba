@@ -286,7 +286,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#ACTLED,&P1OUT				; Turn off (inverted) ActLED
 			cmp.b	#0,&infoID					; If we're not an IMU
 			_IF		_NE
-				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
 				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 			_ENDIF
@@ -352,11 +352,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				;dint
-				;nop							; First instruction after dint not protected
 				call	#RX_RawByteNW			; Check if received data
 				_IF		_NZ
-					;eint
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
@@ -368,13 +365,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
 					_IF		_Z							; If not, skip measurement and set/clear of bypass
-						;eint
 						bis.b	#bNotMeasureTime,&monFlags
 						call	#DoMeasurement			; May send status
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-						;eint							; Interrupts are enabled by following bis instr:
-						bis		#CPUOFF+GIE,SR			; Turn off CPU, enable interrupts
+						bis		#CPUOFF+GIE,SR			; Turn off CPU and enable interrupts
 					_ENDIF
 				_ENDIF
 #if WATCHDOG
