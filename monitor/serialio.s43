@@ -195,7 +195,7 @@ RX_TIOV_ISR:	; Combined Receive (timer capture/compare 1) and timer overflow int
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
 			cmp		#2,R9					; (1) Was it a receive interrupt (TACCR1)
-			jmp		RX_ISR					; (2) Yes, jump to receive interrupt service routine
+			jeq		RX_ISR					; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
 ;	Regular timer overflow interrupt: Cause the mainline code to measure voltages etc
