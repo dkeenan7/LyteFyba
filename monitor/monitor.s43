@@ -349,6 +349,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^G ^F ^E ^D sequence
+			eint							; Enable interrupts now that all initialisation is complete
 
 ; Main loop
 			_BEGIN
@@ -364,12 +365,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
-					_IF		_Z							; If not, skip measurement and set/clear of bypass
-						bis.b	#bNotMeasureTime,&monFlags
-						call	#DoMeasurement			; May send status
+					_IF		_Z							; If so, do measurement and set/clear of bypass
+						bis.b	#bNotMeasureTime,&monFlags	; Reset the time-to-measure flag
+						call	#DoMeasurement			; May transmit status
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-						bis		#CPUOFF+GIE,SR			; Turn off CPU and enable interrupts
+						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
 #if WATCHDOG
@@ -415,12 +416,12 @@ DoMeasurement:
 			; Set bypass as required
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
-				cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to the bypass threshold
+				cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
 				cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only the #ALL_NBYP bit from R8 to &localStatus.
+				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only #ALL_NBYP bit from R8 to &localStatus.
 			_ENDIF
 
 			; Calculate stress due to overvoltage
@@ -504,7 +505,7 @@ DoMeasurement:
 			; Update Alarm -- local red LED and piezo
 			cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
 			CtoAllBits	Rtos
-			call		#_errorLed			; Use this function so it optionally turns on the piezo as well
+			call		#_errorLed			; Use this function so it optionally turns on piezo as well
 
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
@@ -659,8 +660,8 @@ SendStatus:
 							mov		#8,R8					; Treat comms error as stress 8
 						_ELSE
 							and		#STRESS,R8				; Otherwise use the stress value (0-15)
-							call	#PIController			; Call PI controller with R8 as input and output
-							call	#SendChargerPacket		; Send command packet to charger to set current
+							call	#PIController			; Call PI cntrlr with R8 as input and output
+							call	#SendChargerPacket		; Send commnd packet to charger to set current
 						_ENDIF		; COM_ERR
 					_ENDIF		; ALL_NBYP
 				_ENDIF		; bCharging
@@ -783,9 +784,9 @@ DoPassword:
 			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
-			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised a password
+			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#$300,SP			; Give the BSL maximum stack
-			push	#infoResetFSM		; This is where BSL2 code needs to return to to continue the download
+			push	#infoResetFSM		; This is where BSL2 code needs to return to continue the download
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
