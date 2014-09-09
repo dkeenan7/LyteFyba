@@ -137,6 +137,11 @@ testNoInterp2:
 
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
 			_IF		_Z
+				tst.b	R8
+				_IF		_L				; If data is a status byte (bit 7 set)
+					mov.b	#$C1,R8			; Send status with comms error bit and bad check bit
+											; $C1 to identify TestICal here, $C0 for BSL2 below
+				_ENDIF
 				call	#infoWriteByte	; Echo; interpretByte no longer does
 				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
 				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
@@ -154,7 +159,8 @@ testNoInterp2:
 				_IF		_NN				; If we're not programming (state not negative)
 					tst.b	R8
 					_IF		_L				; If data is a status byte (bit 7 set)
-						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit
+						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit, $C0
+												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
 				call	#infoWriteByte	; Echo; interpretByte no longer does
