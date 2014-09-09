@@ -31,7 +31,7 @@ I I Insulation test - touch current in mA (only when ID=0, insulation monitoring
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
-m m e(m)itCharacter
+  m e(m)itCharacter
 n n emit(n)um
 N N Number of cells
 o   C(o)ntr(o)l Charger
@@ -71,7 +71,7 @@ i a
 t l Name or description
 --------------------------------------------
 ' ' characterLiteral
-m m e(m)itCharacter
+  m e(m)itCharacter
   z send nulls (send (z)eros)
 
 $ $ dollarHex (set number input mode to hex for next literal)

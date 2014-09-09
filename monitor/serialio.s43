@@ -92,8 +92,8 @@ TX_ByteNW:
 					; We want the max number of clock cycles till TAR and TACCTLt are correctly set up.
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; The +1 is in case the TAR increments just after we read it.
-					mov		#((26+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
-					add		&TAR,R9				; (3) R9 := timer value + setup time
+					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
+					add		&TAR,R9				; R9 := timer value + setup time
 					bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
 					_IF		_Z					; (2) If previous stop bit has not completed
 						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
