@@ -128,32 +128,31 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 		; FIXME: need to call interpretByte with 00 for initialisation. Dave says may not want above
 			jmp		mainLoop2		; Back to looking for password,
 									; but first make init call to jInterpretByte
-
 			; end FSM code
 
 testNoInterp2:
-			; FIXME! When we transition away from BSL1, we'll have to change the below test
+			; FIXME! When we transition away from BSL1, we'll have to change the test below
 			cmp		#waitingIDAddr,2(SP); Is the call to ReadByte from the waitingID call to ReadByte?
 			jeq		retToBSL1			; If so, no echo, no interpret
 
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
 			_IF		_Z
-			call	#infoWriteByte	; Echo; interpretByte no longer does
+				call	#infoWriteByte	; Echo; interpretByte no longer does
 				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
-			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
-			; partial download, set the watchdog timer to the shortest interval, 64 cycles
-			; InterpretByte should set it back to the longest interval, 32k cycles
-			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-			br		#jInterpretByte	; tail-call interpretByte in main flash
-									; It must preserve at least R8 and bsl2state
-									; Get there via the PROG_START independent vector
-			; ret					; Effective ret to BSL1 due to tail-call above
+				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+				; partial download, set the watchdog timer to the shortest interval, 64 cycles
+				; InterpretByte should set it back to the longest interval, 32k cycles
+				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
+				br		#jInterpretByte	; tail-call interpretByte in main flash
+										; It must preserve at least R8 and bsl2state
+										; Get there via the PROG_START independent vector
+				; ret					; Effective ret to BSL1 due to tail-call above
 			_ELSE
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
 				; on any passing status bytes, since we are not calling the main program
-			tst		&bsl2state
+				tst		&bsl2state
 				_IF		_NN				; If we're not programming (state not negative)
-			tst.b	R8
+					tst.b	R8
 					_IF		_L				; If data is a status byte (bit 7 set)
 						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit
 					_ENDIF
