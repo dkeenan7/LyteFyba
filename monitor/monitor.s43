@@ -231,7 +231,7 @@ STACKSPACE		EQU		$300-$		; Look at listing to see what this is
 ; don't want to have to maintain a definition keeping it up to date. So we use any old address.
 ; But this means we should never use the BSL2 from monitor, only from TestICal:
 ; DO NOT USE MONITOR'S BSL2! It will not allow the TestICal 'i' command to work.
-waitingIDAddr	EQU	$F754
+waitingIDAddr	EQU		$F83A
 
 
 ;-------------------------------------------------------------------------------
@@ -343,7 +343,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the command character interpreter
 ;
-			mov		#TIB,&ToIN				; Packet pointer
+			;	Already cleared by loop above
+;			clr.b	&RXCksum				; Clear received packet xor checksum
+;			clr.b	&intFlags				; Clear Interpreter flags
+;			bic.b	#bHexOutput,&intFlags	; Default numeric output to be in decimal, not hexadecimal
+			bis.b	#bChecksumming,&intFlags ; Default to sending checksums and checking received chksums
+;			bic.b	#bDontInterpret,&intFlags ; Do interpret
+;			bic.b	#bDontEcho,&intFlags	; Do echo
+			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
 
 ;
 ; Miscellaneous initialisation
@@ -813,8 +820,8 @@ DELAY_IF_NEEDED MACRO
 			; 16 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
 			; are treated as a corrupted attempt to send status information.
 			; Present status for this BMU is sent instead.
-			; Note that bit 7 is always set for status bytes; bit 6 represents comms error
-			; Bit 5 represents all-near-bypass
+			; Note that bit 7 is always set for status bytes; bit 6 represents comms error;
+			; bit 5 represents all-near-bypass; bit 4 is a check bit, the inverse of the stress high bit.
 			; Note that encoded stress values are not monotonic
 			; The table is indexed by raw stress values
 stressTable	DB		(1<<4) + 0			; Stress 0	$10

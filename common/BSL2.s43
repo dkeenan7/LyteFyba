@@ -25,15 +25,20 @@ BSL2:
 
 
 initBSL2:	; Initialisation
-			; Log the reason for the reset
+			; Log the reason for the reset, as the contents of IFG1.
+			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
+			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset, namely
+			; a flash key violation or an instruction fetch in range $0 to $1FF (special function regs).
+
 			mov			&resetCounter,R8
 			and			#$0F,R8
 			mov.b		&IFG1,resetBuffer(R8)
 			inc			&resetCounter
 
 mainLoop2:
-			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch)
-			; or main program not present
+			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
+			; or main program not present.
+			; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here, to fake a normal reset.
 			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
 			clr.b	&IFG1			; Clear those bits ready for next time
 			_IF		_GE				; If Vcc power-up or /RST pin pulsed low
@@ -108,7 +113,7 @@ eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
 
 			; Program (flash write) byte in R8
 			;
-progByte2	mov.b	R8,-$200(R12)		; Program it
+progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 			xor.b	R8,Rcksum		; Include in check-XOR
 			inc		R12
 			jnz		FSMloop2		; Repeat until R12 wraps to zero
@@ -133,22 +138,22 @@ testNoInterp2:
 
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
 			_IF		_Z
-				call	#infoWriteByte	; Echo; interpretByte no longer does
+			call	#infoWriteByte	; Echo; interpretByte no longer does
 				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
-				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
-				; partial download, set the watchdog timer to the shortest interval, 64 cycles
-				; InterpretByte should set it back to the longest interval, 32k cycles
-				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-				br		#jInterpretByte	; tail-call interpretByte in main flash
-										; It must preserve at least R8 and bsl2state
-										; Get there via the PROG_START independent vector
-				; ret					; Effective ret to BSL1 due to tail-call above
+			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+			; partial download, set the watchdog timer to the shortest interval, 64 cycles
+			; InterpretByte should set it back to the longest interval, 32k cycles
+			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
+			br		#jInterpretByte	; tail-call interpretByte in main flash
+									; It must preserve at least R8 and bsl2state
+									; Get there via the PROG_START independent vector
+			; ret					; Effective ret to BSL1 due to tail-call above
 			_ELSE
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
 				; on any passing status bytes, since we are not calling the main program
-				tst		&bsl2state
+			tst		&bsl2state
 				_IF		_NN				; If we're not programming (state not negative)
-					tst.b	R8
+			tst.b	R8
 					_IF		_L				; If data is a status byte (bit 7 set)
 						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit
 					_ENDIF
