@@ -139,7 +139,7 @@ void dint();
 #define ENGAGE_VEL_R		-50					// Don't allow drive direction change above this speed, rpm
 #define REGEN_THRESHOLD		-5					// Brake lights come on above this motor current, A
 
-// Device serial number   ??? What device is this ??? -- DCK
+// Device serial number   (for Driver Controls units, sent on CAN periodically)
 #define DEVICE_SERIAL		5197
 
 // Public variables
