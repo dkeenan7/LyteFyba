@@ -127,31 +127,35 @@ progByte2	mov.b	R8,-$200(R12)		; Program it
 			; end FSM code
 
 testNoInterp2:
-			; FIXME! When we transition away from BSL1, we'll have to change the below
-			cmp		#waitingIDAddr,2(SP); Is the call to readByte from the waitingID call to ReadByte?
+			; FIXME! When we transition away from BSL1, we'll have to change the below test
+			cmp		#waitingIDAddr,2(SP); Is the call to ReadByte from the waitingID call to ReadByte?
 			jeq		retToBSL1			; If so, no echo, no interpret
-			call	#infoWriteByte	; Echo; interpretByte no longer does
-noEcho:		bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
-			bit.b	#WDTIFG,&IFG1	; Test the no interpret bit (due to watchdog or checksum error)
-			jnz		didntInterp		; Jump around call, if set
-			; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
-			; partial download, set the watchdog timer to the shortest interval, 64 cycles
-			; InterpretByte should set it back to the longest interval, 32k cycles
-			mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-			br		#jInterpretByte	; tail-call interpretByte in main flash
-									; It must preserve at least R8 and bsl2state
-									; Get there via the PROG_START independent vector
-			; ret					; Effective ret to BSL1 due to tail-call above
 
-			; Set the comms error bit on any passing status bytes if we are not calling the main program
-didntInterp
-#if 0		// To be tested later
-			tst		&bsl2state
-			jn		retToBSL1		; If state is negative, we're programming
-			tst.b	R8
-			jge		retToBSL1		; If data has bit 7 clear it's not a status byte
-			bis.b	#COM_ERR,R8		; Set the comms error bit in status bytes when not programming
-#endif
+			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
+			_IF		_Z
+				call	#infoWriteByte	; Echo; interpretByte no longer does
+				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
+				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+				; partial download, set the watchdog timer to the shortest interval, 64 cycles
+				; InterpretByte should set it back to the longest interval, 32k cycles
+				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
+				br		#jInterpretByte	; tail-call interpretByte in main flash
+										; It must preserve at least R8 and bsl2state
+										; Get there via the PROG_START independent vector
+				; ret					; Effective ret to BSL1 due to tail-call above
+			_ELSE
+				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
+				; on any passing status bytes, since we are not calling the main program
+				tst		&bsl2state
+				_IF		_NN				; If we're not programming (state not negative)
+					tst.b	R8
+					_IF		_L				; If data is a status byte (bit 7 set)
+						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit
+					_ENDIF
+				_ENDIF
+				call	#infoWriteByte	; Echo; interpretByte no longer does
+				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
+			_ENDIF
 retToBSL1	ret						; Return to BSL1
 
 			; Any free last segment space is between here and the timer-A interrupt vectors
