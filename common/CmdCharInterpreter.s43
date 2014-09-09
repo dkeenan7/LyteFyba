@@ -196,8 +196,8 @@ NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
 ; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
-; Trashes R8 and R9, and more if carriage return is processed
-; Implements backspace editing and calls the inner interpreter
+; Trashes R8 and R9, and more if carriage return is processed.
+; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ACCEPT
 		mov		&ToIN,R9
@@ -240,11 +240,11 @@ ACCEPT
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OFb	#$11,R8			; XON (ctrl-Q) to exit eXclusive mode (single BMU interaction)
+		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
 			bic.b	#bDontEcho,&intFlags ; Clear the don't-echo flag
 		_ENDOF					; EndOf XON
 
-		_OFb	#$13,R8			; XOFF (ctrl-S) to exit eXclusive mode (single BMU interaction)
+		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&intFlags
 			_IF		_Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&intFlags ; Set the don't-echo flag

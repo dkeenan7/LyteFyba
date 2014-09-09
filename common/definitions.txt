@@ -44,7 +44,7 @@ q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 Q Q Quiet. Stop piezo beeper coming on with error LED
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
-R R query the Reset log
+R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
 s s select
 S S deSelect
 t t Temperature
@@ -117,7 +117,7 @@ K   KillStatusSending, 1K to kill status sending, 0K to restore it
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 {   resetWorstStress :-{
 
-R R queryResetLog
+R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
 ^ ^ resetResetLog
 
   j JumpToSubroutine (call) [disabled to save space]

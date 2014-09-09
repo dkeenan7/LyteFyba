@@ -89,7 +89,7 @@ TX_ByteNW:
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
-					; We want the max number of clock cycles till TAR and TACCTLt are correctly set up.
+					; We want the max number of clock cycles till TACCRt and TACCTLt are correctly set up.
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; The +1 is in case the TAR increments just after we read it.
 					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
@@ -99,7 +99,7 @@ TX_ByteNW:
 						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
 						_IF		_NN					; (2) If existing TACCRt AFTER TAR+setup, keep TACCRt
 					_END_PRIOR_IF ; _Z			; Endif previous stop bit has not completed
-							mov		R9,&TACCRt			; (4) Set the new compare value start-bit
+							mov		R9,&TACCRt			; (4) Set the new compare value for the start-bit
 						_ENDIF ; _NN				; Endif existing TACCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
@@ -110,6 +110,73 @@ TX_ByteNW:
 				clrz						; Indicate char was accepted
 			_ENDIF
 			ret
+
+#if 0
+TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
+			mov.b	&txwr,R9				; Get the write index (not changed by TX_ISR)
+			mov.b 	R8,txbuf(R9)			; Tentatively write the character to the transmit queue
+											;	there's always at least one free space,
+											;	but don't increment the write index yet.
+			inc.b	R9						; Increment a copy of the write index
+			and.b	#txsz-1,R9				;	modulo the queue size
+			cmp.b	&txrd,R9				; If wr+1 mod sz = rd then it's full
+			_IF		_NE
+				mov.b	R9,&txwr			; Increment write index so char is officially in tx queue
+
+				; If we're in a stop bit and the next timer compare match would transition to idle state
+				; and we have time to set it up it before the compare match occurs,
+				; then set it up it so it will transition to a start bit instead.
+				dint
+				tst.b	&BitCntTx			; BitCntTx = 0 means stop -> idle
+				_IF	_Z
+					mov		&TACCRt,R9			; Get the compare value
+					sub		&TAR,R9				; Subtract the timer value
+					; Compare it with the required setup time.
+					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
+					; The +1 is in case the TAR increments just after we read it.
+					cmp		#((9+MckPerTAck-1)/MckPerTAck)+1,R9 ; (2)
+					_IF _GE								; (2)
+						mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode fr start bit, enble cmpare ints
+						mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
+													;   will continue to be an inversion of TXDm (TA0).
+						mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
+					_ENDIF
+				_ENDIF
+				eint
+
+				; If transmit interrupts are disabled, stop bit has finished,
+				; so set up the timer for a new start bit ASAP
+				; and enable transmit compare interrupts.
+				bit		#CCIE,&TACCTLt		; Test transmit interrupts enabled bit
+				_IF		_Z					; If transmit interrupts disabled
+					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
+												;   will continue to be an inversion of TXDm (TA0).
+					mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
+					; Ensure a predictable delay between reading timer and setting
+					; compare time and output mode for a start bit.
+					dint
+					; We want the max number of clock cycles till TCCRt and TACCTLt are correctly set up.
+					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
+					; The +1 is in case the TAR increments just after we read it.
+					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
+					add		&TAR,R9				; R9 := timer value + setup time
+					bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
+					_IF		_Z					; (2) If previous stop bit has not completed
+						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
+						_IF		_NN					; (2) If existing TACCRt AFTER TAR+setup, keep TACCRt
+					_END_PRIOR_IF ; _Z			; Endif previous stop bit has not completed
+							mov		R9,&TACCRt			; (4) Set the new compare value for the start-bit
+						_ENDIF ; _NN				; Endif existing TACCRt is AFTER TAR+setup
+					eint						; (1) Next instruction still protected
+					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
+
+					bic.b	#ACTLED,&P1OUT		; Turn on the (inverted) activity LED for visual feedback
+				_ENDIF 						; Endif transmit interrupts disabled
+
+				clrz						; Indicate char was accepted
+			_ENDIF
+			ret
+#endif
 
 ;
 ; Wait for the transmit queue to empty and last byte to be sent.
