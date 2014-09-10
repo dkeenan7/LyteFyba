@@ -145,7 +145,7 @@ realCal
 					mov.w	@Rsec,Rsec				; Get word sized cal value
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
-emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BMUs
+emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CMUs
 				call	#_EMIT					; Call EMIT
 				mov		#$0D,Rtos				; Carriage return
 				jmp		_EMIT					; Tail-call EMIT and return
@@ -189,7 +189,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BM
 ; setIDs ( -- )
 ;
 			xCODE	'i',setIDs,_setIDs
-; It just doesn't seem to work out to use the delay between BMUs to determine the correct ID, so
+; It just doesn't seem to work out to use the delay between CMUs to determine the correct ID, so
 ; we simply read the ID from the serial port, and echo the next ID downstream.
 
 			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
@@ -197,7 +197,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream BM
 waitingIDAddr								; This address will be on the stack in interpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
-			call	#WriteByte				; Send downstream BMU's ID
+			call	#WriteByte				; Send downstream CMU's ID
 			bis.b	#ACTLED,&P1OUT			; Clear (inverted) activity LED set by WriteByte
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
@@ -271,7 +271,7 @@ failCompare mov		#3,rERR
 #if PROG_START < $F800			// Commented out when need to save space
 ;
 ; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
-; When testing with BMUs powered up in parallel, link inputs are at +3.6 V.
+; When testing with CMUs powered up in parallel, link inputs are at +3.6 V.
 ; Having any analog input above Vcc screws up all analog readings.
 ; So we set P1.4 (usually Vref+ out during conversion)
 ; as a low digital output to keep the link input below Vcc.
@@ -408,7 +408,7 @@ jBurstLp	br		#burstLp				;	(alt2 3)
 ;
 ; send Nulls ( n -- )	; n is the number of nulls to send without a gap
 ;			Only low byte of n is used. Max of 256 nulls when n is zero.
-;			This is to test for false positives on the break-to-reset circuitry of the following BMU.
+;			This is to test for false positives on the break-to-reset circuitry of the following CMU.
 ;
 			xCODE	'z',sendNulls,_sendNulls ; 'z' for send Zeros
 			mov		#100,R11					; Ensure a proper stop bit

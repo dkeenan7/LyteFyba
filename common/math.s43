@@ -1,5 +1,5 @@
 ;
-; Mathematical functions used by all BMU software
+; Mathematical functions used by all CMU software
 ; Use #include "../common/math.s43"
 ;
 
@@ -51,7 +51,7 @@ UMSlashMod:						; (4) Call
 			cmp		R8,R10		; (1) Overflow?
 			jhs		oflo		; (2) Jump to error exit if divide by zero or overflow.
 			mov		#16,R11		; (2) Do 16 times
-	
+
 ummlp		rla		R9			; (1) Shift quotient left and simul. shift dividend lo
 			rlc		R10			; (1)   into dividend hi
 			jc		umm2		; (2) If carry OR
@@ -63,7 +63,7 @@ umm2		sub		R8,R10		; (1)	Subtract divisor from remainder-so-far
 umm1		dec		R11			; (1) Decrement loop counter
 			jnz		ummlp		; (2) Loop until zero
 			ret					; (3)
-	
+
 oflo		mov	#-1,R9			; (1)
 			mov	#-1,R10         ; (1)
 			ret					; (3)

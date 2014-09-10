@@ -17,21 +17,32 @@
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 
-; Charging ( boolean -- )			; 1 when charging or regenning, 0 when driving
+; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
 			xCODE	'c',Charging,_Charging
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
-; ControlCharger ( boolean -- )			; 1 to control a charger (only makes sense for the last BMU)
-			xCODE	'o',ControlCharger,_ControlCharger
+; ChargerC(o)ntrol ( voltLim currLim -- )
+			; This command only makes sense for the last CMU in the string, with an adapter cable
+			; from its fibre-optic output to the serial input of a TC charger.
+			; If currLim is non-zero, whenever you get a '1c' command, run a PI controller on stress
+			; to control a TC charger at 2400 baud until charging is complete.
+			; If currLim is zero, disable charger control and go back to status sending at 9600 baud.
+			; voltLim is charger voltage limit in tenths of a volt.
+			; currLim is charger current limit in tenths of an amp.
+			; e.g. 4000 55o<cr> for charger control up to 400.0 volts, 5.5 amps.
+			; 0o<cr> to go back to status sending.
+			xCODE	'o',ChargerControl,_ChargerControl
+			mov		Rtos,&chargerCurrLim
 			tst		Rtos
 			_IF		_Z
-				bic.b	#bControlCharger,&monFlags	; Clear the bControlCharger bit in monFlags
+				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 				mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600 (default)
 			_ELSE
-				bis.b	#bControlCharger,&monFlags	; Set the bControlCharger bit in monFlags
+				bis.b	#ChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
 				mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+				mov		Rsec,&chargerVoltLim
 			_ENDIF
 			ret
 
@@ -75,13 +86,16 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov.b	&ID,Rsec				; Emit the ID
 			mov		#3,Rtos					; as 3 digits
 			call	#_emitNum
-			mov		#':',R8					; Colon separator
-			call	#TX_ByteCk
 
-			mov		#'q',R8					; 'q' as type of result
-			call	#TX_ByteCk
-			mov		#' ',R8					; Space separator
-			call	#TX_ByteCk
+			mov		#ColonQspace,R10
+			call	#TX_StringCk
+
+		;	mov		#':',R8					; Colon separator
+		;	call	#TX_ByteCk
+		;	mov		#'q',R8					; 'q' as type of result
+		;	call	#TX_ByteCk
+		;	mov		#' ',R8					; Space separator
+		;	call	#TX_ByteCk
 
 			mov.b	&worstStress,Rsec		; Emit worstStress
 			mov		#2,Rtos					; as 2 digits
@@ -145,6 +159,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			bic.b	#ACTLED,&P1OUT			; Set the (inverted) activity LED here to mimic old behaviour
 			pop.b	&intFlags				; Restore number base
 			ret
+ColonQspace	DB		3, ':q '				; First byte is length of following string
 
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible

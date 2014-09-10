@@ -18,11 +18,11 @@ $ $ dollarHex (set number input mode to hex for next literal)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
   a ADCScaled or r(A)wVoltage (TestICal only)
-c   Charging, '1c' to include undertemp and exclude undervolt as stresses
+c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
   c Calibrate
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
-  f FrequencyBurst (between TX+or- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
+  f FrequencyBurst (between TX- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
@@ -34,7 +34,7 @@ l l LinkVoltage
   m e(m)itCharacter
 n n emit(n)um
 N N Number of cells
-o   C(o)ntr(o)l Charger
+o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
   o Change Octave of piezo alarm
   O StOre wOrd (poke wOrd) [disabled to save space]
 p   Stress level (Pain) (local to each BMU)
@@ -92,8 +92,10 @@ l l LinkVoltage
 t t Temperature
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each BMU)
-c   Charging, '1c' to include undertemp and exclude undervolt as stresses
-o   C(o)ntr(o)l Charger
+
+c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
+o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
+
 T T Touch voltage (only when ID=0, insulation monitoring unit)
 I I Insulation test - touch current in mA (only when ID=0, insulation monitoring unit)
 
@@ -126,7 +128,7 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
   O St(O)re word (poke word) [disabled to save space]
   q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 
-  f FrequencyBurst (between TX+or- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
+  f FrequencyBurst (between TX- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
 
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
   w WriteCalValue

@@ -6,7 +6,7 @@
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
 ; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader writer for our cell-top
-; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
+; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 ;
 ; TestICal should be the first program written to the 2kB of main-flash.
 ; This must be done using a flash programmer connected to the chip's JTAG port.
@@ -95,10 +95,10 @@ infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset ca
 infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset cal byte
 info8MHzCalD	EQU		main8MHzCalD-for1000+$1000		; Address of 8 MHz DCO frequency calibration
 info8MHzCalB	EQU		main8MHzCalB-for1000+$1000		; Address of 8 MHz DCO range calibration
-infoID			EQU		mainID		-for1000+$1000		; Address of BMU ID byte
+infoID			EQU		mainID		-for1000+$1000		; Address of CMU ID byte
 infoDataVers	EQU		mainDataVers-for1000+$1000		; Address of Data Version byte
 infoDataEnd		EQU		mainDataEnd	-for1000+$1000		; Used when copying between ram and info-flash
-DATAVERS		EQU		6						; This is version 6 of the BMU info-flash data structure
+DATAVERS		EQU		6						; This is version 6 of the CMU info-flash data structure
 
 ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 										; commands. Monitor uses the info-flash copy
@@ -162,7 +162,7 @@ ramTempCal	DS		1				; Temperature offset calibration; may be written by BSL writ
 ramLinkCal	DS		1				; Link voltage offset calibration data; may be written by BSL writer
 ram8MHzCalD DS		1				; 4 MHz DCO frequency calibration byte
 ram8MHzCalB DS		1				; 4 MHz DCO range calibration byte
-ramID		DS		1				; Cell/BMU identifier byte; first cell is 0; written by 'i' cmd
+ramID		DS		1				; Cell/CMU identifier byte; first cell is 0; written by 'i' cmd
 ramDataVers	DS		1				; Data version
 ramDataEnd
 
@@ -339,7 +339,7 @@ returnFromInitialise
 DELAY_IF_NEEDED MACRO
 			_DO		#1390,R11			; Delay for approx ...
 			_LOOP	R11					;	... 1.04 ms
-			ENDM						; Allows downstream BMU to echo a byte
+			ENDM						; Allows downstream CMU to echo a byte
 
 
 ; Some definitions so the common code will work
@@ -493,7 +493,7 @@ jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
-ProgChecksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 ;---------------------------------------------------------------------------------
 ; Second bootstrap loader, in the last flash segment

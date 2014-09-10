@@ -46,18 +46,26 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 
 
 ;-------------------------------------------------------------------------------
-; TX_Byte	; Subroutine Transmits Character from R8
-			; Trashes R9
+; TX_StringCk	; Transmit counted string pointed to by R10 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8, R9, R10, R11.
 ;-------------------------------------------------------------------------------
 
-;
-; Put the character from R8 into the transmit queue.
-; If necessary, wait until the queue is not full.
-; Preserves R8, trashes R9.
-;
+TX_StringCk: _DO	@R10+,R11
+				mov		@R10+,R8
+				call	TX_ByteCk
+			_LOOP	R11
+			ret
+
+;-------------------------------------------------------------------------------
+; TX_ByteCk	; Transmit the character in R8 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R9.
+;-------------------------------------------------------------------------------
+
 TX_ByteCk:
-			xor.b	R8,&TXCksum		; Alternative entry which accumulates checksum
-TX_Byte:
+			xor.b	R8,&TXCksum
+TX_Byte:	; Alternative entry which does not accumulate checksum
 			_BEGIN
 				call	#TX_ByteNW
 			_UNTIL	_NZ
