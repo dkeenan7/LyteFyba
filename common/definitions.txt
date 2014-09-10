@@ -26,7 +26,7 @@ e e Error. Turn on or off red LED and piezo beeper
   g Get byte (peek byte)
 h h Hex output
   i set(I)Ds
-I I Insulation test - touch current in mA (only when ID=0, insulation monitoring unit)
+I I Insulation test - touch current in hundredths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
@@ -48,7 +48,7 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 s s select
 S S deSelect
 t t Temperature
-T T Touch voltage (only when ID=0, insulation monitoring unit)
+T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
   u UpdateInfoFlash
 v v cell(v)oltage
   w WriteCalValue
@@ -96,8 +96,8 @@ p   Stress level (Pain) (local to each BMU)
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
 o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
 
-T T Touch voltage (only when ID=0, insulation monitoring unit)
-I I Insulation test - touch current in mA (only when ID=0, insulation monitoring unit)
+T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
+I I Insulation test - touch current in hundredths of a milliamp (only when ID=0, insulation monitoring unit)
 
 <XOFF> Stop echoing
 <XON> Resume echoing
