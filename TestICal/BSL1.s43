@@ -207,7 +207,7 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
-			; to allow any receiving BMU's BSL time to both read and echo the byte.
+			; to allow any receiving CMU's BSL time to both read and echo the byte.
 			ret
 
 			; Any free info-flash space is between here and mainDataStart
@@ -221,7 +221,7 @@ mainTempCal		ds		1			; Temperature offset calibration; may be written by BSL wri
 mainLinkCal		ds		1			; Link voltage offset calibration data; may be written by BSL writer
 main8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte (same address as in new chip)
 main8MHzCalB	ds		1			; 8 MHz DCO range calibration byte (same address as in new chip)
-mainID			ds		1			; Cell/BMU identifier byte; first cell is 1; written by 'i' cmd
+mainID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration bytes
 mainDataEnd							; Used when copying between ram and info-flash

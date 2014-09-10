@@ -6,7 +6,7 @@
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
 ; "Monitor" is the standard operating software for our cell-top
-; Battery Monitoring Unit (BMU) based on an MSP430 microcontroller.
+; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -38,7 +38,7 @@ infoTempCal		EQU		$10FA		; Address of Temperature offset calibration byte
 infoLinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
 infoMHz8CalD	EQU		$10FC		; Address of frequency calibration data
 infoMHz8CalB	EQU		$10FD		;	for 8 MHz
-infoID			EQU		$10FE		; Address of this cell's/BMU's identification byte
+infoID			EQU		$10FE		; Address of this cell's/CMU's identification byte
 
 ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
@@ -165,19 +165,25 @@ sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 monFlags		DS		1			; Monitor flags, bitmask definitions follow
 bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
-bCharging		EQU		1<<2		; 1 if charging or regen
-bControlCharger	EQU		1<<3		; 1 if controlling a charger (masterless operation)
+bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
+bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
 passWordState	DS		1			; State machine for password recogniser
 
+; Charger controller variables
+
+chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 				ALIGNRAM 1
+chargerVoltLim	DS		2			; Charger voltage limit (tenths of a volt). Set by 'o' command.
+chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' command.
 pi_prev_output	DS		2			; State of PI controller
 pi_prev_error	DS		2			; State of PI controller
+chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
 
-; Serialio variables
+; Serial-io variables
 
 				ALIGNRAM 1
 TxBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
@@ -313,13 +319,22 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	TXCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+			; Already cleared by loop above
 ;			clr.b	&rxwr						; Initialise the TX and RX queue indexes
-;			clr.b	&rxrd						;	Already cleared by loop above
+;			clr.b	&rxrd
 ;			clr.b	&txwr
 ;			clr.b	&txrd
-;			clr.w	&pi_prev_output				; Initialise PI controller state
-;			clr.w	&pi_prev_error				;	Already cleared by loop above
 
+;
+; Initialise the charger controller
+;
+			; Already cleared by loop above
+;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
+;			clr.w	&chargerVoltLim				; Initialise charger voltage limit
+;			clr.w	&chargerCurrLim				; Initialise charger current limit
+;			clr.w	&pi_prev_output				; Initialise PI controller state
+;			clr.w	&pi_prev_error				;
+;			clr.w	&chargerPrevCurr			; Initialise charger current
 
 ;
 ; Initialise the ADC10
@@ -528,7 +543,7 @@ DoMeasurement:
 						bis.b	#COM_ERR,&localStatus
 						inc.b	&tempMasterIDctr
 						_IF	_Z
-							call	#_commsError			; Call pretty-print
+							call	#_commsError			; Call pretty-printing command
 						_ENDIF
 					_ENDIF
 
@@ -648,58 +663,60 @@ SendStatus:
 ;
 ; Status byte is in R8. Send it or feed it to a PI controller to control a charger
 ;
-			bit.b	#bControlCharger,&monFlags
-			_IF		_Z
-				call	#TX_Byte				; Send the status byte. Wait until buffer not full
-			_ELSE
-				bit.b	#bCharging,&monFlags
-				_IF		_NZ
-					bit		#ALL_NBYP,R8				; If all near bypass
-					_IF		_NZ
+			bit.b	#bChargerControl,&monFlags	; Set by 'o' command
+			_IF		_Z							; If we're not in charge control mode
+				call	#TX_Byte					; Send the status byte. Wait until buffer not full
+			_ELSE								; Else we're in charger control mode
+				bit.b	#bCharging,&monFlags		; Set by '1c' command
+				_IF		_NZ							; If we've been told to start charging
+					bit		#ALL_NBYP,R8
+					_IF		_NZ							; If all cells are near bypass
 						; Send command packet to charger to turn it off
-						mov		#1<<15,R8					; Charger-off bit
-						call	#SendChargerPacket
-						mov		#0,Rtos						; Tell ourselves we've stop charging
-						call	#_Charging
-					_ELSE
+						mov		#0,&chargerPrevCurr			; Set previous charger current to zero
+						mov		#1<<15,R8					; Set charger-off bit
+						call	#SendChargerPacket			; Send packet. Trashes R8 thru R11
+						mov		#0,Rtos						; Tell ourselves we've stopped charging
+						call	#_Charging					; Equiv to '0c' command. Clears bCharging
+					_ELSE								; Else some are not near bypass, so keep charging
 						bit		#COM_ERR,R8
 						_IF		_NZ
 							mov		#8,R8					; Treat comms error as stress 8
 						_ELSE
 							and		#STRESS,R8				; Otherwise use the stress value (0-15)
-							call	#PIController			; Call PI cntrlr with R8 as input and output
-							call	#SendChargerPacket		; Send commnd packet to charger to set current
-						_ENDIF		; COM_ERR
-					_ENDIF		; ALL_NBYP
-				_ENDIF		; bCharging
-			_ENDIF		; bControlCharger
+						_ENDIF
+						call	#PIController			; Call PI controller with R8 as input and output
+						dec		&chargerTxTimer			; Decrement charger transmit timer
+						_IF		_NZ						; If 5 seconds not yet passed since last Tx
+							cmp		R8,&chargerPrevCurr		; Check if current setpoint has changed.
+							mov		R8,&chargerPrevCurr		; Record current setpoint for next time
+							_IF		_NE						; If current setpoint has changed,
+						_END_PRIOR_IF					; Or 5 seconds has passed
+								call	#SendChargerPacket		; Send packet to charger to set current
+								mov		#StatusFreq*5,&chargerTxTimer ; Set timer for 5 seconds
+							_ENDIF ; Current changed			; Note: TC chargers timeout after 10 s
+					_ENDIF ; ALL_NBYP
+				_ENDIF ; bCharging
+			_ENDIF ; bControlCharger
 			ret
 ; End of SendStatus
 
 SendChargerPacket:
-VOLTAGE		EQU		292				; 29.2 V = 8 cells * 3.65 V per cell
 ;
 ; Send a charger command packet with fixed voltage, and current from R8 (in tenths of an amp)
 ; and high bit of R8 as charger-off bit.
 ;
-; Trashes R8 and R9
+; Trashes R8 thru R11
 ;
 ; Send 18 06 E5 F4 0V VV 0W WW 0X 00 00 00
 ;	where VVV is the voltage in tenths of a volt,
 ;	WWW is current limit in tenths of an amp, and
 ;	X is 0 to turn charger on
 			push		R8
-			mov.b		#$18,R8
-			call		#TX_Byte			; Preserves R8, trashes R9
-			mov.b		#$06,R8
+			mov			#Preamble,R10
+			call		#TX_StringCk		; Trashes R8 thru R11
+			mov.b		&chargerVoltLim+1,R8 ; High byte of voltage
 			call		#TX_Byte
-			mov.b		#$E5,R8
-			call		#TX_Byte
-			mov.b		#$F4,R8
-			call		#TX_Byte
-			mov.b		#(VOLTAGE >> 8),R8
-			call		#TX_Byte
-			mov.b		#(VOLTAGE & $FF),R8
+			mov.b		&chargerVoltLim,R8	; Low byte of voltage
 			call		#TX_Byte
 			mov			@SP,R8
 			bic			#1<<15,R8			; Clear the high bit
@@ -712,13 +729,13 @@ VOLTAGE		EQU		292				; 29.2 V = 8 cells * 3.65 V per cell
 			rlc			R8
 			and.b		#1,R8				; Charger-off bit
 			call		#TX_Byte
-			mov.b			#$00,R8
-			call		#TX_Byte
-			mov.b			#$00,R8
-			call		#TX_Byte
-			mov.b			#$00,R8
-			call		#TX_Byte
+			mov			#Postamble,R10
+			call		#TX_StringCk
+			clr			&TXCksum			; Checksum not used
 			ret
+Preamble	DB			4, $18, $06, $E5, $F4		; First byte is length of following string
+Postamble	DB			3, $00, $00, $00
+			ALIGN		1
 ; End of SendChargerPacket
 
 
@@ -726,7 +743,7 @@ PIController:
 ;
 ; A PI controller whose input and output are in R8
 ; Input range is 0 to 15 (stress levels). Setpoint is 7.
-; Output range is 0 to 300 (tenths of an amp).
+; Output range is 0 to chargerCurrLim (tenths of an amp).
 ;
 #define Rerror R10			// Error register
 #define Rderiv R9			// Derivative register
@@ -736,19 +753,19 @@ PIController:
 			mov		Rerror,Rderiv			; deriv = error - prev_error
 			sub		&pi_prev_error,Rderiv
 
-			mov		&pi_prev_output,Routput ; ouptut = prev_output + Kp * deriv + Ki * error
+			mov		&pi_prev_output,Routput ; output = prev_output + Kp * deriv + Ki * error
 			rla		Rderiv					; Kp = 4
 			rla		Rderiv
 			add		Rderiv,Routput
 			add		Rerror,Routput			; Ki = 1
 
-			cmp		#0,Routput				; Clamp output between 0 and 300
+			cmp		#0,Routput				; Clamp output between 0 and charger current limit
 			_IF		_L
 				mov		#0,Routput
 			_ELSE
-				cmp		#301,Routput
+				cmp		&chargerCurrLim,Routput
 				_IF		_GE
-					mov		#300,Routput
+					mov		&chargerCurrLim,Routput
 				_ENDIF
 			_ENDIF
 
@@ -819,7 +836,7 @@ DELAY_IF_NEEDED MACRO
 			; with no checksum correction. To counter this, stress is encoded, so that only
 			; 16 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
 			; are treated as a corrupted attempt to send status information.
-			; Present status for this BMU is sent instead.
+			; Present status for this CMU is sent instead.
 			; Note that bit 7 is always set for status bytes; bit 6 represents comms error;
 			; bit 5 represents all-near-bypass; bit 4 is a check bit, the inverse of the stress high bit.
 			; Note that encoded stress values are not monotonic
@@ -880,7 +897,7 @@ jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
-ProgChecksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 
 ;---------------------------------------------------------------------------------

@@ -187,5 +187,5 @@ freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
 
 				ORG		$FFFC			; Unused NMI vector location
 BSL2presence	DB		$08				; For BSL1 to check before calling BSL2
-BSL2checksum	DB		$FF				; Placeholder for checksum added by BMUsend or SendProg
+BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				; The reset vector (at $FFFE) is set differently by monitor and TestICal.

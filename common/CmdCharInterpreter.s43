@@ -251,7 +251,7 @@ ACCEPT
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single BMU interaction)
+		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&intFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
