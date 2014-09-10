@@ -695,15 +695,15 @@ SendStatus:
 						_ENDIF
 						call	#PIController			; Call PI controller with R8 as input and output
 						dec		&chargerTxTimer			; Decrement charger transmit timer
-						_IF		_NZ						; If 5 seconds not yet passed since last Tx
+						_IF		_NZ						; If 4 seconds not yet passed since last Tx
 							cmp		R8,&chargerPrevCurr		; Check if current setpoint has changed.
 							mov		R8,&chargerPrevCurr		; Record current setpoint for next time
 							_IF		_NE						; If current setpoint has changed,
-						_END_PRIOR_IF					; Or 5 seconds has passed
+						_END_PRIOR_IF					; Or 4 seconds has passed
 								call	#SendChargerPacket		; Send packet to charger to set current
-								mov		#StatusFreq*5,&chargerTxTimer ; Set timer for 5 seconds
-							_ENDIF ; Current changed			; Note: TC chargers timeout after 10 s
-					_ENDIF ; ALL_NBYP
+								mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
+							_ENDIF ; Current changed			; Note: TC chargers timeout after 5 s, see
+					_ENDIF ; ALL_NBYP ; http://www.endless-sphere.com/forums/download/file.php?id=34882
 				_ENDIF ; bCharging
 			_ENDIF ; bControlCharger
 			ret
