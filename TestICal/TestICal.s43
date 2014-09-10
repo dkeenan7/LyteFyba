@@ -64,6 +64,7 @@
 ; Conditional assembly parameters which may be changed for special purposes
 #include "../common/common.h"		// Common definitions such as PROG_START
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
+#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage

@@ -18,11 +18,15 @@
 			ret
 
 ; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
+			; This lets the CMU include undertemperature and exclude undervoltage as stress when charging,
+			; and when masterless-charging is enabled via the 'o' command, this command
+			; start and stops charging.
 			xCODE	'c',Charging,_Charging
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
+#if MASTERLESS_CHARGING
 ; ChargerC(o)ntrol ( voltLim currLim -- )
 			; This command only makes sense for the last CMU in the string, with an adapter cable
 			; from its fibre-optic output to the serial input of a TC charger.
@@ -45,6 +49,7 @@
 				mov		Rsec,&chargerVoltLim
 			_ENDIF
 			ret
+#endif // MASTERLESS_CHARGING
 
 #if PROG_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )

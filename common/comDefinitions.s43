@@ -185,6 +185,179 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		ret
 
 
+;
+; cellVolt ( -- )
+; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
+;
+		xCODE		'v',cellVolt,_cellVolt
+		call		#cellV				; Return cell voltage in millivolts in R10
+		mov			#'v',Rthd			; Type is cell Voltage
+		mov			R10,Rsec			; Result in millivolts
+		mov			#4,Rtos				; Print 4 digits
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; Cell temperature measurement ( -- )
+; Transmit cell temperature in degrees C
+;
+		xCODE		't',cellTemp,_cellTemp
+		call		#temp				; Return temperature in degrees Celsius in R10
+		mov			#'t',Rthd			; Type is temperature
+										; Don't use degree symbol ($F8 Terminal font). Looks like status
+		mov			R10,Rsec			; Result in degrees Celsius
+		mov			#2,Rtos				; Print 2 digits
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; Link voltage measurement ( -- )
+; Transmit link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
+		xCODE		'l',linkVolt,_linkVolt
+		call		#linkV				; Return link voltage in millivolts in R10
+		mov			#'l',Rthd			; Type is Link voltage
+		mov			R10,Rsec			; Result in millivolts
+		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+
+#if INSULATION_MONITORING
+;
+; TouchValue ( -- )
+; Transmit the raw touch value (0 to 4095 mV).
+; This is an uncalibrated measurement as it is the touch current times the opto's CTR (0.63 to 1.25)
+; times R17 (120R), scaled to 4096 counts for 1500 mV (ADC reference).
+;
+		xCODE		'T',touchValue,_touchValue
+		cmp.b	#0,&infoID				; If we're an IMU
+		_IF		_EQ
+			call		#touchV				; Return touch value (0 to 4095) in R10
+			mov			#'T',Rthd			; Type is touch value
+			mov			R10,Rsec			; Result
+			mov			#4,Rtos				; Print 4 digits
+			call		#_prettyPrint		; Call pretty-print
+		_ENDIF
+		ret
+
+;
+; Insulation test ( -- )
+; Transmit the prospective touch current in hundredths of a milliamp (0 to 655.35 mA)
+; This is a calibrated result based on 3 touch measurements and a battery voltage measurement
+; and the fact that the test resitors are 100k and the battery voltage is divided by 109.
+		xCODE		'I',insulationTest,_insulationTest
+		; Register definitions
+#define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
+#define Rmeas R14				// Max of touch measurements when any one relay is on.
+#define Rtest R15				// Touch self-test value when both relays are on.
+		cmp.b	#0,&infoID				; If we're an IMU
+		_IF		_EQ
+			call	#cellV				; Return battery voltage in millivolts in R10
+			mov		R10,Rcellv
+
+			; Positive relay only
+			bis.b	#RELAYp,P2OUT		; Turn on positive relay
+			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#touchV				; Return touch value in R10
+			mov		R10,Rmeas
+
+			; Both relays
+			bis.b	#RELAYm,P2OUT		; Turn on negative relay
+			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#touchV				; Return touch value in R10
+			; This allows calibration, as it will represent the battery voltage divided by 100k
+			; irrespective of any leakage resistances, assuming only that the two optos
+			; have similar CTRs.
+			mov		R10,Rtest
+
+			; Negative relay only
+			bic.b	#RELAYp,P2OUT		; Turn off positive relay
+			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#touchV				; Return touch value in R10
+			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
+			_IF		_LO
+				mov		R10,Rmeas
+			_ENDIF
+
+			; Both relays off
+			bic.b	#RELAYm,P2OUT		; Turn off negative relay
+
+			; If the test value is less than battery_voltage/109 divided by 8 then there is a problem.
+			mov		Rcellv,R8
+			rra		R8
+			rra		R8
+			rra		R8
+			cmp		R8,Rtest
+			_IF		_LO
+				mov		#9999,R9		; Indicate the problem by a large and unlikely value
+			_ELSE
+				; Calculate the prospective touch current in hundredths of a milliamp
+				; assuming a body model of 98 ohms (100k/1024), test resistors of 100k and
+				; Vcell = Vbat / 109.
+				; We use the approximation 128/14 ~= 1000/109 (0.3% error).
+				mov		Rmeas,R8
+				rla		R8
+				swpb	R8
+				and.b	#$FF,R8			; R8    = Vmeas / 128
+				rla		Rmeas
+				rla		Rmeas
+				rla		Rmeas
+				mov		Rmeas,R9		; R9    = Vmeas * 8
+				sub		R8,Rmeas		; Rmeas = (Vmeas - Vmeas/1024) * 8
+				rla		Rcellv
+				rla		Rcellv
+				rla		Rcellv
+				rla		Rcellv
+				mov		Rcellv,R8		; R8    = Vcellv * 16
+				call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas * 128
+				rla		Rtest
+				rla		Rtest
+				rla		Rtest
+				sub		Rmeas,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 8
+				mov		Rtest,R8
+				rra		R8
+				rra		R8
+				rra		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 1
+				sub		R8,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 7
+				mov		Rtest,R8
+				rla		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 14
+				call	#UMSlashMod		; R9    = R10:R9 / R8
+										; R9    = (Vcell * Vmeas * 128)/((Vtest - 0.999*Vmeas) * 14)
+			_ENDIF
+
+			mov		#'I',Rthd			; Type is touch current
+			mov		R9,Rsec				; Result in hundredths of a milliamp
+			mov		#4,Rtos				; Print 5 digits
+			call	#_prettyPrint		; Call pretty-print
+		_ENDIF
+		ret
+
+delay49ms:
+		_DO		#0,R11					; 65536 * 3 / 4 MHz = 49 ms delay
+		_LOOP	R11
+		ret
+
+;
+; RelayPlus ( bool -- ) Turn on or off relay+ on IMU
+;
+		xCODE	'Y',relayP,_relayP
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
+;		pop		Rtos				; Remove operand
+		ret
+#endif // INSULATION_MONITORING
+
+
+#if PROG_START < $F800	// Commented out if need to save space
+;
+; Bypass or RelayMinus ( bool -- ) Turn on or off bypass resistors (or relay- if this is an IMU)
+;
+		xCODE	'y',bypass,_bypass
+_relayM	EQU		_bypass				; An alias for use in IMU code
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
+;		pop		Rtos				; Remove operand
+		ret
+#endif	// PROG_START < $F800
+
+
 _prettyPrint3:
 		mov		#3,Rtos
 		; Fall thru to _prettyPrint
@@ -229,74 +402,6 @@ _prettyPrint:
 
 		bic.b	#ACTLED,&P1OUT		; Set the (inverted) activity LED here to mimic old behaviour
 		ret
-
-;
-; cellVolt ( -- )
-; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
-;
-		xCODE		'v',cellVolt,_cellVolt
-		call		#cellV				; Return cell voltage in millivolts in R10
-		mov			#'v',Rthd			; Type is cell Voltage
-		mov			R10,Rsec			; Result in millivolts
-		mov			#4,Rtos				; Print 4 digits
-		jmp			_prettyPrint		; Tail-call pretty-print and return
-
-;
-; Cell temperature measurement ( -- )
-; Transmit cell temperature in degrees C
-;
-		xCODE		't',cellTemp,_cellTemp
-		call		#temp				; Return temperature in degrees Celsius in R10
-		mov			#'t',Rthd			; Type is temperature
-										; Don't use degree symbol ($F8 Terminal font). Looks like status
-		mov			R10,Rsec			; Result in degrees Celsius
-		mov			#2,Rtos				; Print 2 digits
-		jmp			_prettyPrint		; Tail-call pretty-print and return
-
-;
-; Link voltage measurement ( -- )
-; Transmit link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
-		xCODE		'l',linkVolt,_linkVolt
-		call		#linkV				; Return link voltage in millivolts in R10
-		mov			#'l',Rthd			; Type is Link voltage
-		mov			R10,Rsec			; Result in millivolts
-		mov			#4,Rtos				; Print 4 digits... would 3 be enough?
-		jmp			_prettyPrint		; Tail-call pretty-print and return
-
-;
-; TouchVolt ( -- )
-; Transmit the touch voltage measurement in millivolts (0 to 4095 mV)
-; This is the touch current times the opto's CTR (0.63 to 1.25) times R17 (120R).
-;
-		xCODE		'T',touchVolt,_touchVolt
-		cmp.b	#0,&infoID				; If we're an IMU
-		_IF		_EQ
-			call		#touchV				; Return touch voltage in millivolts in R10
-			mov			#'T',Rthd			; Type is touch Voltage
-			mov			R10,Rsec			; Result in millivolts
-			mov			#4,Rtos				; Print 4 digits
-			call		#_prettyPrint		; Call pretty-print
-		_ENDIF
-		ret
-
-#if PROG_START < $F800	// Commented out if need to save space
-;
-; Turn on or off bypass resistors (relay- on IMU) ( bool -- )
-;
-		xCODE	'y',bypass,_bypass
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
-;		pop		Rtos				; Remove operand
-		ret
-;
-; Turn on or off relay+ on IMU ( bool -- )
-;
-		xCODE	'Y',relayP,_relayP
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
-;		pop		Rtos				; Remove operand
-		ret
-#endif
 
 ;
 ; Turn on or off the error LED and piezo beeper (bool -- )
