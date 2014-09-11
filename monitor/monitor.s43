@@ -440,12 +440,14 @@ DoMeasurement:
 			; Set bypass as required
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
-				cmp		#BYPLEV,R10				; Compare present cell voltage (R10) to bypass threshold
+				cmp			#BYPLEV,R10			; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-				cmp		#NBYPLEV,R10			; Compare cell voltage (R10) to the near-bypass threshold
+				cmp			#NBYPLEV,R10		; Compare cell voltage (R10) to the near-bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only #ALL_NBYP bit from R8 to &localStatus.
+			_ELSE
+				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
 			; Calculate stress due to overvoltage
@@ -456,16 +458,19 @@ DoMeasurement:
 			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 			; Calculate stress due to undervoltage if required
-			bit.b	#bCharging,&monFlags	; If not charging (including not regen braking)
-			_IF		_Z
-											; Measurement saved on stack earlier
-			push	#UV_STEP				; For every UV_STEP (millivolts)
-			push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-			push	#2						; Type of measurement
-			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
-			_ELSE
-				pop		R10						; Drop unused voltage measurement off stack
-			_ENDIF
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF		_NE
+				bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
+				_IF		_Z
+													; Measurement saved on stack earlier
+					push	#UV_STEP				; For every UV_STEP (millivolts)
+					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+					push	#2						; Type of measurement
+					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
+				_ELSE
+			_END_PRIOR_IF
+					pop		R10						; Drop unused voltage measurement off stack
+				_ENDIF
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10

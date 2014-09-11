@@ -263,6 +263,10 @@ int main( void )
 							P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our charger (and battery) contactors
 						else
 							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
+
+						// Regest an insulation test on rising edge of IGN_ON
+						if (switches & switches_diff & SW_IGN_ON)
+							bms_sendInsulReq();
 					}
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
@@ -503,7 +507,7 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMS_CURR:
 						uBMScurrB = can.data.data_16[0];	// Save half-pack B current from IMU
-						if ((command.state == MODE_OFF) || (command.state == MODE_D && tacho_display == TRQ)) {
+						if (/*(command.state == MODE_OFF) ||*/ (command.state == MODE_D && tacho_display == TRQ)) {
 							// Display half-pack currents on tacho, in amps x 50 (shows DC curr in chg mode)
 							// Shows A current for 0.5 s and B current for 1 s. Absolute values.
 							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
@@ -511,14 +515,30 @@ int main( void )
 							static unsigned int curr_dsp_ctr = 0;
 							if (++curr_dsp_ctr == 15) {				// 1.5 second display cycle
 								curr_dsp_ctr = 0;
-								gauge_tach_update(fabsf(uBMScurrB * 2.0));	// 1 seconds displaying B current
+								gauge_tach_update(fabsf(uBMScurrB * 2.0));	// 1 seconds displaying B
 							}
 							if (curr_dsp_ctr == 10)
-								gauge_tach_update(fabsf(uBMScurrA * 2.0));	// 0.5 second displaying A current
+								gauge_tach_update(fabsf(uBMScurrA * 2.0));	// 0.5 second displaying A
 						}
 						break;
 					case DC_CAN_BASE + DC_BMS_A_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
+						break;
+					case DC_CAN_BASE + DC_BMS_INSUL:
+						uBMSinsulB = can.data.data_16[0];	// Save half-pack B touch current from IMU
+						if (command.state == MODE_OFF) {
+							// Display insulation-test touch-currents on tacho, in milliamps x 20
+							// Shows A-pack touch current for 1 s and B-pack touch current for 2 s.
+							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
+							// So B is displayed twice as long as A.
+							static unsigned int curr_dsp_ctr = 0;
+							if (++curr_dsp_ctr == 30) {				// 3 second display cycle
+								curr_dsp_ctr = 0;
+								gauge_tach_update(fabsf(uBMSinsulB * 5.0));	// 2 seconds displaying B
+							}
+							if (curr_dsp_ctr == 20)
+								gauge_tach_update(fabsf(uBMSinsulA * 5.0));	// 1 second displaying A
+						}
 						break;
 				    }
 				}	// end DCU-A
