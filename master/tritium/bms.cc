@@ -15,6 +15,7 @@
 bool bms_sendPacket(const unsigned char* ptr);
 void SendChgrLim(unsigned int uChgrLim);
 void SendBMScurr(int uBMScurr);
+void SendBMSinsul(int uBMSinsul);
 
 // Public variables
 volatile unsigned int bms_events = 0;
@@ -23,6 +24,7 @@ volatile unsigned int bms_sent_timeout;
 volatile unsigned int bms_vr_count = BMS_VR_SPEED;	// Counts BMS_VR_SPEED to 1 for voltage requests
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 int uBMScurrA=0, uBMScurrB=0;						// Half-pack A or B current (neg means charging)
+int uBMSinsulA=0, uBMSinsulB=0;						// Half-pack A or B insulation test touch current
 unsigned int bmsStatusBtimeout = 0;			// Timeout for BMS status via CAN from DCU-B to DCU-A
 
 // BMS buffers
@@ -127,7 +129,7 @@ bool bms_sendByte(unsigned char ch) {
 }
 
 // Make a command at *cmd for IMU or CMU number cellNo
-// Called by bms_sendVoltReq and bms_sendCurrentReq below
+// Called by bms_sendVoltReq, bms_sendCurrentReq and bms_sendInsulReq below
 void makeBMScmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
 {
 	unsigned char* p; p = cmd;
@@ -161,6 +163,15 @@ bool bms_sendCurrentReq()
 {
 	unsigned char cmd[8];
 	makeBMScmd(cmd, 0, 'l');	// cmd := "0sl\r"
+	return bms_sendPacket(cmd);
+}
+
+// Send a request for an insulation test (touch current reading), to "CMU" 0 which is the IMU.
+// Returns true on success
+bool bms_sendInsulReq()
+{
+	unsigned char cmd[8];
+	makeBMScmd(cmd, 0, 'I');	// cmd := "0sI\r"
 	return bms_sendPacket(cmd);
 }
 
@@ -475,6 +486,15 @@ void bms_processPacket()
 				uBMScurrA = 2 * rx_value;		// Tenths of an amp
 			bms_sendCurrentReq();				// Send another current request
 		}
+		// Check for an insulation-test (hundredths of a milliamp) response from the IMU (ID = 0)
+		else if (rx_cmd == 'I' && rx_id == 0) {
+			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
+			// Set global or CAN-send value to be displayed on the tacho by DCU-A
+			if (bDCUb)
+				SendBMSinsul(rx_value); 	// Hundredths of a milliamp (prospective touch current)
+			else
+				uBMSinsulA = rx_value;		// Hundredths of a milliamp (prospective touch current)
+		}
 		// Check for a voltage response from a particular CMU
 		else if (rx_cmd == 'v' && rx_id == bms_curr_cell) {
 			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
@@ -531,5 +551,12 @@ void SendBMScurr(int uBMScurr) {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_CURR;
 	can_push_ptr->status = 2;	// Packet size in bytes
 	can_push_ptr->data.data_16[0] = uBMScurr; 	// Send B half-pack current to DCU-A
+	can_push();
+}
+
+void SendBMSinsul(int uBMSinsul) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_INSUL;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_16[0] = uBMSinsul; 	// Send B half-pack insulation-test touch-current to DCU-A
 	can_push();
 }

@@ -150,6 +150,7 @@ extern bool bDCUb;								// True if DCU B; false if DCU A
 extern unsigned char statusB;					// Status from DCU-B
 extern unsigned int uChgrCurrA, uChgrCurrB;		// Charger actual currents in tenths of an amp
 extern int uBMScurrA, uBMScurrB;				// Half-pack currents in tenths of an amp
+extern int uBMSinsulA, uBMSinsulB;				// Half-pack touch currents in hundredths of a milliamp
 
 
 void fault() __attribute__ NOINLINE;			// Single flash the error LED
