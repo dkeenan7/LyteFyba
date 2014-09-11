@@ -239,7 +239,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 ;
 ; Insulation test ( -- )
-; Transmit the prospective touch current in hundredths of a milliamp (0 to 655.35 mA)
+; Transmit the prospective touch current in hundredths of a milliamp (0 to 99.99 mA)
 ; This is a calibrated result based on 3 touch measurements and a battery voltage measurement
 ; and the fact that the test resitors are 100k and the battery voltage is divided by 109.
 		xCODE		'I',insulationTest,_insulationTest
@@ -254,13 +254,13 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; Positive relay only
 			bis.b	#RELAYp,P2OUT		; Turn on positive relay
-			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#delay32ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
 			bis.b	#RELAYm,P2OUT		; Turn on negative relay
-			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#delay32ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			; This allows calibration, as it will represent the battery voltage divided by 100k
 			; irrespective of any leakage resistances, assuming only that the two optos
@@ -269,7 +269,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; Negative relay only
 			bic.b	#RELAYp,P2OUT		; Turn off positive relay
-			call	#delay49ms			; Wait for relay bounce and voltage settling
+			call	#delay32ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
 			_IF		_LO
@@ -286,7 +286,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			rra		R8
 			cmp		R8,Rtest
 			_IF		_LO
-				mov		#9999,R9		; Indicate the problem by a large and unlikely value
+				mov		#8888,R9		; Indicate problem by large and noticeable but not saturated value
 			_ELSE
 				; Calculate the prospective touch current in hundredths of a milliamp
 				; assuming a body model of 98 ohms (100k/1024), test resistors of 100k and
@@ -320,17 +320,25 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				rla		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 14
 				call	#UMSlashMod		; R9    = R10:R9 / R8
 										; R9    = (Vcell * Vmeas * 128)/((Vtest - 0.999*Vmeas) * 14)
+				mov		#9999,R8		; Clamp to 99.99 mA
+				cmp		R8,R9
+				_IF		_HS
+					mov		R8,R9
+				_ENDIF
 			_ENDIF
 
 			mov		#'I',Rthd			; Type is touch current
 			mov		R9,Rsec				; Result in hundredths of a milliamp
-			mov		#4,Rtos				; Print 5 digits
+			mov		#4,Rtos				; Print 4 digits
 			call	#_prettyPrint		; Call pretty-print
 		_ENDIF
 		ret
 
-delay49ms:
-		_DO		#0,R11					; 65536 * 3 / 4 MHz = 49 ms delay
+delay32ms:
+#if WATCHDOG
+       	mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32.768 ms)
+#endif
+		_DO		#42667,R11					; 42667 * 3 / 4 MHz = 32 ms delay
 		_LOOP	R11
 		ret
 
