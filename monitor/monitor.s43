@@ -184,6 +184,10 @@ chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' co
 pi_prev_output	DS		2			; State of PI controller
 pi_prev_error	DS		2			; State of PI controller
 chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
+discharge		DS		4			; Accumulator for depth of discharge determination.
+									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
+									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
+capacity		DS		2			; Battery capacity in Ah, times 4.12. Same units as hi word above.
 
 ; Serial-io variables
 
@@ -491,28 +495,33 @@ DoMeasurement:
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
 				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-			_ELSE
+			_ELSE	; IMU
 				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
 
-#if 0		// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
-			cmp		#9999,R10				; Special "invalid" value?
-			_IF		_NE						; Only calculate link stress if not this value
-				; Calculate stress due to excessive absolute link voltage
-				tst		R10						; Get absolute value of link voltage
-				_IF		_L
-					inv		R10
-					inc		R10
-				_ENDIF
-				push	R10						; Measurement for absolute link stress calc
-				push	#AL_STEP				; For every AL_STEP (millivolts)
-				push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
-				push	#5						; Type of measurement
-				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
-			_ENDIF
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF		_NE
+				cmp		#9999,R10				; Special "invalid" value?
+				_IF		_NE						; Only calculate link stress if not this value
+#if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
+					; Calculate stress due to excessive absolute link voltage
+					tst		R10						; Get absolute value of link voltage
+					_IF		_L
+						inv		R10
+						inc		R10
+					_ENDIF
+					push	R10						; Measurement for absolute link stress calc
+					push	#AL_STEP				; For every AL_STEP (millivolts)
+					push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
+					push	#5						; Type of measurement
+					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
 #endif
+			_ELSE	; IMU
+				sub		R10,&discharge
+				sbc		&discharge+2
+			_ENDIF
 
 			; Update local present stress, and worst stress for trip so far
 			mov.b	Rstrs,R8				; Copy stress. movBits_B instruction trashes its source.
