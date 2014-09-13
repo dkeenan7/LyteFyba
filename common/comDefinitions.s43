@@ -281,9 +281,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; If the test value is less than battery_voltage/109 divided by 8 then there is a problem.
 			mov		Rcellv,R8
-			rra		R8
-			rra		R8
-			rra		R8
+			rra3	R8
 			cmp		R8,Rtest
 			_IF		_LO
 				mov		#8888,R9		; Indicate problem by large and noticeable but not saturated value
@@ -296,25 +294,16 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				rla		R8
 				swpb	R8
 				and.b	#$FF,R8			; R8    = Vmeas / 128
-				rla		Rmeas
-				rla		Rmeas
-				rla		Rmeas
+				rla3	Rmeas
 				mov		Rmeas,R9		; R9    = Vmeas * 8
 				sub		R8,Rmeas		; Rmeas = (Vmeas - Vmeas/1024) * 8
-				rla		Rcellv
-				rla		Rcellv
-				rla		Rcellv
-				rla		Rcellv
+				rla4	Rcellv
 				mov		Rcellv,R8		; R8    = Vcellv * 16
 				call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas * 128
-				rla		Rtest
-				rla		Rtest
-				rla		Rtest
+				rla3	Rtest
 				sub		Rmeas,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 8
 				mov		Rtest,R8
-				rra		R8
-				rra		R8
-				rra		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 1
+				rra3	R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 1
 				sub		R8,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 7
 				mov		Rtest,R8
 				rla		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 14
