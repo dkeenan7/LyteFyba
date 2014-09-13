@@ -351,3 +351,44 @@ _qmLOOP MACRO src,dest
         _REPEAT
                         ENDM
 
+; Byte versions of the above
+_DOb    MACRO src,dest
+        MOV.B src,dest
+                        LSTOUT-
+        _BEGIN
+                        ENDM
+
+_LOOPb  MACRO dest
+        DEC.B dest
+                        LSTOUT-
+        _UNTIL _Z
+                        ENDM
+
+_mLOOPb MACRO src,dest
+        SUB.B src,dest
+                        LSTOUT-
+        _UNTIL _Z
+                        ENDM
+
+_qDOb   MACRO src,dest
+        MOV.B src,dest
+                        LSTOUT-
+        _BEGIN
+                        LSTOUT+
+        TST.B dest
+                        LSTOUT-
+        _WHILE _NZ
+                        ENDM
+
+_qLOOPb MACRO dest
+        DEC.B dest
+                        LSTOUT-
+        _REPEAT
+                        ENDM
+
+_qmLOOPb MACRO src,dest
+        SUB.B src,dest
+                        LSTOUT-
+        _REPEAT
+                        ENDM
+
