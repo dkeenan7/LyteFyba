@@ -253,14 +253,14 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			mov		R10,Rcellv
 
 			; Positive relay only
-			bis.b	#RELAYp,P2OUT		; Turn on positive relay
-			call	#delay32ms			; Wait for relay bounce and voltage settling
+			bis.b	#RELAYp,&P2OUT		; Turn on positive relay
+			call	#delay30ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
-			bis.b	#RELAYm,P2OUT		; Turn on negative relay
-			call	#delay32ms			; Wait for relay bounce and voltage settling
+			bis.b	#RELAYm,&P2OUT		; Turn on negative relay
+			call	#delay30ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			; This allows calibration, as it will represent the battery voltage divided by 100k
 			; irrespective of any leakage resistances, assuming only that the two optos
@@ -268,8 +268,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			mov		R10,Rtest
 
 			; Negative relay only
-			bic.b	#RELAYp,P2OUT		; Turn off positive relay
-			call	#delay32ms			; Wait for relay bounce and voltage settling
+			bic.b	#RELAYp,&P2OUT		; Turn off positive relay
+			call	#delay30ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
 			_IF		_LO
@@ -277,7 +277,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			_ENDIF
 
 			; Both relays off
-			bic.b	#RELAYm,P2OUT		; Turn off negative relay
+			bic.b	#RELAYm,&P2OUT		; Turn off negative relay
 
 			; If the test value is less than battery_voltage/109 divided by 8 then there is a problem.
 			mov		Rcellv,R8
@@ -323,11 +323,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		_ENDIF
 		ret
 
-delay32ms:
+delay30ms:
 #if WATCHDOG
        	mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32.768 ms)
 #endif
-		_DO		#42667,R11					; 42667 * 3 / 4 MHz = 32 ms delay
+		_DO		#40000,R11					; 40000 * 3 / 4 MHz = 30 ms delay
 		_LOOP	R11
 		ret
 
