@@ -27,7 +27,7 @@ BSL2:
 			; Check to see if this is an init call (from BSL1)
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			_IF		_EQ				; If for initialisation, initialise, and return
-				call	#initBSL2
+				call	#initBSL2-BSL2+$FE00	; Adjust for relocation
 				ret						; Return to BSL1
 			_ENDIF					; Endif call is for initialisation
 			jmp		processByte2	; Skip over the init routine below
@@ -59,7 +59,7 @@ mainLoop2:
 
 			; Pass initialisation on to main program, if allowed
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
-			call	#testNoInterp2
+			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
 initRetAddr2:	; Used by the monitor or TestICal or other main-flash code
 			; to tell if the interpretByte call is for initialisation
 			; and hence if the byte in R8 should be echoed
@@ -74,7 +74,7 @@ FSMloop2:
 			ret
 processByte2
 			; Pass byte in R8 on to main program, if allowed
-			call	#testNoInterp2
+			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
 
 			; Password-checking finite-state-machine (FSM)
 			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
@@ -132,8 +132,8 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 			tst.b	Rcksum			; Check the checksum
 			jnz		resetFSM2		; If bad checksum, leave the no interpret flag set
 
-			mov.b	#RSTIFG,&IFG1	; Good checksum, reset no interpret flag,
-									;	set RST so BSL2 will call interpretByte
+			mov.b	#RSTIFG | OFIFG,&IFG1	; Good checksum, reset no interpret flag (watchdog flag),
+									;	fake a normal rest so BSL2 will call interpretByte
 		; FIXME: need to call interpretByte with 00 for initialisation. Dave says may not want above
 			jmp		mainLoop2		; Back to looking for password,
 									; but first make init call to jInterpretByte

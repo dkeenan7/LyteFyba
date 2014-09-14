@@ -403,7 +403,7 @@ justRet		ret
 compareBSL2:
 			mov		#BSL2,R12
 			_BEGIN
-				cmp.w	@R12+,BSL2b-BSL2(R12)
+				cmp.w	@R12,BSL2b-BSL2(R12)
 				_WHILE	_EQ ; _Z
 					incd	R12
 			_UNTIL	_Z					; Loop until R12 wraps to 0
@@ -430,8 +430,8 @@ errorFlash:
 			mov.b	#$8D,&BCSCTL1				; Typical 8 MHz DCO calibration value
 			mov.b	#$81,&DCOCTL				;	so we can count the flashes
 			mov		rERR,R9
+			mov		#16,R10						; Bit loop counter
 			_BEGIN
-				mov		#16,R10					; Bit loop counter
 				rra		R9						; LSB into carry
 				subc.b	R11,R11					; Zero if carry was set, $FF otherwise
 				inv.b	R11
@@ -475,7 +475,7 @@ JTAGstart:	mov		#$300,SP
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00
 BSL2b		BSL2MACRO	initRetAddr2b, BSLErase2b
 			ORG		BSL2b+$1FE			; The copy of the reset vector
-			DW		jJTAGstart
+			DW		$1000				; For now, it still points to BSL1
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
