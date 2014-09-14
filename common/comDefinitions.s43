@@ -534,3 +534,10 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			mov		#'\r',R8			; Transmit a carriage return.
 			call	#TX_Byte
 			ret
+
+#if 0
+; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
+			xCODE	'!',Watchdog,_Watchdog
+			mov.w	#0,&WDTCTL		; Write an incorrect password to the watchdog control reg
+			ret
+#endif
