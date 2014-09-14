@@ -18,6 +18,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
   a ADCScaled or r(A)wVoltage (TestICal only)
+  b update Bootstrap loader (BSL2)
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
   c Calibrate
 d d Decimal output

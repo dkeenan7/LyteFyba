@@ -214,35 +214,39 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 
 ; Erase info flash including segment A.
 			mov		#$1000,R12				; Start of info-flash
-eraseInfo	MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
-			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase (doesn't seem to "stick")
-			rra		@R12					; Dummy write: erase segment
-			add		#64,R12					; Next segment
-			cmp		#$10C0,R12
-			jnz		eraseInfo				; Loop until at start of segment A
+			_BEGIN
+				MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+				MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase (doesn't seem to "stick")
+				rra		@R12					; Dummy write: erase segment
+				add		#64,R12					; Next segment
+				cmp		#$10C0,R12
+			_UNTIL	_EQ						; Loop until at start of segment A
 			CLRLOCKA						; Clear segment A lock (so we can erase and write it also)
 			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			rra		@R12					; Dummy write: erase segment A
 
 			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
-; We assume 3 zones here: program, RAM, and version (see compareImage for details)
+; We assume 3 zones here: program, RAM, and version (see compareInfoFlash for details)
 			clr		R12						; Index register
-pifLoop1	mov.b	for1000(R12),$1000(R12)	; Program byte from first zone
-			inc		R12
-			cmp		#mainDataStart-for1000,R12	; Check for start of calibration data
-			jnz		pifLoop1				; Repeat until done this part
+			_BEGIN
+				mov.b	for1000(R12),$1000(R12)	; Program byte from first zone
+				inc		R12
+				cmp		#mainDataStart-for1000,R12	; Check for start of calibration data
+			_UNTIL	_EQ						; Repeat until done this part
 
 ; In the source operand of the move instruction below, R12 is larger by about F8 (mainDataStart-for1000)
 ; than we want, hence the subtraction
-pifLoop2	mov.b	ramDataStart-(mainDataStart-for1000)(R12),$1000(R12) ; Program from RAM (zone 2)
-			inc		R12
-			cmp		#mainDataEnd-for1000,R12 ; Check for end of calibration data
-			jnz		pifLoop2
+			_BEGIN
+				mov.b	ramDataStart-(mainDataStart-for1000)(R12),$1000(R12) ; Program from RAM (zone 2)
+				inc		R12
+				cmp		#mainDataEnd-for1000,R12 ; Check for end of calibration data
+			_UNTIL 	_EQ
 
 ; Now move the 1 or more constant bytes.
-pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
-			inc.b	R12
-			jnz		pifLoop3				; Loop till the end of info flash (8-bit index wraps to 0)
+			_BEGIN
+				mov.b	for1000(R12),$1000(R12)	; Program from zone 3
+				inc.b	R12
+			_UNTIL	_Z				; Loop till the end of info flash (8-bit index wraps to 0)
 
 			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
 			MOV		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCKs
@@ -250,7 +254,7 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			;
 			; Check that the flash programming worked
 			;
-			call	#compareImage			; Compare the for1000 image with what's at 1000
+			call	#compareInfoFlash		; Compare the for1000 image with what's at 1000
 			jnz		failCompare
 
 			;
@@ -262,11 +266,48 @@ pifLoop3	mov.b	for1000(R12),$1000(R12)	; Program from zone 3
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK; no accidental flash programming
 
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
-			bis.b	#RSTIFG,&IFG1			; BSL2 expects real reset, so fake one
+			bis.b	#RSTIFG | OFIFG,&IFG1	; BSL2 expects real reset, so fake one
 			br		#$1000					; Start the new BSL
 
-failCompare mov		#3,rERR
+failCompare mov		#b'01010000,rERR		; 2 flashes
 			br		#errorFlash
+
+;
+; update Bootstrap loader ( -- )
+;
+			xCODE	'b',updateBSL2,_updateBSL2
+; Prepare to flash-program
+; Assumes ACCVIE = NMIIE = OFIE = 0.
+; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+			MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+
+			; Erase last segment of main flash (usually contains BSL2).
+			mov		#BSL2,R12				; Start of last seg of main-flash, $FE00
+			MOV		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+			rra		@R12					; Dummy write: erase segment
+
+			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+			_BEGIN
+				mov		BSL2b-BSL2(R12),0(R12)		; Program word
+				incd	R12
+			_UNTIL	_Z						; Will wrap to 0 after writing last word
+
+			MOV		#FWKEY,&FCTL1			; Done. Clear WRT
+			MOV		#FWKEY+LOCK,&FCTL3 		; Set LOCK
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareBSL2			; Compare the payload copy with what's at $FE00
+			jnz		failCompareB
+
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
+			ret
+
+failCompareB mov	#b'01010100,rERR		; 3 flashes
+			br		#errorFlash
+
 
 #if PROG_START < $F800			// Commented out when need to save space
 ;
@@ -317,7 +358,7 @@ failCompare mov		#3,rERR
 			mov.b	#' ',Rthd
 			mov.w	@Rtos,Rsec
 			mov		#5,Rtos
-			jmp		_prettyPrint
+			br		#_prettyPrint
 #endif
 
 #if 0 && PROG_START < $F800		// Commented out if need to save space
