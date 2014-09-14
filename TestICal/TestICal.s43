@@ -315,7 +315,7 @@ newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
 
 			; Set the ID, voltage, temperature and link calibration
-			mov.w	#$8000,&ramVoltCal
+			mov.w	#$8000,&ramVoltCal			; FIXME. G series chip has manuf's ADC calibration data
 			mov.b	#$00,&ramTempCal
 			mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
@@ -328,7 +328,7 @@ currVersBSL
 ; The RAM image has the same layout as current version data, so we use a block move
 			_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
 				mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-			_mLOOP	#1,R8						; Decrement loop counter by 1, loop if non zero
+			_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 
 
 returnFromInitialise
@@ -368,37 +368,53 @@ TX_Byte		clr		R11					; Needed for BSL's WriteByte
 
 
 ;
-; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not
+; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not.
 ; Assumes that there are three "zones": 1) Program zone, to be compared with the image in the middle of
 ; main flash; 2) Calibration zone, to be compared with RAM; 3) Version zone (used to also have the
 ; password table) which is compared with the image in main flash as well.
 ; Relies on definitions like infoDataStart and mainDataEnd to sort out the boundaries
 ; Trashes R12
-compareImage:
+compareInfoFlash:
 			clr		R12
-cmpLoop1	cmp.b	$1000(R12),for1000(R12)		; Use byte compares, in case there is odd sized data at
-			jnz		justRet						;	the end
-			inc		R12
-			cmp		#mainDataStart-for1000,R12	; End of zone 1?
-			jnz		cmpLoop1
+			_BEGIN
+				cmp.b	$1000(R12),for1000(R12)		; Use byte compares, in case there is odd sized data at
+				jnz		justRet						;	the end
+				inc		R12
+				cmp		#mainDataStart-for1000,R12	; End of zone 1?
+			_UNTIL	_EQ
 			; R12 is too big by about $F8 (doesn't start at zero to save an instruction to clear R12)
-cmpLoop2	cmp.b	$1000(R12),ramDataStart-(mainDataStart-for1000)(R12)
-			jnz		justRet
-			inc		R12
-			cmp		#mainDataEnd-for1000,R12
-			jnz		cmpLoop2
-cmpLoop3	cmp.b	$1000(R12),for1000(R12)
-			jnz		justRet
-			inc.b	R12
-			jnz		cmpLoop3					; Branch if 8-bit increment has not overflowed to 0
+			_BEGIN
+				cmp.b	$1000(R12),ramDataStart-(mainDataStart-for1000)(R12)
+				jnz		justRet
+				inc		R12
+				cmp		#mainDataEnd-for1000,R12
+			_UNTIL	_EQ
+			_BEGIN
+				cmp.b	$1000(R12),for1000(R12)
+				jnz		justRet
+				inc.b	R12
+			_UNTIL	_Z					; Loop until 8-bit increment wraps to 0
 			; The increment will have set Z if all compares well
 justRet		ret
 
+;
+; Compare the 512 bytes at BSL2b with what's at BSL2 ($FE00). Returns with Z set if OK, Z clear if not.
+; Trashes R12
+compareBSL2:
+			mov		#BSL2,R12
+			_BEGIN
+				cmp.w	@R12+,BSL2b-BSL2(R12)
+				_WHILE	_EQ ; _Z
+					incd	R12
+			_UNTIL	_Z					; Loop until R12 wraps to 0
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
 
 ; ----------------------------------------------------------------------------
-; The first bootstrap loader (BSL)
+; The first bootstrap loader (BSL1)
 ;
-; This will be relocated to info-flash which starts at $1000.
+; This will be relocated to info-flash at $1000-$10FF by the 'u' command (updateInfoFlash).
 #include "BSL1.s43"
 
 
@@ -406,7 +422,7 @@ justRet		ret
 ; errorFlash
 ; Takes a 16 bit pattern in rERR and repeatedly flashes the error LED in that pattern
 ; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
-; This error processing code should be near the middle of the image.
+; This error processing code should be near the middle of the image to allow jmps to it instead of brs.
 errorFlash:
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer (ReadByte may have reset it)
 			; We could end up here after the DCO calibration has been set to $FFFF,
@@ -442,7 +458,7 @@ JTAGstart:	mov		#$300,SP
 			call	#initialise				; Do most of the initialisation
 
 			; Don't be tempted to put this inside initialise because it will lead to an
-			; infinite loop if someone puts an update command in the string
+			; infinite loop if someone puts an update command in the initCmdString
 			; because update branches to start of BSL which calls interpretByte which calls
 			; initialise again.
 			mov		#initCmdString,Rip		; Interpret the init string as commands
@@ -451,6 +467,15 @@ JTAGstart:	mov		#$300,SP
 			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
 											; vector to point to the BSL, then branch to it.
 
+; ----------------------------------------------------------------------------
+; Copy of second bootstrap loader (BSL2b)
+;
+; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
+#include "../common/BSL2.s43"	// Include the macro for second bootstrap-loader and the interrupt vectors
+; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00
+BSL2b		BSL2MACRO	initRetAddr2b, BSLErase2b
+			ORG		BSL2b+$1FE			; The copy of the reset vector
+			DW		jJTAGstart
 
 
 ; The linker puts a checksum of the used code memory in the first available unused space,
@@ -480,9 +505,8 @@ freespace		EQU		_CMDCHRTBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
 spaceaspercent	EQU		BCD( (100*freespace)/4096)
 
-
 ;---------------------------------------------------------------------------------
-; Interrupt and entry-point jump table at the end of the second-last flash segment
+; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		$FDEE
 jJTAGstart		br		#JTAGstart		; A branch to JTAGstart, independent of PROG_START
@@ -497,11 +521,11 @@ ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpr
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 ;---------------------------------------------------------------------------------
-; Second bootstrap loader, in the last flash segment
+; Second bootstrap loader (BSL2), in the last main-flash segment
 ;---------------------------------------------------------------------------------
-COM_ERR			EQU		1<<6			; Communications error bit in status byte; needed by BSL2
-#include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
-
+				ORG			$FE00		; Start of last main-flash segment
+; Instantiate the BSL2 macro with the standard external labels
+BSL2:			BSL2MACRO	initRetAddr2, BSLErase2
 				ORG		$FFFE			; The reset vector
 				DW		jJTAGstart
 ; If TestICal is JTAG-programmed then the reset vector must point directly to a TestICal entry point

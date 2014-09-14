@@ -2,17 +2,26 @@
 ; The second bootstrap loader (BSL2)
 ;
 ; This file is included by monitor.s43 and TestICal.s43.
-; This code will assemble into the last main-flash segment which starts at $FE00.
-; It is called by BSL1 in info-flash.
+; This code will be assembled into the last main-flash segment which starts at $FE00.
+; It is presently called by BSL1 in info-flash but will eventually be called directly on reset.
 ; It contains the reset and interrupt vectors which point to fixed locations at the end of the
-; second-last flash segment.
+; second-last main-flash segment.
+; It is defined as a macro because TestICal needs to include it _twice_.
+; Once at $FE00-$FFFF as expected, for when TestICal is JTAG-loaded,
+; and elsewhere in main-flash for when TestICal is bootstrap-loaded,
+; so that it can then be copied to $FE00-$FFFF by a 'b' command (updateBSL2).
+
+BSL2MACRO	MACRO	initRetAddr2, BSLErase2
+			LOCAL	BSL2, MClock2, MckPerFTGck2, initBSL2, mainLoop2, resetFSM2, FSMloop2
+			LOCAL	processByte2, eraseLoop, progByte2, testNoInterp2, retToBSL1
+			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 
 MClock2		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
 MckPerFTGck2	EQU		(MClock2+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
-			ORG		$FE00			; Start of the last 512 byte flash segment
+;			ORG		$FE00			; Start of the last 512 byte flash segment
 BSL2:
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32k)
 			; Check to see if this is an init call (from BSL1)
@@ -169,7 +178,7 @@ testNoInterp2:
 retToBSL1	ret						; Return to BSL1
 
 			; Any free last segment space is between here and the timer-A interrupt vectors
-freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
+freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
 
 ; The end of the second bootstrap loader (BSL2)
 ; -----------------------------------------------------------------------------
@@ -178,14 +187,16 @@ freeSpaceBSL2	EQU		$FFF0 - $		; Number of bytes spare in the second BSL
 ; Interrupt Vectors at the end of the last flash segment
 ;-------------------------------------------------------------------------------
 
-				ORG		$FFF0			; Timer A Vectors
+				ORG		BSL2+$1F0		; $FFF0, Timer A Vectors
 				DW		jRX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTX_ISR			; Timer A CC0IFG (transmit compare)
 
-				ORG		$FFF8
+				ORG		BSL2+$1F8		; $FFF8
 				br		#BSL2			; Temporary so it still works with old BSL1
 
-				ORG		$FFFC			; Unused NMI vector location
+				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; For BSL1 to check before calling BSL2
 BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				; The reset vector (at $FFFE) is set differently by monitor and TestICal.
+
+				ENDM

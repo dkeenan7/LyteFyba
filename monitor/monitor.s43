@@ -910,7 +910,7 @@ freespace	EQU		_CMDCHRTBL-$
 spaceaspercent EQU BCD( (100*freespace)/4096)
 
 ;---------------------------------------------------------------------------------
-; Interrupt and entry-point jump table at the end of the second-last flash segment
+; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		$FDEE
 jJTAGstart		br		$				; JTAGstart not used by monitor
@@ -924,10 +924,12 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 
 ;---------------------------------------------------------------------------------
-; Second bootstrap loader, in the last flash segment
+; Second bootstrap loader, in the last main-flash segment
 ;---------------------------------------------------------------------------------
-#include "../common/BSL2.s43"			// Include the second bootstrap-loader and the interrupt vectors
-
+#include "../common/BSL2.s43"	// Include the macro for second bootstrap-loader and the interrupt vectors
+				ORG		$FE00			; Start of last main-flash segment
+; Instantiate the BSL2 macro with the standard external labels
+BSL2:			BSL2MACRO	initRetAddr2, BSLErase2
 				ORG		$FFFE			; The reset vector
 				DW		$1000			; Reset to BSL1 in case there is a crash
 
