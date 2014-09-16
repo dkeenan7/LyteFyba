@@ -249,18 +249,18 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 #define Rtest R15				// Touch self-test value when both relays are on.
 		cmp.b	#0,&infoID				; If we're an IMU
 		_IF		_EQ
-			call	#cellV				; Return battery voltage in millivolts in R10
+			call	#cellV				; Return battery_voltage/109 in millivolts in R10
 			mov		R10,Rcellv
 
 			; Positive relay only
 			bis.b	#RELAYp,&P2OUT		; Turn on positive relay
-			call	#delay30ms			; Wait for relay bounce and voltage settling
+			call	#delay130ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
 			bis.b	#RELAYm,&P2OUT		; Turn on negative relay
-			call	#delay30ms			; Wait for relay bounce and voltage settling
+			call	#delay130ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			; This allows calibration, as it will represent the battery voltage divided by 100k
 			; irrespective of any leakage resistances, assuming only that the two optos
@@ -269,8 +269,9 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; Negative relay only
 			bic.b	#RELAYp,&P2OUT		; Turn off positive relay
-			call	#delay30ms			; Wait for relay bounce and voltage settling
+			call	#delay130ms			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
+
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
 			_IF		_LO
 				mov		R10,Rmeas
@@ -279,40 +280,43 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			; Both relays off
 			bic.b	#RELAYm,&P2OUT		; Turn off negative relay
 
-			; If the test value is less than battery_voltage/109 divided by 8 then there is a problem.
-			mov		Rcellv,R8
-			rra3	R8
-			cmp		R8,Rtest
+			mov.b	#$FF,R8				; If battery voltage is less than 109 * 255 mV ~= 28 V
+			cmp.w	R8,Rcellv			;  e.g. if battery contactors are off
 			_IF		_LO
-				mov		#8888,R9		; Indicate problem by large and noticeable but not saturated value
+				mov		#8888,R9			; Indicate an invalid test by a large distinctive value
 			_ELSE
-				; Calculate the prospective touch current in hundredths of a milliamp
-				; assuming a body model of 98 ohms (100k/1024), test resistors of 100k and
-				; Vcell = Vbat / 109.
-				; We use the approximation 128/14 ~= 1000/109 (0.3% error).
-				mov		Rmeas,R8
-				rla		R8
-				swpb	R8
-				and.b	#$FF,R8			; R8    = Vmeas / 128
-				rla3	Rmeas
-				mov		Rmeas,R9		; R9    = Vmeas * 8
-				sub		R8,Rmeas		; Rmeas = (Vmeas - Vmeas/1024) * 8
-				rla4	Rcellv
-				mov		Rcellv,R8		; R8    = Vcellv * 16
-				call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas * 128
-				rla3	Rtest
-				sub		Rmeas,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 8
-				mov		Rtest,R8
-				rra3	R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 1
-				sub		R8,Rtest		; Rtest = (Vtest - Vmeas + Vmeas/1024) * 7
-				mov		Rtest,R8
-				rla		R8				; R8    = (Vtest - Vmeas + Vmeas/1024) * 14
-				call	#UMSlashMod		; R9    = R10:R9 / R8
-										; R9    = (Vcell * Vmeas * 128)/((Vtest - 0.999*Vmeas) * 14)
-				mov		#9999,R8		; Clamp to 99.99 mA
-				cmp		R8,R9
-				_IF		_HS
-					mov		R8,R9
+				mov		Rcellv,R8			; If test value is less than battery_voltage/109 / 4
+				rra2	R8					;  e.g. because of reed relay failure
+				cmp		R8,Rtest
+				_IF		_LO
+					mov		#7777,R9			; Indicate an invalid test by a large distinctive value
+				_ELSE
+					; Calculate the prospective touch current in tenths of a milliamp
+					; assuming a human body model (after skin breakdown due to high voltage) of 390 ohms
+					; (= 100k/256), test resistors of 100k and Vcell = Vbat / 109.
+					; We use the approximation 10000/109 ~= 92 (0.3% error).
+					; Itouch ~= (Vcell * Vmeas) / ((Vtest - 0.9961*Vmeas) * 92)
+					mov		Rmeas,R8		; R8    = Vmeas
+					mov		Rcellv,R9		; R9    = Vcellv
+					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
+					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
+					rla4	Rtest			; Rtest = (Vtest - Vmeas) * 16
+					rra4	Rmeas			; Rmeas = Vmeas / 16 = Vmeas/256 * 16
+					add		Rmeas,Rtest		; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 16
+					mov		Rtest,R8		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 16
+					rra		Rtest			; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 8
+					add		Rtest,R8		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 24
+					rra3	Rtest			; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 1
+					sub		Rtest,R8 		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 23
+					call	#UMSlashMod		; R9    = R10:R9 / R8
+											;       = (Vcell * Vmeas)/((Vtest - 0.9961*Vmeas) * 23)
+					add		#2,R9			; For rounding
+					rra2	R9				; R9    = (Vcell * Vmeas)/((Vtest - 0.9961*Vmeas) * 92)
+					mov		#9999,R8		; Clamp to 999.9 mA
+					cmp		R8,R9
+					_IF		_HS
+						mov		R8,R9
+					_ENDIF
 				_ENDIF
 			_ENDIF
 
@@ -323,12 +327,10 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		_ENDIF
 		ret
 
-delay30ms:
-#if WATCHDOG
-       	mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32.768 ms)
-#endif
-		_DO		#40000,R11					; 40000 * 3 / 4 MHz = 30 ms delay
-		_LOOP	R11
+delay130ms:
+		_DO		#0,R11					; 65536 * 8 / 4 MHz = 131 ms delay
+ 	      	mov		#WDTPW+WDTCNTCL,&WDTCTL	; (5) Clear and restart Watchdog Timer
+		_LOOP	R11						; (3) dec R11, jnz
 		ret
 
 ;
