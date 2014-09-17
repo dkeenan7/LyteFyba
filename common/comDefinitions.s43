@@ -294,7 +294,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 					mov		#7777,R9			; Indicate an invalid test by a large distinctive value
 				_ELSE
 					; Calculate the prospective touch current in tenths of a milliamp
-					; assuming a human body model (after skin breakdown due to high voltage) of 390 ohms
+					; assuming a human body model of 390 ohms (after skin breakdown due to high voltage)
 					; (= 100k/256), test resistors of 100k and Vcell = Vbat / 109.
 					; We use the approximation 10000/109 ~= 92 (0.3% error).
 					; Itouch ~= (Vcell * Vmeas) / ((Vtest - 0.9961*Vmeas) * 92)
@@ -303,15 +303,23 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
 					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
 
-					; Roughly correct for opto nonlinearity by a crude square-root * 32
+					; Roughly correct for opto nonlinearity by a crude square-root * 16
 					mov		Rtest,R8		; R8    = Vtest - Vmeas
-					rla5	Rtest			; Rtest = (Vtest - Vmeas) * 32		[assumes Rtest < 2048]
+					rla4	Rtest			; Rtest = (Vtest - Vmeas) * 16
 					_BEGIN
-						tst		R8
-					_WHILE	_NZ
-						rra		Rtest		; Do half as many shifts of Rtest
-						rra2	R8			; as we can do to R8 before it goes to zero
-					_REPEAT
+						cmp		#4,R8
+						_WHILE	_HS
+							rra		Rtest		; Do half as many shifts of Rtest
+							rra2	R8			; as we can do to R8 before it goes below 4
+					_AGAIN
+						_ELSE
+							cmp		#2,R8
+							_IF		_HS
+								mov		Rtest,R8
+								rra		R8
+								sub		R8,Rtest
+							_ENDIF
+						_ENDIF
 					rla4	Rtest			; Rtest = Corrected(Vtest - Vmeas) * 16
 
 					rra4	Rmeas			; Rmeas = Vmeas / 16 = Vmeas/256 * 16
