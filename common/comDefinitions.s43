@@ -239,9 +239,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 ;
 ; Insulation test ( -- )
-; Transmit the prospective touch current in hundredths of a milliamp (0 to 99.99 mA)
+; Transmit the prospective touch current in tenths of a milliamp (0 to 999.9 mA)
 ; This is a calibrated result based on 3 touch measurements and a battery voltage measurement
-; and the fact that the test resitors are 100k and the battery voltage is divided by 109.
+; and the fact that the test resistors are 100k and the battery voltage is divided by 109.
+; Expect approximately the following readings with the following leakage test resistors and 360 V battery
+; 470k 8, 100k 36, 6.8k 501, 2.2k 1390, 0k 9216.
 		xCODE		'I',insulationTest,_insulationTest
 		; Register definitions
 #define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
@@ -300,18 +302,29 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 					mov		Rcellv,R9		; R9    = Vcellv
 					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
 					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
-					rla4	Rtest			; Rtest = (Vtest - Vmeas) * 16
+
+					; Roughly correct for opto nonlinearity by a crude square-root * 32
+					mov		Rtest,R8		; R8    = Vtest - Vmeas
+					rla5	Rtest			; Rtest = (Vtest - Vmeas) * 32		[assumes Rtest < 2048]
+					_BEGIN
+						tst		R8
+					_WHILE	_NZ
+						rra		Rtest		; Do half as many shifts of Rtest
+						rra2	R8			; as we can do to R8 before it goes to zero
+					_REPEAT
+					rla4	Rtest			; Rtest = Corrected(Vtest - Vmeas) * 16
+
 					rra4	Rmeas			; Rmeas = Vmeas / 16 = Vmeas/256 * 16
-					add		Rmeas,Rtest		; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 16
-					mov		Rtest,R8		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 16
-					rra		Rtest			; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 8
-					add		Rtest,R8		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 24
-					rra3	Rtest			; Rtest = (Vtest - (Vmeas - Vmeas/256)) * 1
-					sub		Rtest,R8 		; R8    = (Vtest - (Vmeas - Vmeas/256)) * 23
+					add		Rmeas,Rtest		; Rtest = (Corr(Vtest - Vmeas) + Vmeas/256)) * 16
+					mov		Rtest,R8		; R8    = (Corr(Vtest - Vmeas) + Vmeas/256)) * 16
+					rra		Rtest			; Rtest = (Corr(Vtest - Vmeas) + Vmeas/256)) * 8
+					add		Rtest,R8		; R8    = (Corr(Vtest - Vmeas) + Vmeas/256)) * 24
+					rra3	Rtest			; Rtest = (Corr(Vtest - Vmeas) + Vmeas/256)) * 1
+					sub		Rtest,R8 		; R8    = (Corr(Vtest - Vmeas) + Vmeas/256)) * 23
 					call	#UMSlashMod		; R9    = R10:R9 / R8
-											;       = (Vcell * Vmeas)/((Vtest - 0.9961*Vmeas) * 23)
+											;    = (Vcell * Vmeas)/(Corr(Vtest - Vmeas) + Vmeas/256) * 23)
 					add		#2,R9			; For rounding
-					rra2	R9				; R9    = (Vcell * Vmeas)/((Vtest - 0.9961*Vmeas) * 92)
+					rra2	R9				; R9 = (Vcell * Vmeas)/(Corr(Vtest - Vmeas) + Vmeas/256) * 92)
 					mov		#9999,R8		; Clamp to 999.9 mA
 					cmp		R8,R9
 					_IF		_HS
