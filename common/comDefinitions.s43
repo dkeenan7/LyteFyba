@@ -293,7 +293,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				_IF		_LO
 					mov		#7777,R9			; Indicate an invalid test by a large distinctive value
 				_ELSE
-					; Calculate the prospective touch current in tenths of a milliamp
+					; Calculate the prospective touch current in tenths of a milliamp (accuracy +-25%)
 					; assuming a human body model of 390 ohms (after skin breakdown due to high voltage)
 					; (= 100k/256), test resistors of 100k and Vcell = Vbat / 109.
 					; We use the approximation 10000/109 ~= 92 (0.3% error).
@@ -306,28 +306,31 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 						mov		#0,Rtest		; Rtest = 0
 					_ENDIF					; Must not feed negative numbers to the following sqrt
 
-					; Roughly correct for opto nonlinearity by a crude square-root * 30 (+-20% error).
+					; Roughly compensate for opto nonlinearity by a crude square-root * 25 (+-20% error)
+					; applied to the difference between test (2 relay) and measured (max 1 relay) values.
 					mov		Rtest,R8		; R8    = Vtest - Vmeas
-					rla3	Rtest			; Rtest = (Vtest - Vmeas) * 8
-					mov		Rtest,R9		; R9    = (Vtest - Vmeas) * 8
-					rla		R9				; R9    = (Vtest - Vmeas) * 16
-					add		R9,Rtest		; Rtest = (Vtest - Vmeas) * 24
+					rla2	Rtest			; Rtest = (Vtest - Vmeas) * 4
+					mov		Rtest,R9		; R9    = (Vtest - Vmeas) * 4
+					rla2	R9				; R9    = (Vtest - Vmeas) * 16
+					add		R9,Rtest		; Rtest = (Vtest - Vmeas) * 20
 					_BEGIN
 						cmp		#4,R8
-						_WHILE	_HS
-							rra		Rtest		; Do half as many shifts of Rtest
-							rra2	R8			; as we can do to R8 before it goes below 4
+						_WHILE	_HS				; While R8 >= 4 (_HS is the same as carry set)
+							clrc					; Clear carry so the rrc below is an unsigned div by 2
+							rrc		Rtest			; Do half as many shifts of Rtest
+							rra2	R8				; as we can do to R8 before it goes below 4
 					_AGAIN
 						_ELSE
 							cmp		#2,R8
-							_IF		_HS
-								mov		Rtest,R8
-								rra		R8
-								sub		R8,Rtest
+							_IF		_HS				; If one more shift of R8 is possible, to take it to 1
+								mov		Rtest,R8		; Perform a "half-shift" of Rtest, by
+								rra2	R8				; subtracting a quarter of it, which effectively
+								sub		R8,Rtest		; multiplies it by 0.75, which is approx sqrt(0.5)
 							_ENDIF
 						_ENDIF
 					rla4	Rtest			; Rtest = Corrected(Vtest - Vmeas) * 16
 
+					; Finish the calculation of the prospective touch current
 					rra4	Rmeas			; Rmeas = Vmeas / 16 = Vmeas/256 * 16
 					add		Rmeas,Rtest		; Rtest = (Corr(Vtest - Vmeas) + Vmeas/256)) * 16
 					mov		Rtest,R8		; R8    = (Corr(Vtest - Vmeas) + Vmeas/256)) * 16
@@ -349,7 +352,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 #ifdef Monitor		// If we're assembling Monitor, not TestICal
 			cmp		#170,R9				; Check if touch current > 20 mA (NCOP14), with a safety margin
-			CtoAllBits	R8
+			CtoAllBits	R8				; 	because our measurent is +-25%.
 			movBits_B	R8,#bBadInsulation,&monFlags	; Piezo beeper will be turned on as required
 #endif
 			mov		#'I',Rthd			; Type is touch current
