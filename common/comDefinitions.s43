@@ -302,10 +302,16 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 					mov		Rcellv,R9		; R9    = Vcellv
 					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
 					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
+					_IF		_NC				; If not carry = If borrow = If Vtest < Vmeas
+						mov		#0,Rtest		; Rtest = 0
+					_ENDIF					; Must not feed negative numbers to the following sqrt
 
-					; Roughly correct for opto nonlinearity by a crude square-root * 16
+					; Roughly correct for opto nonlinearity by a crude square-root * 30 (+-20% error).
 					mov		Rtest,R8		; R8    = Vtest - Vmeas
-					rla4	Rtest			; Rtest = (Vtest - Vmeas) * 16
+					rla3	Rtest			; Rtest = (Vtest - Vmeas) * 8
+					mov		Rtest,R9		; R9    = (Vtest - Vmeas) * 8
+					rla		R9				; R9    = (Vtest - Vmeas) * 16
+					add		R9,Rtest		; Rtest = (Vtest - Vmeas) * 24
 					_BEGIN
 						cmp		#4,R8
 						_WHILE	_HS
@@ -341,8 +347,13 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				_ENDIF
 			_ENDIF
 
+#ifdef Monitor		// If we're assembling Monitor, not TestICal
+			cmp		#170,R9				; Check if touch current > 20 mA (NCOP14), with a safety margin
+			CtoAllBits	R8
+			movBits_B	R8,#bBadInsulation,&monFlags	; Piezo beeper will be turned on as required
+#endif
 			mov		#'I',Rthd			; Type is touch current
-			mov		R9,Rsec				; Result in hundredths of a milliamp
+			mov		R9,Rsec				; Result in tenths of a milliamp
 			mov		#4,Rtos				; Print 4 digits
 			call	#_prettyPrint		; Call pretty-print
 		_ENDIF
@@ -537,7 +548,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			ret
 			ENDM
 
-
+#if 0		; To save space
 ; NumCells  ( n -- ) Gives the number of cells
 		xCODE	'N',NumCells,_NumCells
 			NO_ECHO_CMD	doNumCells0,doNumCells		; Use the no-echo wrapper macro
@@ -557,6 +568,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			mov		#'\r',R8			; Transmit a carriage return.
 			call	#TX_Byte
 			ret
+#endif
 
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
