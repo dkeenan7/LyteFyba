@@ -7,6 +7,7 @@
 ;
 ; "Monitor" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
+# define Monitor
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -169,6 +170,7 @@ bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
 bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
 bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
+bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed.
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
@@ -543,6 +545,9 @@ DoMeasurement:
 			; Update Alarm -- local red LED and piezo
 			cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
 			CtoAllBits	Rtos
+			bit.b		#bBadInsulation,&monFlags
+			CtoAllBits	R8
+			bis			R8,Rtos				; or if the last insulation test failed (IMU only)
 			call		#_errorLed			; Use this function so it optionally turns on piezo as well
 
 			; Check for comms error and send local status if required
