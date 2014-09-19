@@ -618,6 +618,20 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
 
+#if 1
+		; Temporary command for testing fuel gauge
+		; setFuelGauge ( hiword loword -- )
+		; $A4 $CB80 a -- should correspond to 100.0% (40 Ah)
+		; 164 52096 a -- as above, in decimal
+		; $52 $65C0 a -- should correspond to 50.0% (20 Ah)
+		;  82 26048 a -- as above, in decimal
+		xCODE	'a',setFuelGauge,_setFuelGauge
+		; Only IMUs care about this, but no harm if CMUs do it too
+		mov		Rtos,&discharge				; Set low word of discharge accumulator
+		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
+		ret
+#endif
+
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
 			xCODE	'!',Watchdog,_Watchdog
