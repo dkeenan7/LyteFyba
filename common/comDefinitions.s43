@@ -590,7 +590,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		cmp.b	#0,&infoID
 		_IF		_EQ					; IMUs only
 			mov		&discharge,R8		; Low word of discharge accumulator
-			mov		&discharge+1,R9		; High word of discharge accumulator
+			mov		&discharge+2,R9		; High word of discharge accumulator
 			rla		R8					; Shift the 32-bit quantity R9:R8 3 bits left
 			rlc		R9
 			rla		R8
@@ -615,7 +615,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
 		; Only IMUs care about this, but no harm if CMUs do it too
 		clr		&discharge				; Clear low word of discharge accumulator
-		clr		&discharge+1			; Clear high word of discharge accumulator
+		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
 
 #if 0
