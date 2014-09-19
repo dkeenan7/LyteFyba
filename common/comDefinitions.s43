@@ -573,6 +573,51 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			ret
 #endif
 
+; Fuel Gauge commands
+
+; Monitor and TestICal:
+; g		Reads the depth of discharge (DoD) in tenths of a percent, i.e. accumulated discharge as a
+;		proportion of the battery capacity constant (may be slightly negative or slightly > 100.0%).
+; %		Clears the discharge accumulator to zero (use only at the end of a full charge).
+
+; TestICal only:
+; 'gr	Reads the battery capacity constant in tenths of an amp-hour.
+; 'gc	Calibrates the fuel gauge by setting the battery capacity constant to the present accumulated
+;		discharge converted to tenths of an amp-hour (use only when run flat).
+; <n>'gw	Write the battery capacity to be the number <n>, in tenths of an amp-hour.
+
+		xCODE	'g',fuelGauge,_fuelGauge
+		cmp.b	#0,&infoID
+		_IF		_EQ					; IMUs only
+			mov		&discharge,R8		; Low word of discharge accumulator
+			mov		&discharge+1,R9		; High word of discharge accumulator
+			rla		R8					; Shift the 32-bit quantity R9:R8 3 bits left
+			rlc		R9
+			rla		R8
+			rlc		R9
+			rla		R8
+			rlc		R9					; Then use only the high 16-bits in the calculation
+			rla		R8					; Do rounding
+			adc		R9					; Resulting units are Ah * 8192/270000
+			mov		#607,R8				; Mult to give tenths of a percent when div by tenths of an Ah
+			call	#UMStar				; R10:R9 = R8 * R9
+			mov		#40*10,R8			; Battery capacity in tenths of an amp-hour
+										; The above constant may be stored in info-flash in future
+			rla		R8					; This works in conjuction with the 607 above, to scale correctly
+			call	#UMSlashMod			; R9 = R10:R9 / R8
+			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
+			mov		R9,Rsec				; Result in tenths of a percent
+			mov		#4,Rtos				; Print 4 digits
+			call	#_prettyPrint		; Call pretty-print
+		_ENDIF
+		ret
+
+		xCODE	'%',resetFuelGauge,_resetFuelGauge
+		; Only IMUs care about this, but no harm if CMUs do it too
+		clr		&discharge				; Clear low word of discharge accumulator
+		clr		&discharge+1			; Clear high word of discharge accumulator
+		ret
+
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
 			xCODE	'!',Watchdog,_Watchdog
