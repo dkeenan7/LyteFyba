@@ -12,6 +12,7 @@ t l Name or description
 <XOFF> Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
 $ $ dollarHex (set number input mode to hex for next literal)
+% % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
 - - change-sign (postfix negate)
 : : characterLiteral (same as single-quote)
@@ -24,7 +25,8 @@ c   Charging, '1c' to include undertemp and exclude undervolt as stress, and sta
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 182.5 to 183.5 kHz at 20 degC, 185 to 186 kHz at 35 degC)
-  g Get byte (peek byte)
+g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
+  G Get byte (peek byte)
 h h Hex output
   i set(I)Ds
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
@@ -123,6 +125,9 @@ q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
 ^ ^ resetResetLog
 
+g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
+% % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
+
   j JumpToSubroutine (call) [disabled to save space]
   Z Ztore byte (poke byte)
   g Get byte   (peek byte)
@@ -140,9 +145,10 @@ In addition, the following character literals (character preceded by a single-qu
 have the following meaning when used as an address parameter to a ReadCalValue, WriteCalValue
 or Calibrate command in TestICal.
 
-'v cell(V)oltage
+'v cell (v)oltage
 't Temperature
-'l LinkVoltage
+'l Link voltage
+'g fuel (g)auge
 'f Frequency (DCO 8 MHz)
 'i ID
 

@@ -336,7 +336,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 ;
 ; GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
-			xCODE	'g',GetByte,_GetByte
+			xCODE	'G',GetByte,_GetByte
 			mov.b	#' ',Rthd
 			mov.b	@Rtos,Rsec
 ;			mov		#3,Rtos

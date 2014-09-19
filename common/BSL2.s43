@@ -133,7 +133,7 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 			jnz		resetFSM2		; If bad checksum, leave the no interpret flag set
 
 			mov.b	#RSTIFG | OFIFG,&IFG1	; Good checksum, reset no interpret flag (watchdog flag),
-									;	fake a normal rest so BSL2 will call interpretByte
+									;	fake a normal reset so BSL2 will call interpretByte
 		; FIXME: need to call interpretByte with 00 for initialisation. Dave says may not want above
 			jmp		mainLoop2		; Back to looking for password,
 									; but first make init call to jInterpretByte

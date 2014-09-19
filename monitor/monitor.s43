@@ -155,10 +155,14 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; RAM allocation
 ;
 				ORG		$200		; Start of RAM. Ends at $27F
+; This area is common to both Monitor and TestICal and is not erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
-resetBufEnd
+discharge		DS		4			; Accumulator for depth of discharge determination.
+									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
+									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
+comNoEraseEnd
 
 #if	ADCBUF
 				ALIGNRAM 1
@@ -170,7 +174,7 @@ bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
 bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
 bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
-bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed.
+bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
@@ -186,10 +190,6 @@ chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' co
 pi_prev_output	DS		2			; State of PI controller
 pi_prev_error	DS		2			; State of PI controller
 chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
-discharge		DS		4			; Accumulator for depth of discharge determination.
-									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
-									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
-capacity		DS		2			; Battery capacity in Ah, times 4.12. Same units as hi word above.
 
 ; Serial-io variables
 
@@ -260,9 +260,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 #else
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable Watchdog Timer (32k)
 #endif
-			; Clear all variables in RAM except resetBuffer and worstStress (and ToIN/TIB)
-			_DO		#worstStress-resetBufEnd,R8
-				clr		resetBufEnd-2(R8)
+			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
+			; and worstStress (and ToIN/TIB)
+			_DO		#worstStress-comNoEraseEnd,R8
+				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
 			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
