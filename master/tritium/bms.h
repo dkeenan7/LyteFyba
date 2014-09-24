@@ -45,6 +45,7 @@ bool bms_sendByte(unsigned char ch);
 bool bms_sendVoltReq();
 bool bms_sendCurrentReq();
 bool bms_sendInsulReq();
+bool bms_sendFuelGaugeReq();
 bool bms_sendVAComment(int nVolt, int nAmp);
 void can_queueCellMaxMin(unsigned int bms_min_mV, unsigned int bms_max_mV,
 							unsigned int bms_min_id, unsigned int bms_max_id);
