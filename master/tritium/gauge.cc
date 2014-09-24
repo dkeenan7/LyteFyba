@@ -115,6 +115,18 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 /*
  * Updates the Fuel gauge output
  */
+void gauge_fuel_update( float stateOfCharge )	// State of charge is 0.0 to 1.0
+{
+	unsigned int count;
+	count = (unsigned int)(119.0 + 79.0 * stateOfCharge);// count/GAUGE_PWM_PERIOD = count/200 = duty cycle
+	// Check limits
+	if(count < 0) count = 0;
+	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
+	gauge.g4_duty = count;
+	events |= EVENT_GAUGE4;
+}
+
+#if 0		// Old crude fuel gauge based on battery voltage
 void gauge_fuel_update( float battery_voltage )
 {
 	float norm_fuel;
@@ -127,4 +139,4 @@ void gauge_fuel_update( float battery_voltage )
 	gauge.g4_duty = count;
 	events |= EVENT_GAUGE4;
 }
-
+#endif
