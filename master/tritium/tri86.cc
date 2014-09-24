@@ -218,6 +218,10 @@ int main( void )
 			// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
 			if (!bDCUb) process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
 #endif
+	 		// Send a fuel gauge request to our IMU every 40.96 seconds
+	 		static unsigned int fuelGaugeTimer = 0;
+	 		if ((++fuelGaugeTimer & 4095) == 0) bms_sendFuelGaugeReq();
+
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
@@ -269,8 +273,11 @@ int main( void )
 						else
 							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
 
-						// Request an insulation test 200 ms after rising edge of IGN_ON
-						if (switches & switches_diff & SW_IGN_ON) insulTestTimer = 20;
+						// Check for rising edge of key ON
+						if (switches & switches_diff & SW_IGN_ON) {
+	 						bms_sendFuelGaugeReq();			// Request a fuel gauge reading
+	 						insulTestTimer = 20;			// Request an insulation test in 200 ms
+						}
 					}
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
