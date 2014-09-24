@@ -228,6 +228,11 @@ int main( void )
 							// Stop telling DCU-A we're available to control brakelights
 							// on heavy regen if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
 
+					// See if it's time to send an insulation-test request to the BMS
+					static int insulTestTimer = -1;
+					if (insulTestTimer >= 0) --insulTestTimer; // Let it count to -1 but not wrap
+					if (insulTestTimer == 0) bms_sendInsulReq();
+
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
@@ -264,9 +269,8 @@ int main( void )
 						else
 							P1OUT &= (uchar)~CHG_CONT_OUT;	// Turn off our charger (and battery) contactors
 
-						// Regest an insulation test on rising edge of IGN_ON
-						if (switches & switches_diff & SW_IGN_ON)
-							bms_sendInsulReq();
+						// Request an insulation test 200 ms after rising edge of IGN_ON
+						if (switches & switches_diff & SW_IGN_ON) insulTestTimer = 20;
 					}
 					break; // End case MODE_OFF
 				case MODE_D:	// DCU-B should never be in MODE_D
