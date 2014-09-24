@@ -474,11 +474,9 @@ int main( void )
 					case MC_CAN_BASE + MC_I_VECTOR:
 						torque_current = can.data.data_fp[0];
 						field_current = can.data.data_fp[1];
-#if 0
 						if (command.state == MODE_D && tacho_display == TRQ)
 							// Display torque on tacho, in "square amps" x 1000 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(torque_current * field_current));
-#endif
 						// Update regen status flags
 						if (torque_current < REGEN_THRESHOLD) events |= EVENT_REGEN;
 						else events &= (unsigned)~EVENT_REGEN;
@@ -493,7 +491,7 @@ int main( void )
 						// Update battery voltage and current for fuel and power gauges
 						battery_voltage = can.data.data_fp[0];
 						battery_current = can.data.data_fp[1];
-						gauge_fuel_update( battery_voltage );
+						// gauge_fuel_update( battery_voltage ); // Old crude fuel gauge based on voltage
 						if (command.state == MODE_D && tacho_display == BATV)
 							// Display traction battery voltage on tacho with expanded scale, V-300 x 10
 							// 	(shows DC current in charge mode)
@@ -511,6 +509,7 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMS_CURR:
 						uBMScurrB = can.data.data_16[0];	// Save half-pack B current from IMU
+#if 0	// Was used for testing. Fuel gauge and fuse stress are done by IMU.
 						if (/*(command.state == MODE_OFF) ||*/ (command.state == MODE_D && tacho_display == TRQ)) {
 							// Display half-pack currents on tacho, in amps x 50 (shows DC curr in chg mode)
 							// Shows A current for 0.5 s and B current for 1 s. Absolute values.
@@ -524,25 +523,33 @@ int main( void )
 							if (curr_dsp_ctr == 10)
 								gauge_tach_update(fabsf(uBMScurrA * 2.0));	// 0.5 second displaying A
 						}
+#endif
 						break;
 					case DC_CAN_BASE + DC_BMS_A_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 						break;
 					case DC_CAN_BASE + DC_BMS_INSUL:
 						uBMSinsulB = can.data.data_16[0];	// Save half-pack B touch current from IMU
+#if 0	// Was used for testing. Need to send it to voice synth in future and check for exceeding 20 mA
 						if (command.state == MODE_OFF) {
-							// Display insulation-test touch-currents on tacho, in milliamps x 20
+							// Display insulation-test touch-currents on tacho, in milliamps x 10
 							// Shows A-pack touch current for 1 s and B-pack touch current for 2 s.
 							// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
 							// So B is displayed twice as long as A.
 							static unsigned int curr_dsp_ctr = 0;
 							if (++curr_dsp_ctr == 30) {				// 3 second display cycle
 								curr_dsp_ctr = 0;
-								gauge_tach_update(fabsf(uBMSinsulB * 5.0));	// 2 seconds displaying B
+								gauge_tach_update(fabsf(uBMSinsulB * 10.0));	// 2 seconds displaying B
 							}
 							if (curr_dsp_ctr == 20)
-								gauge_tach_update(fabsf(uBMSinsulA * 5.0));	// 1 second displaying A
+								gauge_tach_update(fabsf(uBMSinsulA * 10.0));	// 1 second displaying A
 						}
+#endif
+						break;
+					case DC_CAN_BASE + DC_BMS_FUEL:
+#define min(x, y) (((x)<(y))?(x):(y))
+						uBMSfuelB = can.data.data_16[0];	// Save half-pack B state of charge from IMU
+						gauge_fuel_update(min(uBMSfuelA, uBMSfuelB) / 1000.0); // 0.0 to 1.0
 						break;
 				    }
 				}	// end DCU-A

@@ -16,6 +16,7 @@ bool bms_sendPacket(const unsigned char* ptr);
 void SendChgrLim(unsigned int uChgrLim);
 void SendBMScurr(int uBMScurr);
 void SendBMSinsul(int uBMSinsul);
+void SendBMSfuel(int uBMSfuel);
 
 // Public variables
 volatile unsigned int bms_events = 0;
@@ -25,6 +26,7 @@ volatile unsigned int bms_vr_count = BMS_VR_SPEED;	// Counts BMS_VR_SPEED to 1 f
 		 unsigned int chgr_lastCurrent = 0;			// Last commanded charger current
 int uBMScurrA=0, uBMScurrB=0;						// Half-pack A or B current (neg means charging)
 int uBMSinsulA=0, uBMSinsulB=0;						// Half-pack A or B insulation test touch current
+int uBMSfuelA=0, uBMSfuelB=0;						// Half-pack A or B fuel gauge state of charge
 unsigned int bmsStatusBtimeout = 0;			// Timeout for BMS status via CAN from DCU-B to DCU-A
 
 // BMS buffers
@@ -113,7 +115,7 @@ void bms_init()
 #endif
 	bms_sendPacket((unsigned char*)"0K\r");	// Turn on (turn off Killing of) BMS badness sending
 	bms_state &= (uchar)~BMS_SENT;			// Don't expect these packets to be acknowledged or resent if not
-	bms_sendCurrentReq();					// Send the first current request packet;driving or charging
+//	bms_sendCurrentReq();					// Send the first current request packet;driving or charging
 #if USE_VOLT_REQ
 	bms_sendVoltReq();						// Send the first voltage request packet;driving or charging
 #endif
@@ -128,24 +130,27 @@ bool bms_sendByte(unsigned char ch) {
 	return false;
 }
 
-// Make a command at *cmd for IMU or CMU number cellNo
+// Make a command at *cmd for IMU or CMU number cellNo. If cellNo is negative, send to all.
 // Called by bms_sendVoltReq, bms_sendCurrentReq and bms_sendInsulReq below
-void makeBMScmd(unsigned char* cmd, unsigned char cellNo, unsigned char cmdchar)
+void makeBMScmd(unsigned char* cmd, int cellNo, unsigned char cmdchar)
 {
 	unsigned char* p; p = cmd;
-	unsigned char n = cellNo;
-	unsigned char h = n / 100;
-	if (h) {						// If any hundreds
-		*p++ = (uchar)(h + '0');	// then emit hundreds digit
-		n = (uchar)(n - h * 100);
+	if (cellNo >= 0) {
+		unsigned char n = (unsigned char)cellNo;
+		unsigned char h = n / 100;
+		if (h) {						// If any hundreds
+			*p++ = (uchar)(h + '0');	// then emit hundreds digit
+			n = (uchar)(n - h * 100);
+		}
+		int t = n / 10;
+		if (h || t) {					// If hundreds or tens
+			*p++ = (uchar)(t + '0');	// then emit tens digit
+			n = (uchar)(n - t * 10);
+		}
+		*p++ = (uchar)(n + '0');		// Emit units digit
+		*p++ = 's';
 	}
-	int t = n / 10;
-	if (h || t) {					// If hundreds or tens
-		*p++ = (uchar)(t + '0');	// then emit tens digit
-		n = (uchar)(n - t * 10);
-	}
-	*p++ = (uchar)(n + '0');		// Emit units digit
-	*p++ = 's'; *p++ = cmdchar; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) or
+	*p++ = cmdchar; *p++ = '\r'; *p++ = '\0';	// Emit s (select) and v (voltage) or
 }									// l (link or IMU current) commnd and terminate with return and null
 
 // Send a request for a voltage reading, to a specific CMU
@@ -166,12 +171,30 @@ bool bms_sendCurrentReq()
 	return bms_sendPacket(cmd);
 }
 
-// Send a request for an insulation test (touch current reading), to "CMU" 0 which is the IMU.
+// Send a request for an insulation test (touch current reading), a no-op to all but the IMU.
 // Returns true on success
 bool bms_sendInsulReq()
 {
 	unsigned char cmd[8];
-	makeBMScmd(cmd, 0, 'I');	// cmd := "0sI\r"
+	makeBMScmd(cmd, -1, 'I');	// cmd := "I\r"
+	return bms_sendPacket(cmd);
+}
+
+// Send a request for an fuel gauge reading (depth of discharge), a no-op to all but the IMU.
+// Returns true on success
+bool bms_sendFuelGaugeReq()
+{
+	unsigned char cmd[8];
+	makeBMScmd(cmd, -1, 'g');	// cmd := "g\r"
+	return bms_sendPacket(cmd);
+}
+
+// Send a fuel gauge reset (to 100% SoC), a no-op to all but the IMU. Sent at charge completion.
+// Returns true on success
+bool bms_sendFuelGaugeReset()
+{
+	unsigned char cmd[8];
+	makeBMScmd(cmd, -1, '%');	// cmd := "%\r"
 	return bms_sendPacket(cmd);
 }
 
@@ -309,7 +332,8 @@ void bms_processStatusByte(unsigned char status)
 		// Check for normal charge termination -- all near bypass for sufficient time at low enough current
 		if (status & ALL_NBYP && (chgr_lastCurrent <= CHGR_CUT_CURR)) {
 			if (++chgr_bypCount >= CHGR_EOC_SOAKT) {
-				chgr_idle();	// Terminate charging
+				chgr_idle();				// Terminate charging
+				bms_sendFuelGaugeReset();	// Reset fuel gauge counter in our IMU for 100% SoC
 				return;
 			}
 		}
@@ -484,16 +508,25 @@ void bms_processPacket()
 				SendBMScurr(2 * rx_value); 		// Tenths of an amp
 			else
 				uBMScurrA = 2 * rx_value;		// Tenths of an amp
-			bms_sendCurrentReq();				// Send another current request
+//			bms_sendCurrentReq();				// Send another current request
 		}
-		// Check for an insulation-test (hundredths of a milliamp) response from the IMU (ID = 0)
+		// Check for a fuel gauge (depth of discharge) response from the IMU (ID = 0)
+		else if (rx_cmd == 'g' && rx_id == 0) {
+			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
+			// Set global or CAN-send value to be displayed on the tacho by DCU-A
+			if (bDCUb)
+				SendBMSfuel(1000-rx_value); 	// Tenths of a percent (state of charge)
+			else
+				uBMSfuelA = 1000-rx_value;		// Tenths of a percent (state of charge)
+		}
+		// Check for an insulation-test (tenths of a milliamp) response from the IMU (ID = 0)
 		else if (rx_cmd == 'I' && rx_id == 0) {
 			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
 			// Set global or CAN-send value to be displayed on the tacho by DCU-A
 			if (bDCUb)
-				SendBMSinsul(rx_value); 	// Hundredths of a milliamp (prospective touch current)
+				SendBMSinsul(rx_value); 	// Tenths of a milliamp (prospective touch current)
 			else
-				uBMSinsulA = rx_value;		// Hundredths of a milliamp (prospective touch current)
+				uBMSinsulA = rx_value;		// Tenths of a milliamp (prospective touch current)
 		}
 		// Check for a voltage response from a particular CMU
 		else if (rx_cmd == 'v' && rx_id == bms_curr_cell) {
@@ -516,7 +549,7 @@ void bms_processPacket()
 			if (++bms_curr_cell > NUMBER_OF_CMUS)
 				bms_curr_cell = 1;
 			else {
-				bms_sendVoltReq();				// Send another voltage request for the next cell
+//				bms_sendVoltReq();				// Send another voltage request for the next cell
 			}
 		} // End if (rx_cmd == 'v')
 	} // End if valid response
@@ -558,5 +591,12 @@ void SendBMSinsul(int uBMSinsul) {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_INSUL;
 	can_push_ptr->status = 2;	// Packet size in bytes
 	can_push_ptr->data.data_16[0] = uBMSinsul; 	// Send B half-pack insulation-test touch-current to DCU-A
+	can_push();
+}
+
+void SendBMSfuel(int uBMSfuel) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_FUEL;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_16[0] = uBMSfuel; 	// Send B half-pack fuel gauge state of charge to DCU-A
 	can_push();
 }

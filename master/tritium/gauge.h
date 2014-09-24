@@ -32,7 +32,7 @@ extern void gauge_init( void );
 extern void gauge_tach_update( float motor_rpm );
 extern void gauge_stress_update( unsigned char BMS_stress );
 extern void gauge_temp_update( float motor_temp, float controller_temp );
-extern void gauge_fuel_update( float battery_voltage );
+extern void gauge_fuel_update( float stateOfCharge );
 
 // Public variables
 typedef struct _gauge_variables {
