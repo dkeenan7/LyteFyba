@@ -618,7 +618,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
 
-#if 1
+#if 0
 		; Temporary command for testing fuel gauge
 		; setFuelGauge ( hiword loword -- )
 		; $A4 $CB80 a -- should correspond to 100.0% (40 Ah)
