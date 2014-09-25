@@ -577,7 +577,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 
 ; Monitor and TestICal:
 ; g		Reads the depth of discharge (DoD) in tenths of a percent, i.e. accumulated discharge as a
-;		proportion of the battery capacity constant (may be slightly negative or slightly > 100.0%).
+;		proportion of the battery capacity constant (may be > 100.0% if capacity underestimated).
 ; %		Clears the discharge accumulator to zero (use only at the end of a full charge).
 
 ; TestICal only:
@@ -591,6 +591,11 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		_IF		_EQ					; IMUs only
 			mov		&discharge,R8		; Low word of discharge accumulator
 			mov		&discharge+2,R9		; High word of discharge accumulator
+			tst		R9
+			_IF		_L					; Clamp negative values to zero
+				clr		R8
+				clr		R9
+			_ENDIF
 			rla		R8					; Shift the 32-bit quantity R9:R8 3 bits left
 			rlc		R9
 			rla		R8

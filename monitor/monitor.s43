@@ -523,8 +523,14 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
-				sub		R10,&discharge				; Integrate current in 32-bit discharge accumulator
-				sbc		&discharge+2				; for fuel gauge
+				// Sign extend R10 to 32 bits in R10:R9
+				mov		R10,R9						; Make a copy
+				rla		R10							; Shift sign bit to carry
+				subc	R10,R10						; 0 if R9 is negative, -1 otherwise
+				inv		R10							; -1 if R9 is negative, 0 otherwise
+
+				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
+				subc	R10,&discharge+2			; for fuel gauge
 			_ENDIF
 
 			; Update local present stress, and worst stress for trip so far
