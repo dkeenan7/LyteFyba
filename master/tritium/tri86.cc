@@ -500,9 +500,9 @@ int main( void )
 						battery_current = can.data.data_fp[1];
 						// gauge_fuel_update( battery_voltage ); // Old crude fuel gauge based on voltage
 						if (command.state == MODE_D && tacho_display == BATV)
-							// Display traction battery voltage on tacho with expanded scale, V-300 x 10
+							// Display traction battery voltage on tacho with expanded scale, V-600 x 20
 							// 	(shows DC current in charge mode)
-							gauge_tach_update( (battery_voltage - 300.0) * 100.0 );
+							gauge_tach_update( (battery_voltage - 600.0) * 50.0 );
 						if (command.state == MODE_D && tacho_display == PWR)
 							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
 							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
