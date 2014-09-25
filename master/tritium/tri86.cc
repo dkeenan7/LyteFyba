@@ -205,7 +205,7 @@ int main( void )
 
 			iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 30625) >> 16);
 			if (iAuxBatMilliVolts < 12500) bAuxBatNeedsCharge = !bDCUb; // FIXME! when DCU-B analog inputs are fixed
-			if (iAuxBatMilliVolts > 14180) bAuxBatNeedsCharge = false;
+			if (iAuxBatMilliVolts > 14150) bAuxBatNeedsCharge = false;
 
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
@@ -218,9 +218,9 @@ int main( void )
 			// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
 			if (!bDCUb) process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
 #endif
-	 		// Send a fuel gauge request to our IMU every 40.96 seconds
+	 		// Send a fuel gauge request to our IMU every 40.96 seconds (must be power-of-2 x 10ms ticks)
 	 		static unsigned int fuelGaugeTimer = 0;
-	 		if ((++fuelGaugeTimer & 4095) == 0) bms_sendFuelGaugeReq();
+	 		if ((++fuelGaugeTimer & 4095) == 0) bms_sendFuelGaugeReq(); // Let timer wrap
 
 			// Track current operating state
 			switch(command.state){

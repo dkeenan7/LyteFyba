@@ -18,7 +18,7 @@
 												//	turning off the charger
 #define CHGR_CUT_CURR		10					// Charge termination max current in tenths of an amp,
 												// must be more than bypass plus max DC-DC loads
-#define CHGR_TX_BUFSZ		32                  // Have observed overflow with size 16
+#define CHGR_TX_BUFSZ		64                  // Observed overflow with 32, due to rapid stress changes
 #define CHGR_RX_BUFSZ 		16
 #define CHGR_RX_TIMEOUT		500					// Charger recieve timeout in 10 ms timer ticks.
 												//  Should receive something every second
