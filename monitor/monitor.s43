@@ -506,9 +506,9 @@ DoMeasurement:
 			call	#linkV					; Get link voltage in mV in R10
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
+#if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
 				_IF		_NE						; Only calculate link stress if not this value
-#if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 					; Calculate stress due to excessive absolute link voltage
 					tst		R10						; Get absolute value of link voltage
 					_IF		_L
@@ -520,6 +520,7 @@ DoMeasurement:
 					push	#AL_ZERO				;	over AL_ZERO, we add one level of stress
 					push	#5						; Type of measurement
 					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
+				_ENDIF
 #endif
 			_ELSE	; IMU
 				sub		R10,&discharge				; Integrate current in 32-bit discharge accumulator
