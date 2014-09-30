@@ -29,7 +29,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDR_MAINFRAME           ICON                    "res\\CMUsend.ico"
-IDR_BMUsendTYPE         ICON                    "res\\CMUsendDoc.ico"
+IDR_CMUsendTYPE         ICON                    "res\\CMUsendDoc.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -87,7 +87,7 @@ BEGIN
     END
     POPUP "&Help"
     BEGIN
-        MENUITEM "&About BMUsend...",           ID_APP_ABOUT
+        MENUITEM "&About CMUsend...",           ID_APP_ABOUT
     END
 END
 
@@ -122,11 +122,11 @@ END
 
 IDD_ABOUTBOX DIALOGEX 0, 0, 235, 55
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "About BMUsend"
+CAPTION "About CMUsend"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDR_MAINFRAME,IDC_STATIC,11,17,20,20
-    LTEXT           "BMUsend Version 1.2",IDC_STATIC,40,10,119,8,SS_NOPREFIX
+    LTEXT           "CMUsend Version 1.2",IDC_STATIC,40,10,119,8,SS_NOPREFIX
     LTEXT           "Free Software 2013",IDC_STATIC,40,25,119,8
     DEFPUSHBUTTON   "OK",IDOK,178,7,50,16,WS_GROUP
 END
@@ -157,10 +157,10 @@ BEGIN
             VALUE "CompanyName", "Coulomb & Weber"
             VALUE "FileDescription", "Battery Management Unit download sender"
             VALUE "FileVersion", "1.0.0.2"
-            VALUE "InternalName", "BMUsend.exe"
+            VALUE "InternalName", "CMUsend.exe"
             VALUE "LegalCopyright", "Free software 2013."
-            VALUE "OriginalFilename", "BMUsend.exe"
-            VALUE "ProductName", "BMUsend"
+            VALUE "OriginalFilename", "CMUsend.exe"
+            VALUE "ProductName", "CMUsend"
             VALUE "ProductVersion", "1.0.0.2"
         END
     END
@@ -197,12 +197,12 @@ END
 
 STRINGTABLE 
 BEGIN
-    IDR_MAINFRAME           "BMUsend\n\nBMUsend\n\n\nBMUsend.Document\nBMUsend.Document"
+    IDR_MAINFRAME           "CMUsend\n\nCMUsend\n\n\nCMUsend.Document\nCMUsend.Document"
 END
 
 STRINGTABLE 
 BEGIN
-    AFX_IDS_APP_TITLE       "BMUsend"
+    AFX_IDS_APP_TITLE       "CMUsend"
     AFX_IDS_IDLEMESSAGE     "Ready"
 END
 
@@ -398,7 +398,7 @@ BEGIN
     "#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)\r\n"
     "LANGUAGE 9, 1\r\n"
     "#pragma code_page(1252)\r\n"
-    "#include ""res\\BMUsend.rc2""  // non-Microsoft Visual C++ edited resources\r\n"
+    "#include ""res\\CMUsend.rc2""  // non-Microsoft Visual C++ edited resources\r\n"
     "#include ""afxres.rc""         // Standard components\r\n"
     "#endif\r\n"
     "\0"
