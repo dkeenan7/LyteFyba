@@ -1,11 +1,11 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by BMUsend.rc
+// Used by CMUsend.rc
 //
 #define ID_REFRESH                      3
 #define IDD_ABOUTBOX                    100
 #define IDR_MAINFRAME                   128
-#define IDR_BMUsendTYPE                 129
+#define IDR_CMUsendTYPE                 129
 #define IDD_DLG_SELPORT                 129
 #define IDD_PROGRESS                    130
 #define IDC_LIST_PORTS                  1000

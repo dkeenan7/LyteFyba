@@ -4,7 +4,7 @@
 	Version="8.00"
 	Name="CMUsend"
 	ProjectGUID="{07A3BEE7-593E-42F8-95DC-53D7EDA00AD7}"
-	RootNamespace="BMUsend"
+	RootNamespace="CMUsend"
 	Keyword="MFCProj"
 	>
 	<Platforms>
@@ -302,7 +302,7 @@
 	<Globals>
 		<Global
 			Name="RESOURCE_FILE"
-			Value="BMUsend.rc"
+			Value="CMUsend.rc"
 		/>
 	</Globals>
 </VisualStudioProject>
