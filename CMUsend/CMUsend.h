@@ -1,4 +1,4 @@
-// BMUsend.h : main header file for the BMUsend application
+// CMUSend.h : main header file for the CMUSend application
 //
 #pragma once
 
@@ -12,14 +12,14 @@
 
 
 
-// CBMUsendApp:
-// See BMUsend.cpp for the implementation of this class
+// CCMUSendApp:
+// See CMUSend.cpp for the implementation of this class
 //
 
-class CBMUsendApp : public CWinApp
+class CCMUSendApp : public CWinApp
 {
 public:
-	CBMUsendApp();
+	CCMUSendApp();
 	CRecentFileList* GetRecentFileList() {return m_pRecentFileList;}
 
 
@@ -64,4 +64,4 @@ public:
 
 };
 
-extern CBMUsendApp theApp;
+extern CCMUSendApp theApp;

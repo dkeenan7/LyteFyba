@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-#include "BMUsend.h"
+#include "CMUsend.h"
 
 #include "MainFrm.h"
 

@@ -1,19 +1,19 @@
-// BMUsendView.h : interface of the CBMUsendView class
+// CMUSendView.h : interface of the CCMUSendView class
 //
 
 
 #pragma once
 
 
-class CBMUsendView : public CView
+class CCMUSendView : public CView
 {
 protected: // create from serialization only
-	CBMUsendView();
-	DECLARE_DYNCREATE(CBMUsendView)
+	CCMUSendView();
+	DECLARE_DYNCREATE(CCMUSendView)
 
 // Attributes
 public:
-	CBMUsendDoc* GetDocument() const;
+	CCMUSendDoc* GetDocument() const;
 
 // Operations
 public:
@@ -26,7 +26,7 @@ protected:
 
 // Implementation
 public:
-	virtual ~CBMUsendView();
+	virtual ~CCMUSendView();
 #ifdef _DEBUG
 	virtual void AssertValid() const;
 	virtual void Dump(CDumpContext& dc) const;
@@ -41,8 +41,8 @@ public:
 	afx_msg void OnPaint();
 };
 
-#ifndef _DEBUG  // debug version in BMUsendView.cpp
-inline CBMUsendDoc* CBMUsendView::GetDocument() const
-   { return reinterpret_cast<CBMUsendDoc*>(m_pDocument); }
+#ifndef _DEBUG  // debug version in CMUSendView.cpp
+inline CCMUSendDoc* CCMUSendView::GetDocument() const
+   { return reinterpret_cast<CCMUSendDoc*>(m_pDocument); }
 #endif
 
