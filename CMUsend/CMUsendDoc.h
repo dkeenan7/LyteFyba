@@ -1,4 +1,4 @@
-// BMUsendDoc.h : interface of the CBMUsendDoc class
+// CMUSendDoc.h : interface of the CCMUSendDoc class
 //
 
 #include "EnumSerial.h"
@@ -6,11 +6,11 @@
 #pragma once
 
 
-class CBMUsendDoc : public CDocument
+class CCMUSendDoc : public CDocument
 {
 protected: // create from serialization only
-	CBMUsendDoc();
-	DECLARE_DYNCREATE(CBMUsendDoc)
+	CCMUSendDoc();
+	DECLARE_DYNCREATE(CCMUSendDoc)
 
 // Attributes
 public:
@@ -26,7 +26,7 @@ public:
 
 // Implementation
 public:
-	virtual ~CBMUsendDoc();
+	virtual ~CCMUSendDoc();
 #ifdef _DEBUG
 	virtual void AssertValid() const;
 	virtual void Dump(CDumpContext& dc) const;

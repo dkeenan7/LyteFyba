@@ -1,10 +1,10 @@
-// BMUsendDoc.cpp : implementation of the CBMUsendDoc class
+// CMUSendDoc.cpp : implementation of the CCMUSendDoc class
 //
 
 #include "stdafx.h"
-#include "BMUsend.h"
+#include "CMUSend.h"
 
-#include "BMUsendDoc.h"
+#include "CMUSendDoc.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -136,31 +136,31 @@ END_MESSAGE_MAP()
 
 
 
-// CBMUsendDoc
+// CCMUSendDoc
 
-IMPLEMENT_DYNCREATE(CBMUsendDoc, CDocument)
+IMPLEMENT_DYNCREATE(CCMUSendDoc, CDocument)
 
-BEGIN_MESSAGE_MAP(CBMUsendDoc, CDocument)
-	ON_COMMAND(ID_FILE_OPEN, &CBMUsendDoc::OnFileOpen)
-	ON_UPDATE_COMMAND_UI(ID_SEND, &CBMUsendDoc::OnUpdateSend)
-	ON_COMMAND_RANGE(ID_FILE_MRU_FILE1, ID_FILE_MRU_FILE16, &CBMUsendDoc::OnFileMruFile)
-	ON_COMMAND(ID_SEND, &CBMUsendDoc::OnSend)
-	ON_COMMAND(ID_SETSERIAL, &CBMUsendDoc::OnSetserial)
-	ON_COMMAND(ID_FILE_SAVEAS, &CBMUsendDoc::OnFileSaveas)
+BEGIN_MESSAGE_MAP(CCMUSendDoc, CDocument)
+	ON_COMMAND(ID_FILE_OPEN, &CCMUSendDoc::OnFileOpen)
+	ON_UPDATE_COMMAND_UI(ID_SEND, &CCMUSendDoc::OnUpdateSend)
+	ON_COMMAND_RANGE(ID_FILE_MRU_FILE1, ID_FILE_MRU_FILE16, &CCMUSendDoc::OnFileMruFile)
+	ON_COMMAND(ID_SEND, &CCMUSendDoc::OnSend)
+	ON_COMMAND(ID_SETSERIAL, &CCMUSendDoc::OnSetserial)
+	ON_COMMAND(ID_FILE_SAVEAS, &CCMUSendDoc::OnFileSaveas)
 END_MESSAGE_MAP()
 
 
-// CBMUsendDoc construction/destruction
+// CCMUSendDoc construction/destruction
 
-CBMUsendDoc::CBMUsendDoc()
+CCMUSendDoc::CCMUSendDoc()
 {
 }
 
-CBMUsendDoc::~CBMUsendDoc()
+CCMUSendDoc::~CCMUSendDoc()
 {
 }
 
-BOOL CBMUsendDoc::OnNewDocument()
+BOOL CCMUSendDoc::OnNewDocument()
 {
 	if (!CDocument::OnNewDocument())
 		return FALSE;
@@ -174,9 +174,9 @@ BOOL CBMUsendDoc::OnNewDocument()
 
 
 
-// CBMUsendDoc serialization
+// CCMUSendDoc serialization
 
-void CBMUsendDoc::Serialize(CArchive& ar)
+void CCMUSendDoc::Serialize(CArchive& ar)
 {
 	if (ar.IsStoring())
 	{
@@ -189,24 +189,24 @@ void CBMUsendDoc::Serialize(CArchive& ar)
 }
 
 
-// CBMUsendDoc diagnostics
+// CCMUSendDoc diagnostics
 
 #ifdef _DEBUG
-void CBMUsendDoc::AssertValid() const
+void CCMUSendDoc::AssertValid() const
 {
 	CDocument::AssertValid();
 }
 
-void CBMUsendDoc::Dump(CDumpContext& dc) const
+void CCMUSendDoc::Dump(CDumpContext& dc) const
 {
 	CDocument::Dump(dc);
 }
 #endif //_DEBUG
 
 
-// CBMUsendDoc commands
+// CCMUSendDoc commands
 
-void CBMUsendDoc::OnFileOpen()
+void CCMUSendDoc::OnFileOpen()
 {
 	OPENFILENAME ofn;
 	ZeroMemory( &ofn , sizeof( ofn));
@@ -230,13 +230,13 @@ void CBMUsendDoc::OnFileOpen()
 }
 
 
-void CBMUsendDoc::OnUpdateSend(CCmdUI *pCmdUI)
+void CCMUSendDoc::OnUpdateSend(CCmdUI *pCmdUI)
 {
 	// TODO: Add your command update UI handler code here
 	pCmdUI->Enable(theApp.m_bFileValid);
 }
 
-void CBMUsendDoc::OnFileMruFile(UINT uiMsgId)
+void CCMUSendDoc::OnFileMruFile(UINT uiMsgId)
 {
 	// TODO: Add your command handler code here
 	LPCTSTR pPathlessName = _tcsrchr((*theApp.GetRecentFileList())[uiMsgId - ID_FILE_MRU_FILE1], '\\');
@@ -291,7 +291,7 @@ static unsigned int readHexWord(CFile& f) {
     return (readHexByte(f) << 8) + readHexByte(f);
 }
 
-void CBMUsendDoc::ReadFile()
+void CCMUSendDoc::ReadFile()
 {
 	theApp.UpdateTitle();
 	CFile f(theApp.m_szFileName, CFile::modeRead);
@@ -381,7 +381,7 @@ static void writeByte(unsigned char* p) {
 	CloseHandle(osWrite.hEvent);
 }
 
-void CBMUsendDoc::OnSend()
+void CCMUSendDoc::OnSend()
 {
 	ReadFile();					// In case sending the same file with changes
 	// Open comm port
@@ -494,7 +494,7 @@ void CBMUsendDoc::OnSend()
 
 
 
-void CBMUsendDoc::OnSetserial()
+void CCMUSendDoc::OnSetserial()
 {
 	CPortDlg portDlg;
 	portDlg.DoModal();
@@ -515,7 +515,7 @@ void CProgDlg::OnSetFocus(CWnd* pOldWnd)
 	ShowWindow(SW_SHOW);
 }
 
-void CBMUsendDoc::OnFileSaveas()
+void CCMUSendDoc::OnFileSaveas()
 {
 	OPENFILENAME ofn;
 	ZeroMemory( &ofn , sizeof( ofn));

@@ -1,32 +1,32 @@
-// BMUsend.cpp : Defines the class behaviors for the application.
+// CMUSend.cpp : Defines the class behaviors for the application.
 //
 
 #include "stdafx.h"
-#include "BMUsend.h"
+#include "CMUsend.h"
 #include "MainFrm.h"
 
-#include "BMUsendDoc.h"
-#include "BMUsendView.h"
+#include "CMUsendDoc.h"
+#include "CMUsendView.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
 
-// CBMUsendApp
+// CCMUSendApp
 
-BEGIN_MESSAGE_MAP(CBMUsendApp, CWinApp)
-	ON_COMMAND(ID_APP_ABOUT,	&CBMUsendApp::OnAppAbout)
-	ON_COMMAND(ID_IMAGE_ALL1,	&CBMUsendApp::OnImageAll1)
-	ON_COMMAND(ID_IMAGE_PROGRAM,&CBMUsendApp::OnImageProgram)
-	ON_COMMAND(ID_IMAGE_BSL2,	&CBMUsendApp::OnImageBSL2)
-	ON_COMMAND(ID_IMAGE_BADSUM,	&CBMUsendApp::OnImageBadSum)
+BEGIN_MESSAGE_MAP(CCMUSendApp, CWinApp)
+	ON_COMMAND(ID_APP_ABOUT,	&CCMUSendApp::OnAppAbout)
+	ON_COMMAND(ID_IMAGE_ALL1,	&CCMUSendApp::OnImageAll1)
+	ON_COMMAND(ID_IMAGE_PROGRAM,&CCMUSendApp::OnImageProgram)
+	ON_COMMAND(ID_IMAGE_BSL2,	&CCMUSendApp::OnImageBSL2)
+	ON_COMMAND(ID_IMAGE_BADSUM,	&CCMUSendApp::OnImageBadSum)
 END_MESSAGE_MAP()
 
 
-// CBMUsendApp construction
+// CCMUSendApp construction
 
-CBMUsendApp::CBMUsendApp()
+CCMUSendApp::CCMUSendApp()
 	: m_password_sel(2)
 	, m_image_sel(1)
 	, m_bBadSum(0)
@@ -38,13 +38,13 @@ CBMUsendApp::CBMUsendApp()
 }
 
 
-// The one and only CBMUsendApp object
+// The one and only CCMUSendApp object
 
-CBMUsendApp theApp;
+CCMUSendApp theApp;
 
-// CBMUsendApp initialization
+// CCMUSendApp initialization
 
-BOOL CBMUsendApp::InitInstance()
+BOOL CCMUSendApp::InitInstance()
 {
 	// InitCommonControlsEx() is required on Windows XP if an application
 	// manifest specifies use of ComCtl32.dll version 6 or later to enable
@@ -72,9 +72,9 @@ BOOL CBMUsendApp::InitInstance()
 	CSingleDocTemplate* pDocTemplate;
 	pDocTemplate = new CSingleDocTemplate(
 		IDR_MAINFRAME,
-		RUNTIME_CLASS(CBMUsendDoc),
+		RUNTIME_CLASS(CCMUSendDoc),
 		RUNTIME_CLASS(CMainFrame),       // main SDI frame window
-		RUNTIME_CLASS(CBMUsendView));
+		RUNTIME_CLASS(CCMUSendView));
 	if (!pDocTemplate)
 		return FALSE;
 	AddDocTemplate(pDocTemplate);
@@ -140,18 +140,18 @@ END_MESSAGE_MAP()
 
 
 // App command to run the dialog
-void CBMUsendApp::OnAppAbout()
+void CCMUSendApp::OnAppAbout()
 {
 	CAboutDlg aboutDlg;
 	aboutDlg.DoModal();
 }
 
 
-// CBMUsendApp message handlers
+// CCMUSendApp message handlers
 
 
 
-void CBMUsendApp::UpdateTitle()
+void CCMUSendApp::UpdateTitle()
 {
 	CString csPort;
 	if (m_asiPorts.GetCount() == 0)
@@ -161,7 +161,7 @@ void CBMUsendApp::UpdateTitle()
 	m_pMainWnd->SetWindowText(CString(m_szShortName) + _T(" -> ") + csPort);
 }
 
-void CBMUsendApp::Adjust_start_and_len() {
+void CCMUSendApp::Adjust_start_and_len() {
 	// Calculate start offset and length to send based on the image selection. In the length to send, don't include
 	//	reset vector (never sent) but do include the checksum (not sent from the image)
 	switch (m_image_sel) {
@@ -183,7 +183,7 @@ void CBMUsendApp::Adjust_start_and_len() {
 	m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
 }
 
-void CBMUsendApp::UpdateMenu() {
+void CCMUSendApp::UpdateMenu() {
 	CMenu* mmenu = m_pMainWnd->GetMenu();		// Whole menu
 	CMenu* imenu = mmenu->GetSubMenu(2);		// Image menu
 	if (theApp.m_bBadSum) {
@@ -206,25 +206,25 @@ void CBMUsendApp::UpdateMenu() {
 	Adjust_start_and_len();
 }
 
-void CBMUsendApp::OnImageAll1()	{
+void CCMUSendApp::OnImageAll1()	{
 	theApp.m_password_sel = 1;
 	theApp.m_image_sel = 3;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
-void CBMUsendApp::OnImageProgram()	{ 
+void CCMUSendApp::OnImageProgram()	{ 
 	theApp.m_password_sel = 2;
 	theApp.m_image_sel = 1;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
-void CBMUsendApp::OnImageBSL2()		{
+void CCMUSendApp::OnImageBSL2()		{
 	theApp.m_password_sel = 1;
 	theApp.m_image_sel = 2;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
-void CBMUsendApp::OnImageBadSum()	{ 
+void CCMUSendApp::OnImageBadSum()	{ 
 	theApp.m_password_sel = 2;
 	theApp.m_image_sel = 1;
 	theApp.m_bBadSum = true;

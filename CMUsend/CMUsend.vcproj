@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="8.00"
-	Name="BMUsend"
+	Name="CMUsend"
 	ProjectGUID="{07A3BEE7-593E-42F8-95DC-53D7EDA00AD7}"
 	RootNamespace="BMUsend"
 	Keyword="MFCProj"
@@ -194,15 +194,15 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\BMUsend.cpp"
+				RelativePath=".\CMUsend.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\BMUsendDoc.cpp"
+				RelativePath=".\CMUsendDoc.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\BMUsendView.cpp"
+				RelativePath=".\CMUsendView.cpp"
 				>
 			</File>
 			<File
@@ -240,15 +240,15 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\BMUsend.h"
+				RelativePath=".\CMUsend.h"
 				>
 			</File>
 			<File
-				RelativePath=".\BMUsendDoc.h"
+				RelativePath=".\CMUsendDoc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\BMUsendView.h"
+				RelativePath=".\CMUsendView.h"
 				>
 			</File>
 			<File
@@ -274,19 +274,19 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\res\BMUsend.ico"
+				RelativePath=".\res\CMUsend.ico"
 				>
 			</File>
 			<File
-				RelativePath=".\BMUsend.rc"
+				RelativePath=".\CMUsend.rc"
 				>
 			</File>
 			<File
-				RelativePath=".\res\BMUsend.rc2"
+				RelativePath=".\res\CMUsend.rc2"
 				>
 			</File>
 			<File
-				RelativePath=".\res\BMUsendDoc.ico"
+				RelativePath=".\res\CMUsendDoc.ico"
 				>
 			</File>
 			<File

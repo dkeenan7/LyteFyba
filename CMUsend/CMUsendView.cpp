@@ -1,11 +1,11 @@
-// BMUsendView.cpp : implementation of the CBMUsendView class
+// CMUSendView.cpp : implementation of the CCMUSendView class
 //
 
 #include "stdafx.h"
-#include "BMUsend.h"
+#include "CMUSend.h"
 
-#include "BMUsendDoc.h"
-#include "BMUsendView.h"
+#include "CMUSendDoc.h"
+#include "CMUSendView.h"
 #include "MainFrm.h"
 
 #ifdef _DEBUG
@@ -13,27 +13,27 @@
 #endif
 
 
-// CBMUsendView
+// CCMUSendView
 
-IMPLEMENT_DYNCREATE(CBMUsendView, CView)
+IMPLEMENT_DYNCREATE(CCMUSendView, CView)
 
-BEGIN_MESSAGE_MAP(CBMUsendView, CView)
+BEGIN_MESSAGE_MAP(CCMUSendView, CView)
 	ON_WM_PAINT()
 END_MESSAGE_MAP()
 
-// CBMUsendView construction/destruction
+// CCMUSendView construction/destruction
 
-CBMUsendView::CBMUsendView()
+CCMUSendView::CCMUSendView()
 {
 	// TODO: add construction code here
 
 }
 
-CBMUsendView::~CBMUsendView()
+CCMUSendView::~CCMUSendView()
 {
 }
 
-BOOL CBMUsendView::PreCreateWindow(CREATESTRUCT& cs)
+BOOL CCMUSendView::PreCreateWindow(CREATESTRUCT& cs)
 {
 	// TODO: Modify the Window class or styles here by modifying
 	//  the CREATESTRUCT cs
@@ -41,11 +41,11 @@ BOOL CBMUsendView::PreCreateWindow(CREATESTRUCT& cs)
 	return CView::PreCreateWindow(cs);
 }
 
-// CBMUsendView drawing
+// CCMUSendView drawing
 
-void CBMUsendView::OnDraw(CDC* /*pDC*/)
+void CCMUSendView::OnDraw(CDC* /*pDC*/)
 {
-	CBMUsendDoc* pDoc = GetDocument();
+	CCMUSendDoc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	if (!pDoc)
 		return;
@@ -54,35 +54,35 @@ void CBMUsendView::OnDraw(CDC* /*pDC*/)
 }
 
 
-// CBMUsendView diagnostics
+// CCMUSendView diagnostics
 
 #ifdef _DEBUG
-void CBMUsendView::AssertValid() const
+void CCMUSendView::AssertValid() const
 {
 	CView::AssertValid();
 }
 
-void CBMUsendView::Dump(CDumpContext& dc) const
+void CCMUSendView::Dump(CDumpContext& dc) const
 {
 	CView::Dump(dc);
 }
 
-CBMUsendDoc* CBMUsendView::GetDocument() const // non-debug version is inline
+CCMUSendDoc* CCMUSendView::GetDocument() const // non-debug version is inline
 {
-	ASSERT(m_pDocument->IsKindOf(RUNTIME_CLASS(CBMUsendDoc)));
-	return (CBMUsendDoc*)m_pDocument;
+	ASSERT(m_pDocument->IsKindOf(RUNTIME_CLASS(CCMUSendDoc)));
+	return (CCMUSendDoc*)m_pDocument;
 }
 #endif //_DEBUG
 
 
-// CBMUsendView message handlers
+// CCMUSendView message handlers
 
-void CBMUsendView::OnPaint()
+void CCMUSendView::OnPaint()
 {
 	CPaintDC dc(this); // device context for painting
 	// TODO: Add your message handler code here
 	// Do not call CView::OnPaint() for painting messages
-	CBMUsendDoc* pDoc = GetDocument();
+	CCMUSendDoc* pDoc = GetDocument();
 	TCHAR buf[100];
 	if (theApp.m_total_len == 0)
 		wcscpy_s(buf, sizeof(buf)/sizeof(TCHAR), _T("No file loaded"));
