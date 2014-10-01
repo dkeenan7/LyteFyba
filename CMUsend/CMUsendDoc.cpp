@@ -3,13 +3,13 @@
 
 #include "stdafx.h"
 #include "CMUSend.h"
+#include <MMSystem.h>		// For timeBeginPeriod / timeEndPeriod
 
 #include "CMUSendDoc.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
-
 
 // CPortDlg dialog used for choosing a serial port
 
@@ -436,6 +436,10 @@ void CCMUSendDoc::OnSend()
 		return;
 	}
 
+	// We want calls to Sleep() to be able to be as fast as 3 ms. NOTE: this changes all of Windows, causing all tasks to potentially
+	// swap every 3 ms, so make sure you call timeEndPeriod(3) before exiting this function!
+	timeBeginPeriod(3);
+
 	CProgDlg* pProg = new CProgDlg();
 	pProg->Create(CProgDlg::IDD);
 	pProg->ShowWindow(SW_SHOW);
@@ -487,6 +491,8 @@ void CCMUSendDoc::OnSend()
 
 	theApp.m_nProgress = theApp.m_len_to_send;
 	pProg->SetFocus();
+
+	timeEndPeriod(3);					// See comments before TimeBeginPeriod()
 
 	CloseHandle(hComm);
 
