@@ -22,7 +22,7 @@
 #define ID_PASSWORD_BMU1                32780
 #define ID_PASSWORD_BMU2                32781
 #define ID_IMAGE_ALL                    32782
-#define ID_IMAGE_PROGRAM                32783
+#define ID_IMAGE_PROGRAM_4K             32783
 #define ID_IMAGE_BSL2                   32784
 #define ID_PASSWORD_BSL1                32785
 #define ID_PASSWORD_BSL2                32786
@@ -30,7 +30,7 @@
 #define ID_IMAGE_BSL1                   32788
 #define ID_IMAGE_ALL2                   32789
 #define ID_IMAGE_ALL1                   32790
-#define ID_IMAGE_PROGRAMW               32791
+#define ID_IMAGE_PROGRAM_8K             32791
 #define ID_IMAGE_BADSUM                 32792
 
 // Next default values for new objects

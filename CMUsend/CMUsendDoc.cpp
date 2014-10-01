@@ -437,8 +437,8 @@ void CCMUSendDoc::OnSend()
 	}
 
 	// We want calls to Sleep() to be able to be as fast as 3 ms. NOTE: this changes all of Windows, causing all tasks to potentially
-	// swap every 3 ms, so make sure you call timeEndPeriod(3) before exiting this function!
-	timeBeginPeriod(3);
+	// swap every 2 ms (it's faster, don't ask why), so make sure you call timeEndPeriod(2) before exiting this function!
+	timeBeginPeriod(2);
 
 	CProgDlg* pProg = new CProgDlg();
 	pProg->Create(CProgDlg::IDD);
@@ -451,8 +451,10 @@ void CCMUSendDoc::OnSend()
 
     /* Write the prefix (escape and the 4-character password) */
 	unsigned char pfx[5];
-	if (theApp.m_password_sel == 1)
+	if (theApp.m_password_sel == PASSWORD_PROG_4K)
 		memcpy(pfx, "\x1B\x03\x02\x01\x00", 5);
+	else if (theApp.m_password_sel == PASSWORD_PROG_8K)
+		memcpy(pfx, "\x1B\x05\x04\x03\x02", 5);
 	else
 		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
     for (i=0; i < 5; ++i) {
@@ -492,7 +494,7 @@ void CCMUSendDoc::OnSend()
 	theApp.m_nProgress = theApp.m_len_to_send;
 	pProg->SetFocus();
 
-	timeEndPeriod(3);					// See comments before TimeBeginPeriod()
+	timeEndPeriod(2);					// See comments before TimeBeginPeriod()
 
 	CloseHandle(hComm);
 
