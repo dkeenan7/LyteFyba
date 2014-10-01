@@ -16,19 +16,20 @@
 // CCMUSendApp
 
 BEGIN_MESSAGE_MAP(CCMUSendApp, CWinApp)
-	ON_COMMAND(ID_APP_ABOUT,	&CCMUSendApp::OnAppAbout)
-	ON_COMMAND(ID_IMAGE_ALL1,	&CCMUSendApp::OnImageAll1)
-	ON_COMMAND(ID_IMAGE_PROGRAM,&CCMUSendApp::OnImageProgram)
-	ON_COMMAND(ID_IMAGE_BSL2,	&CCMUSendApp::OnImageBSL2)
-	ON_COMMAND(ID_IMAGE_BADSUM,	&CCMUSendApp::OnImageBadSum)
+	ON_COMMAND(ID_APP_ABOUT,		&CCMUSendApp::OnAppAbout)
+	ON_COMMAND(ID_IMAGE_ALL1,		&CCMUSendApp::OnImageAll1)
+	ON_COMMAND(ID_IMAGE_PROGRAM_4K,	&CCMUSendApp::OnImageProgram4k)
+	ON_COMMAND(ID_IMAGE_PROGRAM_8K,	&CCMUSendApp::OnImageProgram8k)
+	ON_COMMAND(ID_IMAGE_BSL2,		&CCMUSendApp::OnImageBSL2)
+	ON_COMMAND(ID_IMAGE_BADSUM,		&CCMUSendApp::OnImageBadSum)
 END_MESSAGE_MAP()
 
 
 // CCMUSendApp construction
 
 CCMUSendApp::CCMUSendApp()
-	: m_password_sel(2)
-	, m_image_sel(1)
+	: m_password_sel(PASSWORD_PROG_4K)
+	, m_image_sel(ID_IMAGE_PROGRAM_4K)
 	, m_bBadSum(0)
 	, m_start_off(0)
 	, m_total_len(0)
@@ -165,15 +166,16 @@ void CCMUSendApp::Adjust_start_and_len() {
 	// Calculate start offset and length to send based on the image selection. In the length to send, don't include
 	//	reset vector (never sent) but do include the checksum (not sent from the image)
 	switch (m_image_sel) {
-		case 1:									// Main program (TestICal or Monitor)
+		case ID_IMAGE_PROGRAM_4K:				// Main program (TestICal or Monitor)
+		case ID_IMAGE_PROGRAM_8K:				//	either 4 kiB or 8 kiB
 			m_start_off = 0;					// Start at the beginning of the image
 			m_len_to_send = m_total_len - 512;	// Remove space for BSL2 (one flash segment = 512 bytes)
 			break;
-		case 2:									// BSL2 only
+		case ID_IMAGE_BSL2:						// BSL2 only
 			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
 			m_len_to_send = 512-2;				// Send only the 512 bytes of BSL2, less reset vector
 			break;
-		case 3:									// All (both the above)
+		case ID_IMAGE_ALL1:						// All (both the above, via BSL1)
 			m_start_off = 0;
 			m_len_to_send = m_total_len - 2;	// Remove only reset vector
 			break;
@@ -187,46 +189,54 @@ void CCMUSendApp::UpdateMenu() {
 	CMenu* mmenu = m_pMainWnd->GetMenu();		// Whole menu
 	CMenu* imenu = mmenu->GetSubMenu(2);		// Image menu
 	if (theApp.m_bBadSum) {
-		imenu->CheckMenuItem(ID_IMAGE_BADSUM, MF_CHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_ALL1, MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM, MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_BSL2, MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_BADSUM,	MF_CHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_ALL1,		MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_4K, MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_8K, MF_UNCHECKED);
+		imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_UNCHECKED);
 	}
 	else {
 		imenu->CheckMenuItem(ID_IMAGE_BADSUM, MF_UNCHECKED);
-		if (theApp.m_image_sel == 3) {
-			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | ((theApp.m_password_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
+		if (theApp.m_image_sel == MENU_IDX_ALL) {
+			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | (((theApp.m_password_sel == MENU_IDX_PROGRAM_4K) || (theApp.m_password_sel == MENU_IDX_PROGRAM_8K)) ? MF_CHECKED : MF_UNCHECKED));
 		}
 		else {
 			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | MF_UNCHECKED);
 		}
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM,	MF_BYCOMMAND | ((theApp.m_image_sel == 1) ? MF_CHECKED : MF_UNCHECKED));
-		imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_BYCOMMAND | ((theApp.m_image_sel == 2) ? MF_CHECKED : MF_UNCHECKED));
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_4K,	MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_PROGRAM_4K) ? MF_CHECKED : MF_UNCHECKED));
+		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_8K,	MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_PROGRAM_8K) ? MF_CHECKED : MF_UNCHECKED));
+		imenu->CheckMenuItem(ID_IMAGE_BSL2,			MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_BSL2) ? MF_CHECKED : MF_UNCHECKED));
 	}
 	Adjust_start_and_len();
 }
 
 void CCMUSendApp::OnImageAll1()	{
-	theApp.m_password_sel = 1;
-	theApp.m_image_sel = 3;
+	theApp.m_password_sel = PASSWORD_BSL2;		// ? Don't we use BSL1 for this now?
+	theApp.m_image_sel = MENU_IDX_ALL;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
-void CCMUSendApp::OnImageProgram()	{ 
-	theApp.m_password_sel = 2;
-	theApp.m_image_sel = 1;
+void CCMUSendApp::OnImageProgram4k()	{ 
+	theApp.m_password_sel = PASSWORD_PROG_4K;
+	theApp.m_image_sel = ID_IMAGE_PROGRAM_4K;
+	theApp.m_bBadSum = false;
+	UpdateMenu();
+}
+void CCMUSendApp::OnImageProgram8k()	{ 
+	theApp.m_password_sel = PASSWORD_PROG_8K;
+	theApp.m_image_sel = ID_IMAGE_PROGRAM_8K;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
 void CCMUSendApp::OnImageBSL2()		{
-	theApp.m_password_sel = 1;
-	theApp.m_image_sel = 2;
+	theApp.m_password_sel = PASSWORD_BSL2;
+	theApp.m_image_sel = ID_IMAGE_BSL2;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
 void CCMUSendApp::OnImageBadSum()	{ 
-	theApp.m_password_sel = 2;
-	theApp.m_image_sel = 1;
+	theApp.m_password_sel = PASSWORD_PROG_8K;
+	theApp.m_image_sel = ID_IMAGE_PROGRAM_8K;
 	theApp.m_bBadSum = true;
 	UpdateMenu();
 }

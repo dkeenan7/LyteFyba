@@ -33,7 +33,8 @@ private:
 	afx_msg void OnSend();
 	afx_msg void OnImageAll1();
 	afx_msg void OnImageBSL2();
-	afx_msg void OnImageProgram();
+	afx_msg void OnImageProgram4k();
+	afx_msg void OnImageProgram8k();
 	afx_msg void OnImageBadSum();
 	afx_msg void OnFileOpen();
 
@@ -50,10 +51,8 @@ public:
 	TCHAR	m_szShortName[100];
 	BOOL	m_bFileValid;
 	int		m_nProgress;
-	// 1 for BSL1, 2 for BSL2
-	int m_password_sel;
-	// 1 for main program (all but last 512 bytes), 2 for BSL2 (last 512 bytes), 3 for all
-	int m_image_sel;
+	int m_password_sel;						// Uses PASSWORD_xx see below
+	int m_image_sel;						// Used menu IDs now
 	bool m_bBadSum;
 
 	unsigned int	m_total_len;			// Number of bytes read into the image
@@ -63,5 +62,18 @@ public:
 
 
 };
+
+// Menu indexes
+#define MENU_IDX_PROGRAM_4K 1
+#define MENU_IDX_PROGRAM_8K 2
+#define MENU_IDX_BSL2 3
+#define MENU_IDX_ALL 4
+#define MENU_IDX_BAD 5
+
+// Passwords
+#define PASSWORD_BSL2 2
+#define PASSWORD_PROG_4K 4
+#define PASSWORD_PROG_8K 8
+
 
 extern CCMUSendApp theApp;

@@ -94,4 +94,10 @@ void CCMUSendView::OnPaint()
 		_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("starting at offset %d (%Xh)"), theApp.m_start_off, theApp.m_start_off);
 		dc.TextOut(5,25, buf, (int)_tcslen(buf));
 	}
+	_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("Password sequence: %s"),
+		(theApp.m_password_sel == PASSWORD_BSL2) ? _T("BSL2") :
+			(theApp.m_password_sel == PASSWORD_PROG_4K) ? _T("Main prog 4 kiB") :
+				(theApp.m_password_sel == PASSWORD_PROG_8K) ? _T("Main prog 8 kiB") :
+					_T("None"));
+	dc.TextOutW(5, 45, buf, (int)_tcslen(buf));
 }
