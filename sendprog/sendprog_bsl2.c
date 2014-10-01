@@ -1,5 +1,5 @@
 /*
- * SendProg: send a program over the BMS serial system to all BMUs
+ * SendProg: send a program over the BMS serial system to all CMUs
  * Mod MVE 9/10/2013: Send from offset $0E00 and length $0200-2
  */
 
@@ -14,12 +14,10 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>			// For usleep()
 #if !LINUX
 #include "windows.h"
 #endif
-
-/* Do NOT enable optimisation; delay loops required! */
-#define DELAY 700000		/* Approx one char delay */
 
 unsigned int address = 0;
 unsigned int sum;
@@ -263,7 +261,7 @@ int main(int argc, char* argv[]) {
 //	sum ^= progBuf[total_len-3];	/* Remove the existing checksum */
 	progBuf[0x200-3] = sum;			/* Now it will checksum to zero */
 
-	/* Now send this image to the BMUs */
+	/* Now send this image to the CMUs */
 	{
 	int i, j, k;
 
@@ -272,17 +270,17 @@ int main(int argc, char* argv[]) {
 	char* pfx = "\x1B\x03\x02\x01\x00";	/* ESC ^C ^B ^A ^@ */
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
-    	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
+		usleep(2000);						/* Time to transmit byte to CMU, and for it to echo to next CMU */
 	}
 
 	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSL. Soon
 		the second delay can go away */
 	/* Allow extra time for bulk erase; approximately 3 characters */
-	for (k=0; k < (32+1)*DELAY; ++k);
+	usleep(32000);							/* Acually time for about 32 chars */
 	/* Send the 4096-2 bytes of the binary image */
 //	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 3 characters */
-	for (k=0; k < (32+1)*DELAY; ++k);
+	usleep(32000);							/* Actually time for ~32 chars */
 	for (u=0xE00; u < 0x1000-2; ++u) {
 		if ((u & 0x7F) == 0x7F)
 		{
@@ -290,7 +288,7 @@ int main(int argc, char* argv[]) {
 			fflush(stdout);
 		}
 		writeByte(progBuf+u);				/* Write byte */
-    	for (j=0; j < 3*DELAY; ++j);		/* Time to transmit, echo, and flash write */
+		usleep(3000);						/* Time to transmit, echo, and flash write */
 	}
 	}
 
