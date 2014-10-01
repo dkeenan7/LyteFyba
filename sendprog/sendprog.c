@@ -1,5 +1,5 @@
 /*
- * SendProg: send a program over the BMS serial system to all BMUs
+ * SendProg: send a program over the BMS serial system to all CMUs
  * Sends main program only
  */
 
@@ -11,15 +11,13 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>		// For usleep()
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
 #if !LINUX
 #include "windows.h"
 #endif
-
-/* Do NOT enable optimisation; delay loops required! */
-#define DELAY 700000		/* Approx one char delay */
 
 unsigned int address = 0;
 unsigned int sum;
@@ -262,7 +260,7 @@ int main(int argc, char* argv[]) {
 		sum ^= progBuf[u];
 	progBuf[0xE00-1] = sum;		/* Now it will checksum to zero */
 
-	/* Now send this image to the BMUs */
+	/* Now send this image to the CMUs */
 	{
 	int i, j, k;
 
@@ -271,17 +269,17 @@ int main(int argc, char* argv[]) {
 	char* pfx = "\x1B\x07\x06\x05\x04\x00";	/* ESC ^G ^F ^E ^D */
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
-    	for (j=0; j < 2*DELAY; ++j);		/* Time to transmit byte to BMU, and for it to echo to next BMU */
+		usleep(2000);						/* Time to transmit byte to CMU, and for it to echo to next CMU */
 	}
 
 	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSL. Soon
 		the second delay can go away */
 	/* Allow extra time for bulk erase; approximately 3 characters */
-	for (k=0; k < (32+1)*DELAY; ++k);
+	usleep(32000);					// But this is ~ 32 chars worth, could likely cut down
 	/* Send the $E00-2 bytes of the binary image */
 //	writeByte(progBuf);						/* Write first byte */
 	/* Allow time for bulk erase; approximately 3 characters */
-	for (k=0; k < (32+1)*DELAY; ++k);
+	usleep(32000);							/* To be safe, enough for 32 chars */
 	for (u=0; u < 0xE00; ++u) {
 		if ((u & 0x7F) == 0x7F)
 		{
@@ -289,7 +287,7 @@ int main(int argc, char* argv[]) {
 			fflush(stdout);
 		}
 		writeByte(progBuf+u);				/* Write byte */
-    	for (j=0; j < 3*DELAY; ++j);		/* Time to transmit, echo, and flash write */
+    	usleep(3000);						/* Time to transmit, echo, and flash write */
 	}
 	}
 
