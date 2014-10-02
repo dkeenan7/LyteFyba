@@ -437,8 +437,8 @@ void CCMUSendDoc::OnSend()
 	}
 
 	// We want calls to Sleep() to be able to be as fast as 3 ms. NOTE: this changes all of Windows, causing all tasks to potentially
-	// swap every 2 ms (it's faster, don't ask why), so make sure you call timeEndPeriod(2) before exiting this function!
-	timeBeginPeriod(2);
+	// swap every 1 ms (it's faster for CMUsend, don't ask why), so make sure you call timeEndPeriod(2) before exiting this function!
+	timeBeginPeriod(1);
 
 	CProgDlg* pProg = new CProgDlg();
 	pProg->Create(CProgDlg::IDD);
@@ -494,7 +494,7 @@ void CCMUSendDoc::OnSend()
 	theApp.m_nProgress = theApp.m_len_to_send;
 	pProg->SetFocus();
 
-	timeEndPeriod(2);					// See comments before TimeBeginPeriod()
+	timeEndPeriod(1);					// See comments before TimeBeginPeriod()
 
 	CloseHandle(hComm);
 
