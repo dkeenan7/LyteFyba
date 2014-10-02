@@ -167,7 +167,7 @@ void CCMUSendApp::Adjust_start_and_len() {
 	//	reset vector (never sent) but do include the checksum (not sent from the image)
 	switch (m_image_sel) {
 		case ID_IMAGE_PROGRAM_4K:				// Main program (TestICal or Monitor)
-		case ID_IMAGE_PROGRAM_8K:				//	either 4 kiB or 8 kiB
+		case ID_IMAGE_PROGRAM_8K:				//	either 4 KiB or 8 KiB
 			m_start_off = 0;					// Start at the beginning of the image
 			m_len_to_send = m_total_len - 512;	// Remove space for BSL2 (one flash segment = 512 bytes)
 			break;
