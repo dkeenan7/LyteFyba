@@ -3,7 +3,8 @@
 
 #include "stdafx.h"
 #include "CMUSend.h"
-#include <MMSystem.h>		// For timeBeginPeriod / timeEndPeriod
+#include <MMSystem.h>				// For timeBeginPeriod / timeEndPeriod
+#pragma  comment(lib, "winmm.lib")	// Needed for VS2005; doesn't seem to hurt others
 
 #include "CMUSendDoc.h"
 
