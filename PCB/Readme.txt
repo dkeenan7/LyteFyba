@@ -39,24 +39,29 @@ group. If not, fiddle with the right button menu items like "Select all find ite
 it does.
 
 To recreate the Rotatables group:
+
 * Delete any previous Rotatables group. Do this by double clicking on the old group name
 to highlight the elements, right click on one, and choose Group / Ungroup. The group name
 should disappear from the interaction bar.
-* Show all layers except Top and Bottom Documentation, and ensure copper-pour-area outlines
-are displayed. (FIXME: how? Necessary?)
-* Make a rectangular selection from -2500,300 to 2400,-300. The -2500 and +2400 numbers are
-not critical, as long as everything it selected in the middle section. However the 300
+* Show all layers except Top and Bottom Documentation.
+* Ensure only the copper-pour-area outlines are displayed, not their fills.
+Context menu in space and choose Clear Copper if necessary.
+* Make a rectangular selection from -2500,300 to 2500,-300. The 2500 numbers are
+not critical, as long as everything is selected in the middle section. However the 300
 numbers are critical. Using the arrow keys allows better accuracy and will (mostly) snap to
-grid
+grid.
 * Add the thick red GND track north of the processor, and the thin red Vdd track
 south of R7, if necessary.
-Add 6 bypass resistors to the selection (easier with red layers off)
-Add 6 copper pour outlines to the selection (not the copper interior, just the outlines)
-Remove the board outline from the selection
-From the bottom silkscreen, deselect "Weber &", "Coulomb", "Digital", "CMU"
-Deselect everything from the top documentation layer, if necessary.
-Using the layers tab in the interaction bar, check each layer for items to deselect
-Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
+* Add all bypass resistors to the selection (easier with one layer displayed at a time).
+* Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
+interior, just the outlines). Ctrl-Shift-Clicking is useful here.
+* Remove the board outline, including the oval holes, from the selection. Ctrl-Shift-Clicking is useful here.
+* From the top and bottom silkscreens, deselect all text except component designators.
+* Deselect the arrows (objects can only be a member of one group). Leave the plus and minus signs selected.
+* Deselect everything from the top and bottom documentation layers, if necessary.
+* Using the layers tab in the interaction bar, check each layer for items to deselect.
+* Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
+* Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
 
 Rotation Procedure
 ==================
@@ -66,7 +71,8 @@ Context menu on the left cell-terminal pad and choose Group / Select Group
 Press R twice
 Press shift-"+" and enter 2440 into the X field and OK
 Click in space to deselect all
-Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group
+Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
+This assumes the existence of an "Arrows" group containing both arrows.
 Press F
 Press shift-"+" and enter 1780 into the X field and OK
 Click in space to deselect all
@@ -79,11 +85,11 @@ Copy or Save As the .pcb file to a suitable name
 Zoom out; leave room below; 
 Ensure all layers are visible
 Frame select the whole BMU including the squiggle-join cutouts above
-Deselect board outline by Ctrl-Shift-click; Copy; Paste
+Deselect board outline including the oval holes, by Ctrl-Shift-click.
+Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -1810 into the Y field. OK
 Click in space to deselect all
-Delete the IFO daughter-board tab (a tight group) from the copy.
 Delete the mounting hole and its keepout circle (a tight group) from the original.
 Apply the rotation procedure to the north (original) board only
 Now is a good time for a design rule check.
