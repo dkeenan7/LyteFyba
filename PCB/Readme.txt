@@ -1,11 +1,12 @@
 In February 2012, the PCB design documents for the Battery Management Units (BMUs)
 changed from Protel format to DesignSpark format. DesignSpark runs on Windows and
 is free, and can be downloaded from http://www.designspark.com/knowledge/pcb .
-Versions of DesignSpark earlier than 3.0 can be run in Linux under Wine.
+DesignSpark may run in Linux under Wine, with some difficulty (mainly the installer,
+it seems). Read the latest forum comments in this if you want to use Linux.
 Activation is required, free, and fairly low pain; just install and run the
 software, and follow the prompts.
 
-We want to keep the BMU-specific library files with the other design documents, so
+We want to keep the CMU-specific library files with the other design documents, so
 it's unfortunately necessary to do the following if you want to make detailed
 changes to the circuit or PCB layout. (It is NOT needed for perusing the circuit
 or layout, or even making minor changes.)
@@ -13,32 +14,46 @@ or layout, or even making minor changes.)
 Double-click the "CellTopBMU.sch" file to open it in DesignSpark; it's in the PCB
 folder. Close the little window that contains nothing but the DesignSpark logo.
 Open DesignSpark's Library Manager by clicking the book-like icon on the toolbar
-(or typing Ctrl+L). Choose the "Folders" tab. Click on the "Add" button, then the
-"Browse" button. You should see three "Coulomb&Weber" files. If not, navigate to
-the celltopbmu/PCB folder so you do see them. Double-click any one of them (or
+(or typing Ctrl+L). Choose the "Folders" tab (important). Click on the "Add" button,
+then the "Browse" button. You should see three "Coulomb&Weber" files. If not, navigate
+to the celltopcmu/PCB folder so you do see them. Double-click any one of them (or
 type Backspace Enter). Then click "OK" to complete the Add operation.
 
 Now in the lower "Files Found" list you should see the same three "Coulomb&Weber"
 files. If any are greyed out, select them and check the "Enabled" checkbox.
 
-To check that you've done it right, choose the "Components" tab, and in the
-"Libraries" drop down list, you should see near the top "Coulomb&Weber.cml in
-..."; select it. Now you should see a handful of components, including "Dual
-diode", which we did not find in the standard DesignSpark libraries. Click "Close".
+To check that you've done it right, choose the "Components" tab (in the Libraries dialog
+box, Ctrl+L if not open), and in the "Libraries" drop down list, you should see near the
+top "Coulomb&Weber.cml in ..."; select it. Now you should see a few dozen components,
+including "Dual diode", which we did not find in the standard DesignSpark libraries.
+Click "Close".
 
 Rotatables Grouping Procedure
 =============================
-Ungroup any previous Rotatables group.
-Show all layers except Top Documentation, and ensure copper-pour-area outlines are displayed.
-Make a rectangular selection from -1600,300 to 1600,-300. Using the arrow keys allows
-better accuracy and will (mostly) snap to grid
-Add the thick red GND track north of the processor, and the thin red Vdd track
+The section below is for creating the named group "Rotatables". It's a lot of work, so
+don't do it unless you need to; just use the group already created. It can be accessed
+in the interaction bar (F9 to display, if not visible). Choose the Goto tab at the bottom,
+then the Group selection in the dropdown box near the top of the interaction bar. Double
+clicking on the Rotatable or other named group should highlight the elements of that
+group. If not, fiddle with the right button menu items like "Select all find items" until
+it does.
+
+To recreate the Rotatables group:
+* Delete any previous Rotatables group. Do this by double clicking on the old group name
+to highlight the elements, right click on one, and choose Group / Ungroup. The group name
+should disappear from the interaction bar.
+* Show all layers except Top and Bottom Documentation, and ensure copper-pour-area outlines
+are displayed. (FIXME: how? Necessary?)
+* Make a rectangular selection from -2500,300 to 2400,-300. The -2500 and +2400 numbers are
+not critical, as long as everything it selected in the middle section. However the 300
+numbers are critical. Using the arrow keys allows better accuracy and will (mostly) snap to
+grid
+* Add the thick red GND track north of the processor, and the thin red Vdd track
 south of R7, if necessary.
-Remove C6 from the selection, if necessary.
 Add 6 bypass resistors to the selection (easier with red layers off)
 Add 6 copper pour outlines to the selection (not the copper interior, just the outlines)
 Remove the board outline from the selection
-From the bottom silkscreen, deselect "Weber &", "Coulomb", "Digital", "BMU"
+From the bottom silkscreen, deselect "Weber &", "Coulomb", "Digital", "CMU"
 Deselect everything from the top documentation layer, if necessary.
 Using the layers tab in the interaction bar, check each layer for items to deselect
 Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
