@@ -52,6 +52,7 @@ numbers are critical. Using the arrow keys allows better accuracy and will (most
 grid.
 * Add the thick red GND track north of the processor, and the thin red Vdd track
 south of R7, if necessary.
+* Add R9 and its tracks and vias to the selection.
 * Add all bypass resistors to the selection (easier with one layer displayed at a time).
 * Add the snap-off holes for the bypass outriggers.
 * Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
