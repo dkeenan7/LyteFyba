@@ -53,6 +53,7 @@ grid.
 * Add the thick red GND track north of the processor, and the thin red Vdd track
 south of R7, if necessary.
 * Add all bypass resistors to the selection (easier with one layer displayed at a time).
+* Add the snap-off holes for the bypass outriggers.
 * Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
 interior, just the outlines). Ctrl-Shift-Clicking is useful here.
 * Remove the board outline, including the oval holes, from the selection. Ctrl-Shift-Clicking is useful here.
@@ -69,7 +70,9 @@ Click in space to deselect all
 Context menu in space and choose Clear Copper
 Context menu on the left cell-terminal pad and choose Group / Select Group
 Press R twice
-Press shift-"+" and enter 2440 into the X field and OK
+Press shift-"+" and enter 2440 into the X field and OK.
+If the above doesn't work because it no longer rotates about the left terminal pad,
+manually overlap (just barely) the blue blobs where the rotatables connect to the non-rotatables.
 Click in space to deselect all
 Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
 This assumes the existence of an "Arrows" group containing both arrows.
