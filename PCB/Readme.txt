@@ -15,7 +15,7 @@ Double-click the "CellTopBMU.sch" file to open it in DesignSpark; it's in the PC
 folder. Close the little window that contains nothing but the DesignSpark logo.
 Open DesignSpark's Library Manager by clicking the book-like icon on the toolbar
 (or typing Ctrl+L). Choose the "Folders" tab (important). Click on the "Add" button,
-then the "Browse" button. You should see three "Coulomb&Weber" files. If not, navigate
+then the "Browse" button. You should see four "Coulomb&Weber" files. If not, navigate
 to the celltopcmu/PCB folder so you do see them. Double-click any one of them (or
 type Backspace Enter). Then click "OK" to complete the Add operation.
 
