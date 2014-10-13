@@ -71,8 +71,8 @@ Click in space to deselect all
 Context menu in space and choose Clear Copper
 Context menu on the left cell-terminal pad and choose Group / Select Group
 Press R twice
-Press shift-"+" and enter 2440 into the X field and OK.
-If the above doesn't work because it no longer rotates about the left terminal pad,
+Press shift-"+" and enter 2440 into the X field (or maybe 100 -240 into the X and Y fields) and OK.
+If the above doesn't work because it no longer rotates about the same point, then
 manually overlap (just barely) the blue blobs where the rotatables connect to the non-rotatables.
 Click in space to deselect all
 Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
