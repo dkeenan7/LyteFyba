@@ -78,8 +78,8 @@ BEGIN
     END
     POPUP "&Image"
     BEGIN
-        MENUITEM "&Program (4kB)",				ID_IMAGE_PROGRAM_4K
-        MENUITEM "Program (&8kB)",				ID_IMAGE_PROGRAM_8K
+        MENUITEM "&Program (4kiB)",				ID_IMAGE_PROGRAM_4K
+        MENUITEM "Program (&8kiB)",				ID_IMAGE_PROGRAM_8K
         MENUITEM "&BSL2 (via TestICal)",        ID_IMAGE_BSL2
         MENUITEM "&All (via old BSL1)",         ID_IMAGE_ALL1
         MENUITEM "Program 8k w/bad &checksum",  ID_IMAGE_BADSUM
