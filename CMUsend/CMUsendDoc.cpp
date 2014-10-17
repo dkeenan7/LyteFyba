@@ -453,11 +453,11 @@ void CCMUSendDoc::OnSend()
     /* Write the prefix (escape and the 4-character password) */
 	unsigned char pfx[5];
 	if (theApp.m_password_sel == PASSWORD_PROG_4K)
-		memcpy(pfx, "\x1B\x03\x02\x01\x00", 5);
+		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
 	else if (theApp.m_password_sel == PASSWORD_PROG_8K)
 		memcpy(pfx, "\x1B\x05\x04\x03\x02", 5);
 	else
-		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
+		memcpy(pfx, "\x1B\x03\x02\x01\x00", 5);
     for (i=0; i < 5; ++i) {
         writeByte(pfx+i);
 		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
