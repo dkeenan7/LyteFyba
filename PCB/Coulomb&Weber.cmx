@@ -12,6 +12,7 @@ Dual LED (shine thru PCB)||#SM=4||@Manufacturer_Part_Number=||@Manufacturer_Name
 FUSE IEC||#SM=2||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=||#2410=2||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 IFO LED||#MISC=5||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 IFO PT||#MISC=0||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
+LED||#SM=2||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 LED (shine thru PCB)||#SM=2||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 MCP6001-X_OT||#SOT-23-5_MC=0||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 MSP430G2xx2IRSA||#QFN=17||@Mfr=TI||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
