@@ -434,7 +434,7 @@ _prettyPrint:
 		mov		#'\r',R8			; Carriage return to R8
 		call	#TX_Byte			; Emit
 
-		bic.b	#ACTLED,&P1OUT		; Set the (inverted) activity LED here to mimic old behaviour
+		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
 
 ;
@@ -445,13 +445,13 @@ _prettyPrint:
 		_IF		_Z
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF	_NE
-				bic.b	#ERRLED,&P2OUT			; Turn off the error LED
+				ErrLedOff						; Turn off the error LED
 			_ENDIF
 			bic.b	#PIEZO,&P1SEL			; Short out the piezo
 		_ELSE
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF	_NE
-				bis.b	#ERRLED,&P2OUT			; Turn on the error LED
+				ErrLedOn						; Turn on the error LED
 			_ENDIF
 			bis.b	#PIEZO,&P1SEL			; Make the piezo squeal
 		_ENDIF

@@ -113,7 +113,7 @@ TX_ByteNW:
 					eint						; (1) Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
 
-					bic.b	#ACTLED,&P1OUT		; Turn on the (inverted) activity LED for visual feedback
+					ActLedOn					; Turn on the (inverted) activity LED for visual feedback
 				_ENDIF 						; Endif transmit interrupts disabled
 
 				clrz						; Indicate char was accepted
@@ -179,7 +179,7 @@ TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte inst
 					eint						; (1) Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
 
-					bic.b	#ACTLED,&P1OUT		; Turn on the (inverted) activity LED for visual feedback
+					ActLedOn					; Turn on the (inverted) activity LED for visual feedback
 				_ENDIF 						; Endif transmit interrupts disabled
 
 				clrz						; Indicate char was accepted
@@ -244,14 +244,14 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 				cmp.b 	&txwr,&txrd				; Test if TX queue is empty
 				_IF		_EQ						; If TX queue is empty
 					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
-					bis.b	#ACTLED,&P1OUT			; (5) Turn off activity LED at end of the transmit
+					ActLedOff						; (5) Turn off activity LED at end of the transmit
 				_ELSE							; Else TX queue is not empty
 					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 													;   will continue to be an inversion of TXDm (TA0).
 					mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits
 					mov.w	#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit
 
-					bic.b	#ACTLED,&P1OUT			; Turn on the activity LED for visual feedback.
+					ActLedOn						; Turn on the activity LED for visual feedback.
 				_ENDIF							; Endif TX queue is not empty
 			_ENDIF							; Endif Stop bit initiated
 			reti

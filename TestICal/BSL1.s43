@@ -16,7 +16,10 @@ RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
 PIEZO		EQU		1<<0			; Piezo on P1.0
+#if !REV61
 ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
+#endif
+
 ; Port 2 bits
 BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
 RELAYm		EQU		1<<6			; IMU relay for HazV- test on pin P2.6
@@ -32,8 +35,13 @@ for1000:	; This will be relocated to info-flash at $1000.
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
 			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
+#if REV61
+			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, Vref output off
+			bis.b	#TXDp|TXDm|VREFp,&P1DIR ; Set TXDs, and VREFp as outputs
+#else
 			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
-			bis.b	#TXDp+TXDm+ACTLED+VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+			bis.b	#TXDp|TXDm|ACTLED|VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+#endif
 			mov		#$300,SP		; Initialise the stack pointer
 
 			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
@@ -190,10 +198,14 @@ write_next							; (Number of cycles)
 			subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 									; Note: R11 must be guaranteed clear in advance
 			xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
+#if REV61
+			and.b	#TXDp+TXDm,R11	; (2) Ensure only TXD bits can be toggled below
+#else
 			; The activity LED has a lower bit number than TXDp so the below will
 			; turn off the (inverted) activity LED when a zero bit or start bit is sent,
 			; and turn it on when a one bit or stop bit is sent.
 			and.b	#TXDp+ACTLED+TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
+#endif
 			xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 WriteBreak:	mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
@@ -202,9 +214,13 @@ write_dly	dec		R11				; (1) Note: Clearing of R11 here is assumed by write_next 
 
 			dec		R10				; (1) Decrement the bit counter
 			jc		write_next		; (2) Loop if not -1
-
+#if REV61
+			mov.b	#TXDp,&P1OUT	; Send a stop bit
+			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
+#else
 			mov.b	#TXDp,&P1OUT	; Send a stop bit and leave the (inverted) ACTLED on
-			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output
+			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
+#endif
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
 			; to allow any receiving CMU's BSL time to both read and echo the byte.

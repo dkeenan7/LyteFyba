@@ -50,6 +50,7 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions!
 
+#define REV61	1				; Enable conditional assembly for board rev 61 or later
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete, but
@@ -236,6 +237,10 @@ initialise:
 			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
 			; bottom of the link voltage divider, so we can test with paralleled boards,
 			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
+#if REV61
+			mov.b	#TXDp,&P1OUT			; Set TXDp. Short the piezo.
+			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+#else
 			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
@@ -243,6 +248,7 @@ initialise:
 			_ELSE
 				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 			_ENDIF
+#endif
 			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off (RLY- and RLY+ if we're an IMU)
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
@@ -437,9 +443,11 @@ errorFlash:
 			mov		#16,R10						; Bit loop counter
 			_BEGIN
 				rra		R9						; LSB into carry
-				subc.b	R11,R11					; Zero if carry was set, $FF otherwise
-				inv.b	R11
-				movBits_B R11,#ERRLED,&P2OUT	; Trashes R11
+				_IF		_C
+					ErrLedOn
+				_ELSE
+					ErrLedOff
+				_ENDIF
 				_DO		#8,R11					; 8 * 49 = 392 ms delay
 					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
 					_LOOP	R12

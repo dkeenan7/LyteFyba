@@ -161,7 +161,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#'\r',R8				; Emit carriage return
 			call	#TX_Byte				; without updating checksum
 
-			bic.b	#ACTLED,&P1OUT			; Set the (inverted) activity LED here to mimic old behaviour
+			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
 			pop.b	&intFlags				; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string

@@ -198,7 +198,7 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream CMU's ID
-			bis.b	#ACTLED,&P1OUT			; Clear (inverted) activity LED set by WriteByte
+			ActLedOff						; Clear (inverted) activity LED set by WriteByte
 			mov.b	R12,&ramID				; Save our ID to RAM
 			ret
 
@@ -309,7 +309,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 			br		#errorFlash
 
 
-#if PROG_START < $F800			// Commented out when need to save space
+#if 0 && PROG_START < $F800			// Commented out when need to save space
 ;
 ; ParallelPullDown ( boolean -- ) 1 to pull down. 0 to be Vref+ during conversions.
 ; When testing with CMUs powered up in parallel, link inputs are at +3.6 V.
@@ -418,7 +418,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 
 ;
-; Toggle LED, and TXDm with an 11 cycle loop,
+; Toggle TXDm with an 11 cycle loop,
 ; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/11 = 181.8 kHz.
 ; If we were trying to achieve exact 9600 baud comms we'd want 9600*416 = 181.5 kHz.
 ; But we've gone with minimising the number of controllers whose default DCO calibration
@@ -432,10 +432,10 @@ doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		R10
 			bic.b	#TXDp,&P1DIR			; Set TXD+ open circuit
-burstLp		xor.b	#ACTLED+TXDm,&P1OUT 	; (5) Toggle the Activity LED and TXD- bits
+burstLp		xor.b	#TXDm,&P1OUT 			; (5) Toggle the TXD- bit
 			; We used to toggle both TXD lines in phase but this caused problems with IFO outputs.
 			; Leaving TXD+ as a high output caused problems due to C4 (100n) on the next board.
-			; We rely on an even number of toggles to restore TXD- and the Activity LED.
+			; We rely on an even number of toggles to restore TXD-.
 			dec		R10						; (1)
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
