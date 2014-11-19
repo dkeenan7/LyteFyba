@@ -606,6 +606,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			adc		R9					; Resulting units are Ah * 8192/270000
 			mov		#607,R8				; Mult to give tenths of a percent when div by tenths of an Ah
 			call	#UMStar				; R10:R9 = R8 * R9
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 			mov		#40*10,R8			; Battery capacity in tenths of an amp-hour
 										; The above constant may be stored in info-flash in future
 			rla		R8					; This works in conjuction with the 607 above, to scale correctly
