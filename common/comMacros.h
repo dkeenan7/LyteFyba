@@ -1,3 +1,44 @@
+ActLedOff	MACRO
+#if	REV61
+			bit.b	#ERRLED,&P2OUT		; Activity and error LEDs share an output.
+			_IF		_Z					; If the error LED is off
+				bic.b	#ERRLED,&P2DIR		; make output high-Z so activity LED goes off
+			_ENDIF							; without turning error LED on.
+#else
+			bis.b	#ACTLED,&P1OUT
+#endif
+			ENDM
+
+ActLedOn	MACRO
+#if	REV61
+			; No provision for oscillating to light both LEDs yet.
+			; Error LED has priority.
+			bis.b	#ERRLED,&P2DIR		; Make it a proper output again
+#else
+			bic.b	#ACTLED,&P1OUT
+#endif
+			ENDM
+
+ErrLedOff	MACRO
+#if	REV61
+			bic.b	#ERRLED,&P2DIR		; Make output high-Z so activity LED will not come on
+			bic.b	#ERRLED,&P2OUT		; Turn off the error LED (so ActLedOff/On can tell)
+#else
+			bic.b	#ERRLED,&P2OUT		; Turn off the error LED
+#endif
+			ENDM
+
+ErrLedOn	MACRO
+#if	REV61
+			; No provision for oscillating to light both LEDs yet.
+			; Error LED has priority.
+			bis.b	#ERRLED,&P2DIR		; Make it a proper output
+			bis.b	#ERRLED,&P2OUT		; Turn on the error LED
+#else
+			bis.b	#ERRLED,&P2OUT		; Turn on the error LED
+#endif
+			ENDM
+
 ;
 ; Macros giving meaningful names to some obscure instruction sequences we have used repeatedly.
 ;

@@ -7,7 +7,9 @@
 ;
 ; "Monitor" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
-# define Monitor
+#define Monitor
+
+#define REV61	1				; Enable conditional assembly for board rev 61 or later
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -131,7 +133,10 @@ RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
 VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TXDp		EQU		1<<5			; SCLK/P1.5
 PIEZO		EQU		1<<0			; Piezo on P1.0
+#if !REV61
 ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
+#endif
+
 ; Port 2 bit masks
 BYPASS		EQU		1<<6			; Bypass transistor on P2.6
 RELAYm		EQU		1<<6			; IMU relay for HazV- test on P2.6
@@ -290,6 +295,24 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; TAIE = interrupt enable (for timer overflow)
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
 
+			; Initialise IO ports
+			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+#if REV61
+			clr.b	&P1OUT						; All outputs low on port 1
+			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+#else
+			mov.b	#ACTLED,&P1OUT				; All outputs low, except (inverted) ActLED, on port 1
+			cmp.b	#0,&infoID					; If we're not an IMU
+			_IF		_NE
+				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+			_ELSE
+				mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			_ENDIF
+#endif
+			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
+			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if we're IMU)
+			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
+
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
@@ -297,18 +320,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; to invert TA0 and put it out as SCLK, in SPI master mode.
 			; We don't use the shift register of the USI because there is
 			; no way to get differential outputs from that without external hardware.
-			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
-			mov.b	#ACTLED,&P1OUT				; Turn off (inverted) ActLED
-			cmp.b	#0,&infoID					; If we're not an IMU
-			_IF		_NE
-				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
-			_ELSE
-				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
-			_ENDIF
-			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if we're IMU)
-			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
-
 			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
 			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
@@ -840,7 +851,12 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
+#if REV61
+			mov.b	#TXDp,&P1OUT		; Set TXD to idle
+			ActLedOff					; (inverted) activity LED off
+#else
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
+#endif
 			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also

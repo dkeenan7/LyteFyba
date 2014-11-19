@@ -152,7 +152,7 @@ testNoInterp2:
 											; $C1 to identify TestICal here, $C0 for BSL2 below
 				_ENDIF
 				call	#infoWriteByte	; Echo; interpretByte no longer does
-				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
+				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
@@ -173,7 +173,7 @@ testNoInterp2:
 					_ENDIF
 				_ENDIF
 				call	#infoWriteByte	; Echo; interpretByte no longer does
-				bis.b	#ACTLED,&P1OUT	; Turn off the (inverted) activity LED set in writeByte
+				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF
 retToBSL1	ret						; Return to BSL1
 
