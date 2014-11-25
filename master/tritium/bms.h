@@ -24,7 +24,7 @@
 #define BMS_FAKESTATUS_RATE ((BMS_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
 										//	when detect BMS comms error
 #define LIMP_CURR			0.125		// DC bus current limit (fraction of max) when limping
-#define BUS_CURRENT_OFFSET	(7./180.)	// Overcome a constant ~ 7 A of bus current measurement error
+#define BUS_CURRENT_OFFSET	0.0			// DC bus current measurement error (fraction of max)
 
 // Status-byte bit-masks
 #define COM_ERR				(1<<6)		// Communications error
