@@ -418,13 +418,13 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 
 ;
-; Toggle TXDm with an 11 cycle loop,
-; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/11 = 181.8 kHz.
-; If we were trying to achieve exact 9600 baud comms we'd want 9600*416 = 181.5 kHz.
+; Toggle TXDm with an 10 cycle loop,
+; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/10 = 200.0 kHz.
+; If we were trying to achieve exact 9600 baud comms we'd want 9600*416/2/10 = 199.7 kHz.
 ; But we've gone with minimising the number of controllers whose default DCO calibration
 ; we need to change. For that we have settled on the acceptable range being
-; 182.5 to 183.5 kHz at 20 degC and
-; 185.0 to 186.0 kHz at 35 degC.
+; 199.5 to 200.5 kHz at 20 degC and
+; 201.5 to 202.5 kHz at 30 degC.
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
 ; output frequency by about 0.5 kHz in the same direction.
 
@@ -432,7 +432,7 @@ doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
 			clr		R10
 			bic.b	#TXDp,&P1DIR			; Set TXD+ open circuit
-burstLp		xor.b	#TXDm,&P1OUT 			; (5) Toggle the TXD- bit
+burstLp		xor.b	#TXDm,&P1OUT 			; (4) Toggle the TXD- bit
 			; We used to toggle both TXD lines in phase but this caused problems with IFO outputs.
 			; Leaving TXD+ as a high output caused problems due to C4 (100n) on the next board.
 			; We rely on an even number of toggles to restore TXD-.
