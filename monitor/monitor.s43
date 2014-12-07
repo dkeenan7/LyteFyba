@@ -835,7 +835,11 @@ DoPassword:
 
 			; Check for a continuing password match
 			mov.b	&passWordState,R9	; Password is $07 $06 $05 $04
-			bis.b	#4,R9				; Expected password character is &passWordState with bit 2 set
+#if PROG_START_FOR_BSL == $E000			; Changed password for 8 KiB image
+			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
+#else									; Assume non 8 KiB image
+			bis.b	#4,R9				; Expected password char is equal to &passWordState with bit 2 set
+#endif
 			cmp.b	R9,R8				; Check for a match
 			jne		resetFSM			; If mismatch, jump and reset FSM
 			tst.b	&passWordState		; Are we now at state 0?
@@ -936,7 +940,7 @@ stressTable	DB		(1<<4) + 0			; Stress 0	$10
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace	EQU		_CMDCHRTBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent EQU BCD( (100*freespace)/4096)
+spaceaspercent EQU BCD( (100*freespace)/($10000-PROG_START))
 
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment

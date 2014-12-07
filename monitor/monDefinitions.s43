@@ -244,7 +244,6 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		call	#TX_Byte
 		ret
 
-#if 0		// Temporary until we go to using the full 8k of flash
 ; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
 		xCODE	'>',max,_max
 			NO_ECHO_CMD	doMax0,doMax	; Use the no-echo wrapper macro
@@ -311,4 +310,3 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#'\r',R8			; Transmit a carriage return.
 		call	#TX_Byte
 		ret
-#endif

@@ -551,7 +551,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			ret
 			ENDM
 
-#if 0		; To save space
+#if 1		; Zero to save space
 ; NumCells  ( n -- ) Gives the number of cells
 		xCODE	'N',NumCells,_NumCells
 			NO_ECHO_CMD	doNumCells0,doNumCells		; Use the no-echo wrapper macro
