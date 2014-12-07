@@ -340,7 +340,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 			mov.b	#' ',Rthd
 			mov.b	@Rtos,Rsec
 ;			mov		#3,Rtos
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits
 
 ;
 ; ZtoreByte - store a byte (a la CStore) ( ch addr -- )
@@ -350,7 +350,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 			ret
 #endif
 
-#if 0 && (PROG_START < $F800)		// Commented out if need to save space
+#if 1 && (PROG_START < $F800)		// Commented out if need to save space
 ;
 ; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
 ;
@@ -424,7 +424,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 ; But we've gone with minimising the number of controllers whose default DCO calibration
 ; we need to change. For that we have settled on the acceptable range being
 ; 199.5 to 200.5 kHz at 20 degC and
-; 201.5 to 202.5 kHz at 30 degC.
+; 200.5 to 201.5 kHz at 30 degC.
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
 ; output frequency by about 0.5 kHz in the same direction.
 

@@ -515,7 +515,7 @@ BSL2b		BSL2MACRO	initRetAddr2b, BSLErase2b
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_CMDCHRTBL-$
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent	EQU		BCD( (100*freespace)/4096)
+spaceaspercent	EQU		BCD( (100*freespace)/($10000-PROG_START))
 
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
