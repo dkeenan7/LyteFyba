@@ -558,6 +558,9 @@ int main( void )
 						uBMSfuelB = can.data.data_16[0];	// Save half-pack B state of charge from IMU
 						gauge_fuel_update(min(uBMSfuelA, uBMSfuelB) / 1000.0); // 0.0 to 1.0
 						break;
+					case DC_CAN_BASE + DC_BMS_VOLT:
+						uBMSvoltB = can.data.data_16[0];	// Save half-pack B voltage from IMU
+						break;
 				    }
 				}	// end DCU-A
 

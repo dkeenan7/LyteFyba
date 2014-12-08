@@ -17,6 +17,7 @@ void SendChgrLim(unsigned int uChgrLim);
 void SendBMScurr(int uBMScurr);
 void SendBMSinsul(int uBMSinsul);
 void SendBMSfuel(int uBMSfuel);
+void SendBMSvolt(int uBMSvolt);
 
 // Public variables
 volatile unsigned int bms_events = 0;
@@ -27,6 +28,7 @@ volatile unsigned int bms_vr_count = BMS_VR_SPEED;	// Counts BMS_VR_SPEED to 1 f
 int uBMScurrA=0, uBMScurrB=0;						// Half-pack A or B current (neg means charging)
 int uBMSinsulA=0, uBMSinsulB=0;						// Half-pack A or B insulation test touch current
 int uBMSfuelA=0, uBMSfuelB=0;						// Half-pack A or B fuel gauge state of charge
+int uBMSvoltA=0, uBMSvoltB=0;						// Half-pack A or B voltage (from IMU)
 unsigned int bmsStatusBtimeout = 0;			// Timeout for BMS status via CAN from DCU-B to DCU-A
 
 // BMS buffers
@@ -522,11 +524,20 @@ void bms_processPacket()
 		// Check for an insulation-test (tenths of a milliamp) response from the IMU (ID = 0)
 		else if (rx_cmd == 'I' && rx_id == 0) {
 			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
-			// Set global or CAN-send value to be displayed on the tacho by DCU-A
+			// Set global or CAN-send value to be used for insulation alarm by DCU-A
 			if (bDCUb)
 				SendBMSinsul(rx_value); 	// Tenths of a milliamp (prospective touch current)
 			else
 				uBMSinsulA = rx_value;		// Tenths of a milliamp (prospective touch current)
+		}
+		// Check for a voltage response from the IMU (ID = 0)
+		else if (rx_cmd == 'v' && rx_id == 0) {
+			bms_state &= (unsigned)~BMS_SENT;	// Call this valid and no longer unacknowledged
+			// Set global or CAN-send value to be using in precharge check by DCU-A
+			if (bDCUb)
+				SendBMSvolt(rx_value); 		// Half-pack voltage/109 = average cell voltage (mV)
+			else
+				uBMSvoltA = rx_value;		// Half-pack voltage/109 = average cell voltage (mV)
 		}
 		// Check for a voltage response from a particular CMU
 		else if (rx_cmd == 'v' && rx_id == bms_curr_cell) {
@@ -598,5 +609,12 @@ void SendBMSfuel(int uBMSfuel) {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_FUEL;
 	can_push_ptr->status = 2;	// Packet size in bytes
 	can_push_ptr->data.data_16[0] = uBMSfuel; 	// Send B half-pack fuel gauge state of charge to DCU-A
+	can_push();
+}
+
+void SendBMSvolt(int uBMSvolt) {
+	can_push_ptr->identifier = DC_CAN_BASE + DC_BMS_VOLT;
+	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->data.data_16[0] = uBMSvolt; 	// Send B half-pack voltage to DCU-A
 	can_push();
 }
