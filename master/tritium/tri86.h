@@ -152,6 +152,7 @@ extern unsigned int uChgrCurrA, uChgrCurrB;		// Charger actual currents in tenth
 extern int uBMScurrA, uBMScurrB;				// Half-pack currents in tenths of an amp
 extern int uBMSinsulA, uBMSinsulB;				// Half-pack touch currents in tenths of a milliamp
 extern int uBMSfuelA, uBMSfuelB;				// Half-pack fuel gausge SoC in tenths of a percent
+extern int uBMSvoltA, uBMSvoltB;				// Half-pack A or B voltage (from IMU)
 
 
 void fault() __attribute__ NOINLINE;			// Single flash the error LED

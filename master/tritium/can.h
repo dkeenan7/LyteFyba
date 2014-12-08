@@ -109,6 +109,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_BMS_B_INJECT	0x0D
 #define DC_BMS_INSUL	14			// Send B half-pack insulation-test touch-current from DCU-B to DCU-A
 #define DC_BMS_FUEL		15			// Send B half-pack fuel gauge state of charge from DCU-B to DCU-A
+#define DC_BMS_VOLT		16			// Send B half-pack voltage from DCU-B to DCU-A
 #define DC_BOOTLOAD		22
 
 
