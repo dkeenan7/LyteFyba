@@ -1,6 +1,12 @@
 			COL		154				; Wide listings
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
-; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
+; _not_ information memory. This is to preserve calibration data.
+;
+; Set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
+; Generate Extra Output File
+;	Override default
+;	monitor.bin
+;	Output format: raw-binary
 ;
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
@@ -23,25 +29,23 @@ LSTOUT-
 #include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
 			LSTOUT+
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
-											// such as WATCHDOG, PROG_START, PROG_START_FOR_BSL
+
+; Some definitions so the measure.s43 code will work
+; TestICal defines these as their ram counterparts instead of info-flash
+#define VoltCal infoVoltCal
+#define TempCal	infoTempCal
+#define LinkCal	infoLinkCal
+
 
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
 
-
+; The following three equates can be deleted when BSL1 finally goes away
 ; BSL1 (info-flash) addresses manually imported from TestICal listing. Version 6. Keep up to date!
 infoInitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
-infoReadByte	EQU		$1094		; Calling-address to receive byte in R8
 infoWriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
 infoResetFSM	EQU		$102E		; Code to continue a BSL2 download in BSL1
-infoBSLErase	EQU		$1040		; Jump-in-address for erasing flash and continuing a download
-infoVoltCal		EQU		$10F8		; Address of Voltage scale calibration word
-infoTempCal		EQU		$10FA		; Address of Temperature offset calibration byte
-infoLinkCal		EQU		$10FB		; Address of Link Voltage offset calibration byte
-infoMHz8CalD	EQU		$10FC		; Address of frequency calibration data
-infoMHz8CalB	EQU		$10FD		;	for 8 MHz
-infoID			EQU		$10FE		; Address of this cell's/CMU's identification byte
 
 ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
@@ -112,8 +116,8 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #endif
 
-NBYPLEV		EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
-BYPLEV		EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
+; NBYPLEV	EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
+; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
 
 minLEDStress EQU	11			; Minimum stress to light error LED
 minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
@@ -126,22 +130,6 @@ COM_ERR		EQU		1<<6			; Communications error
 ALL_NBYP	EQU		1<<5			; All near bypass -- charge termination condition
 ENC_STRESS	EQU		$1F				; Encoded stress. Bits 0-4. Bit 4 is a check bit
 STRESS		EQU		$0F				; Raw stress. Bits 0-3
-
-; Port 1 bit masks
-TXDm		EQU		1<<1			; TA0/P1.1
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 3 words in BSL)
-VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
-TXDp		EQU		1<<5			; SCLK/P1.5
-PIEZO		EQU		1<<0			; Piezo on P1.0
-#if !REV61
-ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
-#endif
-
-; Port 2 bit masks
-BYPASS		EQU		1<<6			; Bypass transistor on P2.6
-RELAYm		EQU		1<<6			; IMU relay for HazV- test on P2.6
-ERRLED		EQU		1<<7			; Error LED (red) on P2.7
-RELAYp		EQU		1<<7			; IMU relay for HazV+ test on P2.7
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
@@ -227,6 +215,9 @@ bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checks
 bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing?
 
+				ALIGNRAM 1
+ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
+ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
@@ -244,14 +235,6 @@ TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 ; Must leave room for stack (about 36 bytes minimum)
 STACKSPACE		EQU		$300-$		; Look at listing to see what this is
-
-; FIXME! The below is to allow monitor to assemble. It is needed because in BSL2, we need to compare
-; a return address with an address defined in TestICal. This value is not defined in monitor, and we
-; don't want to have to maintain a definition keeping it up to date. So we use any old address.
-; But this means we should never use the BSL2 from monitor, only from TestICal:
-; DO NOT USE MONITOR'S BSL2! It will not allow the TestICal 'i' command to work.
-waitingIDAddr	EQU		$F83A
-
 
 ;-------------------------------------------------------------------------------
 				ORG		PROG_START
@@ -281,8 +264,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
-			mov.b	&infoMHz8CalB,&BCSCTL1	; 8 MHz DCO cal data
-			mov.b	&infoMHz8CalD,&DCOCTL
+			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
+			mov.b	&info8MHzCalD,&DCOCTL
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 
@@ -355,6 +338,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.w	&pi_prev_output				; Initialise PI controller state
 ;			clr.w	&pi_prev_error				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
+
+			mov.w	#OV_ZERO,&ovZero
+			mov.w	#OV_STEP,&ovStep
 
 ;
 ; Initialise the ADC10
@@ -458,10 +444,16 @@ DoMeasurement:
 			; Set bypass as required
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
-				cmp			#BYPLEV,R10			; Compare present cell voltage (R10) to bypass threshold
+				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
+				rla3		R9
+				add			&ovZero,R9
+				sub			&ovStep,R9
+				sub			&ovStep,R9
+				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-				cmp			#NBYPLEV,R10		; Compare cell voltage (R10) to the near-bypass threshold
+				sub			&ovStep,R9			; Calculate the near-bypass (charge termination) threshold
+				cmp			R9,R10				; Compare cell voltage (R10) to the near-bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only #ALL_NBYP bit from R8 to &localStatus.
 			_ELSE
@@ -470,8 +462,8 @@ DoMeasurement:
 
 			; Calculate stress due to overvoltage
 			push	R10						; Measurement for overvoltage stress calc
-			push	#OV_STEP				; For every OV_STEP (millivolts)
-			push	#OV_ZERO				;	over OV_ZERO, we add one level of stress
+			push	&ovStep					; For every ovStep (millivolts)
+			push	&ovZero					;	over ovZero, we add one level of stress
 			push	#1						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
@@ -497,7 +489,7 @@ DoMeasurement:
 			; Calculate stress due to overtemperature
 			push	R10						; Measurement for overtemperature stress calc
 			push	#OT_STEP				; For every OT_STEP (degrees Celsius)
-			push	#OT_ZERO				;	over OV_ZERO, we add one level of stress
+			push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
 			push	#3						; Type of measurement
 			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
@@ -915,32 +907,10 @@ stressTable	DB		(1<<4) + 0			; Stress 0	$10
 			DB		(0<<4) + 15			; Stress 15	$0F
 
 
-; The linker puts a checksum of the used code memory in the first available unused space,
-; when asked for one.
-; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
-; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:
-; Fill unused code memory
-;	Fill pattern: 0xFF
-;	Generate checksum
-;		Size: 1 byte, Alignment: 1
-;		CRC Polynomial: 0x101
-;		Complement: As is
-;		Bit order: MSB first, Initial value: 0x10
-; The initial value of 0x10 is required because the reset vector of $1000 at $FFFE is not transmitted
-; and so the BSL does not include it in its checksum, but the linker does.
-; If the reset vector changes, this initial value will need to be changed to keep it as
-; the XOR of its two bytes.
-
-; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
-; Generate Extra Output File
-;	Override default
-;	monitor.bin
-;	Output format: raw-binary
-
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace	EQU		_CMDCHRTBL-$
 #define BCD(x) ( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent EQU BCD( (100*freespace)/($10000-PROG_START))
+spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment

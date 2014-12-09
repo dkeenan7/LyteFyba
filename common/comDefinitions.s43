@@ -603,8 +603,8 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			rla		R8
 			rlc		R9					; Then use only the high 16-bits in the calculation
 			rla		R8					; Do rounding
-			adc		R9					; Resulting units are Ah * 8192/270000
-			mov		#607,R8				; Mult to give tenths of a percent when div by tenths of an Ah
+			adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
+			mov		#607,R8				; Mult to give tenths of a percent when div by 1/20ths of an Ah
 			call	#UMStar				; R10:R9 = R8 * R9
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 			mov		#40*10,R8			; Battery capacity in tenths of an amp-hour
@@ -613,7 +613,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			call	#UMSlashMod			; R9 = R10:R9 / R8
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
-			mov		#4,Rtos				; Print 4 digits
+			mov		#4,Rtos				; Use 4 digits
 			call	#_prettyPrint		; Call pretty-print
 		_ENDIF
 		ret
@@ -627,10 +627,8 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 #if 0
 		; Temporary command for testing fuel gauge
 		; setFuelGauge ( hiword loword -- )
-		; $A4 $CB80 a -- should correspond to 100.0% (40 Ah)
-		; 164 52096 a -- as above, in decimal
-		; $52 $65C0 a -- should correspond to 50.0% (20 Ah)
-		;  82 26048 a -- as above, in decimal
+		; $A4 $CB80 a -- should correspond to 100.0% (of 40 Ah)
+		; $52 $65C0 a -- should correspond to 50.0% (of 40 Ah)
 		xCODE	'a',setFuelGauge,_setFuelGauge
 		; Only IMUs care about this, but no harm if CMUs do it too
 		mov		Rtos,&discharge				; Set low word of discharge accumulator

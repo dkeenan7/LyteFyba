@@ -185,21 +185,55 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			_ENDIF							; Endif unrecognised
 			ret
 
+#if 0	// Old code for setIDs which required special treatment in ReadByte or interpretByte
 ;
 ; setIDs ( -- )
 ;
 			xCODE	'i',setIDs,_setIDs
-; It just doesn't seem to work out to use the delay between CMUs to determine the correct ID, so
-; we simply read the ID from the serial port, and echo the next ID downstream.
+; We read the ID as a single character from the serial port, and echo the next ID downstream.
 
 			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
-											; Not echoed because of logic in interpretByte
+											; Not echoed because of special treatment in interpretByte
 waitingIDAddr								; This address will be on the stack in interpretByte
 			mov		R8,R12					; Save our ID
 			inc		R8
 			call	#WriteByte				; Send downstream CMU's ID
 			ActLedOff						; Clear (inverted) activity LED set by WriteByte
 			mov.b	R12,&ramID				; Save our ID to RAM
+			ret
+#endif
+
+;
+; setIDs ( first-ID -- )
+;
+			xCODE	'i',setIDs,_setIDs
+			; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+			; and responds with the ID _after_ the last ID.
+			bit.b	#bDontEcho,&intFlags
+			_IF		_NZ					; If the dont-echo flag is set
+				; Save our new ID to RAM
+				mov.b	Rtos,&ramID
+
+				; Send another setIDs command with its parameter incremented by one.
+				inc		Rtos				; Increment the parameter
+				DPUSH	#3					; Use a 3 digit field width
+				call	#_emitNum			; Transmit the number as text in the current number base
+
+				mov		#'i',R8				; Transmit an "i"
+				call	#TX_ByteCk
+
+				call	#TX_Cksum			; Transmit a checksum if required, then clear the checksum.
+
+				mov		#'\r',R8			; Transmit a carriage return.
+				call	#TX_Byte
+			_ELSE						; Else dont-echo flag is clear
+				; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
+				mov		#'?',R8				; Transmit a question mark (a no-op to downstream CMUs)
+				call	#TX_Byte
+				mov		#'\r',R8			; Transmit a carriage return. Checksum is deliberately bad.
+				call	#TX_Byte
+			_ENDIF
 			ret
 
 ;
@@ -210,7 +244,7 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
 			MOV		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
 
 ; Erase info flash including segment A.
 			mov		#$1000,R12				; Start of info-flash
@@ -225,7 +259,7 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 			MOV		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			rra		@R12					; Dummy write: erase segment A
 
-			MOV		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 ; We assume 3 zones here: program, RAM, and version (see compareInfoFlash for details)
 			clr		R12						; Index register
 			_BEGIN
