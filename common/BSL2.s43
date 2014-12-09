@@ -3,7 +3,7 @@
 ; ----------------------------------------------------------------------------
 ; This file is included by monitor.s43 and TestICal.s43.
 ; This code will be assembled into the last main-flash segment which starts at $FE00.
-; It is presently called by BSL1 in info-flash but will eventually be called directly on reset.
+; It is called directly on reset.
 ; It contains the reset and interrupt vectors which point to fixed locations at the end of the
 ; second-last main-flash segment.
 ; It is defined as a macro because TestICal needs to include it _twice_.
@@ -11,19 +11,51 @@
 ; and elsewhere in main-flash for when TestICal is bootstrap-loaded,
 ; so that it can then be copied to $FE00-$FFFF by a 'b' command (updateBSL2).
 
-BSL2MACRO	MACRO	initRetAddr2, BSLErase2
-			LOCAL	BSL2, MClock2, MckPerFTGck2, initBSL2, mainLoop2, resetFSM2, FSMloop2
-			LOCAL	processByte2, eraseLoop, progByte2, testNoInterp2, retToBSL1
+BSL2MACRO	MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
+			LOCAL	BSL2, MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
+			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, testNoInterp2, retToBSL1
+			LOCAL	testNoInterp, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 
-MClock2		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
-MckPerFTGck2	EQU		(MClock2+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
+MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
+BaudRate	EQU		9600			; Serial comms rate in bits per second
+BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
+BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
+MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
 ;			ORG		$FE00			; Start of the last 512 byte flash segment
-BSL2:
+BSL2:		; Initialisation
+			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
+			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
+			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
+#if REV61
+			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, Vref output off
+			bis.b	#TXDp|TXDm|VREFp,&P1DIR ; Set TXDs and VREFp as outputs
+#else
+			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
+			bis.b	#TXDp|TXDm|ACTLED|VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+#endif
+			mov		#$300,SP		; Initialise the stack pointer
+
+			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
+			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
+			; This is safe, as the bypass MOSFET has a pulldown on its gate,
+			; so the BSL can avoid consuming flash space with the following code.
+;			mov.b	#0,&P2SEL 		; Set BYPASS and ERRLED to not be crystal osc pins
+;			mov.b	#0,&P2OUT		; Set BYPASS and ERRLED off
+;			mov.b	#$FF,&P2DIR 	; Set BYPASS and ERRLED as outputs
+
+			; Send a 27 ms break
+			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
+			clr		R9				; Bit values (all zeros so it's a break)
+			call	#WriteBreak-BSL2+$FE00 ; WriteByte without init part and w/o needing R11 clear
+									; Address adjusted for BSL's relocation
+			; End of the initialisation that used to be in BSL1 in info-flash.
+
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32k)
+#if 0
 			; Check to see if this is an init call (from BSL1)
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
 			_IF		_EQ				; If for initialisation, initialise, and return
@@ -31,9 +63,8 @@ BSL2:
 				ret						; Return to BSL1
 			_ENDIF					; Endif call is for initialisation
 			jmp		processByte2	; Skip over the init routine below
+#endif
 
-
-initBSL2:	; Initialisation
 			; Log the reason for the reset, as the contents of IFG1.
 			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
 			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset, namely
@@ -62,16 +93,9 @@ mainLoop2:
 			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
 initRetAddr2:	; Used by the monitor or TestICal or other main-flash code
 			; to tell if the interpretByte call is for initialisation
-			; and hence if the byte in R8 should be echoed
-			mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-
-			ret						; Return
-			; End of initBSL2
-
 
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-FSMloop2:
-			ret
+FSMloop2:	call	#ReadByte-BSL2+$FE00	; Address adjusted for BSL's relocation
 processByte2
 			; Pass byte in R8 on to main program, if allowed
 			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
@@ -104,7 +128,7 @@ BSLErase2:
 			dint					; The main-flash program has probably turned on interrupts
 									; Can't risk an interrupt while the vectors are erased
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
-			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck2-1),&FCTL2 ; Divides MCLK by FN+1
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
 			mov		#PROG_START_FOR_BSL+$200,R12	; Start of program image in main flash + $200.
@@ -158,8 +182,7 @@ testNoInterp2:
 					bit.b	#bDontEcho,&intFlags
 					_IF		_Z						; If the dont-echo flag is clear
 				_END_PRIOR_IF ; _NE
-						clr		R11						; Required by BSL1's WriteByte
-						call	#infoWriteByte			; Echo; interpretByte no longer does
+						call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation						ActLedOff						; Turn off the activity LED set in writeByte
 						ActLedOff						; Turn off the activity LED set in writeByte
 					_ENDIF
 
@@ -182,11 +205,104 @@ testNoInterp2:
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
-				clr		R11				; Required by BSL1's WriteByte
-				call	#infoWriteByte	; Echo; interpretByte no longer does
+				call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
 retToBSL1	ret						; Return to BSL1
+
+
+; ReadByte ( regs: -- R8 R9 R10 R11 )
+; Reads a byte from serial input to R8. Trashes R9 R10 R11.
+; Also echoes the byte to serial output (either by falling through to WriteByte, or calling
+;	interpretByte)
+;
+ReadByte:
+									; (Number of cycles)
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; (5) Hold the Watchdog Timer
+			_BEGIN
+				bit.b	#RXD,&P1IN		; (4) Start bit?
+			_UNTIL	_Z					; (2) Loop until 0 (start bit)
+			; The loop above takes 6 cycles so on average we will have missed the start bit by
+									; (3) cycles
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and enable the Watchdog Timer
+
+			; Pad out the average delay between starting edge of start bit
+			; and sampling of first bit below to ~ 1.5 bittimes
+			mov.b	#(BitCyc1_5-17+1)/3,R11 ; (2) Loop count for waitMid delay loop
+			_BEGIN
+				dec		R11				; (1) Delay loop
+			_UNTIL	_Z					; (2) Note: Clearing R11 here may be assumed in WriteByte below
+
+			mov		#8,R10			; (1) Bit count
+			_BEGIN
+				bit.b	#RXD,&P1IN		; (4) Sampled bit to carry
+				rrc.b	R8				; (1) Store received bit
+
+				mov.b	#(BitCycles-10+1)/3,R11 ; (2) Pad RX_bit loop out to one bit time
+				_BEGIN
+					dec		R11				; (1) Delay loop
+				_UNTIL	_Z					; (2) Note: Clearing R11 here is assumed in WriteByte below
+				dec		R10				; (1) All bits RXed?
+			_UNTIL	_Z					; (2) Sample next bit
+
+			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
+			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
+			; But it's not needed, since we always send something before waiting for the next byte
+
+			ret					; Return from ReadByte
+
+
+; WriteByte ( R8 -- R9 R10 R11 )
+; Write the low byte of R8 to serial output.
+; Trashes R9 R10 R11. Preserves R8.
+;
+; WriteBreak ( R9 R10 -- R9 R10 R11 ) (an alternative entry point into WriteByte)
+; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
+; Trashes R9 R10 R11.
+
+WriteByte:
+			clr		R11
+			mov		R8,R9			; Allow R8 to be preserved for password compare
+
+			mov.b	#8,R10			; Loop counter, 1 start + 8 data (decrements to -1)
+			rla		R9				; Add the start bit
+			; Stop bit was bis#1<<9,R9, but it's done after the loop now
+			; to allow sending a break
+
+			_BEGIN					; (Number of cycles)
+				rra		R9				; (1) Next bit to C.
+				subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
+										; Note: R11 must be guaranteed clear in advance
+				xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
+#if REV61
+				and.b	#TXDp|TXDm,R11 ; (2) Ensure only TXD bits can be toggled below
+#else
+				; The activity LED has a lower bit number than TXDp so the below will
+				; turn off the (inverted) activity LED when a zero bit or start bit is sent,
+				; and turn it on when a one bit or stop bit is sent.
+				and.b	#TXDp|ACTLED|TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
+#endif
+				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
+
+WriteBreak:		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
+				_BEGIN
+					dec		R11				; (1) Note: Clearing of R11 here is assumed by subc.b above
+				_UNTIL	_Z					; (2)
+
+				dec		R10				; (1) Decrement the bit counter
+			_UNTIL	_NC				; (2) Loop until -1
+
+#if REV61
+			mov.b	#TXDp,&P1OUT	; Send a stop bit
+			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
+#else
+			mov.b	#TXDp,&P1OUT	; Send a stop bit and leave the (inverted) ACTLED on
+			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
+#endif
+			; To ensure the stop bit has sufficient duration we rely in the fact that
+			; calls to WriteByte must be at least 2 byte-times apart
+			; to allow any receiving CMU's BSL time to both read and echo the byte.
+			ret
 
 			; Any free last segment space is between here and the timer-A interrupt vectors
 freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
@@ -203,10 +319,10 @@ freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
 				DW		jTX_ISR			; Timer A CC0IFG (transmit compare)
 
 				ORG		BSL2+$1F8		; $FFF8
-				br		#BSL2			; Temporary so it still works with old BSL1
+				br		#BSL2			; No longer used. Was so it still worked with an old BSL1.
 
 				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
-BSL2presence	DB		$08				; For BSL1 to check before calling BSL2
+BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
 BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				; The reset vector (at $FFFE) is set differently by monitor and TestICal.
 
