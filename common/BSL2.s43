@@ -145,14 +145,24 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 
 testNoInterp2:
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
-			_IF		_Z
+			_IF		_Z				; If we're interpreting
 				tst.b	R8
 				_IF		_L				; If data is a status byte (bit 7 set)
 					mov.b	#$C1,R8			; Send status with comms error bit and bad check bit
 											; $C1 to identify TestICal here, $C0 for BSL2 below
 				_ENDIF
-				call	#infoWriteByte	; Echo; interpretByte no longer does
-				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
+
+				; Echo the character if required
+				cmp.b		#$11,R8
+				_IF		_NE						; If it's an XON (ctrl-Q) character OR
+					bit.b	#bDontEcho,&intFlags
+					_IF		_Z						; If the dont-echo flag is clear
+				_END_PRIOR_IF ; _NE
+						clr		R11						; Required by BSL1's WriteByte
+						call	#infoWriteByte			; Echo; interpretByte no longer does
+						ActLedOff						; Turn off the activity LED set in writeByte
+					_ENDIF
+
 				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
@@ -161,7 +171,7 @@ testNoInterp2:
 										; It must preserve at least R8 and bsl2state
 										; Get there via the PROG_START-independent vector
 				; ret					; Effective ret to BSL1 due to tail-call above
-			_ELSE
+			_ELSE					; Else not interpreting
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
 				; on any passing status bytes, since we are not calling the main program
 				tst		&bsl2state
@@ -172,9 +182,10 @@ testNoInterp2:
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
+				clr		R11				; Required by BSL1's WriteByte
 				call	#infoWriteByte	; Echo; interpretByte no longer does
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
-			_ENDIF
+			_ENDIF					; End if interpreting
 retToBSL1	ret						; Return to BSL1
 
 			; Any free last segment space is between here and the timer-A interrupt vectors

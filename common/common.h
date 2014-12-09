@@ -39,7 +39,7 @@ infoLinkCal		ds		1			; Link voltage offset calibration data; may be written by B
 info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte (same address as in new chip)
 info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte (same address as in new chip)
 infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
-infoDataVers	db		DATAVERS	; Data Version byte (cannot move)
+infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS value above
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration data
 infoDataEnd							; Used when copying between ram and info-flash

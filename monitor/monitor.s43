@@ -409,7 +409,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 
 DoEcho:
-			cmp		#$11,R8
+			cmp.b	#$11,R8
 			_IF		_NE						; If it's an XON (ctrl-Q) character OR
 				bit.b	#bDontEcho,&intFlags
 				_IF		_Z						; If the dont-echo flag is clear
