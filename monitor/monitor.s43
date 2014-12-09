@@ -41,12 +41,6 @@ LSTOUT-
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
 
-; The following three equates can be deleted when BSL1 finally goes away
-; BSL1 (info-flash) addresses manually imported from TestICal listing. Version 6. Keep up to date!
-infoInitRetAddr	EQU		$102E		; Return address when interpretByte is called for initialisation
-infoWriteByte	EQU		$10CC		; Calling-address to transmit byte in R8
-infoResetFSM	EQU		$102E		; Code to continue a BSL2 download in BSL1
-
 ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
 
@@ -858,7 +852,6 @@ DoPassword:
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#$300,SP			; Give the BSL maximum stack
-			push	#infoResetFSM		; This is where BSL2 code needs to return to continue the download
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
@@ -915,8 +908,7 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDEE
-jJTAGstart		br		$				; JTAGstart not used by monitor
+				ORG		$FDF2
 jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
 jRX_TIOV_ISR	br		#RX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)
@@ -932,8 +924,8 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for second bootstrap-loader and the interrupt vectors
 				ORG		$FE00			; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	initRetAddr2, BSLErase2
+BSL2:			BSL2MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
 				ORG		$FFFE			; The reset vector
-				DW		$1000			; Reset to BSL1 in case there is a crash
+				DW		BSL2			; Reset to BSL2 in case there is a crash
 
 				END

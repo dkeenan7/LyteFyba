@@ -80,12 +80,6 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-; The following three equates can be deleted when BSL1 finally goes away
-infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpretByte
-														; is called for initialisation
-infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
-infoResetFSM	EQU		mainResetFSM-for1000+$1000		; Where to end up in BSL1 to continue a BSL2 download
-
 
 ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 										; commands. Monitor uses the info-flash copy
@@ -310,12 +304,13 @@ newChip
 ; A new chip. We want to preserve some of the existing DCO calibration data
 
 			; Set the ID, voltage, temperature and link calibration
-			mov.w	#$8000,&ramVoltCal			; FIXME. G series chip has manuf's ADC calibration data
+			mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC calibration data
 			mov.b	#$00,&ramTempCal
 			mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
 			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
 			mov.b	#$FF,&ramID					; ID 255 (erased)
+			mov.b	#DATAVERS,&ramDataVers		; The current data version
 			jmp		returnFromInitialise
 
 
@@ -325,8 +320,10 @@ currVersBSL
 				mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 			_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 
-
 returnFromInitialise
+			mov		#initCmdString,Rip			; Interpret the init string as commands
+			call	#_ENTER
+
 			ret									; Return from initialise
 
 ; End of initialise
@@ -341,8 +338,7 @@ DELAY_IF_NEEDED MACRO
 ; Some definitions so the common code will work
 waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
-TX_Byte		clr		R11					; Needed for BSL1's WriteByte
-			call	#WriteByte
+TX_Byte		call	#WriteByte
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
 #endif
@@ -363,34 +359,21 @@ TX_Byte		clr		R11					; Needed for BSL1's WriteByte
 
 
 ;
-; Compare the 256 bytes at for1000 with what's at $1000. Returns with Z set if OK, Z clear if not.
-; Assumes that there are three "zones": 1) Program zone, to be compared with the image in the middle of
-; main flash; 2) Calibration zone, to be compared with RAM; 3) Version zone (used to also have the
-; password table) which is compared with the image in main flash as well.
+; Compare the 8 bytes of calibration data at ramDataStart with what's at $10F8.
+; Returns with Z set if OK, Z clear if not.
 ; Relies on definitions like infoDataStart and mainDataEnd to sort out the boundaries
 ; Trashes R12
 compareInfoFlash:
-			clr		R12
+			mov		#infoDataStart,R12
 			_BEGIN
-				cmp.b	$1000(R12),for1000(R12)		; Use byte compares, in case there is odd sized data at
-				jnz		justRet						;	the end
-				inc		R12
-				cmp		#mainDataStart-for1000,R12	; End of zone 1?
-			_UNTIL	_EQ
-			; R12 is too big by about $F8 (doesn't start at zero to save an instruction to clear R12)
-			_BEGIN
-				cmp.b	$1000(R12),ramDataStart-(mainDataStart-for1000)(R12)
-				jnz		justRet
-				inc		R12
-				cmp		#mainDataEnd-for1000,R12
-			_UNTIL	_EQ
-			_BEGIN
-				cmp.b	$1000(R12),for1000(R12)
-				jnz		justRet
-				inc.b	R12
-			_UNTIL	_Z					; Loop until 8-bit increment wraps to 0
-			; The increment will have set Z if all compares well
-justRet		ret
+				cmp.b	@R12,ramDataStart-infoDataStart(R12)
+				_WHILE	_EQ ; _Z
+					inc		R12
+					cmp		#infoDataEnd,R12
+			_UNTIL	_EQ					; Loop until R12 gets to infoDataEnd
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
 
 ;
 ; Compare the 512 bytes at BSL2b with what's at BSL2 ($FE00). Returns with Z set if OK, Z clear if not.
@@ -405,13 +388,6 @@ compareBSL2:
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
-
-; ----------------------------------------------------------------------------
-; The first bootstrap loader (BSL1)
-;
-; This will be relocated to info-flash at $1000-$10FF by the 'u' command (updateInfoFlash).
-#include "BSL1.s43"
-
 
 ; ----------------------------------------------------------------------------
 ; errorFlash
@@ -442,27 +418,19 @@ errorFlash:
 			jmp		errorFlash					; Infinite loop
 
 
-; Command character definitions
-#include "TesDefinitions.s43"
 
-;
-; Start of TestICal, when not started from the BSL
-; This initialises, then updates info-flash, and starts the BSL there so we have a ReadByte loop
-;
-main:										; For IAR Embedded Workbench IDE debugger
+#include "TesDefinitions.s43"	// Include command character definitions
+#include "../common/BSL2.s43"	// Include macro for bootstrap-loader and interrupt vectors
 
-JTAGstart:	mov		#$300,SP
-			call	#initialise				; Do most of the initialisation
 
 ; ----------------------------------------------------------------------------
 ; Inactive copy of second bootstrap loader (BSL2b)
 ;---------------------------------------------------------------------------------
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
-#include "../common/BSL2.s43"	// Include the macro for second bootstrap-loader and the interrupt vectors
-; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00
-BSL2b		BSL2MACRO	initRetAddr2b, BSLErase2b
-			ORG		BSL2b+$1FE			; The copy of the reset vector
-			DW		$1000				; For now, it still points to BSL1
+; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00.
+BSL2b			BSL2MACRO	initRetAddr2b, BSLErase2b, ReadByteb, WriteByteb
+				ORG		BSL2b+$1FE			; The copy of the reset vector
+				DW		BSL2				; Points to BSL2 in last main-flash segment, $FE00
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_CMDCHRTBL-$	; From here to the start of the command character table
@@ -472,8 +440,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDEE
-jJTAGstart		br		#JTAGstart		; A branch to JTAGstart, independent of PROG_START
+				ORG		$FDF2
 jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
 jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				reti					; Not used by TestICal
@@ -490,19 +457,9 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
 ; Updated by TestICal 'b' command, or by JTAGing.
 				ORG			$FE00		; Start of last main-flash segment
+main:									; For IAR Embedded Workbench IDE debugger
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	initRetAddr2, BSLErase2
+BSL2:			BSL2MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
 				ORG		$FFFE			; The reset vector
-				DW		jJTAGstart
-; If TestICal is JTAG-programmed then the reset vector must point directly to a TestICal entry point
-; in main flash, instead of to the BootStrap Loader (BSL) in infoflash, because TestICal must be able
-; to be JTAGged into a new chip which has no BSL at all.
-; The writing of a BSL to infoflash happens in _updateInfoFlash which is normally called by
-; the 'u' command but must be called directly here too, since without a BSL we have no comms.
-; Once we have established a BSL in infoflash, we need to change the reset vector to point there
-; (address $1000).
-; We want to do this without having to erase the reset vector, as we would have to erase the whole
-; segment it's in. You can flash-write a 1 bit to a 0 bit without erasing, but not the other way.
-; We are guaranteed to be able to write it to $1000, since jJTAGstart has a 1 in the same position
-; as $1000 does. This means that JTAGstart is no longer constrained to be at or above $F000.
+				DW		BSL2
 				END
