@@ -341,7 +341,7 @@ DELAY_IF_NEEDED MACRO
 ; Some definitions so the common code will work
 waitTxCmpl	ret							; Empty routine: transmit is always complete
 TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
-TX_Byte		clr		R11					; Needed for BSL's WriteByte
+TX_Byte		clr		R11					; Needed for BSL1's WriteByte
 			call	#WriteByte
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
