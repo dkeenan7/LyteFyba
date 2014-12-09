@@ -10,22 +10,6 @@ BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
 MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
-; Port 1 bits
-TXDm		EQU		1<<1			; Code requires TXDm bit somewhere to right of TXDp bit
-RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
-VREFp		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
-TXDp		EQU		1<<5			; Prefer bit number <= 3 for code compactness (costs 2 word if not)
-PIEZO		EQU		1<<0			; Piezo on P1.0
-#if !REV61
-ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
-#endif
-
-; Port 2 bits
-BYPASS		EQU		1<<6			; Bypass transistor on pin P2.6
-RELAYm		EQU		1<<6			; IMU relay for HazV- test on pin P2.6
-ERRLED		EQU		1<<7			; Error LED (red) on P2.7
-RELAYp		EQU		1<<7			; IMU relay for HazV+ test on P2.7
-
 #define		Rstate	R15				// Register holding the state of the password checking FSM
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
@@ -243,6 +227,6 @@ mainID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 mainDataEnd							; Used when copying between ram and info-flash
 mainDataVers db		DATAVERS		; Data Version byte (cannot move)
 
-; The end of the bootstrap loader (BSL)
+; The end of the first bootstrap loader (BSL1)
 ; -----------------------------------------------------------------------------
 

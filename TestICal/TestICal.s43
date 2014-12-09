@@ -1,20 +1,33 @@
-			COL		153				; Wide listings
+			COL		154				; Wide listings
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
-; _not_ information memory. This is to preserve the Bootstrap Loader and calibration data.
+; _not_ information memory. This is to preserve calibration data.
+;
+; Set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
+; Generate Extra Output File
+;	Override default
+;	TestICal.bin
+;	Output format: raw-binary
 ;
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader writer for our cell-top
+; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader updater for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 ;
-; TestICal should be the first program written to the 2kB of main-flash.
-; This must be done using a flash programmer connected to the chip's JTAG port.
-; TestICal contains a copy of a bootstrap loader (BSL).
-; It writes this BSL to the 256 bytes of info-flash, while preserving some of the
-; digitally controlled oscillator (DCO) calibration bytes that are stored there
-; by the chip manufacturer. It can also perform voltage and temperature calibrations
-; and store this calibration data in info-flash.
+; TestICal should be the first program written to main-flash.
+; This initial programming must be done using a flash programmer connected to the JTAG port.
+;
+; TestICal contains two copies of a bootstrap loader (BSL), one active, the other inactive.
+; The initial JTAG programming of TestICal will place this BSL in its active position
+; in the last 512 bytes of main-flash.
+; From then on, programming may be done via serial communications using this BSL.
+; Use the Windows program CMUsend or the Linux program sendprog to send the file
+; TestICal.bin or monitor.bin.
+;
+; When loading TestICal via BSL, only the inactive copy of the BSL is sent with it.
+; But this copy can be written to the active location, to update the BSL, by using the 'b' command.
+; TestICal can also perform voltage and temperature calibrations and store this calibration data
+; in info-flash using the 'u' command.
 ;
 ; The BSL consists of a software UART providing RS422-style serial communications,
 ; and a password-recognising state-machine. The state-machine normally passes incoming
@@ -29,41 +42,29 @@
 ; But what if you want to update the BSL itself? In that case, instead of sending a new
 ; monitor, you send TestICal carrying the new version of the BSL.
 ; This time you send TestICal via the serial input not the JTAG port.
-; That way you will update the BSLs of all the boards in the chain simultaneously.
+; That way a 'b' command will update the BSLs of all the boards in the chain simultaneously.
 ;
-; The existing BSL will dutifully load TestICal into main flash,
-; completely unaware that it has just loaded the instrument of its own demise.
-; When the old BSL calls TestICal, thinking it is initialising a new monitor,
-; TestICal will write the new BSL to info-flash.
-; Then the monitor must be sent again, to replace TestICal.
-; TestICal still preserves the calibration data, which may now include
-; voltage and temperature calibration data in addition to the DCO calibration data
-; from the manufacturer.
-;
-; The BSL code is made to fit in the tiny 256 bytes of info-flash because
-; this segment can be protected when the rest of the flash is erased,
-; and all other flash segments are 512 bytes and contiguous with each other,
-; but not with info-flash. For this reason, the BSL code is highly hand-optimised
-; for space and uses some tricks that may make it hard to follow and hard to modify.
+; The BSL code is located in the last 512 bytes of main-flash because this flash segment contains
+; the reset vector and can be left alone when the rest of main-flash is erased.
 ;
 ; The following is true of both TestICal and the BSL:
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
-;	They use no timer; timer use requires too many 6-byte instructions!
+;	They use no timer; timer use requires too many 6-byte instructions.
 
 #define REV61	1				; Enable conditional assembly for board rev 61 or later
 
 ; Init Command String
-; A string of commands that will be interpreted after all other initialisation is complete, but
-; only when JTAG programmed (not when BSLoaded) and before the automatic update of infoflash.
+; A string of commands that will be interpreted after all other initialisation is complete.
 ; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
+; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
 
 #define INIT_CMD_STRING '' 			// No Init commands
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
-									// No update command is required; see above.
+									// Note that an update command 'u' is required to make it stick.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Common definitions such as PROG_START
+#include "../common/common.h"		// Definitions common to monitor, TestICal and BSL
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
@@ -79,28 +80,12 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-; Locations in info-flash, of routines and calibration data
-; These addresses must be manually exported to the monitor.
-; Assemble this file with listing-generation enabled, then look at the listing file
-; to determine the absolute addresses to put into the monitor.
-
+; The following three equates can be deleted when BSL1 finally goes away
 infoInitRetAddr	EQU		mainInitRetAddr-for1000+$1000	; Return address when interpretByte
 														; is called for initialisation
-infoReadByte	EQU		ReadByte	-for1000+$1000		; Where to call ReadByte
 infoWriteByte	EQU		WriteByte	-for1000+$1000		; Where to call WriteByte
-infoBSLErase	EQU		mainBSLErase-for1000+$1000		; Where to jump in to erase main flash
 infoResetFSM	EQU		mainResetFSM-for1000+$1000		; Where to end up in BSL1 to continue a BSL2 download
 
-infoDataStart	EQU		mainDataStart-for1000+$1000		; Used when copying between ram and info-flash
-infoVoltCal		EQU		mainVoltCal -for1000+$1000		; Address of voltage scale calibration word
-infoTempCal		EQU		mainTempCal	-for1000+$1000		; Address of temperature offset calibration byte
-infoLinkCal		EQU		mainLinkCal	-for1000+$1000		; Address of link voltage offset cal byte
-info8MHzCalD	EQU		main8MHzCalD-for1000+$1000		; Address of 8 MHz DCO frequency calibration
-info8MHzCalB	EQU		main8MHzCalB-for1000+$1000		; Address of 8 MHz DCO range calibration
-infoID			EQU		mainID		-for1000+$1000		; Address of CMU ID byte
-infoDataVers	EQU		mainDataVers-for1000+$1000		; Address of Data Version byte
-infoDataEnd		EQU		mainDataEnd	-for1000+$1000		; Used when copying between ram and info-flash
-DATAVERS		EQU		6						; This is version 6 of the CMU info-flash data structure
 
 ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 										; commands. Monitor uses the info-flash copy
@@ -160,7 +145,7 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 
 ; RAM copies of various calibration settings
-; Same order as stored in the BSL
+; Same order as stored in info-flash
 			ALIGNRAM 1				; So these can be copied with word moves
 ramDataStart
 ramVoltCal	DS		2				; Voltage scale calibration word; may be written by BSL writer
@@ -416,7 +401,7 @@ compareBSL2:
 				cmp.w	@R12,BSL2b-BSL2(R12)
 				_WHILE	_EQ ; _Z
 					incd	R12
-			_UNTIL	_Z					; Loop until R12 wraps to 0
+			_UNTIL	_Z					; Loop until R12 wraps from $FFFE to 0
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
@@ -469,19 +454,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 JTAGstart:	mov		#$300,SP
 			call	#initialise				; Do most of the initialisation
 
-			; Don't be tempted to put this inside initialise because it will lead to an
-			; infinite loop if someone puts an update command in the initCmdString
-			; because update branches to start of BSL which calls interpretByte which calls
-			; initialise again.
-			mov		#initCmdString,Rip		; Interpret the init string as commands
-			call	#_ENTER
-
-			br		#_updateInfoFlash		; Update info flash, establish a BSL, change the reset
-											; vector to point to the BSL, then branch to it.
-
 ; ----------------------------------------------------------------------------
-; Copy of second bootstrap loader (BSL2b)
-;
+; Inactive copy of second bootstrap loader (BSL2b)
+;---------------------------------------------------------------------------------
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 #include "../common/BSL2.s43"	// Include the macro for second bootstrap-loader and the interrupt vectors
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00
@@ -489,33 +464,10 @@ BSL2b		BSL2MACRO	initRetAddr2b, BSLErase2b
 			ORG		BSL2b+$1FE			; The copy of the reset vector
 			DW		$1000				; For now, it still points to BSL1
 
-
-; The linker puts a checksum of the used code memory in the first available unused space,
-; when asked for one.
-; To keep our BSL (bootstrap loader) happy we need a simple 1-byte XOR checksum.
-; To obtain this we set the IAR Embedded Workbench IDE Project/Options/Linker/Checksum options to:
-; Fill unused code memory
-; 	Fill pattern: 0xFF
-;	Generate checksum
-;		Size: 1 byte, Alignment: 1
-;		CRC Polynomial: 0x101
-; 		Complement: As is
-;		Bit order: MSB first, Initial value: 0x42
-; The initial value of 0x42 is required because the reset vector of $F8BA at $FFFE is not transmitted
-; and so the BSL does not include it in its checksum, but the linker does.
-; If the reset vector changes, this initial value will need to be changed to keep it as
-; the XOR of its two bytes.
-
-; And we set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
-; Generate Extra Output File
-;	Override default
-;	TestICal.bin
-;	Output format: raw-binary
-
 ; Some calculations so we can see how much space we have left, by reading the listing.
-freespace		EQU		_CMDCHRTBL-$
+freespace		EQU		_CMDCHRTBL-$	; From here to the start of the command character table
 #define BCD(x) 			( x / 100 * $100 + x % 100 / 10 * $10 + x % 10 )
-spaceaspercent	EQU		BCD( (100*freespace)/($10000-PROG_START))
+spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
@@ -533,8 +485,10 @@ ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpr
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 ;---------------------------------------------------------------------------------
-; Second bootstrap loader (BSL2), in the last main-flash segment
+; Second bootstrap loader (BSL2), active copy
 ;---------------------------------------------------------------------------------
+; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
+; Updated by TestICal 'b' command, or by JTAGing.
 				ORG			$FE00		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
 BSL2:			BSL2MACRO	initRetAddr2, BSLErase2

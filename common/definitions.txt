@@ -8,8 +8,8 @@ n c
 i a
 t l Name or description
 --------------------------------------------
-<XON> Resume echoing
-<XOFF> Stop echoing
+<XON> Ctrl-Q. Resume echoing
+<XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -28,7 +28,7 @@ e e Error. Turn on or off red LED and piezo beeper
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
   G Get byte (peek byte)
 h h Hex output
-  i set(I)Ds
+  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
@@ -42,6 +42,7 @@ o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a vo
   O StOre wOrd (poke wOrd) [disabled to save space]
 p   Stress level (Pain) (local to each BMU)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
+P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
   q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Q Q Quiet. Stop piezo beeper coming on with error LED
@@ -96,6 +97,7 @@ t t Temperature
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each BMU)
 
+P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
 o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
 
@@ -109,7 +111,7 @@ I I Insulation test - touch current in tenths of a milliamp (only when ID=0, ins
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 N N Number of cells
 
-  i set(I)Ds
+  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 s s select
 S S deSelect
 x x e(x)clusive   (single-BMU interaction mode)

@@ -1,6 +1,6 @@
 ; ----------------------------------------------------------------------------
 ; The second bootstrap loader (BSL2)
-;
+; ----------------------------------------------------------------------------
 ; This file is included by monitor.s43 and TestICal.s43.
 ; This code will be assembled into the last main-flash segment which starts at $FE00.
 ; It is presently called by BSL1 in info-flash but will eventually be called directly on reset.
@@ -144,10 +144,6 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 			; end FSM code
 
 testNoInterp2:
-			; FIXME! When we transition away from BSL1, we'll have to change the test below
-			cmp		#waitingIDAddr,2(SP); Is the call to ReadByte from the waitingID call to ReadByte?
-			jeq		retToBSL1			; If so, no echo, no interpret
-
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
 			_IF		_Z
 				tst.b	R8
@@ -163,7 +159,7 @@ testNoInterp2:
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
 				br		#jInterpretByte	; tail-call interpretByte in main flash
 										; It must preserve at least R8 and bsl2state
-										; Get there via the PROG_START independent vector
+										; Get there via the PROG_START-independent vector
 				; ret					; Effective ret to BSL1 due to tail-call above
 			_ELSE
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
