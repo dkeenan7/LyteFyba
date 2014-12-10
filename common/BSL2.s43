@@ -13,7 +13,7 @@
 
 BSL2MACRO	MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
 			LOCAL	BSL2, MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
-			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, testNoInterp2, retToBSL1
+			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, testNoInterp2
 			LOCAL	testNoInterp, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 
@@ -190,10 +190,9 @@ testNoInterp2:
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-				br		#jInterpretByte	; tail-call interpretByte in main flash
+				call	#jInterpretByte	; Call interpretByte in main flash
 										; It must preserve at least R8 and bsl2state
 										; Get there via the PROG_START-independent vector
-				; ret					; Effective ret to BSL1 due to tail-call above
 			_ELSE					; Else not interpreting
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
 				; on any passing status bytes, since we are not calling the main program
@@ -208,7 +207,7 @@ testNoInterp2:
 				call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
-retToBSL1	ret						; Return to BSL1
+			ret						; Return to BSL2 FSM loop
 
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 )
@@ -324,6 +323,6 @@ freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
 				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
 BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
-				; The reset vector (at $FFFE) is set differently by monitor and TestICal.
+				; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.
 
 				ENDM

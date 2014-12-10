@@ -59,7 +59,7 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 ; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
 
-#define INIT_CMD_STRING '' 			// No Init commands
+#define INIT_CMD_STRING 'b' 			// Do an update of the BSL
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
 									// Note that an update command 'u' is required to make it stick.
 
