@@ -2,6 +2,8 @@
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
 ;
+; Set the IAR Embedded Workbench IDE Project/Options/Linker/Output options to:
+;  Allow C-SPY-specific extra output file
 ; Set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File
 ;	Override default

@@ -752,7 +752,7 @@
         </option>
         <option>
           <name>SecondaryOutputFile</name>
-          <state></state>
+          <state>(None for the selected format)</state>
         </option>
         <option>
           <name>XDefines</name>
@@ -804,7 +804,7 @@
         </option>
         <option>
           <name>XclFile</name>
-          <state>lnk0t.xcl</state>
+          <state>$TOOLKIT_DIR$\config\linker\lnk430g2452.xcl</state>
         </option>
         <option>
           <name>XclFileSlave</name>
@@ -892,7 +892,7 @@
         </option>
         <option>
           <name>xcProgramEntryLabel</name>
-          <state></state>
+          <state>__program_start</state>
         </option>
         <option>
           <name>DebugInformation</name>
@@ -920,24 +920,24 @@
         </option>
         <option>
           <name>AllowExtraOutput</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>GenerateExtraOutput</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>XExtraOutOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state></state>
+          <state>TestICal.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
           <version>11</version>
-          <state>23</state>
+          <state>57</state>
         </option>
         <option>
           <name>ExtraFormatVariant</name>
@@ -950,7 +950,7 @@
         </option>
         <option>
           <name>xcProgramEntryLabelSelect</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>ListOutputFormat</name>
