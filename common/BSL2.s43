@@ -79,6 +79,13 @@ mainLoop2:
 			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
 			; or main program not present.
 			; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here, to fake a normal reset.
+#if 1	// Set to 1 only when JTAG debugging
+	#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
+			bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
+			_IF		_Z				; If a non-watchdog abnormal reset (which may only be a JTAG reset)
+				mov.b	#PORIFG,&IFG1	; Fake a Vcc power-up reset for the code below
+			_ENDIF
+#endif
 			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
 			clr.b	&IFG1			; Clear those bits ready for next time
 			_IF		_GE				; If Vcc power-up or /RST pin pulsed low
@@ -91,7 +98,7 @@ mainLoop2:
 			; Pass initialisation on to main program, if allowed
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
 			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
-initRetAddr2:	; Used by the monitor or TestICal or other main-flash code
+initRetAddr2:	; Used by TestICal or other main-flash code
 			; to tell if the interpretByte call is for initialisation
 
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
@@ -190,9 +197,14 @@ testNoInterp2:
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
-				call	#jInterpretByte	; Call interpretByte in main flash
-										; It must preserve at least R8 and bsl2state
-										; Get there via the PROG_START-independent vector
+
+				; Tail-call interpretByte in main flash. If you change this to a proper call, you also
+				; need to change interpretByte in TestICal to look one level deeper on the stack
+				; when checking if this is an init call.
+				; It must preserve at least R8 and bsl2state.
+				; We get there via the PROG_START-independent vector "jInterpretByte".
+				br		#jInterpretByte
+				; ret					; Effective ret to BSL2 init or main loop due to tail-call above
 			_ELSE					; Else not interpreting
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
 				; on any passing status bytes, since we are not calling the main program
@@ -207,7 +219,7 @@ testNoInterp2:
 				call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
-			ret						; Return to BSL2 FSM loop
+			ret						; Return to BSL2 init or main loop
 
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 )
