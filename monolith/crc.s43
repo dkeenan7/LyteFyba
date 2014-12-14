@@ -14,7 +14,7 @@ crc_ta		DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
 ; Destroys R9-R10, preserves R8
 updCRCpip:
 			; da=((INT8U)(crc>>8))>>4;
-			mov		&crc_pip,R9
+			mov		&crc_pip,Rda
 			swpb	Rda
 			rra4	Rda
 			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
@@ -24,13 +24,14 @@ updCRCpip:
 
 			; crc^=crc_ta[da^(*ptr>>4)];
 			mov.b	R8, R10
-			rra4	R10
-			and		#$0F, R10		; R10 := *ptr >> 4
-			xor		R10,R9			; R9 := da ^ (*ptr>>4)
+			rra4	R10				; R10 := *ptr >> 4
+			and.b	#$0F,R10
+			xor.b	R10,R9			; R9 := da ^ (*ptr>>4)
+			rla.b	R9				; Double for word index
 			xor		crc_ta(R9), &crc_pip
 
 			; da=((INT8U)(crc>>8))>>4;
-			mov		&crc_pip,R9
+			mov		&crc_pip,Rda
 			swpb	Rda
 			rra4	Rda
 			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
@@ -39,36 +40,38 @@ updCRCpip:
 			rla4	&crc_pip
 
 			; crc^=crc_ta[da^(*ptr&0x0f)];
-			xor		R10,R9			; Restore R9 to be da
 			; Could have used R8 below, but prefer to preserve R8
 			mov.b	R8,R10
-			and		#$0F,R10		; R10 := *ptr & 0xF
-			xor		R10,R9			; R9 := da ^ (*ptr>>4)
+			and.b	#$0F,R10		; R10 := *ptr & 0xF
+			xor.b	R10,R9			; R9 := da ^ (*ptr&0x0f)
+			rla.b	R9				; Double for word index
 			xor		crc_ta(R9), &crc_pip
 
 			ret
 
 ; Send the two CRC bytes, MSB first
+; Trashes R8-R9
 TX_CRC_pip:
-			mov		&crc_pip,R9
-			mov.b	R9,R8
-			swpb	R8
+			mov.b	&crc_pip+1,R8	; Get MSB
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
 			jeq		mod1
 			cmp.b	#$0D,R8			;	or CR
 			jeq		mod1
 			cmp.b	#$0A,R8			;	or LF,
 			jne		nomod1
-mod1:		inc.b	R8				; ... then modify by incrementing that byte
-nomod1:		call	TX_Byte			; Send MSB of CRC first
-			mov.b	R9,R8
-			swpb	R8
+mod1		inc.b	R8				; ... then modify by incrementing that byte
+nomod1		call	#TX_Byte			; Send MSB of CRC first
+				_DO		#5560,R12			; Delay for approx ...
+				_LOOP	R12					;	... 4.16 ms
+			mov.b	&crc_pip,R8		; Get LSB of CRC
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
 			jeq		mod2
 			cmp.b	#$0D,R8			;	or CR
 			jeq		mod2
 			cmp.b	#$0A,R8			;	or LF,
 			jne		nomod2
-mod2:		inc.b	R8				; ... then modify by incrementing that byte
-nomod2:		call	TX_Byte			; Send MSB of CRC first
+mod2		inc.b	R8				; ... then modify by incrementing that byte
+nomod2		call	#TX_Byte		; Send MSB of CRC first
+				_DO		#5560,R12			; Delay for approx ...
+				_LOOP	R12					;	... 4.16 ms
 			ret

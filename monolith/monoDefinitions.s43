@@ -325,3 +325,29 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 			_ENDOF
 		_ENDCASE
 		ret
+
+; Temporary testing
+floatCmd	DB		4,'QSID'; 8,'PBFT54.0'	; Command to send. First byte is length
+		xCODE	'U',testCRC,_testCRC
+		mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+		mov.b	#0,R11			; Initialise loop counter
+		clr		&crc_pip		; Initialise CRC
+tcrcLp	mov.b	floatCmd+1(R11),R8
+		call	#updCRCpip		; Update CRC
+		call	#TX_Byte		; and transmit the byte
+			_DO		#5560,R12			; Delay for approx ...
+			_LOOP	R12					;	... 4.16 ms
+		inc.b	R11
+		cmp.b	&floatCmd,R11
+		jne		tcrcLp
+		call	#TX_CRC_pip		; Send CRC
+		mov.b	#$0D,R8			; Send CR
+		call	#TX_Byte
+			_DO		#5560,R12			; Delay for approx ...
+			_LOOP	R12					;	... 4.16 ms
+		mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600
+		ret
+
+		xCODE	'V',baud2400,_baud2400
+		mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+		ret
