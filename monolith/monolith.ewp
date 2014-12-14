@@ -932,7 +932,7 @@
         </option>
         <option>
           <name>ExtraOutputFile</name>
-          <state>monitor.bin</state>
+          <state>monolith.bin</state>
         </option>
         <option>
           <name>ExtraOutputFormat</name>
