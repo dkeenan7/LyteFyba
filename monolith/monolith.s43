@@ -1,4 +1,6 @@
 			COL		154				; Wide listings
+; 14/Dec/2014: split off from monitor.s43
+
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
 ;
@@ -7,17 +9,17 @@
 ; Set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File
 ;	Override default
-;	monitor.bin
+;	monolith.bin
 ;	Output format: raw-binary
 ;
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
-; lithium battery monitoring system for high voltage electric vehicles.
+; lithium battery monitoring system for solar power systems.
 ;
-; "Monitor" is the standard operating software for our cell-top
+; "Monolith" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
-#define Monitor
+#define Monitor					// We're not actually Monitor, but monitor-like
 
-#define REV61	1				; Enable conditional assembly for board rev 61 or later
+#define REV61	1				// Enable conditional assembly for board rev 61 or later
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -169,6 +171,8 @@ localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms 
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
 passWordState	DS		1			; State machine for password recogniser
+				ALIGNRAM 1
+crc_pip			DS		2			; CRC for PIP-4048 inverter-charger
 
 ; Charger controller variables
 
@@ -873,7 +877,8 @@ DELAY_IF_NEEDED MACRO
 #include "../common/measure.s43"	// Voltage measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
-#include "monDefinitions.s43"		// Command character definitions
+#include "crc.s43"					// CRC calculation routines
+#include "monoDefinitions.s43"		// Command character definitions
 
 			; Encoded stress table. The stress and other information is transmitted in one status byte,
 			; with no checksum correction. To counter this, stress is encoded, so that only

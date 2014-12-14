@@ -5,6 +5,9 @@
     <path>$WS_DIR$\monitor\monitor.ewp</path>
   </project>
   <project>
+    <path>$WS_DIR$\monolith\monolith.ewp</path>
+  </project>
+  <project>
     <path>$WS_DIR$\TestICal\TestICal.ewp</path>
   </project>
   <batchBuild/>
