@@ -194,6 +194,9 @@ TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte inst
 ;
 waitTxCmpl:
 			_BEGIN						; Begin loop
+	#if WATCHDOG
+				mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+	#endif
 				bit		#CCIE,&TACCTLt		; Test the transmit interrupts enabled bit
 			_UNTIL	_Z					; Until it is cleared
 			ret
