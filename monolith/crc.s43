@@ -61,8 +61,6 @@ TX_CRC_pip:
 			jne		nomod1
 mod1		inc.b	R8				; ... then modify by incrementing that byte
 nomod1		call	#TX_Byte			; Send MSB of CRC first
-				_DO		#5560,R12			; Delay for approx ...
-				_LOOP	R12					;	... 4.16 ms
 			mov.b	&crc_pip,R8		; Get LSB of CRC
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
 			jeq		mod2
@@ -72,6 +70,4 @@ nomod1		call	#TX_Byte			; Send MSB of CRC first
 			jne		nomod2
 mod2		inc.b	R8				; ... then modify by incrementing that byte
 nomod2		call	#TX_Byte		; Send MSB of CRC first
-				_DO		#5560,R12			; Delay for approx ...
-				_LOOP	R12					;	... 4.16 ms
 			ret

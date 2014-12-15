@@ -18,6 +18,8 @@ $ $ dollarHex (set number input mode to hex for next literal)
 : : characterLiteral (same as single-quote)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
+1 to 9 are decimal and hexadecial digits
+A to F are hexadecimal digits
   a ADCScaled or r(A)wVoltage (TestICal only)
   b update Bootstrap loader (BSL2)
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
@@ -78,6 +80,8 @@ t l Name or description
   m e(m)itCharacter
   z send nulls (send (z)eros)
 
+1 to 9 are decimal and hexadecial digits
+A to F are hexadecimal digits
 $ $ dollarHex (set number input mode to hex for next literal)
 d d Decimal output
 h h Hex output
