@@ -28,8 +28,8 @@ END_MESSAGE_MAP()
 // CCMUSendApp construction
 
 CCMUSendApp::CCMUSendApp()
-	: m_password_sel(PASSWORD_PROG_4K)
-	, m_image_sel(ID_IMAGE_PROGRAM_4K)
+	: m_password_sel(PASSWORD_PROG_8K)
+	, m_image_sel(ID_IMAGE_PROGRAM_8K)
 	, m_bBadSum(0)
 	, m_start_off(0)
 	, m_total_len(0)
