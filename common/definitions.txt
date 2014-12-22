@@ -30,7 +30,7 @@ e e Error. Turn on or off red LED and piezo beeper
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
   G Get byte (peek byte)
 h h Hex output
-  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
+  i set(I)Ds. Must be preceded by the desired first ID, and followed by Ctrl-S <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
@@ -115,7 +115,7 @@ I I Insulation test - touch current in tenths of a milliamp (only when ID=0, ins
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 N N Number of cells
 
-  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
+  i set(I)Ds. Must be preceded by the desired first ID, and followed by Ctrl-S <cr> Ctrl-Q
 s s select
 S S deSelect
 x x e(x)clusive   (single-BMU interaction mode)

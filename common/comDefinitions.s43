@@ -192,7 +192,24 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		xCODE		'v',cellVolt,_cellVolt
 		call		#cellV				; Return cell voltage in millivolts in R10
 		mov			#'v',Rthd			; Type is cell Voltage
+#ifdef Monolith		// If we're assembling Monolith, not TestICal or Monitor
+		cmp.b		#0,ID
+		_IF			_EQ					; If we're an IMU (modified for reading negative HazV to -203.1 V)
+										; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
+										; but bottom of divider is connected to Vref+ instead of GND,
+										; so there's a 1.5 V offset. Hence fullscale is -203.1 V.
+										; When calibrating with TestICal, apply a voltage -V where V is
+										; between 100 and 200 V. Calculate R = 4092-(V+1.5)*20.
+										; Use the value of R in the 'vc command.
+			mov			#4063,Rsec			; 4063 = 1023*4(full scale) -1.5*20(Vref offset) +1(rounding)
+			sub			R10,Rsec			; Divder ratio
+			rra			Rsec				; Result in tenths of volt (without a minus sign)
+		_ELSE
+			mov			R10,Rsec			; Result in millivolts
+		_ENDIF
+#else
 		mov			R10,Rsec			; Result in millivolts
+#endif
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
@@ -350,7 +367,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				_ENDIF
 			_ENDIF
 
-#ifdef Monitor		// If we're assembling Monitor, not TestICal
+#ifdef Monitor		// If we're assembling Monitor, not TestICal or Monolith
 			cmp		#170,R9				; Check if touch current > 20 mA (NCOP14), with a safety margin
 			CtoAllBits	R8				; 	because our measurent is +-25%.
 			movBits_B	R8,#bBadInsulation,&monFlags	; Piezo beeper will be turned on as required

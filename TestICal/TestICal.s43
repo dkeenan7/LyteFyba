@@ -61,7 +61,8 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 ; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
 
-#define INIT_CMD_STRING 'b' 			// Do an update of the BSL
+#define INIT_CMD_STRING ''	 			// No initial command
+; #define INIT_CMD_STRING 'b' 			// Do an update of the BSL
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
 									// Note that an update command 'u' is required to make it stick.
 
@@ -89,7 +90,6 @@ ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 ; Locations in info-flash, of calibration data in previous versions of the BSL
 ; to allow us to update them to the current version without losing their calibration data.
 
-; New chip (has $FFFF at $10C4)
 infN8MHzCalD	EQU		$10FC		; Address of 8 MHz DCO frequency calibration
 infN8MHzCalB	EQU		$10FD		; Address of 8 MHz DCO range calibration
 
@@ -284,10 +284,10 @@ initialise:
 ; Copy calibration data into RAM
 ;
 
-;
-; If we find $FFFF (erased flash) at $10C4 (near start of info-flash protected segment A),
+; FIXME!!! The following won't work because there are?s DCO cal values there in a new chip.
+; If we find $FFFF (erased flash) at $10FE (end of info-flash protected segment A),
 ; then assume it's a new chip.
-			cmp		#$FFFF,&$10C4	; Don't look at $1000 in case JTAG programmer is set to erase it
+			cmp		#$FFFF,&$10FE	; Don't look at $1000 in case JTAG programmer is set to erase it
 			jeq		newChip			;	before downloading
 
 ; It's not a new chip so check the data version number at the end of info-flash.

@@ -17,7 +17,7 @@
 ;
 ; "Monolith" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
-#define Monitor					// We're not actually Monitor, but monitor-like
+#define Monolith				// Used for some conditional assembly in otherwise common code
 
 #define REV61	1				// Enable conditional assembly for board rev 61 or later
 
@@ -70,10 +70,10 @@ ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 20 mV in excess of 3.350 V, to a max of 15 at >= 3.65 V
-// OV setpoint is 3.49 to 3.50 V. Alarm at 3.57 V.
-OV_ZERO		EQU		3350		; Threshold in mV between OV stress levels -1 and 0
-OV_STEP		EQU		20			; mV difference between one OV stress level and the next
+// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.302 V, to a max of 15 at >= 3.47?s V
+// OV setpoint is 3.323 to 3.326 V. Alarm at 3.335 V.
+OV_ZERO		EQU		3302		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		3			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 80 mV below 3.250 V, to a maximum of 15 at <= 2.05 V
 // UV setpoint is 2.69 to 2.61 V. Alarm at 2.37 V.
 UV_ZERO		EQU		3250		; Threshold in mV between UV stress levels -1 and 0
@@ -366,9 +366,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			;	Already cleared by loop above
 ;			clr.b	&RXCksum				; Clear received packet xor checksum
-;			clr.b	&intFlags				; Clear Interpreter flags
+			cmp.b	#0,&infoID					; If we're not an IMU
+			_IF		_NE
+				mov.b	#bChecksumming,&intFlags ; Default checksumming on
+			_ELSE
+				mov.b	#bChecksumming | bDontEcho,&intFlags ; IMU is in a comms loop so echo would be bad
+			_ENDIF
 ;			bic.b	#bHexOutput,&intFlags	; Default numeric output to be in decimal, not hexadecimal
-			bis.b	#bChecksumming,&intFlags ; Default to sending checksums and checking received chksums
 ;			bic.b	#bDontInterpret,&intFlags ; Do interpret
 ;			bic.b	#bDontEcho,&intFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
@@ -460,16 +464,16 @@ DoMeasurement:
 				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
-			; Calculate stress due to overvoltage
-			push	R10						; Measurement for overvoltage stress calc
-			push	&ovStep					; For every ovStep (millivolts)
-			push	&ovZero					;	over ovZero, we add one level of stress
-			push	#1						; Type of measurement
-			call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
-
-			; Calculate stress due to undervoltage if required
 			cmp.b	#0,&infoID				; If we're not an IMU
 			_IF		_NE
+				; Calculate stress due to overvoltage
+				push	R10						; Measurement for overvoltage stress calc
+				push	&ovStep					; For every ovStep (millivolts)
+				push	&ovZero					;	over ovZero, we add one level of stress
+				push	#1						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
+
+				; Calculate stress due to undervoltage if required
 				bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
 				_IF		_Z
 													; Measurement saved on stack earlier
@@ -486,24 +490,27 @@ DoMeasurement:
 			call	#temp					; Get temperature in degrees Celsius in R10
 			push	R10						; Save measurement for undertemperature stress calc
 
-			; Calculate stress due to overtemperature
-			push	R10						; Measurement for overtemperature stress calc
-			push	#OT_STEP				; For every OT_STEP (degrees Celsius)
-			push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
-			push	#3						; Type of measurement
-			call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
+			cmp.b	#0,&infoID				; If we're not an IMU
+			_IF		_NE
+				; Calculate stress due to overtemperature
+				push	R10						; Measurement for overtemperature stress calc
+				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
+				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
+				push	#3						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
-			; Calculate stress due to undertemperature if required
-			bit.b	#bCharging,&monFlags	; If charging (including regen braking)
-			_IF		_NZ
-												; Measurement saved on stack earlier
-				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
-				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
-				push	#4						; Type of measurement
-				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-			_ELSE	; IMU
-				pop		R10						; Drop unused temp measurement off stack
-			_ENDIF
+				; Calculate stress due to undertemperature if required
+				bit.b	#bCharging,&monFlags	; If charging (including regen braking)
+				_IF		_NZ
+													; Measurement saved on stack earlier
+					push	#UT_STEP				; For every UT_STEP (degrees Celsius)
+					push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
+					push	#4						; Type of measurement
+					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
+				_ELSE	; Not charging; temp measurement still on stack
+			_END_PRIOR_IF
+					pop		R10						; Drop unused temp measurement off stack
+				_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
@@ -534,6 +541,11 @@ DoMeasurement:
 
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+			_ENDIF
+
+			cmp.b	#0,&infoID				; If we're an IMU
+			_IF		_EQ
+				ret							; then do nothing more here
 			_ENDIF
 
 			; Update local present stress, and worst stress for trip so far
@@ -651,6 +663,8 @@ DoStatus:
 ;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
 ;	Bits 3-0: Stress level 0-15
 ;
+		cmp.b	#0,&ID
+		_IF		_NE
 			; Check validity of incoming stress bits
 			mov.b	R8,R9					; Copy incoming status to R9
 			mov.b	R8,R10					; And R10
@@ -687,7 +701,10 @@ DoStatus:
 					call	#SendStatus				; Send status or control a charger
 				_ENDIF							; End if no comms error
 			_ENDIF							; End if incoming valid
-			ret
+		_ELSE
+			; Process incoming status for IMU
+		_ENDIF
+		ret
 ; End of DoStatus
 
 #if !MASTERLESS_CHARGING
