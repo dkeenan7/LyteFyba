@@ -497,7 +497,7 @@ DoMeasurement:
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
 				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-			_ELSE	; IMU
+			_ELSE	; not charging; temp measurement still on stack
 				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
 
