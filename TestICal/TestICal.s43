@@ -284,11 +284,11 @@ initialise:
 ; Copy calibration data into RAM
 ;
 
-; FIXME!!! The following won't work because there are?s DCO cal values there in a new chip.
-; If we find $FFFF (erased flash) at $10FE (end of info-flash protected segment A),
-; then assume it's a new chip.
-			cmp		#$FFFF,&$10FE	; Don't look at $1000 in case JTAG programmer is set to erase it
-			jeq		newChip			;	before downloading
+; If we find >= $80 at $10FF (end of info-flash protected segment A),
+; then assume it's a new chip. If not a new chip, it will have the data version number (way < $80)
+			tst.b	&$10FF			; Check the 1 MHz calibration value; in a new chip it should
+									;	always have the MSB set to disable XT2
+			jn		newChip
 
 ; It's not a new chip so check the data version number at the end of info-flash.
 			cmp.b	#DATAVERS,&infoDataVers
