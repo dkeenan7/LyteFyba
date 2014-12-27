@@ -60,7 +60,7 @@ ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
 #define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
-#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
+#define		INSULATION_MONITORING 0	// Can leave out the insulation monitoring code if not needed.
 									// Can't fit both of the above in 4k.
 ; Constants
 
@@ -176,11 +176,11 @@ passWordState	DS		1			; State machine for password recogniser
 
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 				ALIGNRAM 1
-chargerVoltLim	DS		2			; Charger voltage limit (tenths of a volt). Set by 'o' command.
-chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' command.
+chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
+chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
-chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
+chargerPrevVolt	DS		2			; Charger previous voltage (tenths of a volt). Set by PI controller.
 
 ; Serial-io variables
 
@@ -725,38 +725,81 @@ SendStatus:
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
 				_IF		_NZ							; If we've been told to start charging
-					bit		#ALL_NBYP,R8
-					_IF		_NZ							; If all cells are near bypass
-						; Send command packet to charger to turn it off
-						mov		#0,&chargerPrevCurr			; Set previous charger current to zero
-						mov		#1<<15,R8					; Set charger-off bit
-						call	#SendChargerPacket			; Send packet. Trashes R8 thru R11
-						mov		#0,Rtos						; Tell ourselves we've stopped charging
-						call	#_Charging					; Equiv to '0c' command. Clears bCharging
-					_ELSE								; Else some are not near bypass, so keep charging
+;					bit		#ALL_NBYP,R8
+;					_IF		_NZ							; If all cells are near bypass
+;						; Send command packet to charger to turn it off
+;						mov		#0,&chargerPrevVolt			; Set previous charger voltage to zero
+;						mov		#1<<15,R8					; Set charger-off bit
+;						call	#SendChargerPackets			; Send packets. Trashes R8 thru R11
+;						mov		#0,Rtos						; Tell ourselves we've stopped charging
+;						call	#_Charging					; Equiv to '0c' command. Clears bCharging
+;					_ELSE								; Else some are not near bypass, so keep charging
 						bit		#COM_ERR,R8
 						_IF		_NZ
 							mov		#8,R8					; Treat comms error as stress 8
 						_ELSE
 							and		#STRESS,R8				; Otherwise use the stress value (0-15)
 						_ENDIF
-						call	#PIController			; Call PI controller with R8 as input and output
+						call	#PiController			; Call PI controller with R8 as input and output
 						dec		&chargerTxTimer			; Decrement charger transmit timer
-						_IF		_NZ						; If 4 seconds not yet passed since last Tx
-							cmp		R8,&chargerPrevCurr		; Check if current setpoint has changed.
-							mov		R8,&chargerPrevCurr		; Record current setpoint for next time
-							_IF		_NE						; If current setpoint has changed,
-						_END_PRIOR_IF					; Or 4 seconds has passed
-								call	#SendChargerPacket		; Send packet to charger to set current
-								mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
-							_ENDIF ; Current changed
-					_ENDIF ; ALL_NBYP
+						_IF_OR		_Z					; If 4 seconds has passed since last Tx, short-circuit-OR7
+							cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
+							mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
+						_OR_THEN	_NE					; Or voltage setpoint has changed,
+							call	#SendChargerPackets		; Send packets to charger to set voltage
+							mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
+						_ENDIF_OR
+;					_ENDIF ; ALL_NBYP
 				_ENDIF ; bCharging
 			_ENDIF ; bControlCharger
 			ret
 ; End of SendStatus
 
-SendChargerPacket:
+
+SendPipPacket:
+;
+; Send a PIP command packet
+; with command string pointed to by R10
+; and voltage in R8 (in tenths of a volt)
+;
+; Trashes R8 thru R11
+;
+			; Send the PIP command
+			push		R8					; Save the voltage (in tenths of a volt) on the stack
+
+			call		#TxStringCrc		; Send string pointed to by R10. Trashes R8 thru R11
+
+			mov			#0,R10
+			pop			R9					; Pop voltage to R9
+			mov			#100,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov			R9,R8
+			add			#'0',R8
+			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
+
+			mov			R10,R9
+			mov			#0,R10
+			mov			#10,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov.b		R9,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
+
+			mov.b		#'.',R8
+			call		#TxByteCrc			; Send the decimal point (trashes R9)
+
+			mov.b		R10,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the tenths digit of voltage
+
+			call		#TxCrc				; Send the two bytes of CRC
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+
+			ret
+
+
+SendChargerPackets:
 ;
 ; Send charger float and bulk command packets (in the right order)
 ; with voltage from R8 (in tenths of a volt)
@@ -769,83 +812,41 @@ SendChargerPacket:
 ; and when lowering it, float will have to be sent before bulk.
 			push		R8					; Save the voltage (in tenths of a volt) on the stack
 
-			; !!! Need to compare with previous voltage to determine whether to send Float or Bulk first
+			call		#WaitTxComplete		; Wait for 9600 baud transmission to complete
+			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 
-			; Send the Float voltage command
-			mov			#FloatCmd,R10
-			call		#TxStringCrc		; Trashes R8 thru R11
+			; Compare with previous voltage to determine whether to send Float or Bulk first
+			cmp			R8,&chargerPrevVolt
+			_IF			_LO					; If raising voltage
+				mov			#BulkCmd,R10		; Send the Float voltage packet
+				call		#SendPipPacket		; Trashes R8 thru R11
+				pop			R8					; Restore voltage to R8
+				mov			#FloatCmd,R10		; Send the Bulk voltage packet
+				call		#SendPipPacket		; Trashes R8 thru R11
+			_ELSE							; Else lowering voltage
+				mov			#FloatCmd,R10		; Send the Float voltage packet
+				call		#SendPipPacket		; Trashes R8 thru R11
+				pop			R8					; Restore voltage to R8
+				mov			#BulkCmd,R10		; Send the Bulk voltage packet
+				call		#SendPipPacket		; Trashes R8 thru R11
+			_ENDIF							; End raising/lowering voltage
 
-			mov			#0,R10
-			mov			@SP,R9				; Voltage
-			mov			#100,R8
-			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
-			mov			R9,R8
-			add			#'0',R8
-			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
-
-			mov			R10,R9
-			mov			#0,R10
-			mov			#10,R8
-			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
-			mov.b		R9,R8
-			add.b		#'0',R8
-			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
-
-			mov.b		#'.',R8
-			call		#TxByteCrc			; Send the decimal point (trashes R9)
-
-			mov.b		R10,R8
-			add.b		#'0',R8
-			call		#TxByteCrc			; Send the tenths digit of voltage
-
-			call		#TxCrc				; Send the two bytes of CRC
-			mov.b		#$0D,R8
-			call		#TxByte				; Send the carriage return without accumulating CRC
-
-			; Send the Bulk voltage command
-			mov			#BulkCmd,R10
-			call		#TxStringCrc		; Trashes R8 thru R11
-
-			mov			#0,R10
-			pop			R9					; Voltage
-			mov			#100,R8
-			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
-			mov			R9,R8
-			add			#'0',R8
-			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
-
-			mov			R10,R9
-			mov			#0,R10
-			mov			#10,R8
-			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
-			mov.b		R9,R8
-			add.b		#'0',R8
-			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
-
-			mov.b		#'.',R8
-			call		#TxByteCrc			; Send the decimal point (trashes R9)
-
-			mov.b		R10,R8
-			add.b		#'0',R8
-			call		#TxByteCrc			; Send the tenths digit of voltage
-
-			call		#TxCrc				; Send the two bytes of CRC
-			mov.b		#$0D,R8
-			call		#TxByte				; Send the carriage return without accumulating CRC
+			call		#WaitTxComplete		; Wait for 2400 baud transmission to complete
+			mov.w		#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 
 			ret
 
 FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
-; End of SendChargerPacket
+; End of SendChargerPackets
 
 
-PIController:
+PiController:
 ;
 ; A PI controller whose input and output are in R8
 ; Input range is 0 to 15 (stress levels). Setpoint is 7.
-; Output range is 0 to chargerCurrLim (tenths of an amp).
+; Output range is chargerVoltMin to chargerVoltMax (tenths of a volt).
 ;
 #define Rerror R10			// Error register
 #define Rderiv R9			// Derivative register
@@ -855,19 +856,19 @@ PIController:
 			mov		Rerror,Rderiv			; deriv = error - prev_error
 			sub		&piPrevError,Rderiv
 
-			mov		&piPrevOutput,Routput ; output = prev_output + Kp * deriv + Ki * error
+			mov		&piPrevOutput,Routput	; output = prev_output + Kp * deriv + Ki * error
 			rla		Rderiv					; Kp = 4
 			rla		Rderiv
 			add		Rderiv,Routput
 			add		Rerror,Routput			; Ki = 1
 
-			cmp		#0,Routput				; Clamp output between 0 and charger current limit
+			cmp		&chargerVoltMin,Routput	; Clamp output between chargerVoltMin and chargerVoltMax
 			_IF		_L
-				mov		#0,Routput
+				mov		&chargerVoltMin,Routput
 			_ELSE
-				cmp		&chargerCurrLim,Routput
+				cmp		&chargerVoltMax,Routput
 				_IF		_GE
-					mov		&chargerCurrLim,Routput
+					mov		&chargerVoltMax,Routput
 				_ENDIF
 			_ENDIF
 
@@ -876,6 +877,7 @@ PIController:
 			ret
 ; End of PIController
 #endif // MASTERLESS_CHARGING
+
 
 DoPassword:
 ;

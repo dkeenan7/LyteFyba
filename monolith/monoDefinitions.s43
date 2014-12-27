@@ -27,26 +27,24 @@
 			ret
 
 #if MASTERLESS_CHARGING
-; ChargerC(o)ntrol ( voltLim currLim -- )
-			; This command only makes sense for the last CMU in the string, with an adapter cable
-			; from its fibre-optic output to the serial input of a TC charger.
-			; If currLim is non-zero, whenever you get a '1c' command, run a PI controller on stress
-			; to control a TC charger at 2400 baud until charging is complete.
-			; If currLim is zero, disable charger control and go back to status sending at 9600 baud.
-			; voltLim is charger voltage limit in tenths of a volt.
-			; currLim is charger current limit in tenths of an amp.
-			; e.g. 4000 55o<cr> for charger control up to 400.0 volts, 5.5 amps.
+; ChargerC(o)ntrol ( voltMin voltMax -- )
+			; This command only makes sense for the last CMU/IMU in the string, with an adapter
+			; from its fibre-optic output to the serial input of a PIP inverter/charger.
+			; If voltMax is non-zero, whenever you get a '1c' command, run a PI controller on stress
+			; to control a PIP inverter/charger at 2400 baud.
+			; If voltMax is zero, disable charger control and go back to status sending at 9600 baud.
+			; voltMin is minimum charger voltage in tenths of a volt.
+			; voltMax is maximum charger voltage in tenths of a volt.
+			; e.g. 480 584o<cr> for charger control between 48.0 and 58.4 volts, the PIP's maximum range
 			; 0o<cr> to go back to status sending.
 			xCODE	'o',ChargerControl,_ChargerControl
-			mov		Rtos,&chargerCurrLim
+			mov		Rtos,&chargerVoltMax		; Set the maximum charger voltage
 			tst		Rtos
-			_IF		_Z
+			_IF		_Z							; If the maximum is zero
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
-				mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600 (default)
 			_ELSE
 				bis.b	#ChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
-				mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
-				mov		Rsec,&chargerVoltLim
+				mov		Rsec,&chargerVoltMin		; Set the minimum charger voltage
 			_ENDIF
 			ret
 #endif // MASTERLESS_CHARGING
