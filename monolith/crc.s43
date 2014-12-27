@@ -7,13 +7,11 @@ TxByteCrc:
 			;ret
 
 
-TxStringCrc:
-TX_StringCk: _DOb	@R10+,R11
+TxStringCrc: _DOb	@R10+,R11
 				mov.b	@R10+,R8
 				call	#TxByteCrc
 			_LOOPb	R11
 			ret
-
 
 
 UpdateCrc:
@@ -82,7 +80,6 @@ TxCrc:
 
 			mov.b	&txCrc,R8		; Get LSB of CRC
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
-			cmp.b	#'(',R8			; If CRC byte would be open paren,
 			_IF_OR	_EQ
 				cmp.b	#$0D,R8			; or CR
 			_OR		_EQ
@@ -91,4 +88,6 @@ TxCrc:
 				inc.b	R8				; ... then modify by incrementing that byte
 			_ENDIF_OR
 			call	#TxByte			; Send LSB of CRC
+
+			clr		&txCrc			; Clear the CRC
 			ret

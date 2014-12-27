@@ -769,7 +769,8 @@ SendChargerPacket:
 ; and when lowering it, float will have to be sent before bulk.
 			push		R8					; Save the voltage (in tenths of a volt)
 			mov			#FloatCmd,R10
-			call		#TX_StringCk		; Trashes R8 thru R11
+			call		#TxStringCrc		; Trashes R8 thru R11
+; !!! Incomplete
 			mov.b		&chargerVoltLim+1,R8 ; High byte of voltage
 			call		#TxByte
 			mov.b		&chargerVoltLim,R8	; Low byte of voltage
