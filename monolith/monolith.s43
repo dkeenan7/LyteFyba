@@ -767,29 +767,74 @@ SendChargerPacket:
 ;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
 ; When raising the voltage, bulk will have to be sent before float,
 ; and when lowering it, float will have to be sent before bulk.
-			push		R8					; Save the voltage (in tenths of a volt)
+			push		R8					; Save the voltage (in tenths of a volt) on the stack
+
+			; !!! Need to compare with previous voltage to determine whether to send Float or Bulk first
+
+			; Send the Float voltage command
 			mov			#FloatCmd,R10
 			call		#TxStringCrc		; Trashes R8 thru R11
-; !!! Incomplete
-			mov.b		&chargerVoltLim+1,R8 ; High byte of voltage
-			call		#TxByte
-			mov.b		&chargerVoltLim,R8	; Low byte of voltage
-			call		#TxByte
-			mov			@SP,R8
-			bic			#1<<15,R8			; Clear the high bit
-			swpb		R8					; High byte of current
-			call		#TxByte
-			mov			@SP,R8				; Low byte of current
-			call		#TxByte
-			pop			R8
-			rlc			R8
-			rlc			R8
-			and.b		#1,R8				; Charger-off bit
-			call		#TxByte
-;			mov			#Postamble,R10
-			call		#TxStringCk
-			clr			&txCksum			; Checksum not used
+
+			mov			#0,R10
+			mov			@SP,R9				; Voltage
+			mov			#100,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov			R9,R8
+			add			#'0',R8
+			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
+
+			mov			R10,R9
+			mov			#0,R10
+			mov			#10,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov.b		R9,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
+
+			mov.b		#'.',R8
+			call		#TxByteCrc			; Send the decimal point (trashes R9)
+
+			mov.b		R10,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the tenths digit of voltage
+
+			call		#TxCrc				; Send the two bytes of CRC
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+
+			; Send the Bulk voltage command
+			mov			#BulkCmd,R10
+			call		#TxStringCrc		; Trashes R8 thru R11
+
+			mov			#0,R10
+			pop			R9					; Voltage
+			mov			#100,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov			R9,R8
+			add			#'0',R8
+			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
+
+			mov			R10,R9
+			mov			#0,R10
+			mov			#10,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov.b		R9,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
+
+			mov.b		#'.',R8
+			call		#TxByteCrc			; Send the decimal point (trashes R9)
+
+			mov.b		R10,R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the tenths digit of voltage
+
+			call		#TxCrc				; Send the two bytes of CRC
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+
 			ret
+
 FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1

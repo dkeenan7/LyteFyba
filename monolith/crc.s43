@@ -1,11 +1,23 @@
 ;  CRC-16-CCITT routines for talking to PIP-4048 inverter/charger
 ;  Assumes global variable txCrc
 
-TxByteCrc:
-			call	#UpdateCrc
+;-------------------------------------------------------------------------------
+; TxByteCrc	; Transmit the character in R8 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R9.
+;-------------------------------------------------------------------------------
+
+TxByteCrc:	call	#UpdateCrc
 			br		#TxByte
 			;ret
 
+
+;-------------------------------------------------------------------------------
+; TxStringCrc ; Transmit counted string pointed to by R10 while accumulating checksum.
+			; Warning: A zero length string will be treated as 256 bytes long.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8 thru R11.
+;-------------------------------------------------------------------------------
 
 TxStringCrc: _DOb	@R10+,R11
 				mov.b	@R10+,R8
