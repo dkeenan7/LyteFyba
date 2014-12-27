@@ -46,10 +46,10 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 
 
 ;-------------------------------------------------------------------------------
-; TxStringCk	; Transmit counted string pointed to by R10 while accumulating checksum.
+; TxStringCk ; Transmit counted string pointed to by R10 while accumulating checksum.
 			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
-			; Trashes R8, R9, R10, R11.
+			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
 TxStringCk: _DOb	@R10+,R11
