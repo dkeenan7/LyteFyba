@@ -96,7 +96,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			tst		Rsec
 			_IF		_L					; If n is negative
 				mov.b	#'-',R8				; Emit minus sign
-				call	#TX_ByteCk
+				call	#TxByteCk
 				inv		Rsec				; Negate to get absolute value
 				inc		Rsec
 			_ENDIF						; Endif negative
@@ -118,7 +118,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				mov		#2,Rtos
 			_ENDIF
 			mov.b	#'$',R8				; Emit dollar sign for hex
-			call	#TX_ByteCk
+			call	#TxByteCk
 			mov		Rsec,R9				; R9 := n
 			mov		#16,Rsec			; Rsec := 16 (radix)
 			_BEGIN
@@ -133,7 +133,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 					dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
 			;		and.b	#$7F,R8				; Ensure nothing can be misinterpreted as status
 					mov		R9,Rthd				; Save R9
-					call	#TX_ByteCk			; Transmit byte (accumulating checksum). Trashes R9
+					call	#TxByteCk			; Transmit byte (accumulating checksum). Trashes R9
 					mov		Rthd,R9				; Restore R9
 				_ENDIF
 				dec		R12					; Decrement loop counter
@@ -421,7 +421,7 @@ _prettyPrint:
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
-		call	#TX_ByteCk			; Stops rest of packet being interpreted
+		call	#TxByteCk			; Stops rest of packet being interpreted
 
 		push	Rsec				; Save n
 		push	Rtos				; Save m
@@ -433,23 +433,23 @@ _prettyPrint:
 		call	#_emitNum			; Emit the ID in decimal
 
 		mov		#':',R8				; Colon separator
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		R8					; Restore ch (type of measurement)
-		call	#TX_ByteCk			; Transmit ch
+		call	#TxByteCk			; Transmit ch
 
 		mov		#' ',R8				; Transmit a space
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
 		pop.b	&intFlags			; Restore number base to print n with
 		call	#_emitNum
 
-		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+		call	#TxCksum			; Transmit checksum if required, then clear checksum.
 
 		mov		#'\r',R8			; Carriage return to R8
-		call	#TX_Byte			; Emit
+		call	#TxByte				; Emit
 
 		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
@@ -555,10 +555,10 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			cmp.b	#1,&ID
 			_IF		_EQ					; If my ID is 1
 				mov		#$13,R8				; Transmit an XOFF (ctrl-S)
-				call	#TX_ByteCk
+				call	#TxByteCk
 				call	#cmd0				; Do the command with default parameters
 				mov		#$11,R8				; Transmit an XON (ctrl-Q)
-				call	#TX_ByteCk
+				call	#TxByteCk
 			_ELSE						; Else (ID not 1)
 				bit.b	#bDontEcho,&intFlags
 				_IF		_NZ					; If the dont-echo flag is set
@@ -581,12 +581,12 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			call	#_emitNum			; Transmit the number as text in the current number base
 
 			mov		#'N',R8				; Transmit an "N"
-			call	#TX_ByteCk
+			call	#TxByteCk
 
-			call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+			call	#TxCksum			; Transmit checksum if required, then clear checksum.
 
 			mov		#'\r',R8			; Transmit a carriage return.
-			call	#TX_Byte
+			call	#TxByte
 			ret
 #endif
 

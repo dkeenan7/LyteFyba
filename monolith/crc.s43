@@ -1,26 +1,33 @@
 ;  CRC-16-CCITT routines for talking to PIP-4048 inverter/charger
-;  Assumes global variable crc_pip
+;  Assumes global variable txCrc
 
-; 	INT16U crc_ta[16]=
-;	{
-;		0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
-;		0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef
-;	};
-crc_ta		DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
-			DW		$8108,$9129,$a14a,$b16b,$c18c,$d1ad,$e1ce,$f1ef
-#define Rda		R9		// Variable da assigned R9
+TxByteCrc:
+			call	#UpdateCrc
+			br		#TxByte
+			;ret
 
+
+TxStringCrc:
+TX_StringCk: _DOb	@R10+,R11
+				mov.b	@R10+,R8
+				call	#TxByteCrc
+			_LOOPb	R11
+			ret
+
+
+
+UpdateCrc:
 ; Pass char to include into CRC in R8
 ; Destroys R9-R10, preserves R8
-updCRCpip:
+#define Rda		R9		// Variable da assigned R9
 			; da=((INT8U)(crc>>8))>>4;
-			mov		&crc_pip,Rda
+			mov		&txCrc,Rda
 			swpb	Rda
 			rra4	Rda
 			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
 
 			; crc<<=4;
-			rla4	&crc_pip
+			rla4	&txCrc
 
 			; crc^=crc_ta[da^(*ptr>>4)];
 			mov.b	R8, R10
@@ -28,16 +35,16 @@ updCRCpip:
 			and.b	#$0F,R10
 			xor.b	R10,R9			; R9 := da ^ (*ptr>>4)
 			rla.b	R9				; Double for word index
-			xor		crc_ta(R9), &crc_pip
+			xor		CrcTable(R9), &txCrc
 
 			; da=((INT8U)(crc>>8))>>4;
-			mov		&crc_pip,Rda
+			mov		&txCrc,Rda
 			swpb	Rda
 			rra4	Rda
 			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
 
 			; crc<<=4;
-			rla4	&crc_pip
+			rla4	&txCrc
 
 			; crc^=crc_ta[da^(*ptr&0x0f)];
 			; Could have used R8 below, but prefer to preserve R8
@@ -45,29 +52,43 @@ updCRCpip:
 			and.b	#$0F,R10		; R10 := *ptr & 0xF
 			xor.b	R10,R9			; R9 := da ^ (*ptr&0x0f)
 			rla.b	R9				; Double for word index
-			xor		crc_ta(R9), &crc_pip
+			xor		CrcTable(R9), &txCrc
 
 			ret
 
+
+; 	INT16U crc_ta[16]=
+;	{
+;		0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
+;		0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef
+;	};
+CrcTable	DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
+			DW		$8108,$9129,$a14a,$b16b,$c18c,$d1ad,$e1ce,$f1ef
+
+
+TxCrc:
 ; Send the two CRC bytes, MSB first
 ; Trashes R8-R9
-TX_CRC_pip:
-			mov.b	&crc_pip+1,R8	; Get MSB
+			mov.b	&txCrc+1,R8		; Get MSB of CRC
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
-			jeq		mod1
-			cmp.b	#$0D,R8			;	or CR
-			jeq		mod1
-			cmp.b	#$0A,R8			;	or LF,
-			jne		nomod1
-mod1		inc.b	R8				; ... then modify by incrementing that byte
-nomod1		call	#TX_Byte			; Send MSB of CRC first
-			mov.b	&crc_pip,R8		; Get LSB of CRC
+			_IF_OR	_EQ
+				cmp.b	#$0D,R8			; or CR
+			_OR		_EQ
+				cmp.b	#$0A,R8			; or LF,
+			_OR_THEN _EQ
+				inc.b	R8				; ... then modify by incrementing that byte
+			_ENDIF_OR
+			call	#TxByte			; Send MSB of CRC first
+
+			mov.b	&txCrc,R8		; Get LSB of CRC
 			cmp.b	#'(',R8			; If CRC byte would be open paren,
-			jeq		mod2
-			cmp.b	#$0D,R8			;	or CR
-			jeq		mod2
-			cmp.b	#$0A,R8			;	or LF,
-			jne		nomod2
-mod2		inc.b	R8				; ... then modify by incrementing that byte
-nomod2		call	#TX_Byte		; Send MSB of CRC first
+			cmp.b	#'(',R8			; If CRC byte would be open paren,
+			_IF_OR	_EQ
+				cmp.b	#$0D,R8			; or CR
+			_OR		_EQ
+				cmp.b	#$0A,R8			; or LF,
+			_OR_THEN _EQ
+				inc.b	R8				; ... then modify by incrementing that byte
+			_ENDIF_OR
+			call	#TxByte			; Send LSB of CRC
 			ret

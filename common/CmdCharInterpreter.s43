@@ -208,7 +208,7 @@ ACCEPT
 			_IF		_LO				; If packet buffer not full
 				bit.b	#bChecksumming,&intFlags
 				_IF		_NZ				; If checksumming
-					tst.b	&RXCksum
+					tst.b	&rxCksum
 					_IF		_Z				; If good checksum
 						dec		R9				; Prepare to overwrite checksum with EXIT command char
 						cmp		#TIB,R9			; Handle case of empty packet with no checksum
@@ -225,7 +225,7 @@ ACCEPT
 					_ENDIF					; Endif good checksum
 				_ENDIF					; Endif packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			clr.b	&RXCksum		; Clear the packet checksum
+			clr.b	&rxCksum		; Clear the packet checksum
 		_ENDOF					; EndOf carriage return
 
 		_OFb	#$08,R8			; Backspace editing
@@ -260,7 +260,7 @@ ACCEPT
 			_IF		_LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
-				xor.b	R8,&RXCksum	; Accumulate the checksum
+				xor.b	R8,&rxCksum	; Accumulate the checksum
 			_ENDIF					; Endif packet buffer not full
 
 		_ENDCASE				; End Case char

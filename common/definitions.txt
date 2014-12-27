@@ -1,4 +1,5 @@
 List of single-character commands implemented in either the monitor or TestICal or both.
+Commands and hex digits are case-sensitive.
 
 In ASCII/alphabetical order:
 
@@ -11,6 +12,7 @@ t l Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
+    Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
@@ -18,7 +20,10 @@ $ $ dollarHex (set number input mode to hex for next literal)
 : : characterLiteral (same as single-quote)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
-1 to 9 are decimal and hexadecial digits
+{   resetWorstStress :-{
+\ \ exit or comment
+^ ^ reset the Reset log
+1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits
   a ADCScaled or r(A)wVoltage (TestICal only)
   b update Bootstrap loader (BSL2)
@@ -30,18 +35,18 @@ e e Error. Turn on or off red LED and piezo beeper
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
   G Get byte (peek byte)
 h h Hex output
-  i set(I)Ds. Must be preceded by the desired first ID, and followed by Ctrl-S <cr> Ctrl-Q
+  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
   m e(m)itCharacter
-n n emit(n)um
+n n emit(n)um. Precede with a number or calculation, and a field width
 N N Number of cells
 o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
   o Change Octave of piezo alarm
-  O StOre wOrd (poke wOrd) [disabled to save space]
+  O StOre wOrd (poke wOrd)
 p   Stress level (Pain) (local to each BMU)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
@@ -64,9 +69,6 @@ y y b(y)pass (Yellow) (relaY- on IMU)
 Y Y relaY+ (on IMU only)
   z send nulls (send (z)eros)
   Z Ztore byte (poke byte)
-{   resetWorstStress :-{
-\ \ exit or comment
-^ ^ reset the Reset log
 
 In logical groupings:
 
@@ -80,13 +82,13 @@ t l Name or description
   m e(m)itCharacter
   z send nulls (send (z)eros)
 
-1 to 9 are decimal and hexadecial digits
+1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits
 $ $ dollarHex (set number input mode to hex for next literal)
 d d Decimal output
 h h Hex output
 - - change-sign (postfix negate)
-n n emit(n)um
+n n emit(n)um. Precede with a number or calculation, and a field width
 
 e e Error. Turn on or off red LED and piezo beeper
 Q Q Quiet. Stop piezo beeper coming on with error LED
@@ -115,7 +117,7 @@ I I Insulation test - touch current in tenths of a milliamp (only when ID=0, ins
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 N N Number of cells
 
-  i set(I)Ds. Must be preceded by the desired first ID, and followed by Ctrl-S <cr> Ctrl-Q
+  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 s s select
 S S deSelect
 x x e(x)clusive   (single-BMU interaction mode)
@@ -134,10 +136,10 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 
-  j JumpToSubroutine (call) [disabled to save space]
+  j JumpToSubroutine (call)
   Z Ztore byte (poke byte)
   g Get byte   (peek byte)
-  O St(O)re word (poke word) [disabled to save space]
+  O St(O)re word (poke word)
   q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
