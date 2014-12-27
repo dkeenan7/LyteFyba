@@ -59,7 +59,7 @@ ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
-#define		MASTERLESS_CHARGING 0	// Can leave out the masterless charging code if not needed.
+#define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 									// Can't fit both of the above in 4k.
 ; Constants
@@ -171,8 +171,6 @@ localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms 
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
 passWordState	DS		1			; State machine for password recogniser
-				ALIGNRAM 1
-crc_pip			DS		2			; CRC for PIP-4048 inverter-charger
 
 ; Charger controller variables
 
@@ -180,35 +178,37 @@ chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum requ
 				ALIGNRAM 1
 chargerVoltLim	DS		2			; Charger voltage limit (tenths of a volt). Set by 'o' command.
 chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' command.
-pi_prev_output	DS		2			; State of PI controller
-pi_prev_error	DS		2			; State of PI controller
+piPrevOutput	DS		2			; State of PI controller
+piPrevError		DS		2			; State of PI controller
 chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
 
 ; Serial-io variables
 
 				ALIGNRAM 1
-TxBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
-TXData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
-RXData			DS		1			; Received char
-BitCntTx		DS		1			; Bit count 10 -> 1
-BitCntRx		DS		1			; Bit count 8 -> 1
-TXCksum			DS		1			; Transmit checksum
+txBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
+rxData			DS		1			; Received char
+bitCntTx		DS		1			; Bit count 10 -> 1
+bitCntRx		DS		1			; Bit count 8 -> 1
+txCksum			DS		1			; Simple xor checksum used on transmit
+				ALIGNRAM 1
+txCrc			DS		2			; CRC-16-CCITT for transmitting to PIP-4048MS inverter-charger
 
-rxsz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
+RxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
-txsz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
+TxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
-rxbuf			DS		rxsz		; Receive queue buffer
-rxwr			DS		1			; Receive queue write index
-rxrd			DS		1			; Receive queue read index
-txbuf			DS		txsz		; Transmit queue buffer
-txwr			DS		1			; Transmit queue write index
-txrd			DS		1			; Transmit queue read index
+rxBuf			DS		RxSz		; Receive queue buffer
+rxWr			DS		1			; Receive queue write index
+rxRd			DS		1			; Receive queue read index
+txBuf			DS		TxSz		; Transmit queue buffer
+txWr			DS		1			; Transmit queue write index
+txRd			DS		1			; Transmit queue read index
 
 ; Command Character Interpreter variables
 
-RXCksum			DS		1			; Received packet xor checksum
+rxCksum			DS		1			; Received packet xor checksum
 intFlags		DS		1			; Interpreter flags, bitmask definitions follow
 bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
 bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
@@ -240,7 +240,7 @@ STACKSPACE		EQU		$300-$		; Look at listing to see what this is
 				ORG		PROG_START
 ;-------------------------------------------------------------------------------
 
-interpretByte:
+InterpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
 			mov.w	#$300,SP				; Initialize stackpointer
 #if !WATCHDOG
@@ -316,17 +316,17 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
 
-			mov.w	#BitTime96,&TxBitTime		; Set the bit time for 9600 baud
-			mov.b	#$FF,&TXData+1				; Initialise the top half of TXData to all 1s (stop bit,
+			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
+			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
 												;	idle bit)
-			mov.b	#8,&BitCntRx				; Load Bit Counter, 8 data bits
-;			clr.b	TXCksum						; Clear transmit checksum. Already cleared by loop above
+			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
+;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
 			; Already cleared by loop above
-;			clr.b	&rxwr						; Initialise the TX and RX queue indexes
-;			clr.b	&rxrd
-;			clr.b	&txwr
-;			clr.b	&txrd
+;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
+;			clr.b	&rxRd
+;			clr.b	&txWr
+;			clr.b	&txRd
 
 ;
 ; Initialise the charger controller
@@ -335,8 +335,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 ;			clr.w	&chargerVoltLim				; Initialise charger voltage limit
 ;			clr.w	&chargerCurrLim				; Initialise charger current limit
-;			clr.w	&pi_prev_output				; Initialise PI controller state
-;			clr.w	&pi_prev_error				;
+;			clr.w	&piPrevOutput				; Initialise PI controller state
+;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
 
 			mov.w	#OV_ZERO,&ovZero
@@ -385,7 +385,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				call	#RX_RawByteNW			; Check if received data
+				call	#RxRawByteNoWait		; Check if received data
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
@@ -418,7 +418,7 @@ DoEcho:
 				bit.b	#bDontEcho,&intFlags
 				_IF		_Z						; If the dont-echo flag is clear
 			_END_PRIOR_IF ; _NE
-					call	#TX_Byte				; Echo the character
+					call	#TxByte					; Echo the character
 				_ENDIF
 			ret
 ; End of DoEcho
@@ -721,7 +721,7 @@ SendStatus:
 ;
 			bit.b	#bChargerControl,&monFlags	; Set by 'o' command
 			_IF		_Z							; If we're not in charge control mode
-				call	#TX_Byte					; Send the status byte. Wait until buffer not full
+				call	#TxByte						; Send the status byte. Wait until buffer not full
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
 				_IF		_NZ							; If we've been told to start charging
@@ -749,8 +749,8 @@ SendStatus:
 						_END_PRIOR_IF					; Or 4 seconds has passed
 								call	#SendChargerPacket		; Send packet to charger to set current
 								mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
-							_ENDIF ; Current changed			; Note: TC chargers timeout after 5 s, see
-					_ENDIF ; ALL_NBYP ; http://www.endless-sphere.com/forums/download/file.php?id=34882
+							_ENDIF ; Current changed
+					_ENDIF ; ALL_NBYP
 				_ENDIF ; bCharging
 			_ENDIF ; bControlCharger
 			ret
@@ -758,39 +758,39 @@ SendStatus:
 
 SendChargerPacket:
 ;
-; Send a charger command packet with fixed voltage, and current from R8 (in tenths of an amp)
-; and high bit of R8 as charger-off bit.
+; Send charger float and bulk command packets (in the right order)
+; with voltage from R8 (in tenths of a volt)
 ;
 ; Trashes R8 thru R11
 ;
-; Send 18 06 E5 F4 0V VV 0W WW 0X 00 00 00
-;	where VVV is the voltage in tenths of a volt,
-;	WWW is current limit in tenths of an amp, and
-;	X is 0 to turn charger on
-			push		R8
-			mov			#Preamble,R10
+; Send PBFTvv.v<crc16><cr> and PCVVww.w<crc16><cr>
+;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
+; When raising the voltage, bulk will have to be sent before float,
+; and when lowering it, float will have to be sent before bulk.
+			push		R8					; Save the voltage (in tenths of a volt)
+			mov			#FloatCmd,R10
 			call		#TX_StringCk		; Trashes R8 thru R11
 			mov.b		&chargerVoltLim+1,R8 ; High byte of voltage
-			call		#TX_Byte
+			call		#TxByte
 			mov.b		&chargerVoltLim,R8	; Low byte of voltage
-			call		#TX_Byte
+			call		#TxByte
 			mov			@SP,R8
 			bic			#1<<15,R8			; Clear the high bit
 			swpb		R8					; High byte of current
-			call		#TX_Byte
+			call		#TxByte
 			mov			@SP,R8				; Low byte of current
-			call		#TX_Byte
+			call		#TxByte
 			pop			R8
 			rlc			R8
 			rlc			R8
 			and.b		#1,R8				; Charger-off bit
-			call		#TX_Byte
-			mov			#Postamble,R10
-			call		#TX_StringCk
-			clr			&TXCksum			; Checksum not used
+			call		#TxByte
+;			mov			#Postamble,R10
+			call		#TxStringCk
+			clr			&txCksum			; Checksum not used
 			ret
-Preamble	DB			4, $18, $06, $E5, $F4		; First byte is length of following string
-Postamble	DB			3, $00, $00, $00
+FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
+BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
 ; End of SendChargerPacket
 
@@ -807,9 +807,9 @@ PIController:
 			mov		#7,Rerror				; error = setpoint - measurement
 			sub		R8,Rerror
 			mov		Rerror,Rderiv			; deriv = error - prev_error
-			sub		&pi_prev_error,Rderiv
+			sub		&piPrevError,Rderiv
 
-			mov		&pi_prev_output,Routput ; output = prev_output + Kp * deriv + Ki * error
+			mov		&piPrevOutput,Routput ; output = prev_output + Kp * deriv + Ki * error
 			rla		Rderiv					; Kp = 4
 			rla		Rderiv
 			add		Rderiv,Routput
@@ -825,8 +825,8 @@ PIController:
 				_ENDIF
 			_ENDIF
 
-			mov		Rerror,&pi_prev_error	; prev_error = error
-			mov		Routput,&pi_prev_output ; prev_output = output
+			mov		Rerror,&piPrevError		; prev_error = error
+			mov		Routput,&piPrevOutput	; prev_output = output
 			ret
 ; End of PIController
 #endif // MASTERLESS_CHARGING
@@ -860,7 +860,7 @@ DoPassword:
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
-			call	#waitTxCmpl
+			call	#WaitTxComplete
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
@@ -933,12 +933,12 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		$FDF2
-jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
-jRX_TIOV_ISR	br		#RX_TIOV_ISR	; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-jTX_ISR			br		#TX_ISR			; Timer A CC0IFG (transmit compare)
+jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+jRX_TIOV_ISR	br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+jTX_ISR			br		#TxIsr			; Timer A CC0IFG (transmit compare)
 
 				ORG		$FDFE
-ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
+ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 

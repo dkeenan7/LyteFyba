@@ -42,10 +42,10 @@
 			tst		Rtos
 			_IF		_Z
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
-				mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600 (default)
+				mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600 (default)
 			_ELSE
 				bis.b	#ChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
-				mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+				mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
 				mov		Rsec,&chargerVoltLim
 			_ENDIF
 			ret
@@ -86,27 +86,27 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
 			mov		#EXIT,R8				; Send initial slosh (EXIT command or comment character)
-			call	#TX_ByteCk				; which stops rest of packet being interpreted
+			call	#TxByteCk				; which stops rest of packet being interpreted
 
 			mov.b	&ID,Rsec				; Emit the ID
 			mov		#3,Rtos					; as 3 digits
 			call	#_emitNum
 
 			mov		#ColonQspace,R10
-			call	#TX_StringCk
+			call	#TxStringCk
 
 		;	mov		#':',R8					; Colon separator
-		;	call	#TX_ByteCk
+		;	call	#TxByteCk
 		;	mov		#'q',R8					; 'q' as type of result
-		;	call	#TX_ByteCk
+		;	call	#TxByteCk
 		;	mov		#' ',R8					; Space separator
-		;	call	#TX_ByteCk
+		;	call	#TxByteCk
 
 			mov.b	&worstStress,Rsec		; Emit worstStress
 			mov		#2,Rtos					; as 2 digits
 			call	#_emitNum
 			mov		#' ',R8					; Space separator
-			call	#TX_ByteCk
+			call	#TxByteCk
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
@@ -115,14 +115,14 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#1,Rtos					; as 1 digit
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 
 			; Now send the worst over-voltage
 			mov		&worstOV,Rsec			; Send worst over-voltage
 			mov		#4,Rtos					; as 4 digits
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
@@ -131,14 +131,14 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#4,Rtos					; as 4 digits
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 
 			; Now send the worst over-temperature
 			mov		&worstOT,Rsec			; Send worst over-temperature
 			mov		#2,Rtos					; as 2 digits
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
@@ -147,19 +147,19 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#2,Rtos					; as 2 digits
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 
 			; Now send the worst absolute link voltage
 			mov		&worstAL,Rsec			; Send worst absolute link voltage
 			mov		#4,Rtos					; as 4 digits
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
-			call	#TX_ByteCk
+			call	#TxByteCk
 
-			call	#TX_Cksum				; Transmit checksum if required, then clear checksum.
+			call	#TxCksum				; Transmit checksum if required, then clear checksum.
 
 			mov		#'\r',R8				; Emit carriage return
-			call	#TX_Byte				; without updating checksum
+			call	#TxByte				; without updating checksum
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
 			pop.b	&intFlags				; Restore number base
@@ -223,25 +223,25 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		call	#_emitNum			; Transmit the ID as text in the current number base
 
 		mov		#':',R8				; Transmit a colon, an alias for tick
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		mov		#' ',R8				; Transmit a space
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		Rsec				; Pop the min value
 		pop		Rtos				; Pop the field width
 		call	#_emitNum			; Transmit the value as text in the current number base
 
 		mov		#'<',R8				; Transmit a "<"
-		call	#TX_ByteCk
+		call	#TxByteCk
 
-		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+		call	#TxCksum			; Transmit checksum if required, then clear checksum.
 
 		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TX_Byte
+		call	#TxByte
 		ret
 
 #if (PROG_START < $F000)
@@ -291,25 +291,25 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		call	#_emitNum			; Transmit the ID as text in the current number base
 
 		mov		#':',R8				; Transmit a colon, an alias for tick
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		mov		#' ',R8				; Transmit a space
-		call	#TX_ByteCk
+		call	#TxByteCk
 
 		pop		Rsec				; Pop the max value
 		pop		Rtos				; Pop the field width
 		call	#_emitNum			; Transmit the value as text in the current number base
 
 		mov		#'>',R8				; Transmit a ">"
-		call	#TX_ByteCk
+		call	#TxByteCk
 
-		call	#TX_Cksum			; Transmit checksum if required, then clear checksum.
+		call	#TxCksum			; Transmit checksum if required, then clear checksum.
 
 		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TX_Byte
+		call	#TxByte
 		ret
 #endif
 
@@ -329,36 +329,36 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; Temporary testing
 floatCmd	DB		8,'PBFT54.0'	; Command to send. First byte is length
 		xCODE	'U',testCRC,_testCRC
-		mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+		mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
 		mov.b	#$0D,R8			; Send CR
-		call	#TX_Byte
+		call	#TxByte
 		mov.b	#0,R11			; Initialise loop counter
-		clr		&crc_pip		; Initialise CRC
+		clr		&txCrc			; Initialise CRC
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
-
-tcrcLp	mov.b	floatCmd+1(R11),R8
-		call	#updCRCpip		; Update CRC
-		call	#TX_Byte		; and transmit the byte
+		_BEGIN
+		mov.b	floatCmd+1(R11),R8
+		call	#UpdateCrc		; Update CRC
+		call	#TxByte		; and transmit the byte
 		inc.b	R11
 		cmp.b	&floatCmd,R11
-		jne		tcrcLp
+		_UNTIL	_EQ
 	#if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 	#endif
-		call	#TX_CRC_pip		; Send CRC
+		call	#TxCrc			; Send CRC
 		mov.b	#$0D,R8			; Send CR
-		call	#TX_Byte
-		call	#waitTxCmpl
-		mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600
+		call	#TxByte
+		call	#WaitTxComplete
+		mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600
 		ret
 
 		xCODE	'V',baud2400,_baud2400
 		tst		Rtos
 		_IF		_Z
-			mov		#BitTime96,&TxBitTime		; Set transmit baud rate to 9600
+			mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600
 		_ELSE
-			mov		#BitTime24,&TxBitTime		; Set transmit baud rate to 2400
+			mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
 		_ENDIF
 		ret

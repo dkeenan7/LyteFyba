@@ -46,29 +46,29 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 
 
 ;-------------------------------------------------------------------------------
-; TX_StringCk	; Transmit counted string pointed to by R10 while accumulating checksum.
+; TxStringCk	; Transmit counted string pointed to by R10 while accumulating checksum.
 			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8, R9, R10, R11.
 ;-------------------------------------------------------------------------------
 
-TX_StringCk: _DOb	@R10+,R11
+TxStringCk: _DOb	@R10+,R11
 				mov.b	@R10+,R8
-				call	#TX_ByteCk
+				call	#TxByteCk
 			_LOOPb	R11
 			ret
 
 ;-------------------------------------------------------------------------------
-; TX_ByteCk	; Transmit the character in R8 while accumulating checksum.
+; TxByteCk	; Transmit the character in R8 while accumulating checksum.
 			; If necessary, wait until the queue is not full.
 			; Trashes R9.
 ;-------------------------------------------------------------------------------
 
-TX_ByteCk:
-			xor.b	R8,&TXCksum
-TX_Byte:	; Alternative entry which does not accumulate checksum
+TxByteCk:
+			xor.b	R8,&txCksum
+TxByte:	; Alternative entry which does not accumulate checksum
 			_BEGIN
-				call	#TX_ByteNW
+				call	#TxByteNoWait
 			_UNTIL	_NZ
 			ret
 
@@ -77,16 +77,16 @@ TX_Byte:	; Alternative entry which does not accumulate checksum
 ; If the queue is full, return immediately with the Z status bit set.
 ; Preserves R8, trashes R9.
 ;
-TX_ByteNW:
-			mov.b	&txwr,R9				; Get the write index (not changed by TX_ISR)
-			mov.b 	R8,txbuf(R9)			; Tentatively write the character to the transmit queue
+TxByteNoWait:
+			mov.b	&txWr,R9				; Get the write index (not changed by TX_ISR)
+			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
 											;	there's always at least one free space,
 											;	but don't increment the write index yet.
 			inc.b	R9						; Increment a copy of the write index
-			and.b	#txsz-1,R9				;	modulo the queue size
-			cmp.b	&txrd,R9				; If wr+1 mod sz = rd then it's full
+			and.b	#TxSz-1,R9				;	modulo the queue size
+			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
 			_IF		_NE
-				mov.b	R9,&txwr			; Increment write index so char is officially in tx queue
+				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 
 				; If transmit interrupts are disabled, set up the timer for a new start bit
 				; and enable transmit compare interrupts.
@@ -94,7 +94,7 @@ TX_ByteNW:
 				_IF		_Z					; If transmit interrupts disabled
 					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 												;   will continue to be an inversion of TXDm (TA0).
-					mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
+					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
@@ -121,22 +121,22 @@ TX_ByteNW:
 			ret
 
 #if 0
-TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
-			mov.b	&txwr,R9				; Get the write index (not changed by TX_ISR)
-			mov.b 	R8,txbuf(R9)			; Tentatively write the character to the transmit queue
+TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
+			mov.b	&txWr,R9				; Get the write index (not changed by TX_ISR)
+			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
 											;	there's always at least one free space,
 											;	but don't increment the write index yet.
 			inc.b	R9						; Increment a copy of the write index
-			and.b	#txsz-1,R9				;	modulo the queue size
-			cmp.b	&txrd,R9				; If wr+1 mod sz = rd then it's full
+			and.b	#txSz-1,R9				;	modulo the queue size
+			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
 			_IF		_NE
-				mov.b	R9,&txwr			; Increment write index so char is officially in tx queue
+				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 
 				; If we're in a stop bit and the next timer compare match would transition to idle state
 				; and we have time to set it up it before the compare match occurs,
 				; then set it up it so it will transition to a start bit instead.
 				dint
-				tst.b	&BitCntTx			; BitCntTx = 0 means stop -> idle
+				tst.b	&bitCntTx			; BitCntTx = 0 means stop -> idle
 				_IF	_Z
 					mov		&TACCRt,R9			; Get the compare value
 					sub		&TAR,R9				; Subtract the timer value
@@ -148,7 +148,7 @@ TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte inst
 						mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode fr start bit, enble cmpare ints
 						mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 													;   will continue to be an inversion of TXDm (TA0).
-						mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
+						mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					_ENDIF
 				_ENDIF
 				eint
@@ -160,7 +160,7 @@ TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte inst
 				_IF		_Z					; If transmit interrupts disabled
 					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 												;   will continue to be an inversion of TXDm (TA0).
-					mov.b	#10,&BitCntTx		; Load bit transition counter: 10 bits
+					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
@@ -192,7 +192,7 @@ TX_ByteNW_Alternate_Version:	; In progress. Requires 11 interrupts per byte inst
 ; Called by the BSL-password checker in OnRxByte before disabling interrupts and branching to BSLErase.
 ; Called by SetID.
 ;
-waitTxCmpl:
+WaitTxComplete:
 			_BEGIN						; Begin loop
 	#if WATCHDOG
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
@@ -202,7 +202,7 @@ waitTxCmpl:
 			ret
 
 ;-------------------------------------------------------------------------------
-TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
+TxIsr:	; Transmit (timer capture/compare 0) interrupt service routine
 ;-------------------------------------------------------------------------------
 ; 1st interrupt BitCntTx is 10 (dec to 9), falling edge of start-bit just sent, need to set up for LSB
 ; 8th interrupt, BitCntTx is 3, just transitioned to data bit 6, need to set up for transition to MSB
@@ -219,24 +219,24 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 ; use less code, or not need to disable interrupts for so long. -- DK
 
 											; (6) cycles for interrupt accepted
-			add.w	&TxBitTime,&TACCRt		; (6) Set timer compare reg for when next transition is due
-			dec.b	&BitCntTx				; (4) Decrement bit counter
+			add.w	&txBitTime,&TACCRt		; (6) Set timer compare reg for when next transition is due
+			dec.b	&bitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
-				cmp.b	#9,&BitCntTx			; (5) Test if start bit just started
+				cmp.b	#9,&bitCntTx			; (5) Test if start bit just started
 				_IF		_EQ						; (2) If start bit just started
 					push	R9
-					mov.b 	&txrd,R9				; Get read index in R9
-					mov.b	txbuf(R9),&TXData		; Get next char from queue into TXData
+					mov.b 	&txRd,R9				; Get read index in R9
+					mov.b	txBuf(R9),&txData		; Get next char from queue into TXData
 					inc.b 	R9						; Increment the read index
-					and.b 	#txsz-1,R9				;	modulo the queue size.
-					mov.b 	R9,&txrd				; Update the read index
+					and.b 	#TxSz-1,R9				;	modulo the queue size.
+					mov.b 	R9,&txRd				; Update the read index
 					pop		R9
 					; The below would just waste time and space. We don't need to wake up to do anything
 					; in the mainline after taking a byte from the TX queue. -- DK
 					; bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 				_ENDIF							; Endif start bit just started
-				rra.w	&TXData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
+				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
 												;	so stop and idle bits are always treated like data 1s
 				_IF		_NC						; (2) If bit is 0
 					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) then set TXDm = TA0 output high
@@ -244,14 +244,14 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 					mov		#OUTMOD_5+CCIE,&TACCTLt	; (5) Else clear TXDm = TA0 output low
 				_ENDIF							; Endif bit is 1
 			_ELSE							; Else Stop bit initiated
-				cmp.b 	&txwr,&txrd				; Test if TX queue is empty
+				cmp.b 	&txWr,&txRd				; Test if TX queue is empty
 				_IF		_EQ						; If TX queue is empty
 					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
 					ActLedOff						; (5) Turn off activity LED at end of the transmit
 				_ELSE							; Else TX queue is not empty
 					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 													;   will continue to be an inversion of TXDm (TA0).
-					mov.b	#10,&BitCntTx			; Load bit transition counter: 10 bits
+					mov.b	#10,&bitCntTx			; Load bit transition counter: 10 bits
 					mov.w	#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit
 
 					ActLedOn						; Turn on the activity LED for visual feedback.
@@ -260,7 +260,7 @@ TX_ISR:	; Transmit (timer capture/compare 0) interrupt service routine
 			reti
 
 ;-------------------------------------------------------------------------------
-RX_TIOV_ISR:	; Combined Receive (timer capture/compare 1) and timer overflow interrupt service routine
+RxTiovIsr:	; Combined Receive (timer capture/compare 1) and timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
 			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
 			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
@@ -274,41 +274,41 @@ RX_TIOV_ISR:	; Combined Receive (timer capture/compare 1) and timer overflow int
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
 			cmp		#2,R9					; (1) Was it a receive interrupt (TACCR1)
-			jeq		RX_ISR					; (2) Yes, jump to receive interrupt service routine
+			jeq		RxIsr					; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
 ;	Regular timer overflow interrupt: Cause the mainline code to measure voltages etc
 ;
-TIOV_ISR:
+TiovIsr:
  			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
 			jmp		WakeExit				; Arrange to wake CPU, restore R9 and return from interrupt
 
 ;
 ;	Receive interrupt: Handle start-bit timer-capture or data-bit timer-compare
 ;
-RX_ISR:		add		#BitTime96,&TACCRr		; (5) Time to next bit
+RxIsr:		add		#BitTime96,&TACCRr		; (5) Time to next bit
 			bit		#CAP,&TACCTLr			; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
 				bic		#CAP,&TACCTLr		; (5) Switch to compare mode
 				add		#BitTime96/2,&TACCRr; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
 				bit		#SCCI,&TACCTLr			; (4) Sampled bit to carry
-				rrc.b	&RXData					; (4) Store received bit
-				dec.b	&BitCntRx				; (4) All bits RXed?
+				rrc.b	&rxData					; (4) Store received bit
+				dec.b	&bitCntRx				; (4) All bits RXed?
 				_IF		_Z						; (2) If this is the last data bit
-					mov.b	#8,&BitCntRx			; Setup bit counter for next byte
+					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
 					bis		#CAP,&TACCTLr			; Set back to capture mode
 
 					; Put received data into the queue if there's space, otherwise it's lost
-					mov.b	&rxwr,R9				; Get the write index
-					mov.b	&RXData,rxbuf(R9)		; Tentatively write the character to the receive queue
+					mov.b	&rxWr,R9				; Get the write index
+					mov.b	&rxData,rxBuf(R9)		; Tentatively write the character to the receive queue
 													;  there's always at least one free space,
 													;  but don't increment the write index yet.
 					inc.b	R9						; Increment a copy of the write index
-					and.b	#rxsz-1,R9				;  modulo the queue size
-					cmp.b	&rxrd,R9				; If wr+1 mod sz = rd then it's full
+					and.b	#RxSz-1,R9				;  modulo the queue size
+					cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
 					_IF		_NE						; If queue not full
-						mov.b	R9,&rxwr				; Update write index so char is properly in queue
+						mov.b	R9,&rxWr				; Update write index so char is properly in queue
 WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 					_ENDIF							; Endif queue not full
 				_ENDIF							; Endif last data bit
@@ -318,7 +318,7 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 
 
 ;--------------------------------------------------
-; RX_Byte	; Subroutine Receives Character into R8
+; RxByte	; Subroutine Receives Character into R8
 ;			; Trashes R9
 ;--------------------------------------------------
 #if 0
@@ -328,9 +328,9 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 ; Process any Status bytes before returning. Trashes R9.
 ; NOT USED, and probably never will be
 ;
-RX_Byte:
+RxByte:
 			_BEGIN
-				call	#RX_ByteNW
+				call	#RxByteNoWait
 			_UNTIL	_NZ
 			ret
 ;
@@ -339,9 +339,9 @@ RX_Byte:
 ; Process any Status bytes before returning. Trashes R9
 ; Currently NOT USED, except by RX_Byte above, which is currently unused
 ;
-RX_ByteNW:
+RxByteNoWait:
 			_BEGIN
-				call	#RX_RawByteNW	; This is the test for the pretested loop
+				call	#RxRawByteNoWait ; This is the test for the pretested loop
 				_WHILE	_NZ				; Exit when not _NZ
 					tst.b	R8
 					_WHILE	_L			; Additional exit when not _L
@@ -357,14 +357,14 @@ RX_ByteNW:
 ; If the queue is empty, return immediately with the Z status bit set.
 ; Trashes R9
 ;
-RX_RawByteNW:
-			mov.b 	&rxrd,R9			; Get the read index into R9
-			cmp.b 	&rxwr,R9			; Equal if queue empty
+RxRawByteNoWait:
+			mov.b 	&rxRd,R9			; Get the read index into R9
+			cmp.b 	&rxWr,R9			; Equal if queue empty
 			_IF		_NE
-				mov.b	rxbuf(R9),R8	; Read char from queue
+				mov.b	rxBuf(R9),R8	; Read char from queue
 				inc.b 	R9				; Increment the read index
-				and.b 	#rxsz-1,R9		;	modulo the queue size
-				mov.b 	R9,&rxrd		; Update the read index
+				and.b 	#RxSz-1,R9		;	modulo the queue size
+				mov.b 	R9,&rxRd		; Update the read index
 				clrz					; Indicate char available
 			_ENDIF
 			ret

@@ -155,11 +155,11 @@ ramDataEnd
 
 ; Miscellaneous variables
 
-TXCksum		DS		1				; Transmit checksum
+txCksum		DS		1				; Transmit checksum
 
 ; Command Character Interpreter variables
 
-RXCksum		DS		1				; Received packet xor checksum
+rxCksum		DS		1				; Received packet xor checksum
 intFlags	DS		1				; Interpreter flags, bitmask definitions follow
 bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
 bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
@@ -187,7 +187,7 @@ initCmdString
 ; but is intended to initialise the monitor or TestICal or other main-flash program.
 ; It will do this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
 ; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
-interpretByte:
+InterpretByte:
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			cmp		#initRetAddr2,0(SP)		; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
@@ -299,7 +299,7 @@ unknownVersBSL
 ; Version number is higher or lower than this version of TestICal knows about,
 ; so we should leave it alone and raise an error.
 			mov		#b'01010101,rERR			; 4 flashes
-			jmp		errorFlash					; Infinite loop, never returns
+			jmp		ErrorFlash					; Infinite loop, never returns
 
 
 newChip
@@ -338,9 +338,9 @@ DELAY_IF_NEEDED MACRO
 
 
 ; Some definitions so the common code will work
-waitTxCmpl	ret							; Empty routine: transmit is always complete
-TX_ByteCk	xor.b	R8,&TXCksum			; Alternative entry which accumulates checksum
-TX_Byte		call	#WriteByte
+WaitTxComplete:	ret						; Empty routine: transmit is always complete
+TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
+TxByte:		call	#WriteByte
 #if WATCHDOG
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
 #endif
@@ -396,7 +396,7 @@ compareBSL2:
 ; Takes a 16 bit pattern in rERR and repeatedly flashes the error LED in that pattern
 ; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
 ; This error processing code should be near the middle of the image to allow jmps to it instead of brs.
-errorFlash:
+ErrorFlash:
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer (ReadByte may have reset it)
 			; We could end up here after the DCO calibration has been set to $FFFF,
 			;	so the processor could be running very fast.
@@ -417,7 +417,7 @@ errorFlash:
 				_LOOP	R11
 				dec		R10
 			_UNTIL	_Z							; Until 16 bits sent
-			jmp		errorFlash					; Infinite loop
+			jmp		ErrorFlash					; Infinite loop
 
 
 
@@ -443,14 +443,14 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		$FDF2
-jInterpretByte	br		#interpretByte	; A branch to interpretByte, independent of PROG_START
+jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
 jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				reti					; Not used by TestICal
 jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
 				reti					; Not used by TestICal
 
 				ORG		$FDFE
-ProgPresence	DB		$AA				; For BSL2 to check before calling main program (interpretByte)
+ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 ;---------------------------------------------------------------------------------
