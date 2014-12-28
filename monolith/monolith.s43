@@ -45,7 +45,7 @@ LSTOUT-
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
 
-ID				EQU		infoID		; We use the info-flash copy of the ID for s, x, prettyPrint
+ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
 
 ; Command Character Interpreter Register Usage (defined in CmdCharInterpreter.s43)
@@ -333,11 +333,18 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Already cleared by loop above
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
-;			clr.w	&chargerVoltLim				; Initialise charger voltage limit
-;			clr.w	&chargerCurrLim				; Initialise charger current limit
+			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
+			_IF		_EQ
+				mov.w	#520,&chargerVoltMin		; Initialise charger voltage min
+				mov.w	#540,&chargerVoltMax		; Initialise charger voltage max
+				bis.b	#bChargerControl,&monFlags	; Set by o command
+				bis.b	#bCharging,&monFlags		; Set by c command
+			_ENDIF
 ;			clr.w	&piPrevOutput				; Initialise PI controller state
 ;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
+
+
 
 			mov.w	#OV_ZERO,&ovZero
 			mov.w	#OV_STEP,&ovStep
@@ -725,7 +732,7 @@ SendStatus:
 				call	#TxByte						; Send the status byte. Wait until buffer not full
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
-;				_IF		_NZ							; If we've been told to start charging
+				_IF		_NZ							; If we've been told to start charging
 ;					bit		#ALL_NBYP,R8
 ;					_IF		_NZ							; If all cells are near bypass
 ;						; Send command packet to charger to turn it off
@@ -742,13 +749,13 @@ SendStatus:
 							and		#STRESS,R8				; Otherwise use the stress value (0-15)
 						_ENDIF
 						call	#PiController			; Call PI controller with R8 as input and output
-						dec		&chargerTxTimer			; Decrement charger transmit timer
-						_IF_OR		_Z					; If 4 seconds has passed since last Tx, short-circuit-OR7
+						dec.b	&chargerTxTimer			; Decrement charger transmit timer
+						_IF_OR		_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
 							cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
 							mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
-						_OR_THEN	_NE					; Or voltage setpoint has changed,
+						_OR_THEN	_NEVER				; Or voltage setpoint has changed,
 							call	#SendChargerPackets		; Send packets to charger to set voltage
-							mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
+							mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
 						_ENDIF_OR
 ;					_ENDIF ; ALL_NBYP
 				_ENDIF ; bCharging
@@ -759,7 +766,7 @@ SendStatus:
 
 SendPipPacket:
 ;
-; Send a PIP command packet
+; Send a PIP command packet`
 ; with command string pointed to by R10
 ; and voltage in R8 (in tenths of a volt)
 ;
@@ -769,6 +776,7 @@ SendPipPacket:
 			push		R8					; Save the voltage (in tenths of a volt) on the stack
 
 			call		#TxStringCrc		; Send string pointed to by R10. Trashes R8 thru R11
+			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 
 			mov			#0,R10
 			pop			R9					; Pop voltage to R9
@@ -776,7 +784,7 @@ SendPipPacket:
 			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
 			mov			R9,R8
 			add			#'0',R8
-			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R11)
+			call		#TxByteCrc			; Send the tens digit of voltage (trashes R8 thru R10)
 
 			mov			R10,R9
 			mov			#0,R10
@@ -784,19 +792,21 @@ SendPipPacket:
 			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
 			mov.b		R9,R8
 			add.b		#'0',R8
-			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R11)
+			call		#TxByteCrc			; Send the units digit of voltage (trashes R8 thru R10)
 
 			mov.b		#'.',R8
-			call		#TxByteCrc			; Send the decimal point (trashes R9)
+			call		#TxByteCrc			; Send the decimal point (trashes R8 thru R10)
+			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 
 			mov.b		R10,R8
 			add.b		#'0',R8
-			call		#TxByteCrc			; Send the tenths digit of voltage
+			call		#TxByteCrc			; Send the tenths digit of voltage (trashes R8 thru R10)
 
 			call		#TxCrc				; Send the two bytes of CRC
 			mov.b		#$0D,R8
 			call		#TxByte				; Send the carriage return without accumulating CRC
 
+			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
 			ret
 
 

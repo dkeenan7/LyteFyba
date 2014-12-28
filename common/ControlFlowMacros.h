@@ -66,7 +66,7 @@ _N	EQU 4 ; (jge substituted with no warning) Negative. There is no jnn instructi
 _NN EQU 5 ; (jn ) Not Negative
 _L  EQU 6 ; (jge) Less (signed), (N xor V)
 _GE EQU 7 ; (jl ) Greater or Equal (signed), not(N xor V)
-_NV EQU 8 ; (jmp) Never, i.e. unconditional, Used by ELSE, AGAIN, REPEAT
+_NEVER EQU 8 ; (jmp) Never, i.e. unconditional, Used by ELSE, AGAIN, REPEAT
 
 #define InverseCond(cond) ((cond&1)==0)*(cond+1) + ((cond&1)!=0)*(cond-1)
 
@@ -102,7 +102,7 @@ Jxx	 SET 1<<13 | (cond_field&7)<<10 | (offset>>1)&$03FF
 ; Called by _ELSE.
 _AHEAD  MACRO
 						LSTOUT-
-		_CS_PUSH (_NV << 28) | ($ & $0FFFFFFF) ; Push the condition code (unconditional) and
+		_CS_PUSH (_NEVER << 28) | ($ & $0FFFFFFF) ; Push the condition code (unconditional) and
 				   ; the address where the jump instruction will be filled-in later
 		ORG $+2	; Skip over that location
 						LSTOUT+
@@ -161,7 +161,7 @@ _BEGIN  MACRO
 _AGAIN  MACRO
 						LSTOUT-
 _offset SET _CS_TOP-$-2
-		_ASM_Jxx  _NV,_offset  ; Assemble an unconditional jump back to the address on the top of the stack
+		_ASM_Jxx  _NEVER,_offset  ; Assemble an unconditional jump back to the address on the top of the stack
 		_CS_DROP		; Drop the address off the control-flow stack
 						LSTOUT+
 						ENDM

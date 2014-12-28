@@ -28,9 +28,10 @@ TxStringCrc: _DOb	@R10+,R11
 
 UpdateCrc:
 ; Pass char to include into CRC in R8
-; Destroys R9-R10, preserves R8
+; Destroys R9, preserves R8
 #define Rda		R9		// Variable da assigned R9
 			; da=((INT8U)(crc>>8))>>4;
+			push	R10				; Callers often need this preserved
 			mov		&txCrc,Rda
 			swpb	Rda
 			rra4	Rda
@@ -64,6 +65,7 @@ UpdateCrc:
 			rla.b	R9				; Double for word index
 			xor		CrcTable(R9), &txCrc
 
+			pop		R10
 			ret
 
 
