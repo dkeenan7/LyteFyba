@@ -43,7 +43,7 @@
 			_IF		_Z							; If the maximum is zero
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 			_ELSE
-				bis.b	#ChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
+				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
 				mov		Rsec,&chargerVoltMin		; Set the minimum charger voltage
 			_ENDIF
 			ret

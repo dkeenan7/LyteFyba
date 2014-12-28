@@ -703,6 +703,7 @@ DoStatus:
 			_ENDIF							; End if incoming valid
 		_ELSE
 			; Process incoming status for IMU
+			call	#SendStatus				; Send status or control a charger
 		_ENDIF
 		ret
 ; End of DoStatus
@@ -724,7 +725,7 @@ SendStatus:
 				call	#TxByte						; Send the status byte. Wait until buffer not full
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
-				_IF		_NZ							; If we've been told to start charging
+;				_IF		_NZ							; If we've been told to start charging
 ;					bit		#ALL_NBYP,R8
 ;					_IF		_NZ							; If all cells are near bypass
 ;						; Send command packet to charger to turn it off
