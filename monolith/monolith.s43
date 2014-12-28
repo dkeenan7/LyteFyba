@@ -753,7 +753,7 @@ SendStatus:
 						_IF_OR		_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
 							cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
 							mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
-						_OR_THEN	_NEVER				; Or voltage setpoint has changed,
+						_OR_THEN	_NE					; Or voltage setpoint has changed,
 							call	#SendChargerPackets		; Send packets to charger to set voltage
 							mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
 						_ENDIF_OR
@@ -868,10 +868,11 @@ PiController:
 			sub		&piPrevError,Rderiv
 
 			mov		&piPrevOutput,Routput	; output = prev_output + Kp * deriv + Ki * error
-			rla		Rderiv					; Kp = 4
-			rla		Rderiv
-			add		Rderiv,Routput
-			add		Rerror,Routput			; Ki = 1
+			; Insert rla or rra Rderiv here to change Kp
+			add		Rderiv,Routput			; Kp = 1
+			mov		Rerror,R9				; Overwrites unused Rderiv
+			; Insert rla or rra R9 here to change Ki
+			add		R9,Routput				; Ki = 1
 
 			cmp		&chargerVoltMin,Routput	; Clamp output between chargerVoltMin and chargerVoltMax
 			_IF		_L
