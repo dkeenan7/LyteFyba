@@ -243,48 +243,48 @@ _END_PRIOR_IF	MACRO
 						LSTOUT-
 		_CS_SWAP
 		_ENDIF
-		ENDM
+						ENDM
 
 
-; Short-circuit conditionals (without overlapping structures) Untested!!!
+; Short-circuit conditionals (without overlapping structures)
 
 ; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
 ; is written as
-;		...
-;		_IF_AND	  _CC1
+;		_COND
 ;			...
-;		_AND	  _CC2
+;		_AND_IF		_CC1
 ;			...
-;		_AND_THEN _CC3
+;		_AND_IF		_CC2
 ;			...
-;		_ELSE_AND
+;		_AND_IF		_CC3
 ;			...
-;		_ENDIF_AND
+;		_ELSES
+;			...
+;		_ENDIF			; Use _ENDIFS if there is no ELSES clause
 
 ; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
 ; is written as
-;		...
-;		_IF_OR	 _CC1
+;		_COND
 ;			...
-;		_OR		 _CC2
+;		_OR_ELSE	_CC1
 ;			...
-;		_OR_THEN _CC3
+;		_OR_ELSE	_CC2
 ;			...
-;		_ELSE_OR
+;		_OR_IFS 	_CC3
 ;			...
-;		_ENDIF_OR
+;		_ELSE
+;			...
+;		_ENDIF
 
 
-_IF_AND   MACRO cond
+_COND	MACRO			; Begin a short-circuit conditional of either type
 						LSTOUT-
-		_IF cond
-						LSTOUT-
-		_CS_PUSH 1		; Push an _IF-count of one onto the control flow stack
+		_CS_PUSH 0		; Push an _IF-count of zero onto the control flow stack
 						LSTOUT+
 						ENDM
 
 
-_AND	MACRO cond
+_AND_IF	MACRO cond		; Short circuit AND condition
 						LSTOUT-
 _count  SET _CS_TOP+1   ; Copy and increment the _IF-count
 		_CS_DROP		; and take it off the stack for now
@@ -296,60 +296,35 @@ _count  SET _CS_TOP+1   ; Copy and increment the _IF-count
 						ENDM
 
 
-_AND_THEN	MACRO cond
+_ELSES	MACRO			; Used in place of ELSE for short circuit AND
 						LSTOUT-
-_count  SET _CS_TOP		; Copy the _IF-count
-		_CS_DROP		; and take it off the stack for now
-
-		_IF cond
-						LSTOUT-
-		_CS_PUSH _count ; Put the _IF-count back on the stack
-						LSTOUT+
-						ENDM
-
-
-_ELSE_AND MACRO
-						LSTOUT-
-_count  SET _CS_TOP		; Copy the _IF-count
-		_CS_DROP		; and take it off the stack for now
+_count  SET _CS_TOP-1	; Copy and decrement the _IF-count
+		_CS_DROP		; and take it off the stack permanently
 
 		_ELSE
 						LSTOUT-
-		REPT _count		; Repeat _IF-count times
+		REPT _count		; Repeat _IF-count - 1 times
 			_END_PRIOR_IF	; Resolve a forward jump
 						LSTOUT-
 		ENDR
-
-		_CS_PUSH 0		; Put a zero _IF-count back on the stack, for ENDIF_AND
 						LSTOUT+
 						ENDM
 
 
-_ENDIF_AND MACRO
+_ENDIFS	MACRO			; Used in place of ENDIF for short-circuit AND, but only
+						; when there is no ELSES clause
 						LSTOUT-
 _count  SET _CS_TOP		; Copy the _IF-count
 		_CS_DROP		; and take it off the stack permanently
-
-		_ENDIF
-						LSTOUT-
 		REPT _count		; Repeat _IF-count times
-			_END_IF		; Resolve a forward jump
+			_ENDIF		; Resolve a forward jump
 						LSTOUT-
 		ENDR
 						LSTOUT+
 						ENDM
 
 
-_IF_OR   MACRO cond
-						LSTOUT-
-		_IF InverseCond(cond)
-						LSTOUT-
-		_CS_PUSH 1	  ; Push an _IF-count of one onto the control flow stack
-						LSTOUT+
-						ENDM
-
-
-_OR		MACRO cond
+_OR_ELSE MACRO cond		; Short circuit OR condition, except last
 						LSTOUT-
 _count  SET _CS_TOP+1   ; Copy and increment the _IF-count
 		_CS_DROP		; and take it off the stack for now
@@ -361,7 +336,7 @@ _count  SET _CS_TOP+1   ; Copy and increment the _IF-count
 						ENDM
 
 
-_OR_THEN MACRO cond
+_OR_IFS	MACRO cond		; Last short-circuit OR condition
 						LSTOUT-
 _count  SET _CS_TOP		; Copy the _IF-count
 		_CS_DROP		; and take it off the stack for good
@@ -372,18 +347,6 @@ _count  SET _CS_TOP		; Copy the _IF-count
 						LSTOUT-
 		ENDR
 						LSTOUT+
-						ENDM
-
-
-_ELSE_OR MACRO
-						LSTOUT-
-		_ELSE
-						ENDM
-
-
-_ENDIF_OR MACRO
-						LSTOUT-
-		_ENDIF
 						ENDM
 
 
@@ -453,10 +416,10 @@ _count  SET _CS_TOP		; Take the _OF-count off the stack for now
 
 _ENDCASE MACRO
 						LSTOUT-
-_count  SET _CS_TOP		; Take the _OF-count off the stack for good
-		_CS_DROP
+_count  SET _CS_TOP		; Copy the _OF-count
+		_CS_DROP		; And take it  off the stack permanently
 		REPT _count		; Repeat _OF-count times
-			_ENDIF	  	; Resolve an unconditional forward jump
+			_ENDIF	  	; Resolve a forward jump
 						LSTOUT-
 		ENDR
 						LSTOUT+

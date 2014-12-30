@@ -86,14 +86,14 @@ mainLoop2:
 				mov.b	#PORIFG,&IFG1	; Fake a Vcc power-up reset for the code below
 			_ENDIF
 #endif
-			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
-			clr.b	&IFG1			; Clear those bits ready for next time
-			_IF		_GE				; If Vcc power-up or /RST pin pulsed low
+			_COND					; Begin a short-circuit conditional
+				cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
+				clr.b	&IFG1			; Clear those bits ready for next time
+			_OR_ELSE	_L			; If Vcc power-up or /RST pin pulsed low Or Else
 				cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
-				_IF		_NE				; If no main program
-			_END_PRIOR_IF			; Endif Vcc power-up or /RST pin pulsed low
+			_OR_IFS		_NE			; Or If no main program
 				mov.b	#WDTIFG,&IFG1	; Set watchdog int flag to indicate not to call jInterpretByte
-				_ENDIF					; Endif no main program
+			_ENDIF					; End short circuit conditional
 
 			; Pass initialisation on to main program, if allowed
 			clr.b	R8				; A null to pass to interpretByte (if allowed)
@@ -184,14 +184,14 @@ testNoInterp2:
 				_ENDIF
 
 				; Echo the character if required
-				cmp.b		#$11,R8
-				_IF		_NE						; If it's an XON (ctrl-Q) character OR
+				_COND							; Begin short circuit conditional
+					cmp.b		#$11,R8
+				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
 					bit.b	#bDontEcho,&intFlags
-					_IF		_Z						; If the dont-echo flag is clear
-				_END_PRIOR_IF ; _NE
-						call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation						ActLedOff						; Turn off the activity LED set in writeByte
-						ActLedOff						; Turn off the activity LED set in writeByte
-					_ENDIF
+				_OR_IFS		_Z					; Or If the dont-echo flag is clear
+					call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation						ActLedOff						; Turn off the activity LED set in writeByte
+					ActLedOff						; Turn off the activity LED set in writeByte
+				_ENDIF
 
 				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles

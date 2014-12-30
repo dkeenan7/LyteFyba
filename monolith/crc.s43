@@ -82,25 +82,27 @@ TxCrc:
 ; Send the two CRC bytes, MSB first
 ; Trashes R8-R9
 			mov.b	&txCrc+1,R8		; Get MSB of CRC
-			cmp.b	#'(',R8			; If CRC byte would be open paren,
-			_IF_OR	_EQ
-				cmp.b	#$0D,R8			; or CR
-			_OR		_EQ
-				cmp.b	#$0A,R8			; or LF,
-			_OR_THEN _EQ
+			_COND					; Begin short circuit OR
+				cmp.b	#'(',R8
+			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+				cmp.b	#$0D,R8
+			_OR_ELSE	_EQ			; or CR
+				cmp.b	#$0A,R8
+			_OR_IFS		_EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
-			_ENDIF_OR
+			_ENDIF
 			call	#TxByte			; Send MSB of CRC first
 
 			mov.b	&txCrc,R8		; Get LSB of CRC
-			cmp.b	#'(',R8			; If CRC byte would be open paren,
-			_IF_OR	_EQ
-				cmp.b	#$0D,R8			; or CR
-			_OR		_EQ
-				cmp.b	#$0A,R8			; or LF,
-			_OR_THEN _EQ
+			_COND					; Begin short circuit OR
+				cmp.b	#'(',R8
+			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+				cmp.b	#$0D,R8
+			_OR_ELSE	_EQ			; or CR
+				cmp.b	#$0A,R8
+			_OR_IFS		_EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
-			_ENDIF_OR
+			_ENDIF
 			call	#TxByte			; Send LSB of CRC
 
 			clr		&txCrc			; Clear the CRC

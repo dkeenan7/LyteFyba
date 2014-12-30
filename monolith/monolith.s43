@@ -419,14 +419,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; End of main loop
 
 
-DoEcho:
-			cmp.b	#$11,R8
-			_IF		_NE						; If it's an XON (ctrl-Q) character OR
+DoEcho:		_COND							; Begin short circuit conditional
+				cmp.b	#$11,R8
+			_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character OR Else
 				bit.b	#bDontEcho,&intFlags
-				_IF		_Z						; If the dont-echo flag is clear
-			_END_PRIOR_IF ; _NE
-					call	#TxByte					; Echo the character
-				_ENDIF
+			_OR_IFS		_Z					; Or If the dont-echo flag is clear
+				call	#TxByte					; Echo the character
+			_ENDIF
 			ret
 ; End of DoEcho
 
@@ -471,8 +470,9 @@ DoMeasurement:
 				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
-			cmp.b	#0,&infoID				; If we're not an IMU
-			_IF		_NE
+			_COND							; Begin short-circuit conditional
+				cmp.b	#0,&infoID
+			_AND_IF		_NE					; If we're not an IMU
 				; Calculate stress due to overvoltage
 				push	R10						; Measurement for overvoltage stress calc
 				push	&ovStep					; For every ovStep (millivolts)
@@ -481,24 +481,24 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 				; Calculate stress due to undervoltage if required
-				bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
-				_IF		_Z
-													; Measurement saved on stack earlier
-					push	#UV_STEP				; For every UV_STEP (millivolts)
-					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-					push	#2						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
-				_ELSE
-			_END_PRIOR_IF
-					pop		R10						; Drop unused voltage measurement off stack
-				_ENDIF
+				bit.b	#bCharging,&monFlags
+			_AND_IF		_Z					; And we're not charging (including not regen braking) then
+												; Measurement saved on stack earlier
+				push	#UV_STEP				; For every UV_STEP (millivolts)
+				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+				push	#2						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
+			_ELSES							; Else
+				pop		R10						; Drop unused voltage measurement off stack
+			_ENDIF
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
 			push	R10						; Save measurement for undertemperature stress calc
 
-			cmp.b	#0,&infoID				; If we're not an IMU
-			_IF		_NE
+			_COND							; Begin short-circuit conditional
+				cmp.b	#0,&infoID
+			_AND_IF		_NE					; If we're not an IMU
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
@@ -507,17 +507,16 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
 				; Calculate stress due to undertemperature if required
-				bit.b	#bCharging,&monFlags	; If charging (including regen braking)
-				_IF		_NZ
-													; Measurement saved on stack earlier
-					push	#UT_STEP				; For every UT_STEP (degrees Celsius)
-					push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
-					push	#4						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-				_ELSE	; Not charging; temp measurement still on stack
-			_END_PRIOR_IF
-					pop		R10						; Drop unused temp measurement off stack
-				_ENDIF
+				bit.b	#bCharging,&monFlags
+			_AND_IF		_NZ					; And if charging (including regen braking)
+												; Measurement saved on stack earlier
+				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
+				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
+				push	#4						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
+			_ELSES							; Else
+				pop		R10						; Drop unused temp measurement off stack
+			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
@@ -750,13 +749,14 @@ SendStatus:
 						_ENDIF
 						call	#PiController			; Call PI controller with R8 as input and output
 						dec.b	&chargerTxTimer			; Decrement charger transmit timer
-						_IF_OR		_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
+						_COND							; Begin short circuit conditional
+						_OR_ELSE	_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
 							cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
 							mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
-						_OR_THEN	_NE					; Or voltage setpoint has changed,
+						_OR_IFS		_NE					; Or voltage setpoint has changed,
 							call	#SendChargerPackets		; Send packets to charger to set voltage
 							mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
-						_ENDIF_OR
+						_ENDIF
 ;					_ENDIF ; ALL_NBYP
 				_ENDIF ; bCharging
 			_ENDIF ; bControlCharger
