@@ -311,7 +311,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		ret
 #endif
 
-; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3322 2'VP
+; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3323 3'VP
 		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
  		_CASE
 			_OF #'V',Rtos				; Set overvoltage zero and step
@@ -322,41 +322,4 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 				mov		Rthd,&ovZero
 			_ENDOF
 		_ENDCASE
-		ret
-
-; Temporary testing
-floatCmd	DB		8,'PBFT54.0'	; Command to send. First byte is length
-		xCODE	'U',testCRC,_testCRC
-		mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
-		mov.b	#$0D,R8			; Send CR
-		call	#TxByte
-		mov.b	#0,R11			; Initialise loop counter
-		clr		&txCrc			; Initialise CRC
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
-		_BEGIN
-		mov.b	floatCmd+1(R11),R8
-		call	#UpdateCrc		; Update CRC
-		call	#TxByte		; and transmit the byte
-		inc.b	R11
-		cmp.b	&floatCmd,R11
-		_UNTIL	_EQ
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
-		call	#TxCrc			; Send CRC
-		mov.b	#$0D,R8			; Send CR
-		call	#TxByte
-		call	#WaitTxComplete
-		mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600
-		ret
-
-		xCODE	'V',baud2400,_baud2400
-		tst		Rtos
-		_IF		_Z
-			mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600
-		_ELSE
-			mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
-		_ENDIF
 		ret

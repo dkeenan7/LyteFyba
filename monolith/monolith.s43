@@ -539,6 +539,7 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
+				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp
 				// Sign extend R10 to 32 bits in R10:R9
 				mov		R10,R9						; Make a copy
 				rla		R10							; Shift sign bit to carry
