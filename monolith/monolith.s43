@@ -285,7 +285,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 #else
 			mov.b	#ACTLED,&P1OUT				; All outputs low, except (inverted) ActLED, on port 1
-			cmp.b	#0,&infoID					; If we're not an IMU
+			cmp.b	#0,&ID						; If we're not an IMU
 			_IF		_NE
 				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
@@ -352,7 +352,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#0,&infoID					; If we're not an IMU (Insulation Monitoring Unit)
+			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
 			_IF		_NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
@@ -373,7 +373,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			;	Already cleared by loop above
 ;			clr.b	&RXCksum				; Clear received packet xor checksum
-			cmp.b	#0,&infoID					; If we're not an IMU
+			cmp.b	#0,&ID						; If we're not an IMU
 			_IF		_NE
 				mov.b	#bChecksumming,&intFlags ; Default checksumming on
 			_ELSE
@@ -452,7 +452,7 @@ DoMeasurement:
 			push	R10						; Save measurement for undervoltage stress calc
 
 			; Set bypass as required
-			cmp.b	#0,&infoID				; If we're not an IMU
+			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
 				rla3		R9
@@ -471,7 +471,7 @@ DoMeasurement:
 			_ENDIF
 
 			_COND							; Begin short-circuit conditional
-				cmp.b	#0,&infoID
+				cmp.b	#0,&ID
 			_AND_IF		_NE					; If we're not an IMU
 				; Calculate stress due to overvoltage
 				push	R10						; Measurement for overvoltage stress calc
@@ -497,7 +497,7 @@ DoMeasurement:
 			push	R10						; Save measurement for undertemperature stress calc
 
 			_COND							; Begin short-circuit conditional
-				cmp.b	#0,&infoID
+				cmp.b	#0,&ID
 			_AND_IF		_NE					; If we're not an IMU
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
@@ -520,7 +520,7 @@ DoMeasurement:
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
-			cmp.b	#0,&infoID				; If we're not an IMU
+			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
@@ -550,7 +550,7 @@ DoMeasurement:
 				subc	R10,&discharge+2			; for fuel gauge
 			_ENDIF
 
-			cmp.b	#0,&infoID				; If we're an IMU
+			cmp.b	#0,&ID					; If we're an IMU
 			_IF		_EQ
 				ret							; then do nothing more here
 			_ENDIF
@@ -589,7 +589,7 @@ DoMeasurement:
 					; If our ID is not 0 (IMU) or 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
 					; every 256 status bytes (approx every 17 seconds).
-					cmp.b	#2,&infoID
+					cmp.b	#2,&ID
 					_IF		_HS
 						bis.b	#COM_ERR,&localStatus
 						inc.b	&tempMasterIDctr

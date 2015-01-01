@@ -223,7 +223,7 @@ initialise:
 			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 #else
 			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
-			cmp.b	#0,&infoID				; If we're not an IMU
+			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
 				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
@@ -249,7 +249,7 @@ initialise:
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#0,&infoID					; If we're not an IMU (Insulation Monitoring Unit)
+			cmp.b	#0,&ID					; If we're not an IMU (Insulation Monitoring Unit)
 			_IF		_NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
