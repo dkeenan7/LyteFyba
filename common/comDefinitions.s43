@@ -244,7 +244,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; times R17 (120R), scaled to 4096 counts for 1500 mV (ADC reference).
 ;
 		xCODE		'T',touchValue,_touchValue
-		cmp.b	#0,&infoID				; If we're an IMU
+		cmp.b	#0,&ID					; If we're an IMU
 		_IF		_EQ
 			call		#touchV				; Return touch value (0 to 4095) in R10
 			mov			#'T',Rthd			; Type is touch value
@@ -266,7 +266,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 #define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
 #define Rmeas R14				// Max of touch measurements when any one relay is on.
 #define Rtest R15				// Touch self-test value when both relays are on.
-		cmp.b	#0,&infoID				; If we're an IMU
+		cmp.b	#0,&ID				; If we're an IMU
 		_IF		_EQ
 			call	#cellV				; Return battery_voltage/109 in millivolts in R10
 			mov		R10,Rcellv
@@ -384,16 +384,19 @@ delay130ms:
  	      	mov		#WDTPW+WDTCNTCL,&WDTCTL	; (5) Clear and restart Watchdog Timer
 		_LOOP	R11						; (3) dec R11, jnz
 		ret
+#endif // INSULATION_MONITORING
 
 ;
 ; RelayPlus ( bool -- ) Turn on or off relay+ on IMU
 ;
 		xCODE	'Y',relayP,_relayP
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
+		tst.b	&ID
+		_IF		_Z					; If we're an IMU (would operate the error LED on a CMU)
+			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
+		_ENDIF
 ;		pop		Rtos				; Remove operand
 		ret
-#endif // INSULATION_MONITORING
 
 
 #if PROG_START < $F800	// Commented out if need to save space
@@ -417,6 +420,9 @@ _prettyPrint3:
 ; and precede with ID and ch.
 ; (no command letter)
 _prettyPrint:
+#if WATCHDOG
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+#endif
 		push.b	&intFlags			; Save current number base
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
