@@ -146,7 +146,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			tst		Rsec
 			_IF		_L					; If n is negative
 				mov.b	#'-',R8				; Emit minus sign
-				call	#TX_ByteCk
+				call	#TxByteCk
 				inv		Rsec				; Negate
 				inc		Rsec
 			_ENDIF						; Endif negative
@@ -154,7 +154,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		_ELSE						; Else hexadecimal
 			dec		Rtos				; Use one less digit
 			mov.b	#'$',R8				; Emit dollar sign
-			call	#TX_ByteCk
+			call	#TxByteCk
 			mov.b	#16,R8			; Divisor in R8 is number base
 		_ENDIF						; End hexadecimal
 		dec		Rtos				; Count := Count-1
@@ -177,7 +177,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
 			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as status
-			call	#TX_ByteCk
+			call	#TxByteCk
 			dec		Rtos
 		_WHILE	_NN
 			pop		R8

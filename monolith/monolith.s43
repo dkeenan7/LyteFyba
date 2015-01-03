@@ -308,7 +308,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			; We want to set the CCIFG so that TX_Byte won't think there's an uncompleted stop bit
+			; We want to set the CCIFG so that TxByte won't think there's an uncompleted stop bit
 			; and wait for it to complete.
 			mov		&TAR,&TACCRt				; Make an output event
 			add		#4,&TACCRt					;	happen in a dozen or so instructions
@@ -1023,8 +1023,8 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 				ORG		$FDF2
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
-jRX_TIOV_ISR	br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-jTX_ISR			br		#TxIsr			; Timer A CC0IFG (transmit compare)
+jRxTiovIsr		br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+jTxIsr			br		#TxIsr			; Timer A CC0IFG (transmit compare)
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)

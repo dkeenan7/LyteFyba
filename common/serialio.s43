@@ -68,6 +68,9 @@ TxByteCk:
 			xor.b	R8,&txCksum
 TxByte:	; Alternative entry which does not accumulate checksum
 			_BEGIN
+
+				ClearWatchdog
+
 				call	#TxByteNoWait
 			_UNTIL	_NZ
 			ret
@@ -78,7 +81,7 @@ TxByte:	; Alternative entry which does not accumulate checksum
 ; Preserves R8, trashes R9.
 ;
 TxByteNoWait:
-			mov.b	&txWr,R9				; Get the write index (not changed by TX_ISR)
+			mov.b	&txWr,R9				; Get the write index (not changed by TxIsr)
 			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
 											;	there's always at least one free space,
 											;	but don't increment the write index yet.
@@ -98,10 +101,12 @@ TxByteNoWait:
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
-					; We want the max number of clock cycles till TACCRt and TACCTLt are correctly set up.
+					; Calculate max number of timer clocks till TACCRt & TACCTLt will be correctly set up.
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
-					; The +1 is in case the TAR increments just after we read it.
-					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
+					; Half of the +2 is in case the TAR increments just after we read it.
+					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
+					; and hence MckPerTAck = 32.
+					mov		#((23+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
 					add		&TAR,R9				; R9 := timer value + setup time
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
@@ -122,7 +127,7 @@ TxByteNoWait:
 
 #if 0
 TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
-			mov.b	&txWr,R9				; Get the write index (not changed by TX_ISR)
+			mov.b	&txWr,R9				; Get the write index (not changed by TxIsr)
 			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
 											;	there's always at least one free space,
 											;	but don't increment the write index yet.
@@ -189,8 +194,8 @@ TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte ins
 
 ;
 ; Wait for the transmit queue to empty and last byte to be sent.
-; Called by the BSL-password checker in OnRxByte before disabling interrupts and branching to BSLErase.
-; Called by SetID.
+; Called by DoPassword in monitor and monolith before disabling interrupts and branching to BSLErase.
+; Called before changing baud rate in monolith.
 ;
 WaitTxComplete:
 			_BEGIN						; Begin loop
@@ -214,7 +219,7 @@ TxIsr:	; Transmit (timer capture/compare 0) interrupt service routine
 ; But perhaps we should instead setup for a transition to idle state (same as stop bit)
 ; if there are no more characters.
 ; Then we would have an 11th interrupt where stop bit is complete and we disable Tx interrupts.
-; But TX_ByteNW would still have to deal specially with the case where the queue becomes non-empty
+; But TxByteNoWait would still have to deal specially with the case where the queue becomes non-empty
 ; before the stop bit has finished. The question is whether it would be less messy than it is now,
 ; use less code, or not need to disable interrupts for so long. -- DK
 
@@ -323,12 +328,15 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 ;--------------------------------------------------
 #if 0
 ;
-; Get a non-status character from the receive queue into R8.
+; Get a character from the receive queue into R8.
 ; If necessary, wait until the queue is not empty. Trashes R9
 ; NOT USED, and probably never will be
 ;
 RxByte:
 			_BEGIN
+
+				ClearWatchdog
+
 				call	#RxByteNoWait
 			_UNTIL	_NZ
 			ret

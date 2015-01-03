@@ -355,7 +355,7 @@ TxByte:		call	#WriteByte
 #define TempCal	ramTempCal
 #define LinkCal	ramLinkCal
 
-#include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TX_Cksum
+#include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TxCksum
 #include "../common/measure.s43"			// ADC Measurement
 #include "../common/math.s43"				// Multiply and divide
 #include "../common/CmdCharInterpreter.s43"
@@ -445,9 +445,9 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 				ORG		$FDF2
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
-jRX_TIOV_ISR	nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+jRxTiovIsr		nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				reti					; Not used by TestICal
-jTX_ISR			nop						; Timer A CC0IFG (transmit compare)
+jTxIsr			nop						; Timer A CC0IFG (transmit compare)
 				reti					; Not used by TestICal
 
 				ORG		$FDFE
