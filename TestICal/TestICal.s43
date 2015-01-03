@@ -188,13 +188,14 @@ initCmdString
 ; It will do this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
 ; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
 InterpretByte:
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+			ClearWatchdog					; Clear and restart Watchdog Timer
+
 			cmp		#initRetAddr2,0(SP)		; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
 			call	#ACCEPT					; Process the byte
-#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
-#endif
+
+			ClearWatchdog
+
 			ret								; Return to the BSL
 
 
@@ -341,9 +342,9 @@ DELAY_IF_NEEDED MACRO
 WaitTxComplete:	ret						; Empty routine: transmit is always complete
 TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
 TxByte:		call	#WriteByte
-#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
-#endif
+
+			ClearWatchdog
+
 			DELAY_IF_NEEDED
 			ret
 
@@ -397,7 +398,7 @@ compareBSL2:
 ; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
 ; This error processing code should be near the middle of the image to allow jmps to it instead of brs.
 ErrorFlash:
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer (ReadByte may have reset it)
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Hold the Watchdog Timer (ReadByte may have reset it)
 			; We could end up here after the DCO calibration has been set to $FFFF,
 			;	so the processor could be running very fast.
 			mov.b	#$8D,&BCSCTL1				; Typical 8 MHz DCO calibration value

@@ -156,3 +156,8 @@ rla6		MACRO  dest
 			rla	dest
 			ENDM
 
+ClearWatchdog MACRO
+#if WATCHDOG
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart the watchdog timer
+#endif
+			ENDM

@@ -45,9 +45,8 @@ measure:
 			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
 			_DO			#NumSamples,R9			; Sample counter
 				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
-#if WATCHDOG
-       			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer each time around loop
-#endif
+
+				ClearWatchdog
 
 				_BEGIN								; Busy wait for conversion to complete
 	;				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?

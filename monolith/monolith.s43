@@ -392,7 +392,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				call	#RxRawByteNoWait		; Check if received data
+				call	#RxByteNoWait			; Check if received data
+				_IF		_NZ
+					call	#Reject2400Baud			; Eliminates $00, $80, $F8 and $78 (lowercase 'x')
+				_ENDIF
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
@@ -412,11 +415,33 @@ main:										; For IAR Embedded Workbench IDE debugger
 						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
-#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer each time around main loop
-#endif
+
+			ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
+
 			_AGAIN
 ; End of main loop
+
+
+Reject2400Baud:
+; When receiving 2400 baud characters sent by an IMU (intended for the PIP inverter)
+; the only possible characters received at 9600 baud are $00, $78, $80, $F8.
+; $00 is a no-op, $80 and $F8 are status bytes with a bad check bit.
+; $78 is a lowercase 'x', which forces us to use a different character 'W' for the exclusive command.
+			_COND
+				cmp.b	#$00,R8
+			_OR_ELSE	_EQ
+				cmp.b	#'x',R8
+			_OR_ELSE	_EQ
+				cmp.b	#$80,R8
+			_OR_ELSE	_EQ
+				cmp.b	#$F8,R8
+			_OR_IFS		_EQ
+				setz
+			_ELSE
+				clrz
+			_ENDIF
+			ret
+; End of Reject2400Baud
 
 
 DoEcho:		_COND							; Begin short circuit conditional
@@ -777,7 +802,8 @@ SendPipPacket:
 			push		R8					; Save the voltage (in tenths of a volt) on the stack
 
 			call		#TxStringCrc		; Send string pointed to by R10. Trashes R8 thru R11
-			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+
+			ClearWatchdog
 
 			mov			#0,R10
 			pop			R9					; Pop voltage to R9
@@ -797,17 +823,19 @@ SendPipPacket:
 
 			mov.b		#'.',R8
 			call		#TxByteCrc			; Send the decimal point (trashes R8 thru R10)
-			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+
+			ClearWatchdog
 
 			mov.b		R10,R8
 			add.b		#'0',R8
 			call		#TxByteCrc			; Send the tenths digit of voltage (trashes R8 thru R10)
 
-			call		#TxCrc				; Send the two bytes of CRC
+			call		#TxCrc				; Send the two bytes of CRC and clear it
 			mov.b		#$0D,R8
 			call		#TxByte				; Send the carriage return without accumulating CRC
 
-			mov.w		#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+			ClearWatchdog
+
 			ret
 
 

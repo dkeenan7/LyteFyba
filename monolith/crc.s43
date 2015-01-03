@@ -79,7 +79,7 @@ CrcTable	DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
 
 
 TxCrc:
-; Send the two CRC bytes, MSB first
+; Send the two CRC bytes, MSB first, and clear the CRC
 ; Trashes R8-R9
 			mov.b	&txCrc+1,R8		; Get MSB of CRC
 			_COND					; Begin short circuit OR

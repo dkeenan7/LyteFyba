@@ -377,7 +377,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				call	#RxRawByteNoWait		; Check if received data
+				call	#RxByteNoWait			; Check if received data
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
@@ -397,9 +397,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
-#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer each time around main loop
-#endif
+
+			ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
+
 			_AGAIN
 ; End of main loop
 

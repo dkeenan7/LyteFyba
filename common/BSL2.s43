@@ -54,7 +54,7 @@ BSL2:		; Initialisation
 									; Address adjusted for BSL's relocation
 			; End of the initialisation that used to be in BSL1 in info-flash.
 
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer (32k)
+			ClearWatchdog			; Clear and restart Watchdog Timer (32k)
 #if 0
 			; Check to see if this is an init call (from BSL1)
 			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?

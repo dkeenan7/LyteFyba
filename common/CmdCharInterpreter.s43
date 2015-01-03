@@ -123,10 +123,8 @@ CMDCHRNAM EQU	CMDCHR						; Define the command-character name
 ; Interpreter for 7 bit command characters
 _ENTER
 _NEXT
-#if WATCHDOG
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer before each
-										; command character is interpreted
-#endif
+		ClearWatchdog		; Clear and restart Watchdog Timer before each
+							; command character is interpreted
 		mov.b	@Rip+,Rw	; Fetch the next character
 
 		cmp.b	#_LO_CMDCHR,Rw ; Treat all undefinable characters, including space,

@@ -49,6 +49,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; eXclusive ( id -- )	; Sticky version of select. Type <ESC> to exit.
 ;
 		xCODE	'x',eXclusive,_eXclusive
+		xCODE	'W',excleWsive,_excleWsive	; Synonym for when 'x' is rejected as 2400 baud in monolith
 		bis.b	#bDontInterpret,&intFlags
 		; Fall through to _Select
 ;
@@ -381,7 +382,9 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 delay130ms:
 		_DO		#0,R11					; 65536 * 8 / 4 MHz = 131 ms delay
- 	      	mov		#WDTPW+WDTCNTCL,&WDTCTL	; (5) Clear and restart Watchdog Timer
+
+			ClearWatchdog
+
 		_LOOP	R11						; (3) dec R11, jnz
 		ret
 #endif // INSULATION_MONITORING
@@ -420,9 +423,7 @@ _prettyPrint3:
 ; and precede with ID and ch.
 ; (no command letter)
 _prettyPrint:
-#if WATCHDOG
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-#endif
+		ClearWatchdog
 		push.b	&intFlags			; Save current number base
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
@@ -492,9 +493,8 @@ _prettyPrint:
 			mov.b	#'R',Rthd				; Type is reset-log query
 			mov		&resetCounter,Rsec		; Result
 			call	#_prettyPrint3			; Pretty-print of 3 digits
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
+
+			ClearWatchdog
 
 			; Now prettyPrint the reasons for the resets, in hex
 			pop		R8						; Restore maxResetsToShow
@@ -515,24 +515,24 @@ _prettyPrint:
 			add		#resetBuffer,R9
 
 			_BEGIN
-			tst		R8
+				tst		R8
 			_WHILE	_NZ
-			push	R8
-			mov.b	#'R',Rthd				; Type is reset-log query
-			dec		R9
-			cmp		#resetBuffer,R9
-			_IF		_LO
-				mov		#resetBuffer+15,R9
-			_ENDIF
-			mov.b	@R9,Rsec				; Result
-			push	R9
-			call	#_prettyPrint3			; Call pretty-print for 3 digits
-			pop		R9
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
-			pop		R8
-			dec		R8
+				push	R8
+				mov.b	#'R',Rthd				; Type is reset-log query
+				dec		R9
+				cmp		#resetBuffer,R9
+				_IF		_LO
+					mov		#resetBuffer+15,R9
+				_ENDIF
+				mov.b	@R9,Rsec				; Result
+				push	R9
+				call	#_prettyPrint3			; Call pretty-print for 3 digits
+				pop		R9
+
+				ClearWatchdog
+
+				pop		R8
+				dec		R8
 			_REPEAT
 
 			pop.b	&intFlags				; Restore number base
@@ -543,9 +543,9 @@ _prettyPrint:
 			clr		&resetCounter
 			mov		#resetBuffer,R8
 			_BEGIN
-			clr.b	0(R8)
-			inc		R8
-			cmp		#resetBuffer+16,R8
+				clr.b	0(R8)
+				inc		R8
+				cmp		#resetBuffer+16,R8
 			_UNTIL	_EQ
 			ret
 
@@ -635,7 +635,9 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
 			mov		#607,R8				; Mult to give tenths of a percent when div by 1/20ths of an Ah
 			call	#UMStar				; R10:R9 = R8 * R9
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+
+			ClearWatchdog
+
 			mov		#108*10,R8			; Battery capacity in tenths of an amp-hour
 										; The above constant may be stored in info-flash in future
 			rla		R8					; This works in conjuction with the 607 above, to scale correctly
