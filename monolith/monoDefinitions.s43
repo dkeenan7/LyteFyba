@@ -105,9 +105,9 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#_emitNum
 			mov		#' ',R8					; Space separator
 			call	#TxByteCk
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
+
+			ClearWatchdog
+
 			; Now send the index of the following measurement that caused the worst stress
 			mov.b	&worstStressType,Rsec	; Send index of following measurement that caused worst stress
 			mov		#1,Rtos					; as 1 digit
@@ -121,9 +121,9 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
+
+			ClearWatchdog
+
 			; Now send the worst under-voltage
 			mov		&worstUV,Rsec			; Send worst under-voltage
 			mov		#4,Rtos					; as 4 digits
@@ -137,9 +137,9 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#_emitNum
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
-	#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
+
+			ClearWatchdog
+
 			; Now send the worst under-temperature
 			mov		&worstUT,Rsec			; Send worst under-temperature
 			mov		#2,Rtos					; as 2 digits

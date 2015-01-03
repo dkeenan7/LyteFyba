@@ -194,9 +194,9 @@ TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte ins
 ;
 WaitTxComplete:
 			_BEGIN						; Begin loop
-	#if WATCHDOG
-				mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
-	#endif
+
+				ClearWatchdog
+
 				bit		#CCIE,&TACCTLt		; Test the transmit interrupts enabled bit
 			_UNTIL	_Z					; Until it is cleared
 			ret
@@ -324,31 +324,13 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 #if 0
 ;
 ; Get a non-status character from the receive queue into R8.
-; If necessary, wait until the queue is not empty.
-; Process any Status bytes before returning. Trashes R9.
+; If necessary, wait until the queue is not empty. Trashes R9
 ; NOT USED, and probably never will be
 ;
 RxByte:
 			_BEGIN
 				call	#RxByteNoWait
 			_UNTIL	_NZ
-			ret
-;
-; Attempt to get a non-Status character from the receive queue into R8.
-; If the queue is empty, return immediately with the Z status bit set.
-; Process any Status bytes before returning. Trashes R9
-; Currently NOT USED, except by RX_Byte above, which is currently unused
-;
-RxByteNoWait:
-			_BEGIN
-				call	#RxRawByteNoWait ; This is the test for the pretested loop
-				_WHILE	_NZ				; Exit when not _NZ
-					tst.b	R8
-					_WHILE	_L			; Additional exit when not _L
-						call	#DoStatus
-			_AGAIN						; For branch back to begin
-					_ENDIF
-				_ENDIF
 			ret
 #endif
 
@@ -357,7 +339,7 @@ RxByteNoWait:
 ; If the queue is empty, return immediately with the Z status bit set.
 ; Trashes R9
 ;
-RxRawByteNoWait:
+RxByteNoWait:
 			mov.b 	&rxRd,R9			; Get the read index into R9
 			cmp.b 	&rxWr,R9			; Equal if queue empty
 			_IF		_NE

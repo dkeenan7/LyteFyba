@@ -294,7 +294,7 @@ failCompare mov		#b'01010000,rERR		; 2 flashes
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 
 			; Erase last segment of main flash (usually contains BSL2).
 			mov		#BSL2,R12				; Start of last seg of main-flash, $FE00
@@ -316,7 +316,8 @@ failCompare mov		#b'01010000,rERR		; 2 flashes
 			call	#compareBSL2			; Compare the payload copy with what's at $FE00
 			jnz		failCompareB
 
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart Watchdog Timer
+			ClearWatchdog					; Clear and restart Watchdog Timer
+
 			ret
 
 failCompareB mov	#b'01010100,rERR		; 3 flashes
@@ -443,7 +444,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 ; output frequency by about 0.5 kHz in the same direction.
 
 doBurst
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 			clr		R10
 			bic.b	#TXDp,&P1DIR			; Set TXD+ open circuit
 burstLp		xor.b	#TXDm,&P1OUT 			; (4) Toggle the TXD- bit
@@ -455,7 +456,9 @@ burstLp		xor.b	#TXDm,&P1OUT 			; (4) Toggle the TXD- bit
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
 			bis.b	#TXDp,&P1DIR			; Set TXD+ back to being an output
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart Watchdog Timer
+
+			ClearWatchdog					; Clear and restart Watchdog Timer
+
 			ret
 jBurstLp	br		#burstLp				;	(alt2 3)
 
@@ -472,9 +475,9 @@ bitDelay	dec		R11
 
 			mov.b	#$00,R8					; Null to be sent
 			call	#WriteByte				; Send the null
-#if WATCHDOG
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and restart watchdog timer
-#endif
+
+			ClearWatchdog
+
 			dec.b 	Rtos					; Do it n times, max 256 when n is zero
 			jnz		_sendNulls
 			ret
