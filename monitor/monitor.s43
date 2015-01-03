@@ -304,7 +304,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			; We want to set the CCIFG so that TX_Byte won't think there's an uncompleted stop bit
+			; We want to set the CCIFG so that TxByte won't think there's an uncompleted stop bit
 			; and wait for it to complete.
 			mov		&TAR,&TACCRt				; Make an output event
 			add		#4,&TACCRt					;	happen in a dozen or so instructions
@@ -700,7 +700,7 @@ SendStatus:
 ;
 			bit.b	#bChargerControl,&monFlags	; Set by 'o' command
 			_IF		_Z							; If we're not in charge control mode
-				call	#TX_Byte					; Send the status byte. Wait until buffer not full
+				call	#TxByte					; Send the status byte. Wait until buffer not full
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
 				_IF		_NZ							; If we've been told to start charging
@@ -748,25 +748,25 @@ SendChargerPacket:
 ;	X is 0 to turn charger on
 			push		R8
 			mov			#Preamble,R10
-			call		#TX_StringCk		; Trashes R8 thru R11
+			call		#TxStringCk			; Trashes R8 thru R11
 			mov.b		&chargerVoltLim+1,R8 ; High byte of voltage
-			call		#TX_Byte
+			call		#TxByte
 			mov.b		&chargerVoltLim,R8	; Low byte of voltage
-			call		#TX_Byte
+			call		#TxByte
 			mov			@SP,R8
 			bic			#1<<15,R8			; Clear the high bit
 			swpb		R8					; High byte of current
-			call		#TX_Byte
+			call		#TxByte
 			mov			@SP,R8				; Low byte of current
-			call		#TX_Byte
+			call		#TxByte
 			pop			R8
 			rlc			R8
 			rlc			R8
 			and.b		#1,R8				; Charger-off bit
-			call		#TX_Byte
+			call		#TxByte
 			mov			#Postamble,R10
-			call		#TX_StringCk
-			clr			&TXCksum			; Checksum not used
+			call		#TxStringCk
+			clr			&txCksum			; Checksum not used
 			ret
 Preamble	DB			4, $18, $06, $E5, $F4		; First byte is length of following string
 Postamble	DB			3, $00, $00, $00
@@ -912,8 +912,8 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 				ORG		$FDF2
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
-jRX_TIOV_ISR	br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-jTX_ISR			br		#TxIsr			; Timer A CC0IFG (transmit compare)
+jRxTiovIsr		br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
+jTxIsr			br		#TxIsr			; Timer A CC0IFG (transmit compare)
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
