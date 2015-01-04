@@ -118,7 +118,7 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 ; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
 
 minLEDStress EQU	11			; Minimum stress to light error LED
-minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
+minAlarmStress EQU	12			; Minimum stress to drop out source or load relays (IMU only)
 
 comErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -181,6 +181,7 @@ chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' 
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
 chargerPrevVolt	DS		2			; Charger previous voltage (tenths of a volt). Set by PI controller.
+CurrentDirHyst	EQU		2*5			; Current direction hysteresis in 1/5ths of an amp (IMU only)
 
 ; Serial-io variables
 
@@ -293,7 +294,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ENDIF
 #endif
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if we're IMU)
+			cmp.b	#0,&ID
+			_IF		_EQ							; If we're an IMU
+				mov.b	#$FF,&P2OUT					; Set RLY- and RLY+ on
+			_ELSE								; Else
+				mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
+			_ENDIF
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
 
 			; Set up differential timer outputs for transmit data.
@@ -564,8 +570,32 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
-				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp
-				// Sign extend R10 to 32 bits in R10:R9
+				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
+				// Implement hysteresis when switching from charge mode to discharge mode.
+				bit.b	#bCharging,&monFlags
+				_IF		_NZ							; If charging
+					cmp		#-CurrentDirHyst,R10		; If we're now discharging at more than X amps
+					_IF		_L
+						bic.b	#bCharging,&monFlags		; Clear our local charging flag
+						mov		#NotChargingCmd,R10			; Send '0c' to clear them in all CMUs
+						call	#TxStringCk
+						call	#TxCksum					; Send checksum if required
+						mov.b	#$0D,R8						; Send carriage return
+						call	#TxByte
+					_ENDIF
+				_ELSE								; Else discharging
+					cmp		#CurrentDirHyst,R10
+					_IF		_GE							; If we're now charging at more than X amps
+						bis.b	#bCharging,&monFlags		; Set our local charging flag
+						mov		#ChargingCmd,R10			; Send '1c' to set them in all CMUs
+						call	#TxStringCk
+						call	#TxCksum					; Send checksum if required
+						mov.b	#$0D,R8						; Send carriage return
+						call	#TxByte
+					_ENDIF
+				_ENDIF
+
+				// Sign extend R10 to 32 bits in R10:R9.
 				mov		R10,R9						; Make a copy
 				rla		R10							; Shift sign bit to carry
 				subc	R10,R10						; 0 if R9 is negative, -1 otherwise
@@ -626,11 +656,21 @@ DoMeasurement:
 					; Act as a master -- send our status
 					mov.b	&localStatus,R8
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
-					call	#SendStatus				; Send status or control a charger
+
+					; Send status or control a charger
+					bit.b	#bChargerControl,&monFlags	; Set by 'o' command
+					_IF		_Z							; If we're not in charge control mode
+						call	#TxByte						; Send the status byte. Wait buffer not full
+					_ELSE								; Else we're in charger control mode
+						call	#ControlCharger				; Control a charger
+					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
 			ret
 ; End of DoMeasurement
+
+ChargingCmd		DB		2, '1c'
+NotChargingCmd	DB		2, '0c'
 
 
 DoStress:
@@ -695,15 +735,15 @@ DoStatus:
 ;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
 ;	Bits 3-0: Stress level 0-15
 ;
-		cmp.b	#0,&ID
-		_IF		_NE
-			; Check validity of incoming stress bits
-			mov.b	R8,R9					; Copy incoming status to R9
-			mov.b	R8,R10					; And R10
-			and.b	#STRESS,R9				; Only stress bits in R9
-			and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
-			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
-			_IF		_EQ
+		; Check validity of incoming stress bits
+		mov.b	R8,R9					; Copy incoming status to R9
+		mov.b	R8,R10					; And R10
+		and.b	#STRESS,R9				; Only stress bits in R9
+		and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
+		cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
+		_IF		_EQ
+			cmp.b	#0,&ID
+			_IF		_NE						; If we're a CMU
 				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
 				; This will eliminate any comms error next time through DoMeasures
 
@@ -729,16 +769,42 @@ DoStatus:
 					; Since we received a valid status byte, there is no local
 					;	comms error, so just pass the incoming comms error bit through.
 
-					; Send the possibly-updated status byte. High bit already set.
-					call	#SendStatus				; Send status or control a charger
+					; Send status or control a charger
+					bit.b	#bChargerControl,&monFlags	; Set by 'o' command
+					_IF		_Z							; If we're not in charge control mode
+						call	#TxByte						; Send the status byte. Wait buffer not full
+					_ELSE								; Else we're in charger control mode
+						call	#ControlCharger				; Control a charger
+					_ENDIF
 				_ENDIF							; End if no comms error
-			_ENDIF							; End if incoming valid
-		_ELSE
-			; Process incoming status for IMU
-			call	#SendStatus				; Send status or control a charger
-		_ENDIF
+			_ELSE							; Else we're an IMU
+				; Process incoming status for IMU
+				cmp.b	#15,R9					; If incoming stress is really bad
+				_IF		_GE
+					bic.b	#(RELAYm | RELAYp),P2OUT ; Drop out both source and load relays
+													; and hence also the battery contactor
+				_ELSE
+					cmp.b	#minAlarmStress,R9
+					_IF		_GE
+						bit.b	#bCharging,&monFlags
+						_IF		_NZ
+							bic.b	#RELAYm,&P2OUT
+						_ELSE
+							bic.b	#RELAYp,&P2OUT
+						_ENDIF
+					_ELSE
+						cmp.b	#8,R9
+						_IF		_L						; If stress is less than 8
+							bis.b	#(RELAYm | RELAYp),P2OUT ; Turn on both source and load relays
+						_ENDIF
+					_ENDIF
+				_ENDIF
+				call	#ControlCharger			; Send status or control a charger
+			_ENDIF
+		_ENDIF							; End if incoming valid
 		ret
 ; End of DoStatus
+
 
 #if !MASTERLESS_CHARGING
 
@@ -748,46 +814,41 @@ SendStatus:
 
 #else // MASTERLESS_CHARGING
 
-SendStatus:
+ControlCharger:
 ;
 ; Status byte is in R8. Send it or feed it to a PI controller to control a charger
 ;
-			bit.b	#bChargerControl,&monFlags	; Set by 'o' command
-			_IF		_Z							; If we're not in charge control mode
-				call	#TxByte						; Send the status byte. Wait until buffer not full
-			_ELSE								; Else we're in charger control mode
-				bit.b	#bCharging,&monFlags		; Set by '1c' command
-				_IF		_NZ							; If we've been told to start charging
-;					bit		#ALL_NBYP,R8
-;					_IF		_NZ							; If all cells are near bypass
-;						; Send command packet to charger to turn it off
-;						mov		#0,&chargerPrevVolt			; Set previous charger voltage to zero
-;						mov		#1<<15,R8					; Set charger-off bit
-;						call	#SendChargerPackets			; Send packets. Trashes R8 thru R11
-;						mov		#0,Rtos						; Tell ourselves we've stopped charging
-;						call	#_Charging					; Equiv to '0c' command. Clears bCharging
-;					_ELSE								; Else some are not near bypass, so keep charging
-						bit		#COM_ERR,R8
-						_IF		_NZ
-							mov		#8,R8					; Treat comms error as stress 8
-						_ELSE
-							and		#STRESS,R8				; Otherwise use the stress value (0-15)
-						_ENDIF
-						call	#PiController			; Call PI controller with R8 as input and output
-						dec.b	&chargerTxTimer			; Decrement charger transmit timer
-						_COND							; Begin short circuit conditional
-						_OR_ELSE	_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
-							cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
-							mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
-						_OR_IFS		_NE					; Or voltage setpoint has changed,
-							call	#SendChargerPackets		; Send packets to charger to set voltage
-							mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
-						_ENDIF
-;					_ENDIF ; ALL_NBYP
-				_ENDIF ; bCharging
-			_ENDIF ; bControlCharger
+			bit.b	#bCharging,&monFlags		; Set by '1c' command
+			_IF		_NZ							; If we've been told to start charging
+;				bit		#ALL_NBYP,R8
+;				_IF		_NZ							; If all cells are near bypass
+;					; Send command packet to charger to turn it off
+;					mov		#0,&chargerPrevVolt			; Set previous charger voltage to zero
+;					mov		#1<<15,R8					; Set charger-off bit
+;					call	#SendChargerPackets			; Send packets. Trashes R8 thru R11
+;					mov		#0,Rtos						; Tell ourselves we've stopped charging
+;					call	#_Charging					; Equiv to '0c' command. Clears bCharging
+;				_ELSE								; Else some are not near bypass, so keep charging
+					bit		#COM_ERR,R8
+					_IF		_NZ
+						mov		#8,R8					; Treat comms error as stress 8
+					_ELSE
+						and		#STRESS,R8				; Otherwise use the stress value (0-15)
+					_ENDIF
+					call	#PiController			; Call PI controller with R8 as input and output
+					dec.b	&chargerTxTimer			; Decrement charger transmit timer
+					_COND							; Begin short circuit conditional
+					_OR_ELSE	_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
+						cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
+						mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
+					_OR_IFS		_NE					; Or voltage setpoint has changed,
+						call	#SendChargerPackets		; Send packets to charger to set voltage
+						mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
+					_ENDIF
+;				_ENDIF ; ALL_NBYP
+			_ENDIF ; bCharging
 			ret
-; End of SendStatus
+; End of ControlCharger
 
 
 SendPipPacket:
@@ -959,7 +1020,10 @@ DoPassword:
 #else
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
 #endif
-			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
+			cmp.b	#0,&ID
+			_IF		_NE
+				clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
+			_ENDIF
 			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
