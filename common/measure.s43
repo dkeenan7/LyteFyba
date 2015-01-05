@@ -156,15 +156,18 @@ cellV:
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
 #ifdef Monolith		// If we're assembling Monolith, not TestICal or Monitor
-			cmp.b		#0,ID
+			cmp.b		#0,&ID
 			_IF			_EQ			; If we're an IMU (modified for reading negative HazV to -200 V)
 				; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
 				; but bottom of divider is connected to Vref+ instead of GND,
 				; so there's a 1.5 V offset. Hence fullscale is -203.1 V.
-				; To calibrate using TestICal, apply a voltage -V where V is
-				; between 100 and 190 V. Type 32768'vwv<cr> to obtain a reading R.
-				; Calculate k = 32768 * V * 20 / (4062 - R).
-				; Use the value of k in a 'vwu command.
+				; To calibrate such an IMU using TestICal, apply a voltage -V
+				; where V is between 100 and 190 V.
+				; Type 0x<cr> so you don't screw up any CMUs in the comms chain.
+				; Type 32768'vwv<cr> to obtain a reading R.
+				; Calculate K = 32768 * V * 20 / (4062 - R).
+				; Type the value of K followed by 'vwu<cr>.
+				; Type <esc> to talk to CMUs again.
 				call		#measure				; 12.2 fixed-point result in R8
 				mov			#4062<<2,R9				; 4062 = 1023*4(full scale) - 1.5*20(Vref offset)
 				sub			R8,R9
@@ -174,7 +177,7 @@ cellV:
 
 				mov.w		&VoltCal,R8				; Get voltage calibration word as multiplier in R8
 													; Multiplicand is already in R9
-				call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo word)
+				call		#UMStar					; Gives unsigned product in R10 (hi) and R9 (lo)
 				rra			R10						; Shift product hi word right one bit
 				inc			R10						; Add one for correct rounding
 				rra			R10						; Shift product hi word right another bit
