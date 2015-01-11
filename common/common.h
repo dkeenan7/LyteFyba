@@ -29,14 +29,6 @@ RELAYp		EQU		1<<7			; IMU relay for HazV+ test on P2.7
 //#define		PROG_START_FOR_BSL		$E000	// Would be used temporarily while changing to a BSL that
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
-; Called from multiple places
-Delay130ms:
-		_DO		#0,R11					; 65536 * 8 / 4 MHz = 131 ms delay
-
-			ClearWatchdog
-
-		_LOOP	R11						; (3) dec R11, jnz
-		ret
 
 
 			ORG		$10F8
