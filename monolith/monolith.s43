@@ -294,13 +294,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ENDIF
 #endif
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
+			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
 			cmp.b	#0,&ID
 			_IF		_EQ							; If we're an IMU
-				mov.b	#$FF,&P2OUT					; Set RLY- and RLY+ on
-			_ELSE								; Else
-				mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
+				bis.b	#RELAYp,&P2OUT				; Set the load relay on so battery relay goes on
+													; and we stay powered up
 			_ENDIF
-			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
+			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
 
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
@@ -779,28 +779,33 @@ DoStatus:
 				_ENDIF							; End if no comms error
 			_ELSE							; Else we're an IMU
 				; Process incoming status for IMU
-				cmp.b	#15,R9					; If incoming stress is really bad
+				cmp.b	#15,R9					; If incoming stress is extreme
 				_IF		_GE
 					bic.b	#(RELAYm | RELAYp),P2OUT ; Drop out both source and load relays
 													; and hence also the battery contactor
-				_ELSE
+				_ELSE							; Else
 					cmp.b	#minAlarmStress,R9
-					_IF		_GE
+					_IF		_GE						; If incoming stress is alarming
 						bit.b	#bCharging,&monFlags
-						_IF		_NZ
-							bic.b	#RELAYm,&P2OUT
-						_ELSE
-							bic.b	#RELAYp,&P2OUT
-						_ENDIF
-					_ELSE
+						_IF		_NZ						; If we're charging
+							bic.b	#RELAYm,&P2OUT			; Drop out the source relays (yellow LED)
+						_ELSE							; Else
+							bic.b	#RELAYp,&P2OUT			; Drop out the load relay (magenta LED)
+						_ENDIF							; Endif
+					_ELSE							; Else
 						cmp.b	#8,R9
 						_IF		_L						; If stress is less than 8
-							bis.b	#(RELAYm | RELAYp),P2OUT ; Turn on both source and load relays
-						_ENDIF
-					_ENDIF
-				_ENDIF
+							bis.b	#RELAYp,P2OUT 			; Turn on load relay
+							call	#cellV
+							cmp		#140*10,R10
+							_IF		_LO						; If PV array voltage < 140 volts
+								bis.b	#RELAYm,P2OUT 			; Turn on source relays
+							_ENDIF							; Endif
+						_ENDIF							; Endif
+					_ENDIF							; Endif else stress not alarming
+				_ENDIF							; End else stress not extreme
 				call	#ControlCharger			; Send status or control a charger
-			_ENDIF
+			_ENDIF							; End else IMU
 		_ENDIF							; End if incoming valid
 		ret
 ; End of DoStatus
