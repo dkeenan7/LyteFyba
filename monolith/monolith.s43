@@ -431,6 +431,15 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
+; Called from multiple places
+Delay130ms:
+		_DO		#0,R11					; 65536 * 8 / 4 MHz = 131 ms delay
+
+			ClearWatchdog
+
+		_LOOP	R11						; (3) dec R11, jnz
+		ret
+
 ;
 ; Initialise the PIP4048MS inverter with various non-default settings
 ;
