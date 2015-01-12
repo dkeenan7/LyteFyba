@@ -431,14 +431,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
-; Called from multiple places
-Delay130ms:
-		_DO		#0,R11					; 65536 * 8 / 4 MHz = 131 ms delay
-
-			ClearWatchdog
-
-		_LOOP	R11						; (3) dec R11, jnz
-		ret
 
 ;
 ; Initialise the PIP4048MS inverter with various non-default settings
@@ -446,18 +438,23 @@ Delay130ms:
 InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
-			mov			#PipInit1,R10		; Point to first of 4 initialisation strings
-			_DO			#4,R8				; 4 initialisation strings
+			mov			#PipInit0,R10		; Point to CR before 4 initialisation strings
+			_DO			#5,R8				; An initial CR plus 4 initialisation strings
 				push		R8
 				call		#TxString
-				call		#Delay130ms			; Allow time for PIP to Ack or Nak
+				mov			#1000,R8			; 1000 milliseconds
+				call		#DelayMs			; Allow time for PIP to Ack or Nak
 				pop			R8					; Restore loop counter
 			_LOOP		R8
 
 			mov.w		#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 			ret
 
-PipInit1: 	DB	7,$0D,'PDa',$E3,$41,$0D		; Disable beeper
+; PIP 4048MS inverter/charger initialisation strings. First byte is length.
+; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
+; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
+PipInit0: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+PipInit1:	DB	6,'PDa',$E3,$41,$0D			; Disable beeper
 PipInit2: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
 ; PipInit2: 	DB	8,'POP01',$D2,$69,$0D	; Solar priority (for the bush)
 PipInit3:	DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
@@ -508,14 +505,17 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
-			bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
-			_IF		_Z
-				cmp.w		#PipWait, uPipInitCtr
-				_IF			_EQ
-					call		#InitPip		; Send the PIP initialisation strings
-					bis.b		#bDonePipInit,&monFlags
-				_ELSE
-					inc			uPipInitCtr		; Wait till the PIP is ready to receive commands
+			cmp.b	#0,&ID
+			_IF		_EQ
+				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
+				_IF		_Z
+					cmp.w	#PipWait, uPipInitCtr
+					_IF		_EQ
+						call	#InitPip		; Send the PIP initialisation strings
+						bis.b	#bDonePipInit,&monFlags
+					_ELSE
+						inc		uPipInitCtr		; Wait till the PIP is ready to receive commands
+					_ENDIF
 				_ENDIF
 			_ENDIF
 
@@ -875,6 +875,7 @@ ControlCharger:
 ;
 ; Status byte is in R8. Send it or feed it to a PI controller to control a charger
 ;
+			push 	R9
 			bit.b	#bCharging,&monFlags		; Set by '1c' command
 			_IF		_NZ							; If we've been told to start charging
 ;				bit		#ALL_NBYP,R8
@@ -885,7 +886,12 @@ ControlCharger:
 ;					call	#SendChargerPackets			; Send packets. Trashes R8 thru R11
 ;					mov		#0,Rtos						; Tell ourselves we've stopped charging
 ;					call	#_Charging					; Equiv to '0c' command. Clears bCharging
-;				_ELSE								; Else some are not near bypass, so keep charging
+;				_ENDIF ; ALL_NBYP
+				ClearWatchdog
+				inc.b	&chargerTxTimer				; Increment charger transmit timer
+				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
+				and.b	#3,R9
+				_IF		_Z							; Every fourth tick (every 2 seconds)
 					bit		#COM_ERR,R8
 					_IF		_NZ
 						mov		#8,R8					; Treat comms error as stress 8
@@ -893,17 +899,17 @@ ControlCharger:
 						and		#STRESS,R8				; Otherwise use the stress value (0-15)
 					_ENDIF
 					call	#PiController			; Call PI controller with R8 as input and output
-					dec.b	&chargerTxTimer			; Decrement charger transmit timer
 					_COND							; Begin short circuit conditional
-					_OR_ELSE	_Z					; If 4 seconds has passed since last Tx, short-circuit-OR
+						cmp.b	#StatusFreq*10,&chargerTxTimer
+					_OR_ELSE	_HS					; If 10 seconds has passed since last Tx, s/c-OR
 						cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
-						mov		R8,&chargerPrevVolt		; Record voltage setpoint for next time
 					_OR_IFS		_NE					; Or voltage setpoint has changed,
 						call	#SendChargerPackets		; Send packets to charger to set voltage
-						mov.b	#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
+						clr.b	&chargerTxTimer 	; Clear timer
 					_ENDIF
-;				_ENDIF ; ALL_NBYP
+				_ENDIF ; Every fourth tick
 			_ENDIF ; bCharging
+			pop		R9
 			ret
 ; End of ControlCharger
 
@@ -975,19 +981,22 @@ SendChargerPackets:
 
 			; Compare with previous voltage to determine whether to send Float or Bulk first
 			cmp			R8,&chargerPrevVolt
+			mov			R8,&chargerPrevVolt	; Record voltage setpoint for next time
 			_IF			_LO					; If raising voltage
 				mov			#BulkCmd,R10		; Send the Float voltage packet
 				call		#SendPipPacket		; Trashes R8 thru R11
+				mov			#950,R8				; Delay 950 ms
+				call		#DelayMs
 				pop			R8					; Restore voltage to R8
 				mov			#FloatCmd,R10		; Send the Bulk voltage packet
-				call		#Delay130ms
 				call		#SendPipPacket		; Trashes R8 thru R11
 			_ELSE							; Else lowering voltage
 				mov			#FloatCmd,R10		; Send the Float voltage packet
 				call		#SendPipPacket		; Trashes R8 thru R11
+				mov			#950,R8				; Delay 950 ms
+				call		#DelayMs
 				pop			R8					; Restore voltage to R8
 				mov			#BulkCmd,R10		; Send the Bulk voltage packet
-				call		#Delay130ms
 				call		#SendPipPacket		; Trashes R8 thru R11
 			_ENDIF							; End raising/lowering voltage
 
