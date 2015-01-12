@@ -257,13 +257,15 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; Positive relay only
 			bis.b	#RELAYp,&P2OUT		; Turn on positive relay
-			call	#Delay130ms			; Wait for relay bounce and voltage settling
+			mov		#130,R8				; 130 milliseconds
+			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
 			bis.b	#RELAYm,&P2OUT		; Turn on negative relay
-			call	#Delay130ms			; Wait for relay bounce and voltage settling
+			mov		#130,R8				; 130 milliseconds
+			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			; This allows calibration, as it will represent the battery voltage divided by 100k
 			; irrespective of any leakage resistances, assuming only that the two optos
@@ -272,7 +274,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 			; Negative relay only
 			bic.b	#RELAYp,&P2OUT		; Turn off positive relay
-			call	#Delay130ms			; Wait for relay bounce and voltage settling
+			mov		#130,R8				; 130 milliseconds
+			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
@@ -364,6 +367,24 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		ret
 
 #endif // INSULATION_MONITORING
+
+
+DelayMs:
+; Delay by the number of milliseconds given in R8.
+; R8 is treated as unsigned. There will be no travelling-backwards-in-time allowed here!
+; Clears R8.
+		push	R9
+		_BEGIN
+			tst		R8						; (1)
+		_WHILE	_NZ						; (2) jz
+			_DO		#(4000-11+1)/3,R9		; 4000 c = 1 ms, 3 c inner loop, 11 c outer, 1 c rounding
+			_LOOP	R9						; (3) dec R9, jnz
+			ClearWatchdog					; (5) mov #x,&y
+			dec			R8					; (1)
+		_REPEAT							; (2) jmp
+		pop R9
+		ret
+
 
 ;
 ; RelayPlus ( bool -- ) Turn on or off relay+ on IMU
