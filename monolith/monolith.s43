@@ -438,8 +438,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
-			mov			#PipInit0,R10		; Point to CR before 4 initialisation strings
-			_DO			#5,R8				; An initial CR plus 4 initialisation strings
+			mov			#PipInit0,R10		; Point to CR before initialisation strings
+			_DO			#9,R8				; An initial CR plus 8 initialisation strings
 				push		R8
 				call		#TxString
 				mov			#1000,R8			; 1000 milliseconds
@@ -455,10 +455,15 @@ InitPip:
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit0: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
 PipInit1:	DB	6,'PDa',$E3,$41,$0D			; Disable beeper
-PipInit2: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
-; PipInit2: 	DB	8,'POP01',$D2,$69,$0D	; Solar priority (for the bush)
+;PipInit2: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;PipInit2: 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
+PipInit2: 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
 PipInit3:	DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
 PipInit4:	DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
+PipInit5:	DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
+PipInit6:	DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
+PipInit7:	DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
+PipInit8:	DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
 
 
