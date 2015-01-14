@@ -635,9 +635,11 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 
 			ClearWatchdog
 
-			mov		#108*10,R8			; Battery capacity in tenths of an amp-hour
+			mov		#BatCapacity,R8		; Battery capacity in tenths of an amp-hour
 										; The above constant may be stored in info-flash in future
 			rla		R8					; This works in conjuction with the 607 above, to scale correctly
+			add		#BatCapacity,R9		; For rounding
+			adc		R10
 			call	#UMSlashMod			; R9 = R10:R9 / R8
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
