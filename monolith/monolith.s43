@@ -70,14 +70,14 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.302 V, to a max of 15 at >= 3.47?s V
-// OV setpoint is 3.323 to 3.326 V. Alarm at 3.335 V.
-OV_ZERO		EQU		3302		; Threshold in mV between OV stress levels -1 and 0
+// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.332 V, to a max of 15 at >= 3.377 V
+// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V.
+OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 80 mV below 3.250 V, to a maximum of 15 at <= 2.05 V
-// UV setpoint is 2.69 to 2.61 V. Alarm at 2.37 V.
-UV_ZERO		EQU		3250		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-80		; mV difference between one UV stress level and the next
+// UV = Under Voltage: One stress unit for each 10 mV below 3.290 V, to a maximum of 15 at <= 3.14 V
+// UV setpoint is 3.22 to 3.23 V. Alarm at 3.18 V.
+UV_ZERO		EQU		3290		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-10			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
@@ -185,6 +185,8 @@ chargerPrevVolt	DS		2			; Charger previous voltage (tenths of a volt). Set by PI
 CurrentDirHyst	EQU		2*5			; Current direction hysteresis in 1/5ths of an amp (IMU only)
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required
+BatCapacity		EQU		1600		; Battery capacity in tenths of an amp-hour
+CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
 
 ; Serial-io variables
 
@@ -439,7 +441,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit0,R10		; Point to CR before initialisation strings
-			_DO			#9,R8				; An initial CR plus 8 initialisation strings
+			_DO			#10,R8				; An initial CR plus 9 initialisation strings
 				push		R8
 				call		#TxString
 				mov			#1000,R8			; 1000 milliseconds
@@ -454,16 +456,18 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit0: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-PipInit1:	DB	6,'PDa',$E3,$41,$0D			; Disable beeper
-;PipInit2: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
-;PipInit2: 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
+;PipInit1:	DB	7,'PDak',$51,$80,$0D		; Disable beeper, disable return to default screen
+PipInit1:	DB	13,'PEjuvzPDak',$ED,$4E,$0D	; Enable OL-byp load-sense OL-restart OT-restart fault-recrd
+;PipInit3: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;PipInit3: 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
 PipInit2: 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
-PipInit3:	DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
-PipInit4:	DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
-PipInit5:	DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
+PipInit3:	DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
+PipInit4:	DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
+PipInit5:	DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
 PipInit6:	DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
 PipInit7:	DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
-PipInit8:	DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
+PipInit8:	DB	11,'MCHGC100',$80,$27,$0D	; Maximum charge current 100 amps (utility plus solar)
+PipInit9:	DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
 
 
@@ -883,15 +887,12 @@ ControlCharger:
 			push 	R9
 			bit.b	#bCharging,&monFlags		; Set by '1c' command
 			_IF		_NZ							; If we've been told to start charging
-;				bit		#ALL_NBYP,R8
-;				_IF		_NZ							; If all cells are near bypass
-;					; Send command packet to charger to turn it off
-;					mov		#0,&chargerPrevVolt			; Set previous charger voltage to zero
-;					mov		#1<<15,R8					; Set charger-off bit
-;					call	#SendChargerPackets			; Send packets. Trashes R8 thru R11
-;					mov		#0,Rtos						; Tell ourselves we've stopped charging
-;					call	#_Charging					; Equiv to '0c' command. Clears bCharging
-;				_ENDIF ; ALL_NBYP
+				bit		#ALL_NBYP,R8
+				_IF		_NZ							; If all cells are near bypass
+					; Set the discharge counter to 25% DoD (75% SoC)
+					mov		#(((BatCapacity*250*StatusFreq)/607)<<10)&$FFFF,&discharge	 ; Low word
+					mov		#(((BatCapacity*250*StatusFreq)/607)>> 6)      ,&discharge+2 ; High word
+				_ENDIF ; ALL_NBYP
 				ClearWatchdog
 				inc.b	&chargerTxTimer				; Increment charger transmit timer
 				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
