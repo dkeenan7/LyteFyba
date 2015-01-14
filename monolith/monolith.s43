@@ -53,6 +53,7 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		Rip		R5				// Interpreter instruction pointer
 #define		Rlit	R6				// Holds partial literals
 #define		Rtos	R7				// Top of interpreter data stack
+#define		Rsec	R4				// Second element from top
 #define		Rw		R8				// Working register - temporary - anyone can use
 
 ; Conditional assembly
@@ -187,6 +188,7 @@ uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive c
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required
 BatCapacity		EQU		1600		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
+current			DS		2			; Current most recently reported by IMU in tenths of an amp (signed)
 
 ; Serial-io variables
 
@@ -515,7 +517,7 @@ DoMeasurement:
 #define Rtype R15				// Type of measurement causing worst stress
 
 			cmp.b	#0,&ID
-			_IF		_EQ
+			_IF		_EQ						; If we're an IMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
 					cmp.w	#PipWait, uPipInitCtr
@@ -539,7 +541,6 @@ DoMeasurement:
 
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			push	R10						; Save measurement for undervoltage stress calc
 
 			; Set bypass as required
 			cmp.b	#0,&ID					; If we're not an IMU
@@ -563,24 +564,50 @@ DoMeasurement:
 			_COND							; Begin short-circuit conditional
 				cmp.b	#0,&ID
 			_AND_IF		_NE					; If we're not an IMU
+				; Calculate approximate OCV by subtracting current times internal resistance
+				push	R10						; Save the cell voltage measurement
+				// Get the sign of the current into R11 and its absolute value into R9
+				clr		R11
+				mov		&current,R9				; Current is in tenths of an amp
+				tst		R9
+				_IF		_L
+					mov		#-1,R11
+					inv		R9
+					inc		R9
+				_ENDIF
+
+				mov		#((CellResistance<<16)+50)/100,R8	; CellResistance is in tenths of a milliohm
+				ClearWatchdog
+				call	#UMStar					; R10:R9 = R8 * R9, resistance * current
+				mov		R10,R9					; Use only the high word of the result, put into R9
+				pop		R10						; Restore the cell voltage measurement to R10
+				tst		R11
+				_IF		_NN						; If current is negative (discharge)
+					add		R9,R10					; OCV is higher than measured
+				_ELSE							; Else charging
+					sub		R9,R10					; OCV is lower than measured
+				_ENDIF							; Endif
+
+				push	R10						; Save OCV in case it's needed for undervoltage calc
+
 				; Calculate stress due to overvoltage
-				push	R10						; Measurement for overvoltage stress calc
+				push	R10						; OCV for overvoltage stress calc
 				push	&ovStep					; For every ovStep (millivolts)
 				push	&ovZero					;	over ovZero, we add one level of stress
 				push	#1						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
+				pop		R10						; Restore OCV to R10 in case needed for undervoltage
+
 				; Calculate stress due to undervoltage if required
 				bit.b	#bCharging,&monFlags
 			_AND_IF		_Z					; And we're not charging (including not regen braking) then
-												; Measurement saved on stack earlier
+				push	R10						; OCV for undervoltage stress calc
 				push	#UV_STEP				; For every UV_STEP (millivolts)
 				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
 				push	#2						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
-			_ELSES							; Else
-				pop		R10						; Drop unused voltage measurement off stack
-			_ENDIF
+			_ENDIFS
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
@@ -630,6 +657,19 @@ DoMeasurement:
 #endif
 			_ELSE	; IMU
 				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
+				// Tell the CMUs what the current is, by sending an 'i' command
+				push	R10
+				rla		R10						; Convert to tenths of an amp
+				mov		R10,Rsec
+				mov		#4,Rtos					; 4 digit field width
+				call	#_emitNum				; Transmit the number
+				mov		#'i',R8					; Transmit an "i" for current
+				call	#TxByteCk
+				call	#TxCksum				; Transmit checksum if required, then clear checksum.
+				mov		#'\r',R8				; Transmit a carriage return.
+				call	#TxByte
+				pop		R10
+
 				// Implement hysteresis when switching from charge mode to discharge mode.
 				bit.b	#bCharging,&monFlags
 				_IF		_NZ							; If charging
@@ -980,34 +1020,38 @@ SendChargerPackets:
 ;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
 ; When raising the voltage, bulk will have to be sent before float,
 ; and when lowering it, float will have to be sent before bulk.
-			push		R8					; Save the voltage (in tenths of a volt) on the stack
+			push	R8					; Save the voltage (in tenths of a volt) on the stack
 
-			call		#WaitTxComplete		; Wait for 9600 baud transmission to complete
-			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
+			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
+			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
+			push	R8
+			mov		#$0D,R8
+			call	#TxByte				; Send a carriage return to take care of preceding junk
+			pop		R8
 
 			; Compare with previous voltage to determine whether to send Float or Bulk first
-			cmp			R8,&chargerPrevVolt
-			mov			R8,&chargerPrevVolt	; Record voltage setpoint for next time
-			_IF			_LO					; If raising voltage
-				mov			#BulkCmd,R10		; Send the Float voltage packet
-				call		#SendPipPacket		; Trashes R8 thru R11
-				mov			#950,R8				; Delay 950 ms
-				call		#DelayMs
-				pop			R8					; Restore voltage to R8
-				mov			#FloatCmd,R10		; Send the Bulk voltage packet
-				call		#SendPipPacket		; Trashes R8 thru R11
+			cmp		R8,&chargerPrevVolt
+			mov		R8,&chargerPrevVolt	; Record voltage setpoint for next time
+			_IF		_LO					; If raising voltage
+				mov		#BulkCmd,R10		; Send the Float voltage packet
+				call	#SendPipPacket		; Trashes R8 thru R11
+				mov		#950,R8				; Delay 950 ms
+				call	#DelayMs
+				pop		R8					; Restore voltage to R8
+				mov		#FloatCmd,R10		; Send the Bulk voltage packet
+				call	#SendPipPacket		; Trashes R8 thru R11
 			_ELSE							; Else lowering voltage
-				mov			#FloatCmd,R10		; Send the Float voltage packet
-				call		#SendPipPacket		; Trashes R8 thru R11
-				mov			#950,R8				; Delay 950 ms
-				call		#DelayMs
-				pop			R8					; Restore voltage to R8
-				mov			#BulkCmd,R10		; Send the Bulk voltage packet
-				call		#SendPipPacket		; Trashes R8 thru R11
+				mov		#FloatCmd,R10		; Send the Float voltage packet
+				call	#SendPipPacket		; Trashes R8 thru R11
+				mov		#950,R8				; Delay 950 ms
+				call	#DelayMs
+				pop		R8					; Restore voltage to R8
+				mov		#BulkCmd,R10		; Send the Bulk voltage packet
+				call	#SendPipPacket		; Trashes R8 thru R11
 			_ENDIF							; End raising/lowering voltage
 
-			call		#WaitTxComplete		; Wait for 2400 baud transmission to complete
-			mov.w		#BitTime96,&txBitTime ; Set the bit time for 9600 baud
+			call	#WaitTxComplete		; Wait for 2400 baud transmission to complete
+			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 
 			ret
 

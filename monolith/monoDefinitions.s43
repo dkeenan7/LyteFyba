@@ -311,7 +311,8 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		ret
 #endif
 
-; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3323 3'VP
+
+; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3353 3'VP
 		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
  		_CASE
 			_OF #'V',Rtos				; Set overvoltage zero and step
@@ -322,4 +323,13 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 				mov		Rthd,&ovZero
 			_ENDOF
 		_ENDCASE
+		ret
+
+
+; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
+		xCODE	'i',Current,_Current
+		cmp.b	#0,&ID
+		_IF	_NE							; If we're not an IMU
+			mov		Rtos,&current			; Set the current
+		_ENDIF
 		ret
