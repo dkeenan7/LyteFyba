@@ -569,7 +569,7 @@ DoMeasurement:
 				// Get the sign of the current into R11 and its absolute value into R9
 				clr		R11
 				mov		&current,R9				; Current is in tenths of an amp
-				tst		R9
+				cmp		#0,R9
 				_IF		_L
 					mov		#-1,R11
 					inv		R9
@@ -582,10 +582,10 @@ DoMeasurement:
 				mov		R10,R9					; Use only the high word of the result, put into R9
 				pop		R10						; Restore the cell voltage measurement to R10
 				tst		R11
-				_IF		_NN						; If current is negative (discharge)
-					add		R9,R10					; OCV is higher than measured
-				_ELSE							; Else charging
+				_IF		_NN						; If current is not negative (charge)
 					sub		R9,R10					; OCV is lower than measured
+				_ELSE							; Else charging
+					add		R9,R10					; OCV is higher than measured
 				_ENDIF							; Endif
 
 				push	R10						; Save OCV in case it's needed for undervoltage calc
@@ -1025,8 +1025,10 @@ SendChargerPackets:
 			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
 			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			push	R8
-			mov		#$0D,R8
-			call	#TxByte				; Send a carriage return to take care of preceding junk
+			mov		#$0D,R8				; Send a carriage return to the PIP to flush preceding
+			call	#TxByte				; 2400 baud junk caused by 9600 baud commands sent to CMUs.
+;			mov		#950,R8				; Delay 950 ms
+;			call	#DelayMs
 			pop		R8
 
 			; Compare with previous voltage to determine whether to send Float or Bulk first
@@ -1050,6 +1052,8 @@ SendChargerPackets:
 				call	#SendPipPacket		; Trashes R8 thru R11
 			_ENDIF							; End raising/lowering voltage
 
+			mov		#'(',R8				; Send a left paren so following 2400 baud junk, caused by
+			call	#TxByte				; 9600 baud commands sent to CMUs, will not be interpreted
 			call	#WaitTxComplete		; Wait for 2400 baud transmission to complete
 			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 
