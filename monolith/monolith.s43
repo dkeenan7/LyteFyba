@@ -352,10 +352,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Already cleared by loop above
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
-			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
+			cmp.b	#0,&ID						; If we're an IMU (Insulation/current Monitoring Unit)
 			_IF		_EQ
-				mov.w	#526,&chargerVoltMin		; Initialise charger voltage min
-				mov.w	#546,&chargerVoltMax		; Initialise charger voltage max
+				mov.w	#546,&chargerVoltMin		; Initialise charger voltage min
+				mov.w	#566,&chargerVoltMax		; Initialise charger voltage max
+;				mov.w	#526,&chargerVoltMin		; Initialise charger voltage min
+;				mov.w	#546,&chargerVoltMax		; Initialise charger voltage max
 				bis.b	#bChargerControl,&monFlags	; Set by o command
 				bis.b	#bCharging,&monFlags		; Set by c command
 			_ENDIF
@@ -803,6 +805,7 @@ zero	EQU		4				; The measurement corresponding to zero stress
 step	EQU		6				; The change in measurement corresp to a change of one stress level
 meas	EQU		8				; The measurement
 
+			ClearWatchdog
 			mov		meas(SP),R9				; Get meas in R9
 			mov		type(SP),R10			; Get type * 2 in R10 for use as word index
 			rla		R10
