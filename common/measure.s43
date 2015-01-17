@@ -178,6 +178,7 @@ cellV:
 				mov.w		&VoltCal,R8				; Get voltage calibration word as multiplier in R8
 													; Multiplicand is already in R9
 				call		#UMStar					; Gives unsigned product in R10 (hi) and R9 (lo)
+				ClearWatchdog
 				rra			R10						; Shift product hi word right one bit
 				inc			R10						; Add one for correct rounding
 				rra			R10						; Shift product hi word right another bit
