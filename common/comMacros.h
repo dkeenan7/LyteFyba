@@ -161,3 +161,11 @@ ClearWatchdog MACRO
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart the watchdog timer
 #endif
 			ENDM
+
+abs			MACRO	dest
+			cmp		#0,dest
+			_IF		_L
+				inv		dest
+				inc		dest
+			_ENDIF
+			ENDM
