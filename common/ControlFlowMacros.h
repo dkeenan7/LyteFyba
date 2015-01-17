@@ -45,13 +45,13 @@ _CS_TOP SET _CS_TOP^_CS2
 
 ; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.
 ; For convenience they are mostly defined as bits 12..10 of the machine-code for the jump instruction
-; with the inverse condition. But codes for _NN and and above are increased by one to allow for
+; with the inverse condition. But codes for _NN and above are increased by one to allow for
 ; an _N code, despite the MSP430 having no JNN instruction.
-; This is to allow the use of _N with _IF_OR and _OR macros, where it will generate a JN instruction.
-; For other uses of _N, and for uses of _NN with _IF_OR and _OR macros,
-; a JGE instruction will be generated with no warning issued.
-; One should instead use _L (or _GE with _IF_OR or _OR) and ensure the V flag is cleared
-; e.g. by a preceding TST instruction, or invert the logic and use _NN (except with _IF_OR or _OR).
+; This is to allow the use of _N with _OR_ELSE macros, where it will generate a JN instruction.
+; For other uses of _N, and for uses of _NN with _OR_ELSE macros,
+; a JGE instruction will be generated, with no warning issued.
+; One should instead use _L (or _GE with _OR_ELSE) and ensure the V flag is cleared
+; e.g. by a preceding TST instruction, or invert the logic and use _NN (except with _OR_ELSE).
 
 ; MSP430 condition codes
 _Z  EQU 0 ; (jnz) Zero
