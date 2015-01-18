@@ -453,11 +453,15 @@ main:										; For IAR Embedded Workbench IDE debugger
 InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
-			mov			#PipInit0,R10		; Point to CR before initialisation strings
-			_DO			#10,R8				; An initial CR plus 9 initialisation strings
-				push		R8
+			mov			#PipInit,R10		; Point to CR before initialisation strings
+			_DO			#15,R8				; Number of initialisation strings incl initial <cr>
+				push		R8					; Save loop counter
+				push.b		@R10				; Push length byte
 				call		#TxString
-				mov			#1000,R8			; 1000 milliseconds
+				pop.b		R8					; Pop length byte
+				swpb		R8					; Mult by 256
+				rra			R8					; 128 ms per byte
+				add			#500,R8				; plus 200 ms
 				call		#DelayMs			; Allow time for PIP to Ack or Nak
 				pop			R8					; Restore loop counter
 			_LOOP		R8
@@ -468,19 +472,23 @@ InitPip:
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
-PipInit0: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-;PipInit1:	DB	7,'PDak',$51,$80,$0D		; Disable beeper, disable return to default screen
-PipInit1:	DB	13,'PEjuvzPDak',$ED,$4E,$0D	; Enable OL-byp load-sense OL-restart OT-restart fault-recrd
-;PipInit3: 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
-;PipInit3: 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
-PipInit2: 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
-PipInit3:	DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
-PipInit4:	DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
-PipInit5:	DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
-PipInit6:	DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
-PipInit7:	DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
-PipInit8:	DB	11,'MCHGC100',$80,$27,$0D	; Maximum charge current 100 amps (utility plus solar)
-PipInit9:	DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
+PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
+			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen
+			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
+			DB	6,'PEu',$82,$C5,$0D			; Enable OL-restart
+			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart
+			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording
+;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
+		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
+			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
+			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
+			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
+			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
+			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
+			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
+			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
 
 
@@ -966,8 +974,8 @@ ControlCharger:
 				ClearWatchdog
 				inc.b	&chargerTxTimer				; Increment charger transmit timer
 				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
-;				and.b	#3,R9
-				and.b	#7,R9
+				and.b	#3,R9
+;				and.b	#7,R9
 				_IF		_Z							; Every fourth tick (every 2 seconds)
 					bit		#COM_ERR,R8
 					_IF		_NZ
@@ -978,7 +986,7 @@ ControlCharger:
 					call	#PiController			; Call PI controller with R8 as input and output
 					_COND							; Begin short circuit conditional
 ;						cmp.b	#StatusFreq*10,&chargerTxTimer
-						cmp.b	#StatusFreq*04,&chargerTxTimer
+						cmp.b	#StatusFreq*02,&chargerTxTimer
 					_OR_ELSE	_HS					; If 10 seconds has passed since last Tx, s/c-OR
 						cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
 					_OR_IFS		_NE					; Or voltage setpoint has changed,
@@ -1052,7 +1060,7 @@ SendChargerPackets:
 ;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
 ; When raising the voltage, bulk will have to be sent before float,
 ; and when lowering it, float will have to be sent before bulk.
-LDelay	EQU	500
+LDelay	EQU	950
 			push	R8					; Save the voltage (in tenths of a volt) on the stack
 
 			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
@@ -1080,23 +1088,23 @@ LDelay	EQU	500
 			; Compare with previous voltage to determine whether to send Float or Bulk first
 			cmp		R8,&chargerPrevVolt
 			mov		R8,&chargerPrevVolt	; Record voltage setpoint for next time
-			_IF		_LO					; If raising voltage
+;			_IF		_LO					; If raising voltage
 				mov		#BulkCmd,R10		; Send the Float voltage packet
 				call	#SendPipPacket		; Trashes R8 thru R11
-				mov		#LDelay,R8				; Delay 950 ms
-				call	#DelayMs
+;				mov		#LDelay,R8				; Delay 950 ms
+;				call	#DelayMs
 				pop		R8					; Restore voltage to R8
-				mov		#FloatCmd,R10		; Send the Bulk voltage packet
-				call	#SendPipPacket		; Trashes R8 thru R11
-			_ELSE							; Else lowering voltage
-				mov		#FloatCmd,R10		; Send the Float voltage packet
-				call	#SendPipPacket		; Trashes R8 thru R11
-				mov		#LDelay,R8				; Delay 950 ms
-				call	#DelayMs
-				pop		R8					; Restore voltage to R8
-				mov		#BulkCmd,R10		; Send the Bulk voltage packet
-				call	#SendPipPacket		; Trashes R8 thru R11
-			_ENDIF							; End raising/lowering voltage
+;				mov		#FloatCmd,R10		; Send the Bulk voltage packet
+;				call	#SendPipPacket		; Trashes R8 thru R11
+;			_ELSE							; Else lowering voltage
+;				mov		#FloatCmd,R10		; Send the Float voltage packet
+;				call	#SendPipPacket		; Trashes R8 thru R11
+;				mov		#LDelay,R8				; Delay 950 ms
+;				call	#DelayMs
+;				pop		R8					; Restore voltage to R8
+;				mov		#BulkCmd,R10		; Send the Bulk voltage packet
+;				call	#SendPipPacket		; Trashes R8 thru R11
+;			_ENDIF							; End raising/lowering voltage
 			mov		#30,R8				; Delay long enough for the PIP to ack this
 			call	#DelayMs			; so it has a better chance of noticing the left paren
 
