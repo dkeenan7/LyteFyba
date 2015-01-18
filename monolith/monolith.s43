@@ -71,13 +71,14 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.482 V, to a max of 15 at >= 3.527 V
-// OV setpoint is 3.503 to 3.506 V. Alarm at 3.515 V.
-OV_ZERO		EQU		3482		; Threshold in mV between OV stress levels -1 and 0
+// OV = Over Voltage: One stress unit for each 20 mV in excess of 3.350 V, to a max of 15 at >= 3.65 V
+// OV setpoint is 3.49 to 3.50 V. Alarm at 3.57 V.
+OV_ZERO		EQU		3350		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		20			; mV difference between one OV stress level and the next
 ;// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.332 V, to a max of 15 at >= 3.377 V
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
-OV_STEP		EQU		3			; mV difference between one OV stress level and the next
+;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 10 mV below 3.290 V, to a maximum of 15 at <= 3.14 V
 // UV setpoint is 3.22 to 3.23 V. Alarm at 3.18 V.
 UV_ZERO		EQU		3290		; Threshold in mV between UV stress levels -1 and 0
@@ -193,6 +194,10 @@ BatCapacity		EQU		1400		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
 AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
 ;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
+ChargerVoltMin	EQU		530			; In tenths of a volt
+ChargerVoltMax	EQU		570			;
+;ChargerVoltMin	EQU		526			; In tenths of a volt
+;ChargerVoltMax	EQU		546			;
 current			DS		2			; Current most recently reported by IMU in tenths of an amp (signed)
 smoothedStress	DS		1			; Moving average of stress used by IMU to control contactors
 
@@ -354,10 +359,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 			cmp.b	#0,&ID						; If we're an IMU (Insulation/current Monitoring Unit)
 			_IF		_EQ
-				mov.w	#546,&chargerVoltMin		; Initialise charger voltage min
-				mov.w	#566,&chargerVoltMax		; Initialise charger voltage max
-;				mov.w	#526,&chargerVoltMin		; Initialise charger voltage min
-;				mov.w	#546,&chargerVoltMax		; Initialise charger voltage max
+				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
+				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
 				bis.b	#bChargerControl,&monFlags	; Set by o command
 				bis.b	#bCharging,&monFlags		; Set by c command
 			_ENDIF
@@ -963,7 +966,8 @@ ControlCharger:
 				ClearWatchdog
 				inc.b	&chargerTxTimer				; Increment charger transmit timer
 				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
-				and.b	#3,R9
+;				and.b	#3,R9
+				and.b	#7,R9
 				_IF		_Z							; Every fourth tick (every 2 seconds)
 					bit		#COM_ERR,R8
 					_IF		_NZ
@@ -973,7 +977,8 @@ ControlCharger:
 					_ENDIF
 					call	#PiController			; Call PI controller with R8 as input and output
 					_COND							; Begin short circuit conditional
-						cmp.b	#StatusFreq*10,&chargerTxTimer
+;						cmp.b	#StatusFreq*10,&chargerTxTimer
+						cmp.b	#StatusFreq*04,&chargerTxTimer
 					_OR_ELSE	_HS					; If 10 seconds has passed since last Tx, s/c-OR
 						cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
 					_OR_IFS		_NE					; Or voltage setpoint has changed,
@@ -1047,13 +1052,27 @@ SendChargerPackets:
 ;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
 ; When raising the voltage, bulk will have to be sent before float,
 ; and when lowering it, float will have to be sent before bulk.
+LDelay	EQU	500
 			push	R8					; Save the voltage (in tenths of a volt) on the stack
 
 			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
 			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
+			;
+			; Although we have waited long enough to send the last 9600 bps character completely, it is
+			; possible that this 9600 bps character has triggered a 2400 bps byte, possibly right near
+			; the end of the last 9600 bps character. This may interfere with the carriage return we
+			; want to send to flush the 9600 bps "junk" from the PIP's buffers.
+			; So a delay of one 2400 bps character time (4 ms) should be enough time to guarantee that
+			; any 9600 bps junk has passed.
 			push	R8
+			mov		#4,R8
+			call	#DelayMs
 			mov		#$0D,R8				; Send a carriage return to the PIP to flush preceding
 			call	#TxByte				; 2400 baud junk caused by 9600 baud commands sent to CMUs.
+			; Delay 7*4 plus 2 to allow the (NAK<CRC><ret> to be sent
+;			mov		#30,R8
+			mov		#LDelay,R8
+			call	#DelayMs
 ;			mov		#950,R8				; Delay 950 ms
 ;			call	#DelayMs
 			pop		R8
@@ -1064,7 +1083,7 @@ SendChargerPackets:
 			_IF		_LO					; If raising voltage
 				mov		#BulkCmd,R10		; Send the Float voltage packet
 				call	#SendPipPacket		; Trashes R8 thru R11
-				mov		#950,R8				; Delay 950 ms
+				mov		#LDelay,R8				; Delay 950 ms
 				call	#DelayMs
 				pop		R8					; Restore voltage to R8
 				mov		#FloatCmd,R10		; Send the Bulk voltage packet
@@ -1072,12 +1091,14 @@ SendChargerPackets:
 			_ELSE							; Else lowering voltage
 				mov		#FloatCmd,R10		; Send the Float voltage packet
 				call	#SendPipPacket		; Trashes R8 thru R11
-				mov		#950,R8				; Delay 950 ms
+				mov		#LDelay,R8				; Delay 950 ms
 				call	#DelayMs
 				pop		R8					; Restore voltage to R8
 				mov		#BulkCmd,R10		; Send the Bulk voltage packet
 				call	#SendPipPacket		; Trashes R8 thru R11
 			_ENDIF							; End raising/lowering voltage
+			mov		#30,R8				; Delay long enough for the PIP to ack this
+			call	#DelayMs			; so it has a better chance of noticing the left paren
 
 			mov		#'(',R8				; Send a left paren so following 2400 baud junk, caused by
 			call	#TxByte				; 9600 baud commands sent to CMUs, will not be interpreted
