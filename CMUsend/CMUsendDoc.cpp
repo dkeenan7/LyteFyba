@@ -463,6 +463,9 @@ void CCMUSendDoc::OnSend()
 		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
     }
 
+	// Extra 2 second delay in case it's monolith, and it is busy sending data to the PIP inverter
+	Sleep(2000);
+
     /* Allow time for segment erases (approximately 15 ms per segment) */
 	/* Note that m_len_to_send is sometimes 2 short of the real length, because of the reset vector */
 	/* Be conservative and use 21 ms per segment erase */
