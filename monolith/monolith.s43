@@ -186,20 +186,21 @@ chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' 
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
-chargerPrevVolt	DS		2			; Charger previous voltage (tenths of a volt). Set by PI controller.
-CurrentDirHyst	EQU		2*5			; Current direction hysteresis in 1/5ths of an amp (IMU only)
+prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
+prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
+lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 BatCapacity		EQU		1400		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
 AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
 ;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
-ChargerVoltMin	EQU		530			; In tenths of a volt
-ChargerVoltMax	EQU		570			;
-;ChargerVoltMin	EQU		526			; In tenths of a volt
-;ChargerVoltMax	EQU		546			;
+ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
+ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
+;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
+;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
 current			DS		2			; Current most recently reported by IMU in tenths of an amp (signed)
-smoothedStress	DS		1			; Moving average of stress used by IMU to control contactors
+smoothStressX2	DS		1			; Moving average of stress used by IMU to control contactors
 
 ; Serial-io variables
 
@@ -454,14 +455,17 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#15,R8				; Number of initialisation strings incl initial <cr>
+			_DO			#16,R8				; Number of initialisation strings,
+											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
-				call		#TxString
+				call		#TxString			; Send one command
+
+				; Base the following delay on the length of the preceding command (heuristic)
 				pop.b		R8					; Pop length byte
 				swpb		R8					; Mult by 256
 				rra			R8					; 128 ms per byte
-				add			#500,R8				; plus 200 ms
+				add			#500,R8				; plus 500 ms
 				call		#DelayMs			; Allow time for PIP to Ack or Nak
 				pop			R8					; Restore loop counter
 			_LOOP		R8
@@ -473,15 +477,15 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
+;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen
 			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
 			DB	6,'PEu',$82,$C5,$0D			; Enable OL-restart
 			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart
 			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording
-;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
-;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
-		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
 			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
 			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
 			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
@@ -489,6 +493,9 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
 			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
+PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be ACKed.
+											; Consists of a harmless enable backlighting command
+											; followed by its $5368 CRC and a '(' comment delimiter
 			ALIGN		1
 
 
@@ -673,6 +680,9 @@ DoMeasurement:
 			_ELSE	; IMU
 				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
 				// Tell the CMUs what the current is, by sending an 'i' command
+				mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
+				call	#TxByte					; Trashes R9 but preserves R10
+
 				rla		R10						; Convert to tenths of an amp
 				mov		R10,&current			; Save in RAM variable
 				abs		R10						; Take the absolute value of the current in R10
@@ -691,38 +701,14 @@ DoMeasurement:
 				call	#TxCksum				; Transmit checksum if required, then clear checksum.
 				mov		#'\r',R8				; Transmit a carriage return.
 				call	#TxByte
-#if 1
+
 				tst		&current
 				_IF		_NN						; If current is not negative
 					bis.b	#bCharging,&monFlags	; We're charging
 				_ELSE							; Else
 					bic.b	#bCharging,&monFlags	; We're not charging
 				_ENDIF							; Endif
-#else
-				// Implement hysteresis when switching from charge mode to discharge mode.
-				bit.b	#bCharging,&monFlags
-				_IF		_NZ							; If charging
-					cmp		#-CurrentDirHyst,&current		; If we're now discharging at more than X amps
-					_IF		_L
-						bic.b	#bCharging,&monFlags		; Clear our local charging flag
-						mov		#NotChargingCmd,R10			; Send '0c' to clear them in all CMUs
-						call	#TxStringCk
-						call	#TxCksum					; Send checksum if required
-						mov.b	#$0D,R8						; Send carriage return
-						call	#TxByte
-					_ENDIF
-				_ELSE								; Else discharging
-					cmp		#CurrentDirHyst,&current
-					_IF		_GE							; If we're now charging at more than X amps
-						bis.b	#bCharging,&monFlags		; Set our local charging flag
-						mov		#ChargingCmd,R10			; Send '1c' to set them in all CMUs
-						call	#TxStringCk
-						call	#TxCksum					; Send checksum if required
-						mov.b	#$0D,R8						; Send carriage return
-						call	#TxByte
-					_ENDIF
-				_ENDIF
-#endif
+
 				// Sign extend current to 32 bits in R10:R9.
 				mov		&current,R9					; Get current in R9
 				mov		R9,R10						; Make a copy in R10
@@ -911,10 +897,12 @@ DoStatus:
 				_ENDIF							; End if no comms error
 			_ELSE							; Else we're an IMU
 				; Process incoming status for IMU
-				add.b	&smoothedStress,R9		; Add previous smoothed stress to incoming stress
+				rra.b	R9						; Double incoming stress
+				add.b	&smoothStressX2,R9		; Add prev smooth double stress to double incoming stress
 				inc.b	R9						; Add one for rounding
 				rra.b	R9						; Divide by 2
-				mov.b	R9,&smoothedStress		; Save for next time
+				mov.b	R9,&smoothStressX2		; Save for next time
+				rra.b	R9						; Divide by 2 to get smoothed stress (not doubled)
 
 				cmp.b	#15,R9					; If smoothed stress is extreme
 				_IF		_GE
@@ -943,20 +931,14 @@ DoStatus:
 						_ENDIF							; Endif
 					_ENDIF							; Endif else stress not alarming
 				_ENDIF							; End else stress not extreme
-				call	#ControlCharger			; Send status or control a charger
+;				mov.b		&smoothStressX2,R8
+;				rra.b		R8
+				call	#ControlCharger			; Control PIP charging
 			_ENDIF							; End else IMU
 		_ENDIF							; End if incoming valid
 		ret
 ; End of DoStatus
 
-
-#if !MASTERLESS_CHARGING
-
-SendStatus:
-			jmp		TX_Byte				; Send the status byte. Wait until buffer not full
-			;ret						; Tail call above avoids ret
-
-#else // MASTERLESS_CHARGING
 
 ControlCharger:
 ;
@@ -975,7 +957,6 @@ ControlCharger:
 				inc.b	&chargerTxTimer				; Increment charger transmit timer
 				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
 				and.b	#3,R9
-;				and.b	#7,R9
 				_IF		_Z							; Every fourth tick (every 2 seconds)
 					bit		#COM_ERR,R8
 					_IF		_NZ
@@ -984,20 +965,169 @@ ControlCharger:
 						and		#STRESS,R8				; Otherwise use the stress value (0-15)
 					_ENDIF
 					call	#PiController			; Call PI controller with R8 as input and output
-					_COND							; Begin short circuit conditional
-;						cmp.b	#StatusFreq*10,&chargerTxTimer
-						cmp.b	#StatusFreq*02,&chargerTxTimer
-					_OR_ELSE	_HS					; If 10 seconds has passed since last Tx, s/c-OR
-						cmp		R8,&chargerPrevVolt		; Check if voltage setpoint has changed.
-					_OR_IFS		_NE					; Or voltage setpoint has changed,
-						call	#SendChargerPackets		; Send packets to charger to set voltage
-						clr.b	&chargerTxTimer 	; Clear timer
-					_ENDIF
+					call	#SendChargerPackets		; Send packets to charger to set voltage
+					clr.b	&chargerTxTimer 		; Clear timer
 				_ENDIF ; Every fourth tick
 ;			_ENDIF ; bCharging
 			pop		R9
 			ret
 ; End of ControlCharger
+
+
+PiController:
+;
+; A PI controller whose input and output are in R8
+; Input range is 0 to 15 (stress levels). Setpoint is 7.
+; Output range is chargerVoltMin to chargerVoltMax (tenths of a volt).
+;
+#define Rerror R10			// Error register
+#define Rderiv R9			// Derivative register
+#define Routput R8			// Output register
+			mov		#7,Rerror				; error = setpoint - measurement
+			sub		R8,Rerror
+			mov		Rerror,Rderiv			; deriv = error - prev_error
+			sub		&piPrevError,Rderiv
+
+			mov		&piPrevOutput,Routput	; output = prev_output + Kp * deriv + Ki * error
+			; Insert rla Rderiv here to change Kp
+			rla3	Rderiv					; Kp = 4
+			add		Rderiv,Routput
+			mov		Rerror,R9				; Overwrites unused Rderiv
+			; Insert rla R9 here to change Ki
+			add		R9,Routput				; Ki = 1
+
+			mov		&chargerVoltMin,R9
+			rla2	R9						; The combination of this rla2, the rla2 below,
+											; and the rra2 at the end, have the effect of dividing
+											; bit Kp and Ki by 4. So they are effectively 1 and 1/4.
+			cmp		R9,Routput				; Clamp output between chargerVoltMin and chargerVoltMax
+			_IF		_L
+				mov		R9,Routput
+			_ELSE
+				mov		&chargerVoltMax,R9
+				rla2	R9						; For effective reduction of Kp and Ki
+				cmp		R9,Routput
+				_IF		_GE
+					mov		R9,Routput
+				_ENDIF
+			_ENDIF
+
+			mov		Rerror,&piPrevError		; prev_error = error
+			mov		Routput,&piPrevOutput	; prev_output = output
+			rra2	Routput					; For effective reduction of Kp and Ki
+			ret
+; End of PiController
+
+
+SendChargerPackets:
+;
+; Send charger float and bulk command packets (in the right order)
+; with voltage from R8 (in tenths of a volt)
+;
+; Trashes R8 thru R11
+;
+; Send PBFTvv.v<crc16><cr> and PCVVww.w<crc16><cr>
+;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
+; When raising the voltage, bulk will have to be sent before float,
+; and when lowering it, float will have to be sent before bulk.
+PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAKed
+
+			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
+			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
+			;
+			; Although we have waited long enough to send the last 9600 bps character completely, it is
+			; possible that this 9600 bps character has triggered a 2400 bps byte, possibly right near
+			; the end of the last 9600 bps character. This may interfere with the carriage return we
+			; want to send to flush the 9600 bps "junk" from the PIP's buffers.
+			; So a delay of one 2400 bps character time (4 ms) should be enough time to guarantee that
+			; any 9600 bps junk has passed.
+			push	R8
+			mov		#4,R8
+			call	#DelayMs
+			mov		#$0D,R8				; Send a carriage return to the PIP to flush preceding
+			call	#TxByte				; 2400 baud junk caused by 9600 baud commands sent to CMUs.
+			mov		#PipCmdDelay,R8		; Delay between commands so next one not NAKed
+			call	#DelayMs
+			pop		R8
+
+			; Compare new requested voltage with previously sent bulk and float voltages
+			; to determine whether to send the new voltage as Float or Bulk.
+			; This algorithm is optimised for bringing possibly-distressing voltages _down_ as soon
+			; as possible, at the expense of small delays in charging due to possibly not putting
+			; them up as soon as possible. The PIP gives no way of telling when it is in float mode.
+			_COND
+				cmp		&prevFloat,R8
+			_AND_IF		_EQ
+				cmp		&prevBulk,R8
+			_AND_IF		_EQ
+				tst		&lastWasFloat
+				_IF		_NZ
+					mov		R8,&prevBulk		; Record bulk voltage setpoint for next time
+					mov		#0,&lastWasFloat	; Record that the last sent was a Bulk
+					mov		#BulkCmd,R10		; Send a Bulk voltage packet
+					call	#SendPipPacket		; Trashes R8 thru R11
+				_ELSE
+					mov		R8,&prevFloat		; Record float voltage setpoint for next time
+					mov		#-1,&lastWasFloat	; Record that the last sent was a Float
+					mov		#FloatCmd,R10		; Send a Float voltage packet
+					call	#SendPipPacket		; Trashes R8 thru R11
+				_ENDIF
+			_ELSES
+				_COND
+					cmp		&prevFloat,R8
+				_OR_ELSE	_LO
+					cmp		R8,&prevBulk
+				_OR_IFS		_LO
+					tst		&lastWasFloat
+					_IF		_NZ
+						cmp		&prevFloat,R8
+						_IF		_LO
+							mov		&prevFloat,R8
+						_ENDIF
+						mov		R8,&prevBulk		; Record bulk voltage setpoint for next time
+						mov		#0,&lastWasFloat	; Record that the last sent was a Bulk
+						mov		#BulkCmd,R10		; Send a Bulk voltage packet
+						call	#SendPipPacket		; Trashes R8 thru R11
+					_ELSE
+						cmp		R8,&prevBulk
+						_IF		_LO
+							mov		&prevBulk,R8
+						_ENDIF
+						mov		R8,&prevFloat		; Record float voltage setpoint for next time
+						mov		#-1,&lastWasFloat	; Record that the last sent was a Float
+						mov		#FloatCmd,R10		; Send a Float voltage packet
+						call	#SendPipPacket		; Trashes R8 thru R11
+					_ENDIF
+				_ELSE
+					cmp		&prevBulk,R8
+					_IF		_EQ					; If equal to previous bulk voltage
+						mov		R8,&prevFloat		; Record float voltage setpoint for next time
+						mov		#-1,&lastWasFloat	; Record that the last sent was a Float
+						mov		#FloatCmd,R10		; Send a Float voltage packet
+						call	#SendPipPacket		; Trashes R8 thru R11
+					_ELSE						; Else
+						mov		R8,&prevBulk		; Record bulk voltage setpoint for next time
+						mov		#0,&lastWasFloat	; Record that the last sent was a Bulk
+						mov		#BulkCmd,R10		; Send a Bulk voltage packet
+						call	#SendPipPacket		; Trashes R8 thru R11
+					_ENDIF						; End sending Float or Bulk voltage
+				_ENDIF
+			_ENDIF
+
+			mov		#PipCmdDelay,R8		; Delay between commands so next one not NAKed
+			call	#DelayMs
+
+			mov		#PipJunkSweep,R10	; Send 'PExSh(' so the following 2400 baud junk, caused
+			call	#TxString			; by 9600 baud commands sent to CMUs, will be ACKed by the PIP.
+			call	#WaitTxComplete		; Wait for 2400 baud transmission to complete
+			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
+
+			ret
+
+FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
+BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
+			ALIGN		1
+; End of SendChargerPackets
 
 
 SendPipPacket:
@@ -1047,116 +1177,6 @@ SendPipPacket:
 			ClearWatchdog
 
 			ret
-
-
-SendChargerPackets:
-;
-; Send charger float and bulk command packets (in the right order)
-; with voltage from R8 (in tenths of a volt)
-;
-; Trashes R8 thru R11
-;
-; Send PBFTvv.v<crc16><cr> and PCVVww.w<crc16><cr>
-;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
-; When raising the voltage, bulk will have to be sent before float,
-; and when lowering it, float will have to be sent before bulk.
-LDelay	EQU	950
-			push	R8					; Save the voltage (in tenths of a volt) on the stack
-
-			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
-			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
-			;
-			; Although we have waited long enough to send the last 9600 bps character completely, it is
-			; possible that this 9600 bps character has triggered a 2400 bps byte, possibly right near
-			; the end of the last 9600 bps character. This may interfere with the carriage return we
-			; want to send to flush the 9600 bps "junk" from the PIP's buffers.
-			; So a delay of one 2400 bps character time (4 ms) should be enough time to guarantee that
-			; any 9600 bps junk has passed.
-			push	R8
-			mov		#4,R8
-			call	#DelayMs
-			mov		#$0D,R8				; Send a carriage return to the PIP to flush preceding
-			call	#TxByte				; 2400 baud junk caused by 9600 baud commands sent to CMUs.
-			; Delay 7*4 plus 2 to allow the (NAK<CRC><ret> to be sent
-;			mov		#30,R8
-			mov		#LDelay,R8
-			call	#DelayMs
-;			mov		#950,R8				; Delay 950 ms
-;			call	#DelayMs
-			pop		R8
-
-			; Compare with previous voltage to determine whether to send Float or Bulk first
-			cmp		R8,&chargerPrevVolt
-			mov		R8,&chargerPrevVolt	; Record voltage setpoint for next time
-;			_IF		_LO					; If raising voltage
-				mov		#BulkCmd,R10		; Send the Float voltage packet
-				call	#SendPipPacket		; Trashes R8 thru R11
-;				mov		#LDelay,R8				; Delay 950 ms
-;				call	#DelayMs
-				pop		R8					; Restore voltage to R8
-;				mov		#FloatCmd,R10		; Send the Bulk voltage packet
-;				call	#SendPipPacket		; Trashes R8 thru R11
-;			_ELSE							; Else lowering voltage
-;				mov		#FloatCmd,R10		; Send the Float voltage packet
-;				call	#SendPipPacket		; Trashes R8 thru R11
-;				mov		#LDelay,R8				; Delay 950 ms
-;				call	#DelayMs
-;				pop		R8					; Restore voltage to R8
-;				mov		#BulkCmd,R10		; Send the Bulk voltage packet
-;				call	#SendPipPacket		; Trashes R8 thru R11
-;			_ENDIF							; End raising/lowering voltage
-			mov		#30,R8				; Delay long enough for the PIP to ack this
-			call	#DelayMs			; so it has a better chance of noticing the left paren
-
-			mov		#'(',R8				; Send a left paren so following 2400 baud junk, caused by
-			call	#TxByte				; 9600 baud commands sent to CMUs, will not be interpreted
-			call	#WaitTxComplete		; Wait for 2400 baud transmission to complete
-			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
-
-			ret
-
-FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
-BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
-			ALIGN		1
-; End of SendChargerPackets
-
-
-PiController:
-;
-; A PI controller whose input and output are in R8
-; Input range is 0 to 15 (stress levels). Setpoint is 7.
-; Output range is chargerVoltMin to chargerVoltMax (tenths of a volt).
-;
-#define Rerror R10			// Error register
-#define Rderiv R9			// Derivative register
-#define Routput R8			// Output register
-			mov		#7,Rerror				; error = setpoint - measurement
-			sub		R8,Rerror
-			mov		Rerror,Rderiv			; deriv = error - prev_error
-			sub		&piPrevError,Rderiv
-
-			mov		&piPrevOutput,Routput	; output = prev_output + Kp * deriv + Ki * error
-			; Insert rla or rra Rderiv here to change Kp
-			add		Rderiv,Routput			; Kp = 1
-			mov		Rerror,R9				; Overwrites unused Rderiv
-			; Insert rla or rra R9 here to change Ki
-			add		R9,Routput				; Ki = 1
-
-			cmp		&chargerVoltMin,Routput	; Clamp output between chargerVoltMin and chargerVoltMax
-			_IF		_L
-				mov		&chargerVoltMin,Routput
-			_ELSE
-				cmp		&chargerVoltMax,Routput
-				_IF		_GE
-					mov		&chargerVoltMax,Routput
-				_ENDIF
-			_ENDIF
-
-			mov		Rerror,&piPrevError		; prev_error = error
-			mov		Routput,&piPrevOutput	; prev_output = output
-			ret
-; End of PIController
-#endif // MASTERLESS_CHARGING
 
 
 DoPassword:
