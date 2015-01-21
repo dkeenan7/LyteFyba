@@ -47,11 +47,19 @@ BSL2:		; Initialisation
 ;			mov.b	#0,&P2OUT		; Set BYPASS and ERRLED off
 ;			mov.b	#$FF,&P2DIR 	; Set BYPASS and ERRLED as outputs
 
+			; We really only want to do this for use with monolith, where we need to
+			; prevent breaks from eternally circulating around the loop.
+			; But there's no such thing as a monolith-specific version of TestICal yet,
+			; to transport and install the new BSL. FIXME!!!!!
+		; WARNING: don't CMUsend anything with the below change!!!
+			cmp.b	#0,&infoID
+			_IF		_NE				; If we're not an IMU
 			; Send a 27 ms break
 			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
 			clr		R9				; Bit values (all zeros so it's a break)
 			call	#WriteBreak-BSL2+$FE00 ; WriteByte without init part and w/o needing R11 clear
 									; Address adjusted for BSL's relocation
+			_ENDIF
 			; End of the initialisation that used to be in BSL1 in info-flash.
 
 			ClearWatchdog			; Clear and restart Watchdog Timer (32k)

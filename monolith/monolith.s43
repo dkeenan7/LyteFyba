@@ -71,18 +71,19 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 20 mV in excess of 3.350 V, to a max of 15 at >= 3.65 V
-// OV setpoint is 3.49 to 3.50 V. Alarm at 3.57 V.
-OV_ZERO		EQU		3350		; Threshold in mV between OV stress levels -1 and 0
-OV_STEP		EQU		20			; mV difference between one OV stress level and the next
+// OV = Over Voltage: One stress unit for each 40 mV in excess of 3.135 V, to a max of 15 at >= 3.735 V
+// OV setpoint is 3.415 to 3.455 V. Bypass at 3.375. Alarm at 3.575. Drop out source contactors at 3.615
+OV_ZERO		EQU		3135		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		40			; mV difference between one OV stress level and the next
+; These were an attempt to float at the 75% step
 ;// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.332 V, to a max of 15 at >= 3.377 V
-;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V.
+;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 10 mV below 3.290 V, to a maximum of 15 at <= 3.14 V
-// UV setpoint is 3.22 to 3.23 V. Alarm at 3.18 V.
-UV_ZERO		EQU		3290		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-10			; mV difference between one UV stress level and the next
+// UV = Under Voltage: One stress unit for each 20 mV below 3.460 V, to a maximum of 15 at <= 3.16 V
+// UV setpoint is 3.32 to 3.12 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
+UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
@@ -191,7 +192,7 @@ prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
-BatCapacity		EQU		1400		; Battery capacity in tenths of an amp-hour
+BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
 AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
 ;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
@@ -455,7 +456,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#16,R8				; Number of initialisation strings,
+			_DO			#18,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -477,9 +478,9 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
-;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for use)
+		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen
 			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
@@ -488,9 +489,11 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording
 			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
 			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
-			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage
+			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage 48 V (3.00 Vpc)
 			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
 			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
+			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc)
+			DB	11,'PBFT54.0',$97,$DD,$0D	; Set float voltage to 54.0 V (3.375 Vpc)
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
 			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be ACKed.
@@ -918,8 +921,8 @@ DoStatus:
 							bic.b	#RELAYp,&P2OUT			; Drop out the load contactor (magenta LED)
 						_ENDIF							; Endif
 					_ELSE							; Else
-						cmp.b	#8,R9
-						_IF		_L						; If stress is less than 8
+						cmp.b	#7,R9
+						_IF		_L						; If stress is less than 7
 							bis.b	#RELAYp,P2OUT 			; Turn on load contactor
 							push	R8
 							call	#cellV					; Read PV array voltage (tenths of a volt)
@@ -931,9 +934,7 @@ DoStatus:
 						_ENDIF							; Endif
 					_ENDIF							; Endif else stress not alarming
 				_ENDIF							; End else stress not extreme
-;				mov.b		&smoothStressX2,R8
-;				rra.b		R8
-				call	#ControlCharger			; Control PIP charging
+;				call	#ControlCharger			; Control PIP charging
 			_ENDIF							; End else IMU
 		_ENDIF							; End if incoming valid
 		ret
@@ -1182,8 +1183,8 @@ SendPipPacket:
 DoPassword:
 ;
 ; Check for a password character
-; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
-; 0 = waiting for ^D and erase if received. We should not receive any negative value
+; After decrementing passWordState below, 3 = waiting for first byte, 2 = waiting for second,
+; 0 = waiting for last and erase if received. We should not receive any negative value
 ; Trashes R9
 ;
 			dec.b	&passWordState
@@ -1191,7 +1192,7 @@ DoPassword:
 										; process as an ordinary command
 
 			; Check for a continuing password match
-			mov.b	&passWordState,R9	; Password is $07 $06 $05 $04
+			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02 or $07 $06 $05 $04
 #if PROG_START_FOR_BSL == $E000			; Changed password for 8 KiB image
 			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
 #else									; Assume non 8 KiB image
