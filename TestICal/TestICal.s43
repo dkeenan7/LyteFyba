@@ -61,8 +61,10 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 ; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
 
-#define INIT_CMD_STRING ''	 			// No initial command
-; #define INIT_CMD_STRING 'b' 			// Do an update of the BSL
+;#define INIT_CMD_STRING ''	 			// No initial command
+; Note: the below can save our bacon if we make a change to BSL2 that moves the labels (e.g. ReadByte)
+; to different addresses. It can cause all CMUs and IMUs to not be able to bootstrap load, for example.
+#define INIT_CMD_STRING 'b' 			// Do an update of the BSL
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
 									// Note that an update command 'u' is required to make it stick.
 
@@ -125,7 +127,10 @@ SETLOCKA	MACRO
 			ENDM
 
 
-				ORG		$200			; Start of RAM
+				ORG		$200		; Start of RAM
+
+BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
+
 ; This area is common to both Monitor and TestICal and is not erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
