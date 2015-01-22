@@ -891,11 +891,12 @@ DoStatus:
 				cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
 				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
 					mov		R8,R9					; Make a copy of incoming status for tests below
+					mov.b	&localStatus,R10		; Get local status to R10
 					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
 					_COND
 						and		#TYPE,R9
 						cmp		#ALL_NBYP,R9
-					_AND_IF	_NE						; If incoming was not all in bypass
+					_AND_IF	_NE						; If incoming was not all near bypass
 						mov.b	&localStatus,R10
 						and		#TYPE,R10
 						cmp		#ALL_NBYP,R10
@@ -907,7 +908,7 @@ DoStatus:
 					_COND
 						and		#TYPE,R9
 						cmp		#ALL_NBYP,R9
-					_AND_IF	_EQ						; If incoming was all in bypass
+					_AND_IF	_EQ						; If incoming was all near bypass
 						mov.b	&localStatus,R10
 						and		#TYPE,R10
 						cmp		#ALL_NBYP,R10
