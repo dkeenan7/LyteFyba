@@ -722,58 +722,56 @@ DoMeasurement:
 				subc	R10,&discharge+2			; for fuel gauge
 			_ENDIF ; IMU current measurement
 
-			cmp.b	#0,&ID					; If we're an IMU
-			_IF		_EQ
-				ret							; then do nothing more here
-			_ENDIF
+			cmp.b	#0,&ID
+			_IF		_NE					; If we're not an IMU
+				; Update local present stress
+				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
+				cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
+				_IF		_HS
+					mov		#STRESS,R8				; Use the maximum we can fit
+				_ENDIF
+				movBits_B R8,#STRESS,&localStatus ; Record for later use, preserving other status bits.
 
-			; Update local present stress
-			mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
-			cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
-			_IF		_HS
-				mov		#STRESS,R8				; Use the maximum we can fit
-			_ENDIF
-			movBits_B R8,#STRESS,&localStatus ; Record for later use, preserving other status bits.
-
-			; Update local present stress type if not already set to "all near bypass" above.
-			mov.b	&localStatus,R10
-			and		#TYPE,R10
-			cmp		#ALL_NBYP,R10
-			_IF		_NE						; If stress type is not already All Near Bypass
-				cmp		#2,Rtype
-				_IF		_EQ						; If stress type is UnderVoltage
-					mov		#UV_ANB,R8				; Set the UV_ANB bit, clear the OV_UT bit
-				_ELSE							; Else
-					_COND							; Begin short circuit conditional
-						cmp		#1,Rtype
-					_OR_ELSE _EQ					; If type is OverVoltage, else
-						cmp		#4,Rtype
-					_OR_IFS	_EQ						; or if type is UnderTemperature
-						mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_ANB bit
+				; Update local present stress type if not already set to "all near bypass" above.
+				mov.b	&localStatus,R10
+				and		#TYPE,R10
+				cmp		#ALL_NBYP,R10
+				_IF		_NE						; If stress type is not already All Near Bypass
+					cmp		#2,Rtype
+					_IF		_EQ						; If stress type is UnderVoltage
+						mov		#UV_ANB,R8				; Set the UV_ANB bit, clear the OV_UT bit
 					_ELSE							; Else
-						clr		R8						; Clear both type bits
+						_COND							; Begin short circuit conditional
+							cmp		#1,Rtype
+						_OR_ELSE _EQ					; If type is OverVoltage, else
+							cmp		#4,Rtype
+						_OR_IFS	_EQ						; or if type is UnderTemperature
+							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_ANB bit
+						_ELSE							; Else
+							clr		R8						; Clear both type bits
+						_ENDIF
+					_ENDIF
+					movBits_B R8,#TYPE,&localStatus ; Record type for later, preserving other status bits.
+				_ENDIF
+
+				; Update worst stress for trip so far
+				cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
+				_IF		_HS
+					tst.b	Rstrs					; and it's an actual, nonzero stress
+					_IF	_NZ
+						mov.b	Rstrs,&worstStress		; Update worstStress
+						mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 					_ENDIF
 				_ENDIF
-				movBits_B R8,#TYPE,&localStatus ; Record type for later, preserving other status bits.
-			_ENDIF
 
-			; Update worst stress for trip so far
-			cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
-			_IF		_HS
-				tst.b	Rstrs					; and it's an actual, nonzero stress
-				_IF	_NZ
-					mov.b	Rstrs,&worstStress		; Update worstStress
-					mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
-				_ENDIF
-			_ENDIF
-
-			; Update Alarm -- local red LED and piezo
-			cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
-			CtoAllBits	Rtos
-			bit.b		#bBadInsulation,&monFlags
-			CtoAllBits	R8
-			bis			R8,Rtos				; or if the last insulation test failed (IMU only)
-			call		#_errorLed			; Use this function so it optionally turns on piezo as well
+				; Update Alarm -- local red LED and piezo
+				cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
+				CtoAllBits	Rtos
+				bit.b		#bBadInsulation,&monFlags
+				CtoAllBits	R8
+				bis			R8,Rtos				; or if the last insulation test failed (IMU only)
+				call		#_errorLed			; Use this function so it optionally turns on piezo as well
+			_ENDIF	; Not an IMU
 
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
@@ -781,11 +779,11 @@ DoMeasurement:
 			_IF		_Z
 				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
 				_IF		_HS
-					; If our ID is not 0 (IMU) or 1 (first CMU), set the comms error bit in local status
+					; If our ID is not 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
-					; every 256 status bytes (approx every 17 seconds).
-					cmp.b	#2,&ID
-					_IF		_HS
+					; every 256 status bytes (approx every 136 seconds).
+					cmp.b	#1,&ID
+					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
 						inc.b	&tempMasterIDctr
 						_IF	_Z
@@ -798,7 +796,7 @@ DoMeasurement:
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
 
 					; Send status or control a charger
-					bit.b	#bChargerControl,&monFlags	; Set by 'o' command
+					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for IMU.
 					_IF		_Z							; If we're not in charge control mode
 						call	#TxByte						; Send the status byte. Wait buffer not full
 					_ELSE								; Else we're in charger control mode
@@ -933,88 +931,7 @@ DoStatus:
 			_ENDIF							; End if no comms error
 		_ELSE							; Else we're an IMU
 			; Process incoming status for IMU. Stress in R9, complete status in R8.
-
-			; Calculate smoothed stress for controlling contactors
-			rla2	R9						; Quadruple the incoming stress
-			mov.b	&smoothStressX4,R10		; Get the previous smoothed stress times 4 into R10
-			add		R10,R9
-			add		R10,R9
-			add		R10,R9					; R9 = 4*incoming + 3*4*previous
-			incd	R9						; Add 2 for rounding
-			rra2	R9						; Divide by 4 to get new smoothed stress times 4
-			mov.b	R9,&smoothStressX4		; Save it for next time
-			inc		R9						; Add 1 for rounding (don't add 2 or it won't descend fully)
-			rra2	R9						; Divide by 4 to get smoothed stress
-
-			cmp.b	#15,R9					; If smoothed stress is extreme
-			_IF		_GE
-				bic.b	#(SourceCont | LoadCont),P2OUT ; Drop out both source and load contactors
-												; and hence also the battery contactor
-			_ENDIF							; Endif
-
-			; If not OV_UT && not charging && stress >= 12
-			;	turn off discharging/loads contactors
-			_COND							; Begin short circuit conditional
-			bit		#OV_UT,R8
-			_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
-				bit.b	#bCharging,&monFlags
-			_AND_IF	_Z						; And if we're not charging
-				cmp.b	#12,R9
-			_AND_IF	_GE						; And if incoming stress is alarming
-				bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
-			_ENDIFS
-
-			; If not OV_UT && charging && stress <= 7
-			;	turn on discharging/loads contactors
-			_COND							; Begin short circuit conditional
-			bit		#OV_UT,R8
-			_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
-				bit.b	#bCharging,&monFlags
-			_AND_IF	_NZ						; And if we're charging
-				cmp.b	#8,R9
-			_AND_IF	_L						; And if incoming stress is normal
-				bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
-			_ENDIFS
-
-			; If not UV && charging && stress >= 12
-			;	turn off charging/source contactors
-			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#TYPE,R10				; Extract the two stress type bits
-			_COND							; Begin short circuit conditional
-				cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
-			_AND_IF	_NE						; If the stress is not due to UnderVoltage
-				bit.b	#bCharging,&monFlags
-			_AND_IF	_NZ						; And if we're charging
-				cmp.b	#12,R9
-			_AND_IF	_GE						; And if incoming stress is alarming
-				bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
-			_ENDIFS
-
-			; If not UV && not charging && stress <= 7
-			;	turn on charging/source contactors
-			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#TYPE,R10				; Extract the two stress type bits
-			_COND							; Begin short circuit conditional
-				cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
-			_AND_IF	_NE						; If the stress is not due to UnderVoltage
-				bit.b	#bCharging,&monFlags
-			_AND_IF	_Z						; And if we're not charging
-				cmp.b	#8,R9
-			_AND_IF	_L						; And if incoming stress is normal
-				bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
-			_ENDIFS
-
-			; If all near bypass, reset the coulomb counter
-			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#TYPE,R10				; Extract the stress type bits
-			cmp		#ALL_NBYP,R10
-			_IF		_EQ						; If all cells are near bypass
-				; Set the discharge counter to the required DoD (usually 0)
-				mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-				mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-			_ENDIF ; All Near Bypass
-
-;			call	#ControlCharger			; Control PIP charging
+			call	#ControlCharger			; Control PIP charging
 		_ENDIF							; End else IMU
 		ret
 ; End of DoStatus
@@ -1022,9 +939,103 @@ DoStatus:
 
 ControlCharger:
 ;
-; Status byte is in R8. Send it or feed it to a PI controller to control a charger
+; Status byte is in R8. Use it to control contactors, and as input to a PI controller to control charging
 ;
 		push 	R9
+		push	R10
+
+		; Treat comms eror as stress 15 for contactor control (will be smoothed)
+		mov		R8,R9
+		and		#STRESS,R9				; Get stress into R9
+		bit		#COM_ERR,R8
+		_IF		_NZ						; If the comms error bit is set
+			mov		#15,R9					; Treat it as stress 15 for contactor control
+		_ENDIF
+
+		; Calculate smoothed stress for controlling contactors
+		rla2	R9						; Quadruple the incoming stress
+		mov.b	&smoothStressX4,R10		; Get the previous smoothed stress times 4 into R10
+		add		R10,R9
+		add		R10,R9
+		add		R10,R9					; R9 = 4*incoming + 3*4*previous
+		incd	R9						; Add 2 for rounding
+		rra2	R9						; Divide by 4 to get new smoothed stress times 4
+		mov.b	R9,&smoothStressX4		; Save it for next time
+		inc		R9						; Add 1 for rounding (don't add 2 or it won't descend fully)
+		rra2	R9						; Divide by 4 to get smoothed stress
+
+		cmp.b	#15,R9					; If smoothed stress is extreme
+		_IF		_GE
+			bic.b	#(SourceCont | LoadCont),P2OUT ; Drop out both source and load contactors
+											; and hence also the battery contactor
+		_ENDIF							; Endif
+
+		; If not OV_UT && not charging && stress >= 12
+		;	turn off discharging/loads contactors
+		_COND							; Begin short circuit conditional
+		bit		#OV_UT,R8
+		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
+			bit.b	#bCharging,&monFlags
+		_AND_IF	_Z						; And if we're not charging
+			cmp.b	#12,R9
+		_AND_IF	_GE						; And if incoming stress is alarming
+			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
+		_ENDIFS
+
+		; If not OV_UT && charging && stress <= 7
+		;	turn on discharging/loads contactors
+		_COND							; Begin short circuit conditional
+		bit		#OV_UT,R8
+		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
+			bit.b	#bCharging,&monFlags
+		_AND_IF	_NZ						; And if we're charging
+			cmp.b	#8,R9
+		_AND_IF	_L						; And if incoming stress is normal
+			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
+		_ENDIFS
+
+		; If not UV && charging && stress >= 12
+		;	turn off charging/source contactors
+		mov		R8,R10					; Make a copy of the status byte in R10
+		and		#TYPE,R10				; Extract the two stress type bits
+		_COND							; Begin short circuit conditional
+			cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
+		_AND_IF	_NE						; If the stress is not due to UnderVoltage
+			bit.b	#bCharging,&monFlags
+		_AND_IF	_NZ						; And if we're charging
+			cmp.b	#12,R9
+		_AND_IF	_GE						; And if incoming stress is alarming
+			bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
+		_ENDIFS
+
+		; If not UV && not charging && stress <= 7
+		;	turn on charging/source contactors
+		mov		R8,R10					; Make a copy of the status byte in R10
+		and		#TYPE,R10				; Extract the two stress type bits
+		_COND							; Begin short circuit conditional
+			cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
+		_AND_IF	_NE						; If the stress is not due to UnderVoltage
+			bit.b	#bCharging,&monFlags
+		_AND_IF	_Z						; And if we're not charging
+			cmp.b	#8,R9
+		_AND_IF	_L						; And if incoming stress is normal
+			bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
+		_ENDIFS
+
+		; If all near bypass (and no comms error), reset the coulomb counter
+		_COND
+			bit		#COM_ERR,R8
+		_AND_IF		_Z
+			mov		R8,R10					; Make a copy of the status byte in R10
+			and		#TYPE,R10				; Extract the stress type bits
+			cmp		#ALL_NBYP,R10
+		_AND_IF		_EQ						; If all cells are near bypass
+			; Set the discharge counter to the required DoD (usually 0)
+			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
+			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+		_ENDIFS ; All Near Bypass and no comms error
+
+#if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
 ;		_IF		_NZ						; If we've been told to start charging
 			ClearWatchdog
@@ -1035,7 +1046,7 @@ ControlCharger:
 				bit		#COM_ERR,R8
 				_IF		_NZ						; If the comms error bit is set
 					and		#STRESS,R8
-					cmp		#8,R8					; Treat it as a minimum of stress 8
+					cmp		#8,R8					; Treat it as a minimum of stress 8 for PI control
 					_IF		_LO
 						mov		#8,R8
 					_ENDIF
@@ -1055,6 +1066,8 @@ ControlCharger:
 				clr.b	&chargerTxTimer 		; Clear timer
 			_ENDIF ; Every fourth tick
 ;		_ENDIF ; bCharging
+#endif
+		pop		R10
 		pop		R9
 		ret
 ; End of ControlCharger
