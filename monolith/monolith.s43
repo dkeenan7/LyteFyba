@@ -131,9 +131,15 @@ comErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
 COM_ERR		EQU		1<<6			; Communications error
-ALL_NBYP	EQU		1<<5			; All near bypass -- charge termination condition
-ENC_STRESS	EQU		$1F				; Encoded stress. Bits 0-4. Bit 4 is a check bit
-STRESS		EQU		$0F				; Raw stress. Bits 0-3
+UV_ANB		EQU		1<<5			; Stress type is UnderVoltage (ignore on charge)
+									;	or cells are All Near Bypass
+OV_UT		EQU		1<<4			; Stress type is OverVoltage or UnderTemp (ignore on discharge)
+TYPE		EQU		UV_ANB | OV_UT	; Stress type field
+ALL_NBYP	EQU		UV_ANB | OV_UT	; Cells are All Near Bypass (reset coulomb counter to 0% DoD)
+STRESS		EQU		$0F				; Stress level. Bits 0-3
+
+SourceCont	EQU	RELAYm				; Source contactor MOSFET and yellow LED
+LoadCont	EQU RELAYp				; Load contactor MOSFET and magenta LED
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
@@ -201,7 +207,7 @@ ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a 
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
 current			DS		2			; Current most recently reported by IMU in tenths of an amp (signed)
-smoothStressX2	DS		1			; Moving average of stress used by IMU to control contactors
+smoothStressX4	DS		1			; Moving average of stress used by IMU to control contactors
 
 ; Serial-io variables
 
@@ -317,7 +323,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
 			cmp.b	#0,&ID
 			_IF		_EQ							; If we're an IMU
-				bis.b	#RELAYp,&P2OUT				; Set load contactor on so battery contactor goes on
+				bis.b	#LoadCont,&P2OUT				; Set load contactor on so battery contactor goes on
 													; and we stay powered up
 			_ENDIF
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
@@ -369,7 +375,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.w	&piPrevOutput				; Initialise PI controller state
 ;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
-
 
 
 			mov.w	#OV_ZERO,&ovZero
@@ -609,38 +614,35 @@ DoMeasurement:
 				sub			&ovStep,R9			; Calculate the near-bypass (charge termination) threshold
 				cmp			R9,R10				; Compare cell voltage (R10) to the near-bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only #ALL_NBYP bit from R8 to &localStatus.
+				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only All-Near-Bypass bits from R8 to localStatus
 			_ELSE
 				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
 			cmp.b	#0,&ID
 			_IF		_NE						; If we're not an IMU
-				tst		&current
-				_IF		_NN						; If current is not negative (i.e. charging)
-					; Calculate stress due to overvoltage
-					push	R10						; OCV for overvoltage stress calc
-					push	&ovStep					; For every ovStep (millivolts)
-					push	&ovZero					;	over ovZero, we add one level of stress
-					push	#1						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
-				_ELSE
-					; Calculate stress due to undervoltage
-					push	R10						; OCV for undervoltage stress calc
-					push	#UV_STEP				; For every UV_STEP (millivolts)
-					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-					push	#2						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
-				_ENDIF
+				push	R10						; For undervoltage stress calc below
+				; Calculate stress due to overvoltage
+				push	R10						; OCV for overvoltage stress calc
+				push	&ovStep					; For every ovStep (millivolts)
+				push	&ovZero					;	over ovZero, we add one level of stress
+				push	#1						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
+
+				; Calculate stress due to undervoltage
+												; OCV for undervoltage stress calc already pushed
+				push	#UV_STEP				; For every UV_STEP (millivolts)
+				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+				push	#2						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
 			_ENDIF	; not an IMU
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
-			push	R10						; Save measurement for undertemperature stress calc
 
-			_COND							; Begin short-circuit conditional
-				cmp.b	#0,&ID
-			_AND_IF		_NE					; If we're not an IMU
+			cmp.b	#0,&ID
+			_IF		_NE					; If we're not an IMU
+				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
@@ -648,16 +650,12 @@ DoMeasurement:
 				push	#3						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
 
-				; Calculate stress due to undertemperature if we're charging
-				tst		&current
-			_AND_IF		_NN					; And if current is not negative (charging)
+				; Calculate stress due to undertemperature
 												; Measurement saved on stack earlier
 				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
 				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-			_ELSES							; Else
-				pop		R10						; Drop unused temp measurement off stack
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
@@ -712,31 +710,54 @@ DoMeasurement:
 					bic.b	#bCharging,&monFlags	; We're not charging
 				_ENDIF							; Endif
 
-				// Sign extend current to 32 bits in R10:R9.
+				; Sign extend current to 32 bits in R10:R9.
 				mov		&current,R9					; Get current in R9
 				mov		R9,R10						; Make a copy in R10
 				rla		R10							; Shift sign bit to carry
 				subc	R10,R10						; 0 if R9 is negative, -1 otherwise
 				inv		R10							; -1 if R9 is negative, 0 otherwise
 
-				// Do coulomb counting
+				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
-			_ENDIF
+			_ENDIF ; IMU current measurement
 
 			cmp.b	#0,&ID					; If we're an IMU
 			_IF		_EQ
 				ret							; then do nothing more here
 			_ENDIF
 
-			; Update local present stress, and worst stress for trip so far
+			; Update local present stress
 			mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
 			cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
 			_IF		_HS
 				mov		#STRESS,R8				; Use the maximum we can fit
 			_ENDIF
-			mov.b	stressTable(R8),R8		; Encode it with checkbit
-			movBits_B R8,#ENC_STRESS,&localStatus ; Record for later use, preserving other status bits.
+			movBits_B R8,#STRESS,&localStatus ; Record for later use, preserving other status bits.
+
+			; Update local present stress type if not already set to "all near bypass" above.
+			mov.b	&localStatus,R10
+			and		#TYPE,R10
+			cmp		#ALL_NBYP,R10
+			_IF		_NE						; If stress type is not already All Near Bypass
+				cmp		#2,Rtype
+				_IF		_EQ						; If stress type is UnderVoltage
+					mov		#UV_ANB,R8				; Set the UV_ANB bit, clear the OV_UT bit
+				_ELSE							; Else
+					_COND							; Begin short circuit conditional
+						cmp		#1,Rtype
+					_OR_ELSE _EQ					; If type is OverVoltage, else
+						cmp		#4,Rtype
+					_OR_IFS	_EQ						; or if type is UnderTemperature
+						mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_ANB bit
+					_ELSE							; Else
+						clr		R8						; Clear both type bits
+					_ENDIF
+				_ENDIF
+				movBits_B R8,#TYPE,&localStatus ; Record type for later, preserving other status bits.
+			_ENDIF
+
+			; Update worst stress for trip so far
 			cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
 			_IF		_HS
 				tst.b	Rstrs					; and it's an actual, nonzero stress
@@ -788,9 +809,6 @@ DoMeasurement:
 			ret
 ; End of DoMeasurement
 
-ChargingCmd		DB		2, '1c'
-NotChargingCmd	DB		2, '0c'
-
 
 DoStress:
 ;
@@ -800,7 +818,7 @@ DoStress:
 ; Trashes R8 thru R11.
 ;
 ; Stack offsets for parameters (return address is at offset zero)
-type	EQU		2				; A number representing the type of measurement
+type	EQU		2				; A number representing the type of measurement OV=1 UV=2 OT=3 UT=4 AL=5
 zero	EQU		4				; The measurement corresponding to zero stress
 step	EQU		6				; The change in measurement corresp to a change of one stress level
 meas	EQU		8				; The measurement
@@ -860,83 +878,144 @@ DoStatus:
 		mov.b	R8,R9					; Copy incoming status to R9
 		mov.b	R8,R10					; And R10
 		and.b	#STRESS,R9				; Only stress bits in R9
-		and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
-		cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
-		_IF		_EQ
-			cmp.b	#0,&ID
-			_IF		_NE						; If we're a CMU
-				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
-				; This will eliminate any comms error next time through DoMeasures
 
-				; Check if DoMeasures may have just sent a status byte, due to a comms error
-				bit.b	#COM_ERR,&localStatus	; If no comms error
-				_IF		_Z
+		cmp.b	#0,&ID
+		_IF		_NE						; If we're a CMU
+			clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
+			; This will eliminate any comms error next time through DoMeasures
 
-					; Do MAX of local and incoming stress
-					mov.b	&localStatus,R10		; Get local status to R10
-					and.b	#STRESS,R10				; Extract stress bits
-					cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
-					_IF		_LO						; If incoming (R9) is less than ours (R10)
-						mov.b	stressTable(R10),R10	; Get encoded local stress to R10
-						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
-					_ENDIF							; Endif we are worse
+			; Check if DoMeasures may have just sent a status byte, due to a comms error
+			bit.b	#COM_ERR,&localStatus	; If no comms error
+			_IF		_Z
 
-					; Do AND of local and incoming all_near_bypass bits
-					mov.b	&localStatus,R10		; Get local status to R10
-					bis.b	#~ALL_NBYP,R10			; Set all bits other than the all-near-bypass bit
-					and.b	R10,R8					; AND the all-near-bypass bits, others unchanged
+				; Do MAX of local and incoming stress, and handle stress type and all near bypass
+				mov.b	&localStatus,R10		; Get local status to R10
+				and.b	#STRESS,R10				; Extract stress bits
+				cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
+				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
+					mov		R8,R9					; Make a copy of incoming status for tests below
+					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
+					_COND
+						and		#TYPE,R9
+						cmp		#ALL_NBYP,R9
+					_AND_IF	_NE						; If incoming was not all in bypass
+						mov.b	&localStatus,R10
+						and		#TYPE,R10
+						cmp		#ALL_NBYP,R10
+					_AND_IF	_EQ						; And if local is in bypass
+						bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
+					_ENDIFS
+				_ELSE							; Else incoming stress is not less than ours
+					mov		R8,R9					; Make a copy of incoming status for tests below
+					_COND
+						and		#TYPE,R9
+						cmp		#ALL_NBYP,R9
+					_AND_IF	_EQ						; If incoming was all in bypass
+						mov.b	&localStatus,R10
+						and		#TYPE,R10
+						cmp		#ALL_NBYP,R10
+					_AND_IF	_NE						; And if local is not in bypass
+						bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
+					_ENDIFS
+				_ENDIF							; End else incoming stress is not less than ours
 
-					; Process incoming comms error bit.
-					; Since we received a valid status byte, there is no local
-					;	comms error, so just pass the incoming comms error bit through.
+				; Process incoming comms error bit.
+				; Since we received a valid status byte, there is no local
+				;	comms error, so just pass the incoming comms error bit through.
 
-					; Send status or control a charger
-					bit.b	#bChargerControl,&monFlags	; Set by 'o' command
-					_IF		_Z							; If we're not in charge control mode
-						call	#TxByte						; Send the status byte. Wait buffer not full
-					_ELSE								; Else we're in charger control mode
-						call	#ControlCharger				; Control a charger
-					_ENDIF
-				_ENDIF							; End if no comms error
-			_ELSE							; Else we're an IMU
-				; Process incoming status for IMU
-				rra.b	R9						; Double incoming stress
-				add.b	&smoothStressX2,R9		; Add prev smooth double stress to double incoming stress
-				inc.b	R9						; Add one for rounding
-				rra.b	R9						; Divide by 2
-				mov.b	R9,&smoothStressX2		; Save for next time
-				rra.b	R9						; Divide by 2 to get smoothed stress (not doubled)
+				; Send status or control a charger
+				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
+				_IF		_Z							; If we're not in charge control mode
+					call	#TxByte						; Send the status byte. Wait buffer not full
+				_ELSE								; Else we're in charger control mode
+					call	#ControlCharger				; Control a charger
+				_ENDIF
+			_ENDIF							; End if no comms error
+		_ELSE							; Else we're an IMU
+			; Process incoming status for IMU. Stress in R9, complete status in R8.
 
-				cmp.b	#15,R9					; If smoothed stress is extreme
-				_IF		_GE
-					bic.b	#(RELAYm | RELAYp),P2OUT ; Drop out both source and load contactors
-													; and hence also the battery contactor
-				_ELSE							; Else
-					cmp.b	#minAlarmStress,R9
-					_IF		_GE						; If incoming stress is alarming
-						bit.b	#bCharging,&monFlags
-						_IF		_NZ						; If we're charging
-							bic.b	#RELAYm,&P2OUT			; Drop out the source contactors(yellow LED)
-						_ELSE							; Else
-							bic.b	#RELAYp,&P2OUT			; Drop out the load contactor (magenta LED)
-						_ENDIF							; Endif
-					_ELSE							; Else
-						cmp.b	#7,R9
-						_IF		_L						; If stress is less than 7
-							bis.b	#RELAYp,P2OUT 			; Turn on load contactor
-							push	R8
-							call	#cellV					; Read PV array voltage (tenths of a volt)
-							pop		R8						; Status needed by ControlCharger call below
-							cmp		#140*10,R10
-							_IF		_LO						; If PV array voltage < 140 volts
-								bis.b	#RELAYm,P2OUT 			; Turn on source contactors
-							_ENDIF							; Endif
-						_ENDIF							; Endif
-					_ENDIF							; Endif else stress not alarming
-				_ENDIF							; End else stress not extreme
-;				call	#ControlCharger			; Control PIP charging
-			_ENDIF							; End else IMU
-		_ENDIF							; End if incoming valid
+			; Calculate smoothed stress for controlling contactors
+			rla2	R9						; Quadruple the incoming stress
+			mov.b	&smoothStressX4,R10		; Get the previous smoothed stress times 4 into R10
+			add		R10,R9
+			add		R10,R9
+			add		R10,R9					; R9 = 4*incoming + 3*4*previous
+			incd	R9						; Add 2 for rounding
+			rra2	R9						; Divide by 4 to get new smoothed stress times 4
+			mov.b	R9,&smoothStressX4		; Save it for next time
+			inc		R9						; Add 1 for rounding (don't add 2 or it won't descend fully)
+			rra2	R9						; Divide by 4 to get smoothed stress
+
+			cmp.b	#15,R9					; If smoothed stress is extreme
+			_IF		_GE
+				bic.b	#(SourceCont | LoadCont),P2OUT ; Drop out both source and load contactors
+												; and hence also the battery contactor
+			_ENDIF							; Endif
+
+			; If not OV_UT && not charging && stress >= 12
+			;	turn off discharging/loads contactors
+			_COND							; Begin short circuit conditional
+			bit		#OV_UT,R8
+			_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
+				bit.b	#bCharging,&monFlags
+			_AND_IF	_Z						; And if we're not charging
+				cmp.b	#12,R9
+			_AND_IF	_GE						; And if incoming stress is alarming
+				bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
+			_ENDIFS
+
+			; If not OV_UT && charging && stress <= 7
+			;	turn on discharging/loads contactors
+			_COND							; Begin short circuit conditional
+			bit		#OV_UT,R8
+			_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
+				bit.b	#bCharging,&monFlags
+			_AND_IF	_NZ						; And if we're charging
+				cmp.b	#8,R9
+			_AND_IF	_L						; And if incoming stress is normal
+				bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
+			_ENDIFS
+
+			; If not UV && charging && stress >= 12
+			;	turn off charging/source contactors
+			mov		R8,R10					; Make a copy of the status byte in R10
+			and		#TYPE,R10				; Extract the two stress type bits
+			_COND							; Begin short circuit conditional
+				cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
+			_AND_IF	_NE						; If the stress is not due to UnderVoltage
+				bit.b	#bCharging,&monFlags
+			_AND_IF	_NZ						; And if we're charging
+				cmp.b	#12,R9
+			_AND_IF	_GE						; And if incoming stress is alarming
+				bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
+			_ENDIFS
+
+			; If not UV && not charging && stress <= 7
+			;	turn on charging/source contactors
+			mov		R8,R10					; Make a copy of the status byte in R10
+			and		#TYPE,R10				; Extract the two stress type bits
+			_COND							; Begin short circuit conditional
+				cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
+			_AND_IF	_NE						; If the stress is not due to UnderVoltage
+				bit.b	#bCharging,&monFlags
+			_AND_IF	_Z						; And if we're not charging
+				cmp.b	#8,R9
+			_AND_IF	_L						; And if incoming stress is normal
+				bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
+			_ENDIFS
+
+			; If all near bypass, reset the coulomb counter
+			mov		R8,R10					; Make a copy of the status byte in R10
+			and		#TYPE,R10				; Extract the stress type bits
+			cmp		#ALL_NBYP,R10
+			_IF		_EQ						; If all cells are near bypass
+				; Set the discharge counter to the required DoD (usually 0)
+				mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
+				mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+			_ENDIF ; All Near Bypass
+
+;			call	#ControlCharger			; Control PIP charging
+		_ENDIF							; End else IMU
 		ret
 ; End of DoStatus
 
@@ -945,33 +1024,39 @@ ControlCharger:
 ;
 ; Status byte is in R8. Send it or feed it to a PI controller to control a charger
 ;
-			push 	R9
-;			bit.b	#bCharging,&monFlags		; Set by '1c' command
-;			_IF		_NZ							; If we've been told to start charging
-				bit		#ALL_NBYP,R8
-				_IF		_NZ							; If all cells are near bypass
-					; Set the discharge counter to 25% DoD (75% SoC)
-					mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-					mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-				_ENDIF ; ALL_NBYP
-				ClearWatchdog
-				inc.b	&chargerTxTimer				; Increment charger transmit timer
-				mov.b	&chargerTxTimer,R9			; Get charger transmit timer
-				and.b	#3,R9
-				_IF		_Z							; Every fourth tick (every 2 seconds)
-					bit		#COM_ERR,R8
-					_IF		_NZ
-						mov		#8,R8					; Treat comms error as stress 8
-					_ELSE
-						and		#STRESS,R8				; Otherwise use the stress value (0-15)
+		push 	R9
+;		bit.b	#bCharging,&monFlags	; Set by '1c' command
+;		_IF		_NZ						; If we've been told to start charging
+			ClearWatchdog
+			inc.b	&chargerTxTimer			; Increment charger transmit timer
+			mov.b	&chargerTxTimer,R9		; Get charger transmit timer
+			and.b	#3,R9
+			_IF		_Z						; Every fourth tick (every 2 seconds)
+				bit		#COM_ERR,R8
+				_IF		_NZ						; If the comms error bit is set
+					and		#STRESS,R8
+					cmp		#8,R8					; Treat it as a minimum of stress 8
+					_IF		_LO
+						mov		#8,R8
 					_ENDIF
-					call	#PiController			; Call PI controller with R8 as input and output
-					call	#SendChargerPackets		; Send packets to charger to set voltage
-					clr.b	&chargerTxTimer 		; Clear timer
-				_ENDIF ; Every fourth tick
-;			_ENDIF ; bCharging
-			pop		R9
-			ret
+				_ELSE
+					; If stress is due to undervoltage, treat it as stress 0 for charging purposes
+					mov		R8,R9					; Make a copy of the status byte in R9
+					and		#TYPE,R9				; Extract the stress type bits
+					cmp		#UV_ANB,R9
+					_IF		_EQ						; If stress type is UnderVoltage
+						clr		R8						; Treat as a stress of zero for charging
+					_ELSE							; Else
+						and		#STRESS,R8				; Use the given stress value (0-15)
+					_ENDIF
+				_ENDIF
+				call	#PiController			; Call PI controller with R8 as input and output
+				call	#SendChargerPackets		; Send packets to charger to set voltage
+				clr.b	&chargerTxTimer 		; Clear timer
+			_ENDIF ; Every fourth tick
+;		_ENDIF ; bCharging
+		pop		R9
+		ret
 ; End of ControlCharger
 
 
@@ -1248,33 +1333,6 @@ DELAY_IF_NEEDED MACRO
 #include "../common/math.s43"		// Multiply and divide routines
 #include "crc.s43"					// CRC calculation routines
 #include "monoDefinitions.s43"		// Command character definitions
-
-
-			; Encoded stress table. The stress and other information is transmitted in one status byte,
-			; with no checksum correction. To counter this, stress is encoded, so that only
-			; 16 of the 32 possible stress codes ($00 - $1F) are valid. Other codes
-			; are treated as a corrupted attempt to send status information.
-			; Present status for this CMU is sent instead.
-			; Note that bit 7 is always set for status bytes; bit 6 represents comms error;
-			; bit 5 represents all-near-bypass; bit 4 is a check bit, the inverse of the stress high bit.
-			; Note that encoded stress values are not monotonic
-			; The table is indexed by raw stress values
-stressTable	DB		(1<<4) + 0			; Stress 0	$10
-			DB		(1<<4) + 1			; Stress 1	$11
-			DB		(1<<4) + 2			; Stress 2	$12
-			DB		(1<<4) + 3			; Stress 3	$13
-			DB		(1<<4) + 4			; Stress 4	$14
-			DB		(1<<4) + 5			; Stress 5	$15
-			DB		(1<<4) + 6			; Stress 6	$16
-			DB		(1<<4) + 7			; Stress 7	$17
-			DB		(0<<4) + 8			; Stress 8	$08
-			DB		(0<<4) + 9			; Stress 9	$09
-			DB		(0<<4) + 10			; Stress 10	$0A
-			DB		(0<<4) + 11			; Stress 11	$0B
-			DB		(0<<4) + 12			; Stress 12	$0C
-			DB		(0<<4) + 13			; Stress 13	$0D
-			DB		(0<<4) + 14			; Stress 14	$0E
-			DB		(0<<4) + 15			; Stress 15	$0F
 
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
