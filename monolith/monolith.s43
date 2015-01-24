@@ -71,9 +71,9 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; So 8 is the lowest dis-stress. Alarm is given at stress 11. Contactor dropout at 12. Shutdown at 15.
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 40 mV in excess of 3.135 V, to a max of 15 at >= 3.735 V
-// OV setpoint is 3.415 to 3.455 V. Bypass at 3.375. Alarm at 3.575. Drop out source contactors at 3.615
-OV_ZERO		EQU		3135		; Threshold in mV between OV stress levels -1 and 0
+// OV = Over Voltage: One stress unit for each 40 mV in excess of 3.140 V, to a max of 15 at >= 3.740 V
+// OV setpoint is 3.420 to 3.460 V. Bypass at 3.380. Alarm at 3.580. Drop out source contactors at 3.620
+OV_ZERO		EQU		3140		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ; These were an attempt to float at the 75% step
 ;// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.332 V, to a max of 15 at >= 3.377 V
@@ -84,14 +84,14 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 // UV setpoint is 3.32 to 3.12 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
 UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-// OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
-// OT setpoint is 47 to 48 degC. Alarm at 51 degC. Dropout source contactors at 52 degC.
-OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
-OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
-// UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
-// UT setpoint is 4 to 3 degC. Alarm at 0degC.
-UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
-UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
+// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62degC
+// OT setpoint is 46 to 48 degC. Alarm at 54 degC. Dropout source contactors at 56 degC.
+OT_ZERO		EQU		32			; Threshold in degrees C between OT stress levels -1 and 0
+OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
+// UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
+// UT setpoint is 10 to 8 degC. Alarm at 2 degC. Source contactor dropout at 0 degC.
+UT_ZERO		EQU		24			; Threshold in degrees C between UT stress levels -1 and 0
+UT_STEP		EQU		-2			; Degrees C difference between one UT stress level and the next
 // AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
 // Plan to implement positive and negative bolt voltages in future.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
@@ -1027,7 +1027,15 @@ ControlCharger:
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
 			bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
-		_ENDIFS
+		_ELSES							; Else
+			push	R8
+			call	#cellV					; Get the PV array voltage
+			pop		R8
+			cmp		#145*10,R10
+			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
+				bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
+			_ENDIF
+		_ENDIF
 
 		; If not UV && not charging && stress <= 7
 		;	turn on charging/source contactors
@@ -1040,6 +1048,11 @@ ControlCharger:
 		_AND_IF	_Z						; And if we're not charging
 			cmp.b	#8,R9
 		_AND_IF	_L						; And if incoming stress is normal
+			push	R8
+			call	#cellV
+			pop		R8
+			cmp		#140*10,R10
+		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
 			bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
 		_ENDIFS
 
