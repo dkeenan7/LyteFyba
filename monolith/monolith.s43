@@ -66,9 +66,9 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; Constants
 
 ; Stress calculations
-; The stress set-point for both charger and motor controller back-off is 7.
-; This set-point of 7 is implemented in the DCUs.
-; So 8 is the lowest dis-stress. Alarm is given at stress 11 or more.
+; The stress set-point for charger back-off is 7.
+; This set-point of 7 is implemented in the IMU's PI controller.
+; So 8 is the lowest dis-stress. Alarm is given at stress 11. Contactor dropout at 12. Shutdown at 15.
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.135 V, to a max of 15 at >= 3.735 V
@@ -85,7 +85,7 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 40C, to a max of 15 at >= 55degC
-// OT setpoint is 47 to 48 degC. Alarm at 51 degC.
+// OT setpoint is 47 to 48 degC. Alarm at 51 degC. Dropout source contactors at 52 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
@@ -123,10 +123,10 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 ; NBYPLEV	EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
 ; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
 
-minLEDStress EQU	11			; Minimum stress to light error LED
-minAlarmStress EQU	12			; Minimum stress to drop out source or load relays (IMU only)
+MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
+MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU only)
 
-comErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
+ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
@@ -418,7 +418,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Miscellaneous initialisation
 ;
-			mov.b	#4,&passWordState		; Waiting for first byte of ^G ^F ^E ^D sequence
+			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
 			eint							; Enable interrupts now that all initialisation is complete
 
 
@@ -461,7 +461,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#18,R8				; Number of initialisation strings,
+			_DO			#17,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -488,7 +488,7 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen
-			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
+;			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
 			DB	6,'PEu',$82,$C5,$0D			; Enable OL-restart
 			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart
 			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording
@@ -512,20 +512,25 @@ PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be AC
 Reject2400Baud:
 ; When receiving 2400 baud characters sent by an IMU (intended for the PIP inverter)
 ; the only possible characters received at 9600 baud are $00, $78, $80, $F8.
-; $00 is a no-op, $80 and $F8 are status bytes with a bad check bit.
+; $00 is a no-op, $80 and $F8 are status bytes.
 ; $78 is a lowercase 'x', which forces us to use a different character 'W' for the exclusive command.
-			_COND
-				cmp.b	#$00,R8
-			_OR_ELSE	_EQ
-				cmp.b	#'x',R8
-			_OR_ELSE	_EQ
-				cmp.b	#$80,R8
-			_OR_ELSE	_EQ
-				cmp.b	#$F8,R8
-			_OR_IFS		_EQ
-				setz
-			_ELSE
-				clrz
+			cmp.b	#1,&ID
+			_IF		_EQ						; If we're the first CMU
+				_COND
+					cmp.b	#$00,R8
+				_OR_ELSE	_EQ					; If char is a null, or else
+					cmp.b	#'x',R8
+				_OR_ELSE	_EQ					; If char is an 'x', or else
+					cmp.b	#$80,R8
+				_OR_ELSE	_EQ					; If char is $80, or else
+					cmp.b	#$F8,R8
+				_OR_IFS		_EQ					; If char is $F8
+					setz							; Set the Z flag so char  will be ignored
+				_ELSE							; Else
+					clrz							; Clear the Z flag so char  will be accepted
+				_ENDIF
+			_ELSE							; Else not the first CMU
+				clrz							; Clear the Z flag so char will be accepted
 			_ENDIF
 			ret
 ; End of Reject2400Baud
@@ -723,13 +728,20 @@ DoMeasurement:
 			_ENDIF ; IMU current measurement
 
 			cmp.b	#0,&ID
-			_IF		_NE					; If we're not an IMU
-				; Update local present stress
-				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
-				cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
-				_IF		_HS
-					mov		#STRESS,R8				; Use the maximum we can fit
+			_IF		_NE						; If we're not an IMU
+				; Clamp local present stress to a maximum value
+				mov		#15,R9					; Default clamp value is 15
+				cmp		#4,Rtype
+				_IF		_EQ						; If type is undertemperature
+					mov		#MinContStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
 				_ENDIF
+				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
+				cmp		R9,R8					; If the stress is not less than the maximum allowed
+				_IF		_HS
+					mov		R9,R8					; Use the maximum allowed
+				_ENDIF
+
+				; Update local present stress
 				movBits_B R8,#STRESS,&localStatus ; Record for later use, preserving other status bits.
 
 				; Update local present stress type if not already set to "all near bypass" above.
@@ -765,7 +777,7 @@ DoMeasurement:
 				_ENDIF
 
 				; Update Alarm -- local red LED and piezo
-				cmp.b		#minLEDStress,Rstrs	; Turn on the error LED if stress is minLEDStress or more
+				cmp.b		#MinAlarmStress,Rstrs	; Turn on the error LED if stress is MinAlarmStress or more
 				CtoAllBits	Rtos
 				bit.b		#bBadInsulation,&monFlags
 				CtoAllBits	R8
@@ -777,7 +789,7 @@ DoMeasurement:
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
 			bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
 			_IF		_Z
-				cmp.b	#comErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
+				cmp.b	#ComErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
 				_IF		_HS
 					; If our ID is not 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
@@ -900,21 +912,30 @@ DoStatus:
 						mov.b	&localStatus,R10
 						and		#TYPE,R10
 						cmp		#ALL_NBYP,R10
-					_AND_IF	_EQ						; And if local is in bypass
+					_AND_IF	_EQ						; and if local is in bypass
 						bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
 					_ENDIFS
 				_ELSE							; Else incoming stress is not less than ours
-					mov		R8,R9					; Make a copy of incoming status for tests below
-					_COND
-						and		#TYPE,R9
-						cmp		#ALL_NBYP,R9
-					_AND_IF	_EQ						; If incoming was all near bypass
-						mov.b	&localStatus,R10
-						and		#TYPE,R10
-						cmp		#ALL_NBYP,R10
-					_AND_IF	_NE						; And if local is not in bypass
-						bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
-					_ENDIFS
+					_IF		_EQ						; If incoming stress is equal to ours
+						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
+						and		#TYPE,R10				; which won't go away when sources dropped, and
+						cmp		#UV_ANB,R10				; may mask UV and prevent loads being dropped.
+						_IF		_EQ						; If local is undervoltage
+							movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
+						_ENDIF
+					_ELSE							; Else incoming stress is greater than ours
+						mov		R8,R9					; Make a copy of incoming status for tests below
+						_COND
+							and		#TYPE,R9
+							cmp		#ALL_NBYP,R9
+						_AND_IF	_EQ						; If incoming is all near bypass
+							mov.b	&localStatus,R10
+							and		#TYPE,R10
+							cmp		#ALL_NBYP,R10
+						_AND_IF	_NE						; and if local is not in bypass
+							bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
+						_ENDIFS
+					_ENDIF							; End else incoming stress is greater than ours
 				_ENDIF							; End else incoming stress is not less than ours
 
 				; Process incoming comms error bit.
@@ -977,7 +998,7 @@ ControlCharger:
 		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
 			bit.b	#bCharging,&monFlags
 		_AND_IF	_Z						; And if we're not charging
-			cmp.b	#12,R9
+			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
 			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
 		_ENDIFS
@@ -1003,7 +1024,7 @@ ControlCharger:
 		_AND_IF	_NE						; If the stress is not due to UnderVoltage
 			bit.b	#bCharging,&monFlags
 		_AND_IF	_NZ						; And if we're charging
-			cmp.b	#12,R9
+			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
 			bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
 		_ENDIFS
