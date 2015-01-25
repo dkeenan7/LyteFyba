@@ -311,13 +311,17 @@ main:										; For IAR Embedded Workbench IDE debugger
 #if REV61
 			clr.b	&P1OUT						; All outputs low on port 1
 			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			cmp.b	#0,&ID
+			_IF		_EQ
+				bis.b	#PWMOUT,&P1DIR				; For IMU only, set P1.3 as an output
+			_ENDIF
 #else
 			mov.b	#ACTLED,&P1OUT				; All outputs low, except (inverted) ActLED, on port 1
 			cmp.b	#0,&ID						; If we're not an IMU
 			_IF		_NE
 				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
-				mov.b	#VREFp|TXDp|TXDm|PIEZO|PWMOUT,&P1DIR ; Set VREFp, TX bits, piezo and PWM as outs
+				mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 			_ENDIF
 #endif
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
@@ -355,7 +359,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
-			mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (for SOC PWM)
+			mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (for SoC PWM)
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxRd
@@ -391,7 +395,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ELSE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				; No longer TouchV
+				; No longer TouchVChan
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ENDIF
 			; Initialise ADC10
@@ -419,11 +423,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
 
 ; PWM initialisation
-#if 1
-			mov		#(1000*3/4),&pwmAdv			; For now: 75% duty cycle (250 low, 750 high)
-#else
-			call	#UpdateSOC					; Initialise the pre-computed counter advance value
-#endif
+			call	#UpdateSoC					; Initialise the pre-computed counter advance value
 
 ;
 ; Miscellaneous initialisation
@@ -740,7 +740,7 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
-				call	#UpdateSOC					; Update the pre-computed SOC timer advance value
+				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 			_ENDIF ; IMU current measurement
 
 			cmp.b	#0,&ID
@@ -1072,7 +1072,7 @@ ControlCharger:
 			; Set the discharge counter to the required DoD (usually 0)
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-			call	#UpdateSOC			; Update the pre-computed PWM counter advance value
+			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Near Bypass and no comms error
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
@@ -1318,22 +1318,29 @@ SendPipPacket:
 			ret
 
 ;
-; Update the SOC meter's advance value (so the SOC meter will reflect a change made to the discharge
+; Update the SoC meter's advance value (so the SoC meter will reflect a change made to the discharge
 ; counter)
 ; Preserves R8 and R9, trashes R10, clears R11
 ;
-UpdateSOC:
+UpdateSoC:
+MinAdvance	EQU			20					; To avoid timer compare wraparound
 			push		R8
 			push		R9
-			call		#StateOfCharge		; Get SOC as value 0-1000
-			cmp			#20,R9				; Compare with minimum value
-			_IF			_LO					; If less,
-				mov			#20,R9				; Enforce minimum value
+			; Although we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
+			call		#DepthOfDischarge	; Get DoD as value 0-1000 (0 to 100.0%)
+			cmp			#MinAdvance,R9		; Compare with minimum value
+			_IF			_LO					; If lower,
+				mov			#MinAdvance,R9		; Enforce minimum value to avoid timer compare wrap
+			_ENDIF
+			cmp			#1000-MinAdvance,R9	; Compare with maximum value
+			_IF			_HS					; If higher or same,
+				mov			#1000-MinAdvance,R9	; Enforce maximum value to avoid timer compare wrap
 			_ENDIF
 			mov			R9,&pwmAdv			; Save in the pre-computed advance variable
 			pop			R9
 			pop			R8
 			ret
+
 
 DoPassword:
 ;

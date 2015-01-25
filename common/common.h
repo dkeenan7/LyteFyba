@@ -5,7 +5,7 @@ PIEZO		EQU		1<<0			; Piezo on P1.0
 TXDm		EQU		1<<1			; TA0/P1.1. Code requires TXDm bit somewhere to right of TXDp bit
 RXD			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
 #if REV61
-PWMOUT		EQU		1<<3			; PWM output for SOC meter (monolith only)
+PWMOUT		EQU		1<<3			; PWM output for SoC meter (monolith only)
 #else
 ACTLED		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
 #endif

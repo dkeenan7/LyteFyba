@@ -603,7 +603,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		xCODE	'g',fuelGauge,_fuelGauge
 		cmp.b	#0,&ID
 		_IF		_EQ					; IMUs only
-			call	#StateOfCharge		; Get the state of charge as a number 0-1000 in
+			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
 			mov		#4,Rtos				; Use 4 digits
@@ -612,10 +612,10 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		ret
 
 ;
-; Convert the discharge counter to a state of charge 0-1000 (representing 0-100.0% SOC)
+; Convert the discharge counter to a depth of discharge 0-1000 (representing 0-100.0% DoD)
 ; Result in R9; trashes R8, R10, clears R11
 ;
-StateOfCharge:
+DepthOfDischarge:
 		mov		&discharge,R8		; Low word of discharge accumulator
 		mov		&discharge+2,R9		; High word of discharge accumulator
 		tst		R9
@@ -670,7 +670,7 @@ StateOfCharge:
 		; Only IMUs care about this, but no harm if CMUs do it too
 		mov		Rtos,&discharge				; Set low word of discharge accumulator
 		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
-		call	#UpdateSOC					; For monolith only: update variable for SOC meter
+		call	#UpdateSoC					; For monolith only: update variable for SoC meter
 		ret
 #endif
 
