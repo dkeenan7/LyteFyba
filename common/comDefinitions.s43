@@ -603,13 +603,26 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		xCODE	'g',fuelGauge,_fuelGauge
 		cmp.b	#0,&ID
 		_IF		_EQ					; IMUs only
-			mov		&discharge,R8		; Low word of discharge accumulator
-			mov		&discharge+2,R9		; High word of discharge accumulator
-			tst		R9
-			_IF		_L					; Clamp negative values to zero. Unsigned divide below.
-				clr		R8
-				clr		R9
-			_ENDIF
+			call	#StateOfCharge		; Get the state of charge as a number 0-1000 in
+			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
+			mov		R9,Rsec				; Result in tenths of a percent
+			mov		#4,Rtos				; Use 4 digits
+			call	#_prettyPrint		; Call pretty-print
+		_ENDIF
+		ret
+
+;
+; Convert the discharge counter to a state of charge 0-1000 (representing 0-100.0% SOC)
+; Result in R9; trashes R8, R10, clears R11
+;
+StateOfCharge:
+		mov		&discharge,R8		; Low word of discharge accumulator
+		mov		&discharge+2,R9		; High word of discharge accumulator
+		tst		R9
+		_IF		_L					; Clamp negative values to zero. Unsigned divide below.
+			clr		R8
+			clr		R9
+		_ENDIF
 		#if StatusFreq <= 8
 			rla		R8
 			rlc		R9
@@ -622,29 +635,25 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			rla		R8
 			rlc		R9
 		#endif
-			rla		R8					; Shift the 32-bit quantity R9:R8 2 more bits left
-			rlc		R9
-			rla		R8
-			rlc		R9					; Then use only the high 16-bits in the calculation
-			rla		R8					; Do rounding
-			adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
-			mov		#607,R8				; Mult to give tenths of a percent when div by 1/20ths of an Ah
-			call	#UMStar				; R10:R9 = R8 * R9
+		rla		R8					; Shift the 32-bit quantity R9:R8 2 more bits left
+		rlc		R9
+		rla		R8
+		rlc		R9					; Then use only the high 16-bits in the calculation
+		rla		R8					; Do rounding
+		adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
+		mov		#607,R8				; Mult to give tenths of a percent when div by 1/20ths of an Ah
+		call	#UMStar				; R10:R9 = R8 * R9 and return
 
-			ClearWatchdog
+		ClearWatchdog
 
-			mov		#BatCapacity,R8		; Battery capacity in tenths of an amp-hour
-										; The above constant may be stored in info-flash in future
-			rla		R8					; This works in conjuction with the 607 above, to scale correctly
-			add		#BatCapacity,R9		; For rounding
-			adc		R10
-			call	#UMSlashMod			; R9 = R10:R9 / R8
-			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
-			mov		R9,Rsec				; Result in tenths of a percent
-			mov		#4,Rtos				; Use 4 digits
-			call	#_prettyPrint		; Call pretty-print
-		_ENDIF
-		ret
+		mov		#BatCapacity,R8		; Battery capacity in tenths of an amp-hour
+									; The above constant may be stored in info-flash in future
+		rla		R8					; This works in conjuction with the 607 above, to scale correctly
+		add		#BatCapacity,R9		; For rounding
+		adc		R10
+		br		#UMSlashMod			; R9 = R10:R9 / R8 and return
+
+
 
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
 		; Only IMUs care about this, but no harm if CMUs do it too
@@ -652,7 +661,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
 
-#if 0
+#if 1
 		; Temporary command for testing fuel gauge
 		; setFuelGauge ( hiword loword -- )
 		; $A4 $CB80 a -- should correspond to 100.0% (of 40 Ah)
@@ -661,6 +670,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 		; Only IMUs care about this, but no harm if CMUs do it too
 		mov		Rtos,&discharge				; Set low word of discharge accumulator
 		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
+		call	UpdateSOC					; For monolith only: update variable for SOC meter
 		ret
 #endif
 
