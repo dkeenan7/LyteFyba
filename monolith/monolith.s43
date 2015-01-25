@@ -165,6 +165,7 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
+pwmAdv			DS		2			; Byte amount to add to TACCTL2 for next compare value
 comNoEraseEnd
 
 #if	ADCBUF
@@ -354,6 +355,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+			mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (for SOC PWM)
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxRd
@@ -414,6 +416,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontInterpret,&intFlags ; Do interpret
 ;			bic.b	#bDontEcho,&intFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
+
+; PWM initialisation
+#if 0
+			mov		#(1000*3/4),&pwmAdv			; For now: 75% duty cycle (250 low, 750 high)
+#else
+			call	UpdateSOC					; Initialise the pre-computed counter advance value
+#endif
 
 ;
 ; Miscellaneous initialisation
@@ -730,6 +739,7 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				call	#UpdateSOC					; Update the pre-computed SOC timer advance value
 			_ENDIF ; IMU current measurement
 
 			cmp.b	#0,&ID
@@ -1061,6 +1071,7 @@ ControlCharger:
 			; Set the discharge counter to the required DoD (usually 0)
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+			call	UpdateSOC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Near Bypass and no comms error
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
@@ -1305,6 +1316,23 @@ SendPipPacket:
 
 			ret
 
+;
+; Update the SOC meter's advance value (so the SOC meter will reflect a change made to the discharge
+; counter)
+; Preserves R8 and R9, trashes R10, clears R11
+;
+UpdateSOC:
+			push		R8
+			push		R9
+			call		#StateOfCharge		; Get SOC as value 0-1000
+			cmp			#20,R9				; Compare with minimum value
+			_IF			_LO					; If less,
+				mov			#20,R9				; Enforce minimum value
+			_ENDIF
+			mov			R9,&pwmAdv			; Save in the pre-computed advance variable
+			pop			R9
+			pop			R8
+			ret
 
 DoPassword:
 ;
