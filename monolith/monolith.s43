@@ -589,14 +589,19 @@ DoMeasurement:
 				mov		&current,R9				; Current is in tenths of an amp
 				abs		R9
 
-				; Get the cell internal resistance into R8
+				; Get the scaled cell internal resistance into R8.
+				; Want 10*I * 10*R * K = 64K * I * R so result >> 16 = I * R (I in amps, R in mR)
+				; So 100*K*IR = 64K*IR  or K = 64K/100. Use <<16 to achieve *64K.
+				; Want K * (10*R) in R8 = (CellResistance << 16) / 100. Add 100/2=50 for rounding.
+				; We rely on the assembler using 32 bits for calculating partial results;
+				; it seems to do this at present
 				mov		#((CellResistance<<16)+50)/100,R8	; CellResistance is in tenths of a milliohm
 
 				; Multiply them and subtract from measured cell voltage
 				ClearWatchdog
 				call	#UMStar					; R10:R9 = R8 * R9, resistance * current, clears R11
 				mov		R10,R9					; Use only the high word of the result, put into R9
-			   pop		R10						; Restore the cell voltage measurement to R10
+				pop		R10						; Restore the cell voltage measurement to R10
 				tst		&current
 				_IF		_NN						; If current is not negative (charge)
 					sub		R9,R10					; OCV is lower than measured
