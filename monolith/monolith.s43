@@ -165,7 +165,7 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
-pwmAdv			DS		2			; Byte amount to add to TACCTL2 for next compare value
+pwmAdv			DS		2			; Amount to add to TACCTL2 for next compare value
 comNoEraseEnd
 
 #if	ADCBUF
@@ -317,7 +317,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_IF		_NE
 				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
-				mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+				mov.b	#VREFp|TXDp|TXDm|PIEZO|PWMOUT,&P1DIR ; Set VREFp, TX bits, piezo and PWM as outs
 			_ENDIF
 #endif
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
@@ -390,8 +390,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ELSE
-				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				; No longer TouchV
+				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ENDIF
 			; Initialise ADC10
 			; SREF_1	= +-refs are Vref+ and AVSS
@@ -418,10 +419,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
 
 ; PWM initialisation
-#if 0
+#if 1
 			mov		#(1000*3/4),&pwmAdv			; For now: 75% duty cycle (250 low, 750 high)
 #else
-			call	UpdateSOC					; Initialise the pre-computed counter advance value
+			call	#UpdateSOC					; Initialise the pre-computed counter advance value
 #endif
 
 ;
@@ -1071,7 +1072,7 @@ ControlCharger:
 			; Set the discharge counter to the required DoD (usually 0)
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-			call	UpdateSOC			; Update the pre-computed PWM counter advance value
+			call	#UpdateSOC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Near Bypass and no comms error
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger

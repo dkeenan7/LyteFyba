@@ -292,7 +292,7 @@ RxTiovIsr:	; Combined Receive (timer capture/compare 1) and timer overflow inter
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
 			cmp		#4,R9					; (1) Was it a PWM interrupt (TACCR2)
-			jeq		pwmCmp
+			jeq		PwmCmp
 			cmp		#2,R9					; (1) Was it a receive interrupt (TACCR1)
 			jeq		RxIsr					; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
@@ -339,7 +339,7 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 ;
 ; TACCTL2 interrupt (compare match for PWM)
 ;
-pwmCmp:
+PwmCmp:
 			xor.b	#(1<<3),&P1OUT			; (4) Toggle P1.3. NOTE: assume it stays in step with R9!
 			bit.b	#(1<<3),&P1OUT			; (3) Test the bit
 			_IF		_NZ						; (2) If now set,

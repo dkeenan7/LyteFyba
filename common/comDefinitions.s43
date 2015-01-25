@@ -652,7 +652,7 @@ StateOfCharge:
 		add		#BatCapacity,R9		; For rounding
 		adc		R10
 		br		#UMSlashMod			; R9 = R10:R9 / R8 and return
-
+		;ret
 
 
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
@@ -670,7 +670,7 @@ StateOfCharge:
 		; Only IMUs care about this, but no harm if CMUs do it too
 		mov		Rtos,&discharge				; Set low word of discharge accumulator
 		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
-		call	UpdateSOC					; For monolith only: update variable for SOC meter
+		call	#UpdateSOC					; For monolith only: update variable for SOC meter
 		ret
 #endif
 
