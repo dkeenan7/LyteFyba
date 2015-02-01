@@ -471,7 +471,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#17,R8				; Number of initialisation strings,
+			_DO			#15,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -493,9 +493,9 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (for testing)
+;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
-		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use)
+;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen
 ;			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense
@@ -503,7 +503,7 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart
 			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording
 			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User"
-			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
+;			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac)
 			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage 48 V (3.00 Vpc)
 			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V
 			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved
