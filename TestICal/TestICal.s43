@@ -197,6 +197,12 @@ InterpretByte:
 
 			cmp		#initRetAddr2,0(SP)		; Is the call merely for initialisation?
 			jeq		initialise				; If yes, don't echo the byte, initialise, and return
+			; The following test allows us to upgrade from the old BSL2 that was called from BSL1
+			; in infoFlash, whereas the new BSL2 stands alone. The address from which InterpretByte
+			; was called has changed, so we need to check for calls from the old location
+			; so we get to run the 'b' INIT_CMD_STRING to update to the new BSL.
+			cmp		#$FE44,0(SP)			; Is the call merely for initialisation from old BSL2
+			jeq		initialise				; If yes, don't echo the byte, initialise, and return
 			call	#ACCEPT					; Process the byte
 
 			ClearWatchdog
