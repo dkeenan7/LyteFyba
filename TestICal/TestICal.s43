@@ -61,10 +61,7 @@
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
 ; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
 
-;#define INIT_CMD_STRING ''	 			// No initial command
-; Note: the below can save our bacon if we make a change to BSL2 that moves the labels (e.g. ReadByte)
-; to different addresses. It can cause all CMUs and IMUs to not be able to bootstrap load, for example.
-#define INIT_CMD_STRING 'b' 			// Do an update of the BSL
+#define INIT_CMD_STRING ''	 			// No initial command
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
 									// Note that an update command 'u' is required to make it stick.
 
@@ -185,27 +182,32 @@ initCmdString
 			DB		INIT_CMD_STRING
 			DB		EXIT					; Must end with an EXIT command
 			ALIGN	1
-;
-; We need an interpret-byte function here; the BSL (either the real BSL, or the BSL-image in bsl.s43)
-; will call this when any bytes are received by the serial port, including "password" bytes.
+InterpretByte:
+; The BSL will call this when any bytes are received by the serial port, including "password" bytes.
 ; The BSL will also call this with a null that was not received by the serial port
 ; but is intended to initialise the monitor or TestICal or other main-flash program.
 ; It will do this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
 ; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
-InterpretByte:
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
-			cmp		#initRetAddr2,0(SP)		; Is the call merely for initialisation?
-			jeq		initialise				; If yes, don't echo the byte, initialise, and return
-			; The following test allows us to upgrade from the old BSL2 that was called from BSL1
-			; in infoFlash, whereas the new BSL2 stands alone. The address from which InterpretByte
-			; was called has changed, so we need to check for calls from the old location
-			; so we get to run the 'b' INIT_CMD_STRING to update to the new BSL.
-			cmp		#$FE44,0(SP)			; Is the call merely for initialisation from old BSL2
-			jeq		initialise				; If yes, don't echo the byte, initialise, and return
-			call	#ACCEPT					; Process the byte
-
-			ClearWatchdog
+			cmp		#initRetAddr2,0(SP)
+			_IF		_EQ						; If the call is merely for initialisation
+				jmp		initialise				; Tail-call initialise, and return
+			_ELSE
+				; The following test allows us to upgrade from the old BSL2 that was called from BSL1
+				; in infoFlash, to the new BSL2 that stands alone. The address from which InterpretByte
+				; was called has changed, so we need to check for calls from the old location
+				; and run the updateBSL command and return to the new location.
+				cmp		#$FE44,0(SP)			; Is the call for initialisation from the old BSL2
+				_IF		_EQ
+					call	#_updateBSL2			; Update BSL2 (flash erase and copy)
+					mov		#initRetAddr2,0(SP)		; Change the return address on the stack
+					jmp		initialise				; Tail-call initialise, and return
+				_ELSE
+					call	#ACCEPT					; Process R8 as part of a command to be interpreted
+					ClearWatchdog
+				_ENDIF
+			_ENDIF
 
 			ret								; Return to the BSL
 
