@@ -291,7 +291,6 @@ failCompare mov		#b'01010000,rERR		; 2 flashes
 ;
 			xCODE	'b',updateBSL2,_updateBSL2
 ; Prepare to flash-program
-			dint					; Can't risk an interrupt while the vectors are erased
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
