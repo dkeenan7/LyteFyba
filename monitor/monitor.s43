@@ -17,7 +17,7 @@
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 #define Monitor
 
-#define REV61	1				; Enable conditional assembly for board rev 61 or later
+#define REV61	0				; Enable conditional assembly for board rev 61 or later (0 for MX-5)
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -179,6 +179,7 @@ chargerCurrLim	DS		2			; Charger current limit (tenths of an amp). Set by 'o' co
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
 chargerPrevCurr	DS		2			; Charger previous current (tenths of an amp). Set by PI controller.
+BatCapacity		EQU		400			; Battery capacity in tenths of an amp-hour
 
 ; Serial-io variables
 

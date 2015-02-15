@@ -156,7 +156,7 @@ cellV:
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
 #ifdef Monolith		// If we're assembling Monolith, not TestICal or Monitor
-			cmp.b		#0,&ID
+			cmp.b		#255,&ID
 			_IF			_EQ			; If we're an IMU (modified for reading negative HazV to -200 V)
 				; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
 				; but bottom of divider is connected to Vref+ instead of GND,
@@ -250,7 +250,7 @@ linkV:
 				_ENDIF
 			_ENDIF
 #if 0 ; #ifdef Monolith		// <eventually> If we're assembling Monolith, not TestICal or Monitor
-			cmp.b		#0,&ID
+			cmp.b		#255,&ID
 			_IF			_EQ				; If we're an IMU (reading the current shunt)
 				rla		R10					; Give result in tenths of an amp (otherwise fifths)
 			_ENDIF

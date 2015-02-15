@@ -328,7 +328,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 ; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
 		xCODE	'i',Current,_Current
-		cmp.b	#0,&ID
+		cmp.b	#255,&ID
 		_IF	_NE							; If we're not an IMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
