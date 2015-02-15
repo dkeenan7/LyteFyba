@@ -49,10 +49,9 @@ BSL2:		; Initialisation
 
 			; We really only want to do this for use with monolith, where we need to
 			; prevent breaks from eternally circulating around the loop.
-			; But there's no such thing as a monolith-specific version of TestICal yet,
-			; to transport and install the new BSL. FIXME!!!!!
-		; WARNING: don't CMUsend anything with the below change!!!
-			cmp.b	#0,&infoID
+			; So we give the monolith's IMU the ID 255 and then we're safe also doing this in an EV
+			; because there cannot be any CMU after #255 anyway.
+			cmp.b	#255,&infoID
 			_IF		_NE				; If we're not an IMU
 			; Send a 27 ms break
 			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)

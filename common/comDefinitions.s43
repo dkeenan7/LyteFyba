@@ -601,8 +601,12 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 ; <n>'gw	Write the battery capacity to be the number <n>, in tenths of an amp-hour.
 
 		xCODE	'g',fuelGauge,_fuelGauge
+#ifdef Monolith
+		cmp.b	#255,&ID
+#else
 		cmp.b	#0,&ID
-		_IF		_EQ					; IMUs only
+#endif
+		_IF		_LO					; IMUs only
 			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent

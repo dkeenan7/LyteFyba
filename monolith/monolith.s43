@@ -311,13 +311,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 #if REV61
 			clr.b	&P1OUT						; All outputs low on port 1
 			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_EQ
-				bis.b	#PWMOUT,&P1DIR				; For IMU only, set P1.3 as an output
+				bis.b	#PWMOUT,&P1DIR				; For IMU only, set P1.3 as an output (SoC PWM)
+				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
 			_ENDIF
 #else
 			mov.b	#ACTLED,&P1OUT				; All outputs low, except (inverted) ActLED, on port 1
-			cmp.b	#0,&ID						; If we're not an IMU
+			cmp.b	#255,&ID					; If we're not an IMU
 			_IF		_NE
 				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
 			_ELSE
@@ -326,7 +327,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 #endif
 			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_EQ							; If we're an IMU
 				bis.b	#LoadCont,&P2OUT				; Set load contactor on so battery contactor goes on
 													; and we stay powered up
@@ -359,7 +360,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
-			mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (for SoC PWM)
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxRd
@@ -371,7 +371,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Already cleared by loop above
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
-			cmp.b	#0,&ID						; If we're an IMU (Insulation/current Monitoring Unit)
+			cmp.b	#255,&ID					; If we're an IMU (Insulation/current Monitoring Unit)
 			_IF		_EQ
 				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
 				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
@@ -389,7 +389,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
+			cmp.b	#255,&ID					; If we're not an IMU (Insulation Monitoring Unit)
 			_IF		_NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
@@ -411,7 +411,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			;	Already cleared by loop above
 ;			clr.b	&RXCksum				; Clear received packet xor checksum
-			cmp.b	#0,&ID						; If we're not an IMU
+			cmp.b	#255,&ID					; If we're not an IMU
 			_IF		_NE
 				mov.b	#bChecksumming,&intFlags ; Default checksumming on
 			_ELSE
@@ -565,7 +565,7 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_EQ						; If we're an IMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
@@ -590,7 +590,7 @@ DoMeasurement:
 
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			cmp.b	#0,&ID					; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not an IMU
 			_IF		_NE
 				; Estimate OCV by subtracting current times internal resistance from measured voltage
 			   push	R10							; Save the cell voltage measurement
@@ -621,7 +621,7 @@ DoMeasurement:
 			_ENDIF	; not IMU
 
 			; Set bypass as required
-			cmp.b	#0,&ID					; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not an IMU
 			_IF		_NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
 				rla3		R9
@@ -639,7 +639,7 @@ DoMeasurement:
 				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_NE						; If we're not an IMU
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
@@ -660,7 +660,7 @@ DoMeasurement:
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
 
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_NE					; If we're not an IMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
@@ -680,7 +680,7 @@ DoMeasurement:
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
-			cmp.b	#0,&ID					; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not an IMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
@@ -743,7 +743,7 @@ DoMeasurement:
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 			_ENDIF ; IMU current measurement
 
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_NE						; If we're not an IMU
 				; Clamp local present stress to a maximum value
 				mov		#15,R9					; Default clamp value is 15
@@ -911,7 +911,7 @@ DoStatus:
 		bit.b	#COM_ERR,&localStatus
 		_IF		_Z						; If no comms error
 
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_NE						; If we're a CMU
 				; Do MAX of local and incoming stress, and handle stress type and all near bypass
 				mov.b	&localStatus,R10		; Get local status to R10
@@ -1069,7 +1069,10 @@ ControlCharger:
 			and		#TYPE,R10				; Extract the stress type bits
 			cmp		#ALL_NBYP,R10
 		_AND_IF	_EQ						; If all cells are near bypass
-			; Set the discharge counter to the required DoD (usually 0)
+			; Set the discharge counter to the required DoD (usually 0).
+			; This was to allow for possible floating at the 25.0% DoD point where there is a
+			; step in the SoC vs voltage curve for LiFePO4.
+			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
@@ -1381,7 +1384,7 @@ DoPassword:
 #else
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
 #endif
-			cmp.b	#0,&ID
+			cmp.b	#255,&ID
 			_IF		_NE
 				clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			_ENDIF
