@@ -606,7 +606,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 #else
 		cmp.b	#0,&ID
 #endif
-		_IF		_LO					; IMUs only
+		_IF		_EQ					; IMUs only
 			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
