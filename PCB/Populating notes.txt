@@ -27,6 +27,10 @@ resistance from the fuse pad furthest from D1 to both of the bypass resistor pad
 (they both connect to net BypR). It should read 3.3 ohms. If not, use the vias in the outboard
 bypass resistor area; these should read about 4.1 ohms to either VDD or BypR.
 
+Another method: measure each resistor using the resistor's terminals. If either connection from
+the resistor to its pad is open circuit, it will read 3.3 ohms. In circuit, it seems to read
+around 2.6 ohms plus or minus 0.1 ohms.
+
 A quick test for the electrolytic capacitor C6: Fluke 87 III multimeter locked to 400 kOhm range,
 positive probe to the via near the C of Coulomb on the red side, negative end on the square
 (inner of 2, marked - on the other side) terminal of TX (north east corner). The resistance
