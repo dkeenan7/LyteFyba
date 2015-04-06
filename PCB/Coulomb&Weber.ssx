@@ -6,6 +6,7 @@ DIODE||2
 Dual diode||3
 FUSE IEC||2
 LED2||2
+MPLIB_MSP_20||20
 NMOS||3
 NPN Photo||2
 OPAMP4||5
