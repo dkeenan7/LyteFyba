@@ -321,7 +321,7 @@ void bms_processStatusByte(unsigned char status)
 	} // End else DCU-A
 
 	if (bCharging) {
-		if (chgr_state & CHGR_IDLE)
+		if (chgr_state == CHGR_IDLE)
 			return;
 #if 0
 		// Protect against errant charger or PI loop by turning off charge contactor
