@@ -639,7 +639,11 @@ DepthOfDischarge:
 			rla		R8
 			rlc		R9
 		#endif
-		rla		R8					; Shift the 32-bit quantity R9:R8 1 more bit left
+		rla		R8					; Shift the 32-bit quantity R9:R8 3 more bits left
+		rlc		R9
+		rla		R8
+		rlc		R9
+		rla		R8
 		rlc		R9					; Then use only the high 16-bits in the calculation
 		rla		R8					; Do rounding
 		adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
