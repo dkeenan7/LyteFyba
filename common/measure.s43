@@ -249,12 +249,6 @@ linkV:
 					inc			R10				; Negate back
 				_ENDIF
 			_ENDIF
-#if 0 ; #ifdef Monolith		// <eventually> If we're assembling Monolith, not TestICal or Monitor
-			cmp.b		#255,&ID
-			_IF			_EQ				; If we're an IMU (reading the current shunt)
-				rla		R10					; Give result in tenths of an amp (otherwise fifths)
-			_ENDIF
-#endif
 			ret
 
 #if INSULATION_MONITORING
