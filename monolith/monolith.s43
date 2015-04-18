@@ -510,7 +510,8 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc)
 			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
-			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
+			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
+;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be ACKed.
 											; Consists of a harmless enable backlighting command
 											; followed by its $5368 CRC and a '(' comment delimiter
