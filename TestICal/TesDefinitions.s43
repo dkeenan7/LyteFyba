@@ -222,11 +222,7 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 
 				mov		#'i',R8				; Transmit an "i"
 				call	#TxByteCk
-
-				call	#TxCksum			; Transmit a checksum if required, then clear the checksum.
-
-				mov		#'\r',R8			; Transmit a carriage return.
-				call	#TxByte
+				call	#TxEndOfPacket
 			_ELSE						; Else dont-echo flag is clear
 				; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
 				mov		#'?',R8				; Transmit a question mark (a no-op to downstream CMUs)

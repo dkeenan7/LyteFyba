@@ -450,10 +450,7 @@ _prettyPrint:
 		pop.b	&intFlags			; Restore number base to print n with
 		call	#_emitNum
 
-		call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-		mov		#'\r',R8			; Carriage return to R8
-		call	#TxByte				; Emit
+		call	#TxEndOfPacket
 
 		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
@@ -580,10 +577,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			mov		#'N',R8				; Transmit an "N"
 			call	#TxByteCk
 
-			call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-			mov		#'\r',R8			; Transmit a carriage return.
-			call	#TxByte
+			call	#TxEndOfPacket
 			ret
 #endif
 

@@ -167,7 +167,7 @@ bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
-tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
+statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
@@ -425,6 +425,7 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
+			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
 			clr		Rstrs					; Init present stress to zero
 			clr		Rmeas					; Init measurement causing zero stress to zero
 			clr		Rtype					; Init type of measurement causing zero stress to zero
@@ -570,7 +571,7 @@ DoMeasurement:
 					cmp.b	#2,&ID
 					_IF		_HS
 						bis.b	#COM_ERR,&localStatus
-						inc.b	&tempMasterIDctr
+						tst.b	&statusFreqCtr
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF

@@ -156,15 +156,13 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
 
-			call	#TxCksum				; Transmit checksum if required, then clear checksum.
-
-			mov		#'\r',R8				; Emit carriage return
-			call	#TxByte					; without updating checksum
+			call	#TxEndOfPacket
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
 			pop.b	&intFlags				; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
+			ALIGN	1
 
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
@@ -238,10 +236,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		mov		#'<',R8				; Transmit a "<"
 		call	#TxByteCk
 
-		call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TxByte
+		call	#TxEndOfPacket
 		ret
 
 #if (PROG_START < $F000)
@@ -306,10 +301,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#'>',R8				; Transmit a ">"
 		call	#TxByteCk
 
-		call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TxByte
+		call	#TxEndOfPacket
 		ret
 #endif
 
