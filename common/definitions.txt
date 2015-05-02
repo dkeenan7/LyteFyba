@@ -33,6 +33,7 @@ d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
+G   Get high word of fuel-gauge discharge accumulator (monolith only)
   G Get byte (peek byte)
 h h Hex output
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
@@ -68,6 +69,7 @@ X X e(X)clude     (single-BMU ignore mode)
 y y b(y)pass (Yellow) (relaY- on IMU)
 Y Y relaY+ (on IMU only)
   z send nulls (send (z)eros)
+Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
   Z Ztore byte (poke byte)
 
 In logical groupings:
@@ -135,6 +137,8 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
+Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
+G   Get high word of fuel-gauge discharge accumulator (monolith only)
 
   j JumpToSubroutine (call)
   Z Ztore byte (poke byte)
