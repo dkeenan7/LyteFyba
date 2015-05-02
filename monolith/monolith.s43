@@ -163,8 +163,8 @@ bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
-									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
-									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
+									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
+									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
 pwmAdv			DS		2			; Amount to add to TACCTL2 for next compare value
 comNoEraseEnd
 
@@ -183,7 +183,7 @@ bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
-tempMasterIDctr	DS		1			; Send our ID when this wraps if we are temp master
+statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
@@ -431,6 +431,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
 			eint							; Enable interrupts now that all initialisation is complete
 
+; Retrieve the high word of the discharge accumulator from CMU 1
+
+			mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
+			call	#TxStringCk
+			call	#TxEndOfPacket
+
 
 ; Main loop
 			_BEGIN
@@ -463,6 +469,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
+SelectCMU1Get	DB		3, '1sG'
+				ALIGN	1
 
 ;
 ; Initialise the PIP4048MS inverter with various non-default settings
@@ -566,6 +574,7 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
+			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
 			cmp.b	#255,&ID
 			_IF		_EQ						; If we're an IMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
@@ -720,9 +729,7 @@ DoMeasurement:
 				_ENDIF
 				mov		#'i',R8					; Transmit an "i" for current
 				call	#TxByteCk
-				call	#TxCksum				; Transmit checksum if required, then clear checksum.
-				mov		#'\r',R8				; Transmit a carriage return.
-				call	#TxByte
+				call	#TxEndOfPacket
 
 				tst		&current
 				_IF		_NN						; If current is not negative
@@ -742,6 +749,26 @@ DoMeasurement:
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
+
+				; Send the high word of the discharge counter to safe storage
+				tst.b	&statusFreqCtr				; Every 136 seconds
+				_IF	_Z
+					mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
+					call	#TxStringCk
+					ClearWatchdog
+
+					mov		&discharge+2,Rsec
+					mov		#5,Rtos						; 5 digit field width
+					push.b	&intFlags					; Save number base
+					bis.b	#bHexOutput,&intFlags		; Set to hexadecimal output
+					call	#_emitNum					; Transmit the number
+					pop.b	&intFlags					; Restore number base
+					ClearWatchdog
+
+					mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
+					call	#TxByteCk
+					call	#TxEndOfPacket
+				_ENDIF ; Every 136 seconds
 			_ENDIF ; IMU current measurement
 
 			cmp.b	#255,&ID
@@ -814,7 +841,7 @@ DoMeasurement:
 					cmp.b	#1,&ID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
-						inc.b	&tempMasterIDctr
+						tst.b	&statusFreqCtr
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
@@ -835,7 +862,8 @@ DoMeasurement:
 			_ENDIF							; End if sending status
 			ret
 ; End of DoMeasurement
-
+SelectCMU1	DB	2, '1s'				; First byte is length of following string
+			ALIGN 1
 
 DoStress:
 ;

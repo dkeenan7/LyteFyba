@@ -12,17 +12,21 @@ TxCksum:
 			bit.b		#bChecksumming,&intFlags
 			_IF		_NZ
 				mov.b	&txCksum,R8
-#if 1		; can be commented out if desperate for space
 				cmp.b	#$20,R8				; If the checksum would be a control character and therefore
 				_IF		_LO					; possibly confused with CR, BS, ESC, or BSL-password chars
 					mov.b	#' ',R8				; then send a space character (no-op), which
 					call 	#TxByteCk			; also updates the checksum to a non-control character.
 					mov.b	&txCksum,R8 		; Reload the altered checksum.
 				_ENDIF
-#endif
 				call 	#TxByteCk			; Send the checksum. Also updates TXCksum to 0
 			_ENDIF
 			clr.b	&txCksum			; Needed for when checksumming is off
 			ret
+
+
+TxEndOfPacket:
+			call	#TxCksum				; Transmit checksum if required, then clear checksum.
+			mov		#'\r',R8				; Transmit a carriage return.
+			br		#TxByte					; Tail-call TxByte and return
 
 

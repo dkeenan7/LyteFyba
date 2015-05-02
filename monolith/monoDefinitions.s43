@@ -154,15 +154,13 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
 
-			call	#TxCksum				; Transmit checksum if required, then clear checksum.
-
-			mov		#'\r',R8				; Emit carriage return
-			call	#TxByte				; without updating checksum
+			call	#TxEndOfPacket
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
 			pop.b	&intFlags				; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
+			ALIGN	1
 
 ; Reset worst stress ( -- )
 			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
@@ -236,10 +234,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		mov		#'<',R8				; Transmit a "<"
 		call	#TxByteCk
 
-		call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TxByte
+		call	#TxEndOfPacket
 		ret
 
 #if (PROG_START < $F000)
@@ -304,10 +299,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#'>',R8				; Transmit a ">"
 		call	#TxByteCk
 
-		call	#TxCksum			; Transmit checksum if required, then clear checksum.
-
-		mov		#'\r',R8			; Transmit a carriage return.
-		call	#TxByte
+		call	#TxEndOfPacket
 		ret
 #endif
 
@@ -333,3 +325,34 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		ret
+
+; Store discharge counter high word (dischargeHi -- )
+		; Sent periodically by IMU to CMU 1, and sent by CMU 1 to IMU on receiving a 'G' command.
+		; The IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
+		; it can restore it after the monolith has been shut down and hence IMU has been powered down.
+		xCODE	'Z',ZtoreDischarge,_ZtoreDischarge
+		mov		Rtos,&discharge+2		; Set the discharge counter high word to the received value
+		ret
+
+; Get discharge counter high word ( -- )
+		; Sent by IMU to CMU 1 when IMU is reset. Sends a 'Z' command back to the IMU with the
+		; high byte of the discharge counter.
+		xCODE	'G',GetDischarge,_GetDischarge
+		mov		#SelectIMU,R10			; Transmit "255s" to select the IMU only
+		call	#TxStringCk
+		ClearWatchdog
+
+		mov		&discharge+2,Rsec
+		mov		#5,Rtos					; 5 digit field width
+		push.b	&intFlags				; Save number base
+		bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
+		call	#_emitNum				; Transmit the number
+		pop.b	&intFlags				; Restore number base
+		ClearWatchdog
+
+		mov		#'Z',R8					; Transmit a "Z" for ZtoreDischarge
+		call	#TxByteCk
+		call	#TxEndOfPacket
+		ret
+SelectIMU	DB	4, '255s'				; First byte is length of following string
+			ALIGN	1

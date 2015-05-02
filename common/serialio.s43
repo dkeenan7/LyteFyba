@@ -92,6 +92,7 @@ TxByte:	; Alternative entry which does not accumulate checksum
 			_UNTIL	_NZ
 			ret
 
+
 ;
 ; Attempt to put the character from R8 into the transmit queue.
 ; If the queue is full, return immediately with the Z status bit set.
