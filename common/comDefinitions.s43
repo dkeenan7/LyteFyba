@@ -562,6 +562,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			ret
 			ENDM
 
+
 #if (PROG_START < $F000)		; Comment out if required to save space
 ; NumCells  ( n -- ) Gives the number of cells
 		xCODE	'N',NumCells,_NumCells
@@ -577,9 +578,10 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			mov		#'N',R8				; Transmit an "N"
 			call	#TxByteCk
 
-			call	#TxEndOfPacket
-			ret
+			br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
+;			ret
 #endif
+
 
 ; Fuel Gauge commands
 

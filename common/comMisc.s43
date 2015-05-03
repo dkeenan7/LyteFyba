@@ -28,5 +28,5 @@ TxEndOfPacket:
 			call	#TxCksum				; Transmit checksum if required, then clear checksum.
 			mov		#'\r',R8				; Transmit a carriage return.
 			br		#TxByte					; Tail-call TxByte and return
-
+;			ret
 

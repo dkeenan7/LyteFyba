@@ -431,11 +431,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
 			eint							; Enable interrupts now that all initialisation is complete
 
-; Retrieve the high word of the discharge accumulator from CMU 1
+; If we're an IMU, retrieve the high word of the discharge accumulator from CMU 1
 
-			mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
-			call	#TxStringCk
-			call	#TxEndOfPacket
+			cmp.b	#255,&ID
+			_IF		_EQ
+				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
+				call	#TxStringCk
+				call	#TxEndOfPacket
+			_ENDIF
 
 
 ; Main loop
