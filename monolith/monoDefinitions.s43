@@ -234,8 +234,8 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		mov		#'<',R8				; Transmit a "<"
 		call	#TxByteCk
 
-		call	#TxEndOfPacket
-		ret
+		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
+;		ret
 
 #if (PROG_START < $F000)
 ; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
@@ -299,8 +299,8 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#'>',R8				; Transmit a ">"
 		call	#TxByteCk
 
-		call	#TxEndOfPacket
-		ret
+		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
+;		ret
 #endif
 
 
@@ -352,7 +352,8 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 		mov		#'Z',R8					; Transmit a "Z" for ZtoreDischarge
 		call	#TxByteCk
-		call	#TxEndOfPacket
-		ret
+		br		#TxEndOfPacket			; Tail-call TxEndOfPacket and return
+;		ret
+
 SelectIMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1
