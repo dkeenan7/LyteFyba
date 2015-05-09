@@ -112,8 +112,9 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #endif
 
-; NBYPLEV	EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
-; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
+; FULLLEV	EQU	OV_ZERO+5*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
+									;	3450 mV. Stress 4/5 threshold
+; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3470 mV. Corresp. to stress 5/6 threshold
 
 minLEDStress EQU	11			; Minimum stress to light error LED
 minAlrmStress EQU	11			; Minimum stress to sound alarm	(not in use yet)
@@ -123,7 +124,7 @@ comErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
 COM_ERR		EQU		1<<6			; Communications error
-ALL_NBYP	EQU		1<<5			; All near bypass -- charge termination condition
+ALL_FULL	EQU		1<<5			; All considered full -- charge termination and DoD counter reset
 ENC_STRESS	EQU		$1F				; Encoded stress. Bits 0-4. Bit 4 is a check bit
 STRESS		EQU		$0F				; Raw stress. Bits 0-3
 
@@ -165,7 +166,7 @@ bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
 bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
 bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 
-localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
+localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-full, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
@@ -450,12 +451,13 @@ DoMeasurement:
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-				sub			&ovStep,R9			; Calculate the near-bypass (charge termination) threshold
-				cmp			R9,R10				; Compare cell voltage (R10) to the near-bypass threshold
+				sub			&ovStep,R9			; Calculate the full (charge termination) threshold
+												;	One level below bypass (cf. one above for monolith)
+				cmp			R9,R10				; Compare cell voltage (R10) to the full threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only #ALL_NBYP bit from R8 to &localStatus.
+				movBits_B	R8,#ALL_FULL,&localStatus ; Move only #ALL_FULL bit from R8 to &localStatus.
 			_ELSE
-				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
+				bis.b		#ALL_FULL,&localStatus	; IMU must pretend it's full so charge terminates
 			_ENDIF
 
 			; Calculate stress due to overvoltage
@@ -645,7 +647,7 @@ DoStatus:
 ;	Status byte:
 ;	Bit 7: Always 1 for status byte
 ;	Bit 6: Comms error: Means that status information does not represent the whole pack
-;	Bit 5: All near bypass (would change to "Some near bypass" if bottom balancing was implemented)
+;	Bit 5: All full (would change to "Some full" if bottom balancing was implemented)
 ;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
 ;	Bits 3-0: Stress level 0-15
 ;
@@ -672,10 +674,10 @@ DoStatus:
 						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
 
-					; Do AND of local and incoming all_near_bypass bits
+					; Do AND of local and incoming all_full bits
 					mov.b	&localStatus,R10		; Get local status to R10
-					bis.b	#~ALL_NBYP,R10			; Set all bits other than the all-near-bypass bit
-					and.b	R10,R8					; AND the all-near-bypass bits, others unchanged
+					bis.b	#~ALL_FULL,R10			; Set all bits other than the all-full bit
+					and.b	R10,R8					; AND the all-full bits, others unchanged
 
 					; Process incoming comms error bit.
 					; Since we received a valid status byte, there is no local
@@ -706,15 +708,15 @@ SendStatus:
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
 				_IF		_NZ							; If we've been told to start charging
-					bit		#ALL_NBYP,R8
-					_IF		_NZ							; If all cells are near bypass
+					bit		#ALL_FULL,R8
+					_IF		_NZ							; If all cells are considered full
 						; Send command packet to charger to turn it off
 						mov		#0,&chargerPrevCurr			; Set previous charger current to zero
 						mov		#1<<15,R8					; Set charger-off bit
 						call	#SendChargerPacket			; Send packet. Trashes R8 thru R11
 						mov		#0,Rtos						; Tell ourselves we've stopped charging
 						call	#_Charging					; Equiv to '0c' command. Clears bCharging
-					_ELSE								; Else some are not near bypass, so keep charging
+					_ELSE								; Else some are not full, so keep charging
 						bit		#COM_ERR,R8
 						_IF		_NZ
 							mov		#8,R8					; Treat comms error as stress 8
@@ -731,7 +733,7 @@ SendStatus:
 								call	#SendChargerPacket		; Send packet to charger to set current
 								mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
 							_ENDIF ; Current changed			; Note: TC chargers timeout after 5 s, see
-					_ENDIF ; ALL_NBYP ; http://www.endless-sphere.com/forums/download/file.php?id=34882
+					_ENDIF ; ALL_FULL ; http://www.endless-sphere.com/forums/download/file.php?id=34882
 				_ENDIF ; bCharging
 			_ENDIF ; bControlCharger
 			ret
@@ -883,7 +885,7 @@ DELAY_IF_NEEDED MACRO
 			; are treated as a corrupted attempt to send status information.
 			; Present status for this CMU is sent instead.
 			; Note that bit 7 is always set for status bytes; bit 6 represents comms error;
-			; bit 5 represents all-near-bypass; bit 4 is a check bit, the inverse of the stress high bit.
+			; bit 5 represents all-full; bit 4 is a check bit, the inverse of the stress high bit.
 			; Note that encoded stress values are not monotonic
 			; The table is indexed by raw stress values
 stressTable	DB		(1<<4) + 0			; Stress 0	$10

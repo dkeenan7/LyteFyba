@@ -120,8 +120,9 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #endif
 
-; NBYPLEV	EQU	OV_ZERO+5*OV_STEP	; Near bypass (charge termination) 3550 mV. Stress 4/5 threshold
-; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3560 mV. Corresp. to stress 5/6 threshold
+; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
+									;	3408 mV. Stress 6/7 threshold
+; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
 
 MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
 MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU only)
@@ -131,12 +132,14 @@ ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
 COM_ERR		EQU		1<<6			; Communications error
-UV_ANB		EQU		1<<5			; Stress type is UnderVoltage (ignore on charge)
-									;	or cells are All Near Bypass
+UV_AF		EQU		1<<5			; Stress type is UnderVoltage (ignore on charge) when bit 4 is clear
+									;	or cells are All considered Full when bit 4 is set
 OV_UT		EQU		1<<4			; Stress type is OverVoltage or UnderTemp (ignore on discharge)
-TYPE		EQU		UV_ANB | OV_UT	; Stress type field
-ALL_NBYP	EQU		UV_ANB | OV_UT	; Cells are All Near Bypass (reset coulomb counter to 0% DoD)
-STRESS		EQU		$0F				; Stress level. Bits 0-3
+ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered Full
+									;   (reset to 0% DoD) as well as OverVoltage (ignore on discharge)
+									; When both type bits are clear it means OverTemp (never ignore)
+TYPE		EQU		$30				; Stress type field mask. Bits 4-5
+STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
 SourceCont	EQU	RELAYm				; Source contactor MOSFET and yellow LED
 LoadCont	EQU RELAYp				; Load contactor MOSFET and magenta LED
@@ -181,7 +184,7 @@ bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). S
 bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 
-localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-near-bypass, 6 comms error
+localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
@@ -201,8 +204,8 @@ uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive c
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
-AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
-;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all near bypass
+AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
+;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
@@ -644,12 +647,13 @@ DoMeasurement:
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#BYPASS,&P2OUT	; Move only the #BYPASS bit from R8 to &P2OUT. Trashes R8
-				sub			&ovStep,R9			; Calculate the near-bypass (charge termination) threshold
-				cmp			R9,R10				; Compare cell voltage (R10) to the near-bypass threshold
+				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
+												;	One level above bypass (cf. one below for monitor)
+				cmp			R9,R10				; Compare cell voltage (R10) to the full threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-				movBits_B	R8,#ALL_NBYP,&localStatus ; Move only All-Near-Bypass bits from R8 to localStatus
+				movBits_B	R8,#ALL_FULL,&localStatus ; Move only All-Full bits from R8 to localStatus
 			_ELSE
-				bis.b		#ALL_NBYP,&localStatus	; IMU must pretend it's in bypass so charge terminates
+				bis.b		#ALL_FULL,&localStatus	; IMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
 			cmp.b	#255,&ID
@@ -674,7 +678,7 @@ DoMeasurement:
 			call	#temp					; Get temperature in degrees Celsius in R10
 
 			cmp.b	#255,&ID
-			_IF		_NE					; If we're not an IMU
+			_IF		_NE						; If we're not an IMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
@@ -791,21 +795,21 @@ DoMeasurement:
 				; Update local present stress
 				movBits_B R8,#STRESS,&localStatus ; Record for later use, preserving other status bits.
 
-				; Update local present stress type if not already set to "all near bypass" above.
+				; Update local present stress type if not already set to "all considered full" above.
 				mov.b	&localStatus,R10
 				and		#TYPE,R10
-				cmp		#ALL_NBYP,R10
-				_IF		_NE						; If stress type is not already All Near Bypass
+				cmp		#ALL_FULL,R10
+				_IF		_NE						; If stress type is not already All considered Full
 					cmp		#2,Rtype
 					_IF		_EQ						; If stress type is UnderVoltage
-						mov		#UV_ANB,R8				; Set the UV_ANB bit, clear the OV_UT bit
+						mov		#UV_AF,R8				; Set the UV_AF bit, clear the OV_UT bit
 					_ELSE							; Else
 						_COND							; Begin short circuit conditional
 							cmp		#1,Rtype
 						_OR_ELSE _EQ					; If type is OverVoltage, else
 							cmp		#4,Rtype
 						_OR_IFS	_EQ						; or if type is UnderTemperature
-							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_ANB bit
+							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_AF bit
 						_ELSE							; Else
 							clr		R8						; Clear both type bits
 						_ENDIF
@@ -928,8 +932,8 @@ DoStatus:
 ;	Status byte:
 ;	Bit 7: Always 1 for status byte
 ;	Bit 6: Comms error: Means that status information does not represent the whole pack
-;	Bit 5: All near bypass (would change to "Some near bypass" if bottom balancing was implemented)
-;	Bit 4: Check bit (based on stress level -- typically inverse of stress high bit)
+;	Bit 5: Ignore on charge (if bit 4 is clear), All considered full (if bit 4 is set)
+;	Bit 4: Ignore on discharge
 ;	Bits 3-0: Stress level 0-15
 ;
 		; Extract the stress bits from the incoming status byte
@@ -945,7 +949,7 @@ DoStatus:
 
 			cmp.b	#255,&ID
 			_IF		_NE						; If we're a CMU
-				; Do MAX of local and incoming stress, and handle stress type and all near bypass
+				; Do MAX of local and incoming stress, and handle stress type and all considered full
 				mov.b	&localStatus,R10		; Get local status to R10
 				and.b	#STRESS,R10				; Extract stress bits
 				cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
@@ -955,35 +959,35 @@ DoStatus:
 					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
 					_COND
 						and		#TYPE,R9
-						cmp		#ALL_NBYP,R9
-					_AND_IF	_NE						; If incoming was not all near bypass
+						cmp		#ALL_FULL,R9
+					_AND_IF	_NE						; If incoming was not all considered full
 						mov.b	&localStatus,R10
 						and		#TYPE,R10
-						cmp		#ALL_NBYP,R10
+						cmp		#ALL_FULL,R10
 					_AND_IF	_EQ						; and if local is in bypass
-						bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
+						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
 					_ENDIFS
 				_ELSE							; Else incoming stress is not less than ours
 					_IF		_EQ						; If incoming stress is equal to ours
 						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
 						and		#TYPE,R10				; which won't go away when sources dropped, and
-						cmp		#UV_ANB,R10				; may mask UV and prevent loads being dropped.
+						cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
 						_IF		_EQ						; If local is undervoltage
 							movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
 						_ENDIF
-					_ELSE							; Else incoming stress is greater than ours
-						mov		R8,R9					; Make a copy of incoming status for tests below
-						_COND
-							and		#TYPE,R9
-							cmp		#ALL_NBYP,R9
-						_AND_IF	_EQ						; If incoming is all near bypass
-							mov.b	&localStatus,R10
-							and		#TYPE,R10
-							cmp		#ALL_NBYP,R10
-						_AND_IF	_NE						; and if local is not in bypass
-							bic		#UV_ANB,R8 				; Clear the UV_ANB (undervoltage or all near bypass) bit
-						_ENDIFS
-					_ENDIF							; End else incoming stress is greater than ours
+					_ENDIF
+					; Incoming stress not less than ours
+					mov		R8,R9					; Make a copy of incoming status for tests below
+					_COND
+						and		#TYPE,R9
+						cmp		#ALL_FULL,R9
+					_AND_IF	_EQ						; If incoming is all considered full
+						mov.b	&localStatus,R10
+						and		#TYPE,R10
+						cmp		#ALL_FULL,R10
+					_AND_IF	_NE						; and if local is not in bypass
+						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
+					_ENDIFS
 				_ENDIF							; End else incoming stress is not less than ours
 
 				; Process incoming comms error bit.
@@ -1063,7 +1067,7 @@ ControlCharger:
 		mov		R8,R10					; Make a copy of the status byte in R10
 		and		#TYPE,R10				; Extract the two stress type bits
 		_COND							; Begin short circuit conditional
-			cmp		#UV_ANB,R10				; Check for UV = UV_ANB and not OV_UT
+			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
 		_AND_IF	_NE						; If the stress is not due to UnderVoltage
 			bit.b	#bCharging,&monFlags
 		_AND_IF	_NZ						; And if we're charging
@@ -1093,14 +1097,14 @@ ControlCharger:
 			bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
 		_ENDIFS
 
-		; If all near bypass (and no comms error), reset the coulomb counter
+		; If all considered full (and no comms error), reset the coulomb counter
 		_COND
 			bit		#COM_ERR,R8
 		_AND_IF	_Z
 			mov		R8,R10					; Make a copy of the status byte in R10
 			and		#TYPE,R10				; Extract the stress type bits
-			cmp		#ALL_NBYP,R10
-		_AND_IF	_EQ						; If all cells are near bypass
+			cmp		#ALL_FULL,R10
+		_AND_IF	_EQ						; If all cells are considered full
 			; Set the discharge counter to the required DoD (usually 0).
 			; This was to allow for possible floating at the 25.0% DoD point where there is a
 			; step in the SoC vs voltage curve for LiFePO4.
@@ -1108,7 +1112,7 @@ ControlCharger:
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
-		_ENDIFS ; All Near Bypass and no comms error
+		_ENDIFS ; All Considered Full and no comms error
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
@@ -1129,7 +1133,7 @@ ControlCharger:
 					; If stress is due to undervoltage, treat it as stress 0 for charging purposes
 					mov		R8,R9					; Make a copy of the status byte in R9
 					and		#TYPE,R9				; Extract the stress type bits
-					cmp		#UV_ANB,R9
+					cmp		#UV_AF,R9
 					_IF		_EQ						; If stress type is UnderVoltage
 						clr		R8						; Treat as a stress of zero for charging
 					_ELSE							; Else
