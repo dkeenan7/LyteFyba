@@ -204,8 +204,8 @@ uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive c
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
-AllNBypDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
-;AllNBypDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
+AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
+;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
@@ -1109,8 +1109,8 @@ ControlCharger:
 			; This was to allow for possible floating at the 25.0% DoD point where there is a
 			; step in the SoC vs voltage curve for LiFePO4.
 			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
-			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-			mov		#(((BatCapacity*AllNBypDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
+			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Considered Full and no comms error
 
