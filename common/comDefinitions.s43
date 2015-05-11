@@ -421,7 +421,7 @@ _prettyPrint3:
 ; (no command letter)
 _prettyPrint:
 		ClearWatchdog
-		push.b	&intFlags			; Save current number base
+		push.b	&intFlags			; Save present number base
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
@@ -492,7 +492,7 @@ _prettyPrint:
 
 			; Now prettyPrint the reasons for the resets, in hex
 			pop		R8						; Restore maxResetsToShow
-			push.b	&intFlags				; Save current number base
+			push.b	&intFlags				; Save present number base
 			bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
 
 			cmp		&resetCounter,R8		; Take min of maxResetsToShow and resetCounter
@@ -573,7 +573,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			; When preceded by XOFF (ctrl-S) 0 and followed by <cr> XON (ctrl-Q) it gives the cell count.
 			inc		Rtos				; Increment the parameter
 			DPUSH	#3					; Use a 3 digit field width
-			call	#_emitNum			; Transmit the number as text in the current number base
+			call	#_emitNum			; Transmit the number as text in the present number base
 
 			mov		#'N',R8				; Transmit an "N"
 			call	#TxByteCk

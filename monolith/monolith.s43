@@ -203,14 +203,18 @@ lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was fo
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
-CellResistance	EQU		10			; Cell internal resistance in tenths of a milliohm
+HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
+				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
-current			DS		2			; Current most recently reported by IMU in tenths of an amp (signed)
+current			DS		2			; Current most recently reported by IMU, in tenths of an amp (signed)
+temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
 smoothStressX4	DS		1			; Moving average of stress used by IMU to control contactors
 
 ; Serial-io variables
@@ -609,21 +613,53 @@ DoMeasurement:
 			cmp.b	#255,&ID				; If we're not an IMU
 			_IF		_NE
 				; Estimate OCV by subtracting current times internal resistance from measured voltage
-			   push	R10							; Save the cell voltage measurement
+				push	R10						; Save the cell voltage measurement
 
-				; Get the absolute value of the current into R9
-				mov		&current,R9				; Current is in tenths of an amp
-				abs		R9
+				; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
+				; so the high 16 bits of the result is the voltage in millivolts, while ensuring
+				; that the scaled current and resistance do not overflow unsigned 16 bits.
+				; Also, we want to limit the scaling of the current to binary-shifts since it
+				; must be done at runtime, while the scaling of resistance can be more complicated
+				; since it can be done at assembly time.
+				; We will scale current by >>3 to 1/80ths of an amp, so overflow is at 819.2 A.
 
 				; Get the scaled cell internal resistance into R8.
-				; Want 10*I * 10*R * K = 64K * I * R so result >> 16 = I * R (I in amps, R in mR)
-				; So 100*K*IR = 64K*IR  or K = 64K/100. Use <<16 to achieve *64K.
-				; Want K * (10*R) in R8 = (CellResistance << 16) / 100. Add 100/2=50 for rounding.
-				; We rely on the assembler using 32 bits for calculating partial results;
-				; it seems to do this at present
-				mov		#((CellResistance<<16)+50)/100,R8	; CellResistance is in tenths of a milliohm
+				; Given that we want the result to be in 1/65536ths of a millivolt, we need to scale
+				; resistance to 1/(65536/80) = 1/819.2ths of a milliohm
+				; We rely on the fact that the assembler performs 32 bit calculations.
+				; HiTempCellRes is in micro-ohms.
+				; The +5000 is for correct rounding of the truncating division by 10000.
+				mov		#((HiTempCellRes<<(16-3))+5000)/10000,R8
+												; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
 
-				; Multiply them and subtract from measured cell voltage
+				; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
+				; So the temperature-dependent component doubles for every 10 degC drop in temperature.
+				; Assume that the "HiTempCellRes" constant is the fixed or high-temperature component,
+				; and that, at 10 degC, the temp-dependent component is equal to the fixed component.
+				; So the cell resistance at a given temperature is estimated as
+				; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
+
+				; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
+				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
+				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
+				mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
+				_BEGIN
+					cmp		&temperature,R11
+				_WHILE	_GE						; While loop counter >= temperature
+					mov		R9,R10					; Multiply resistance by 1.5
+					rra		R10
+					add		R10,R9
+					sub		#6,R11					; Decrement loop counter by 6 degC
+				_REPEAT
+				add		R9,R8					; Add the temperature-dependent part to the fixed part
+
+				; Get the scaled absolute value of the current into R9
+				mov		&current,R9				; Current is in tenths of an amp
+				abs		R9
+				rla3	R9						; Now in 1/80ths of an amp, so overflow is at 819.2 A
+
+				; Multiply cell resistance and current, and subtract from measured cell voltage
 				ClearWatchdog
 				call	#UMStar					; R10:R9 = R8 * R9, resistance * current, clears R11
 				mov		R10,R9					; Use only the high word of the result, put into R9
@@ -676,6 +712,7 @@ DoMeasurement:
 
 			; Do temperature measurement
 			call	#temp					; Get temperature in degrees Celsius in R10
+			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
 			_IF		_NE						; If we're not an IMU
