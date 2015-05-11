@@ -3,7 +3,7 @@
 ;
 
 ;
-; Transmit the current checksum if checksumming is on. Clear checksum.
+; Transmit the present checksum if checksumming is on. Clear checksum.
 ;
 ; This is not in serialio.s43 because it is used by both the Monitor and TestICal
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
