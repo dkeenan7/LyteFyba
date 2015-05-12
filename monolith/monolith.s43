@@ -443,6 +443,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			cmp.b	#255,&ID
 			_IF		_EQ
+				mov		#'\r',R8				; Clear any junk
+				call	#TxByte
 				mov		#'k',R8					; Transmit "k" with no checksum
 				call	#TxByte					;	to tell CMUs to send and expect checksums
 				mov		#'\r',R8
