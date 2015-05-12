@@ -438,10 +438,20 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
 			eint							; Enable interrupts now that all initialisation is complete
 
-; If we're an IMU, retrieve the high word of the discharge accumulator from CMU 1
+; If we're an IMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+; then retrieve the high word of the discharge accumulator from CMU 1
 
 			cmp.b	#255,&ID
 			_IF		_EQ
+				mov		#'k',R8					; Transmit "k" with no checksum
+				call	#TxByte					;	to tell CMUs to send and expect checksums
+				mov		#'\r',R8
+				call	#TxByte
+
+				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
+				call	#TxStringCk
+				call	#TxEndOfPacket
+
 				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
 				call	#TxStringCk
 				call	#TxEndOfPacket
@@ -479,7 +489,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
-SelectCMU1Get	DB		3, '1sG'
+EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
+SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
 				ALIGN	1
 
 ;
@@ -641,6 +652,7 @@ DoMeasurement:
 
 				; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
 				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+
 				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
 				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
 				mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
@@ -1144,7 +1156,7 @@ ControlCharger:
 		_AND_IF	_EQ						; If all cells are considered full
 			; Set the discharge counter to the required DoD (usually 0).
 			; This was to allow for possible floating at the 25.0% DoD point where there is a
-			; step in the SoC vs voltage curve for LiFePO4.
+			; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
 			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
 			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
 			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
