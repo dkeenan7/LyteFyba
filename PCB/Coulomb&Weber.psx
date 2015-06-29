@@ -20,6 +20,8 @@ LED 0805 (shine thru PCB)||2
 LSOP-4||4
 S-PQFP-N16||17
 SIP DC-DC||7
+SIP DC-DC 1W||5
+SIP DC-DC 2W||7
 SIP Reed Relay||4
 SMC||2
 SMD capacitor 6.3mm dia||2
