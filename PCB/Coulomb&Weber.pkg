@@ -443,3 +443,26 @@ ROUNDEDENDS=0
 
 ///////////////////////////////////////////////////////////////////////////////
 
+NAME=PIEZO_SMD
+STYLE=Box
+HEIGHT=3
+INSIDE=0
+ORIENT=H
+PINS=Wire,0
+PINOFFSET=0
+PINCOLOUR=255,245,238
+STANDOFF=0.2
+SHAPEINSIDE=0
+COLOUR=Black
+MATERIAL=Metal
+MOUNTS=0
+TOPCLOSED=1
+TOPCOLOURED=0
+STRIPED=1
+STRIPEPIN1=1
+STRIPE5BAND=0
+STRIPECOLOUR=50,50,50
+ROUNDEDENDS=0
+
+///////////////////////////////////////////////////////////////////////////////
+
