@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="LyteFyba : A Battery Management System for lithium ion batteries, in electric vehicles and buildings">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>LyteFyba</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/dkeenan7/LyteFyba">View on GitHub</a>
+
+          <h1 id="project_title">LyteFyba</h1>
+          <h2 id="project_tagline">A Battery Management System for lithium ion batteries, in electric vehicles and buildings</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/dkeenan7/LyteFyba/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/dkeenan7/LyteFyba/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p><img src="https://cloud.githubusercontent.com/assets/13585061/9008604/bd53bbae-37de-11e5-93fc-15d6710c0748.jpg" alt="githuba"></p>
+
+<h3>
+<a id="description" class="anchor" href="#description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Description</h3>
+
+<p>A battery management system for the protection of Lithium ion battery cells as used in electric vehicles and building power systems. A small printed circuit board is mounted atop each cell, which performs bypassing and monitors for high or low cell voltage or temperature.</p>
+
+<p>This design has been optimised for high voltage isolation, to withstand high forward and reverse voltages under fault conditions without creating arcs that could ignite flammable vapour, for autonomous operation, to use fibre optics for comms, not to require physical access for reset or firmware update, and to have low cost.</p>
+
+<p>Visit <a href="http://forums.aeva.asn.au/weber-coulombs-lytefyba-bms_topic4302.html">the LyteFyba BMS thread on the AEVA forum</a></p>
+
+<h3>
+<a id="features" class="anchor" href="#features" aria-hidden="true"><span class="octicon octicon-link"></span></a>Features</h3>
+
+<ul>
+<li>Reports cell over and under voltage -- 1 millivolt resolution</li>
+<li>Reports cell over and under temperature -- 1 degree Celsius resolution</li>
+<li>Reports excessive volt drop across cell terminal connections -- 1 millivolt resolution</li>
+<li>Bypasses 0.8 amp for cell balancing -- max hotspot 35°C above ambient</li>
+<li>Fits prismatic cells from 40 Ah to 200 Ah, optimised for CALB/Sinopoly/Winston</li>
+<li>Designed for up to 900 V battery</li>
+<li>Designed to be arc-free even if cell or link goes open circuit under load or charge</li>
+<li>Daisy-chained comms is 9600 baud serial ASCII for ease of debugging</li>
+<li>Comms between adjacent cells is by opto-isolated wire or flexible join between circuit boards</li>
+<li>Comms outside battery box is by low-cost fibre-optic for safety and noise immmunity</li>
+<li>Firmware can be updated, or processors reset, on all cells at once over comms</li>
+<li>Autonomus operation -- can be used masterless -- optional audible alarm on every cell</li>
+<li>Blue, red and yellow LEDs -- activity, distress and bypass</li>
+<li>Based on Texas Instruments MSP430 microcontroller -- 16 bit ultra low power</li>
+</ul>
+
+<h3>
+<a id="authors" class="anchor" href="#authors" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authors</h3>
+
+<p>Dave Keenan (<a href="https://github.com/dkeenan7" class="user-mention">@dkeenan7</a>)<br>
+Dr Mike Van Emmerik (@emmerik)</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">LyteFyba maintained by <a href="https://github.com/dkeenan7">dkeenan7</a></p>
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
