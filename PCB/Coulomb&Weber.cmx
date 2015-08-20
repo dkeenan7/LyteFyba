@@ -24,7 +24,7 @@ MSP430G2452IPW||#IPW20=20||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS 
 MSP430G2553IPW20||#IPW20=20||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=||#TSSOP28=28||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 MSP430G2553IPW28||#IPW28=28||@RS Part Number=||@Allied_Number=||@Manufacturer_Name=||@Manufacturer_Part_Number=||@Other Part Number=||@3D Package=||@Height=
 NMOS SMD||#SMD=3||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
-NMOS_TO252||#THE ONLY BLOODY PACKAGE=3||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
+NMOS_TO252||#thing=3||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 OPTO||#SM=4||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 OPTO AC||#SM=4||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=
 PIEZO||#BUZZER-17mm=2||@Value=PS1740P02E||@Manufacturer_Part_Number=||@Manufacturer_Name=||@RS Part Number=||@Allied_Number=||@Other Part Number=||@3D Package=||@Height=

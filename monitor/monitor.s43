@@ -17,7 +17,8 @@
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 #define Monitor
 
-#define REV61	0				; Enable conditional assembly for board rev 61 or later (0 for MX-5)
+#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
+#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -294,6 +295,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if we're IMU)
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED as outputs
 
+#if G2553
+
+#else
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
@@ -313,6 +317,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
 			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
+#endif
 
 			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
 			mov.b	#$FF,&txData+1				; Initialise the top half of TXData to all 1s (stop bit,
@@ -854,8 +859,10 @@ DoPassword:
 			mov.b	#TXDp+ACTLED,&P1OUT	; Set TXD to idle, (inverted) activity LED off
 #endif
 			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
-			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
-			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
+			clr.b	&P1SEL				; Make PIEZO (P1.1) ordinary I/O now
+#if !G2553
+			bic.b	#USIPE5,&USICTL0	; Make TXDp (P1.5) ordinary I/O also
+#endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#$300,SP			; Give the BSL maximum stack
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download

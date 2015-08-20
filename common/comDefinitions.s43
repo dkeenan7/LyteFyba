@@ -462,10 +462,10 @@ _prettyPrint:
 		tst		Rtos
 		_IF		_Z
 			ErrLedOff						; Turn off the error LED
-			bic.b	#PIEZO,&P1SEL			; Short out the piezo
+			bic.b	#PIEZO,&PiezoPortSEL	; Short out the piezo
 		_ELSE
 			ErrLedOn						; Turn on the error LED
-			bis.b	#PIEZO,&P1SEL			; Make the piezo squeal
+			bis.b	#PIEZO,&PiezoPortSEL	; Make the piezo squeal
 		_ENDIF
 
 ;		pop		Rtos				; Remove operand

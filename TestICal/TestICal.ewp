@@ -97,7 +97,7 @@
         </option>
         <option>
           <name>OGChipSelectMenu</name>
-          <state>MSP430G2452	MSP430G2452</state>
+          <state>MSP430G2553	MSP430G2553</state>
         </option>
         <option>
           <name>GStackHeapOverride</name>
@@ -224,7 +224,7 @@
         </option>
         <option>
           <name>Math description</name>
-          <state></state>
+          <state>Default variants of cos, sin, tan, log, log10, pow, and exp.</state>
         </option>
       </data>
     </settings>

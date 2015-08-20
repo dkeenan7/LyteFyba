@@ -13,6 +13,7 @@ t l Name or description
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
     Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
+	Letters not used so far: HJMVW (all lowercase are used)
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
@@ -42,6 +43,7 @@ I I Insulation test - touch current in tenths of a milliamp (only when ID=0, ins
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
+  L Liven contactor (1-5)
   m e(m)itCharacter
 n n emit(n)um. Precede with a number or calculation, and a field width
 N N Number of cells
@@ -62,6 +64,7 @@ S S deSelect
 t t Temperature
 T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
   u UpdateInfoFlash
+  U Unliven contactor (1-5)
 v v cell(v)oltage
   w WriteCalValue
 x x e(x)clusive   (single-BMU interaction mode)
@@ -96,6 +99,8 @@ e e Error. Turn on or off red LED and piezo beeper
 Q Q Quiet. Stop piezo beeper coming on with error LED
 y y b(y)pass (Yellow) (relaY- on IMU)
 Y Y relaY+ (on IMU only)
+  L Liven contactor (1-5)
+  U Unliven contactor (1-5)
 
   a ADCScaled or r(A)wVoltage (TestICal only)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)

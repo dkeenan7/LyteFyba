@@ -19,7 +19,8 @@
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
 #define Monolith				// Used for some conditional assembly in otherwise common code
 
-#define REV61	1				// Enable conditional assembly for board rev 61 or later
+#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU
+#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash
@@ -61,7 +62,11 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
 #define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
+#if G2553
+#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
+#else
 #define		INSULATION_MONITORING 0	// Can leave out the insulation monitoring code if not needed.
+#endif
 									// Can't fit both of the above in 4k.
 ; Constants
 
@@ -317,10 +322,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
 #if REV61
 			clr.b	&P1OUT						; All outputs low on port 1
-			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			bic.b	#PIEZO,&PiezoPortOUT		; Piezo output low on whichever port
+			mov.b	#VREFp|TXDp|TXDm,&P1DIR 	; Set VREFp, TX bits and piezo as outputs
+			bis.b	#PIEZO,&PiezoPortDIR
 			cmp.b	#255,&ID
 			_IF		_EQ
-				bis.b	#PWMOUT,&P1DIR				; For IMU only, set P1.3 as an output (SoC PWM)
+				bis.b	#SocMeter,&SocPortDIR		; For IMU only, set up output for SoC meter PWM
 				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
 			_ENDIF
 #else
@@ -341,6 +348,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ENDIF
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
 
+#if G2553
+
+#else
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
@@ -360,6 +370,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
 			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
+#endif
 
 			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
 			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
@@ -1475,8 +1486,10 @@ DoPassword:
 			_IF		_NE
 				clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			_ENDIF
-			clr.b	&P1SEL				; Make P1.1 ordinary I/O now
-			bic.b	#USIPE5,&USICTL0	; Make P1.5 ordinary I/O also
+			clr.b	&P1SEL				; Make PIEZO (P1.1) ordinary I/O now
+#if !G2553
+			bic.b	#USIPE5,&USICTL0	; Make TXDp (P1.5) ordinary I/O also
+#endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#$300,SP			; Give the BSL maximum stack
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download

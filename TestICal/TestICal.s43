@@ -53,7 +53,8 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
-#define REV61	1				; Enable conditional assembly for board rev 61 or later
+#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
+#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.
@@ -71,11 +72,28 @@
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
 ; ADC channel numbers
-CellVChan	EQU		$7				; ADC channel number for cell voltage
-TempChan	EQU		$A				; ADC channel number for temperature
-LinkVChan	EQU		$6				; ADC channel number for link voltage
-TouchVChan	EQU		$3				; ADC channel number for touch voltage (IMUs only)
+#if G2553
+
+TouchVChan	EQU		$0				; Touch (insulation test) voltage (BMU only)
+VRefPChan	EQU		$4				; Vref+ out
+ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
+ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
+BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU)
+TempChan	EQU		$A				; Temperature
+LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
+CellVChan	EQU		BatV_StrapVPl_Chan
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+
+#else
+
+TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
+VRefPChan	EQU		$4				; Vref+ out
+LinkVChan	EQU		$6				; Link voltage
+CellVChan	EQU		$7				; Cell voltage
+TempChan	EQU		$A				; Temperature
+NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+
+#endif
 
 ; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
 ; i.e. By adding up 4^n samples you get 2n more bits in the result,
@@ -215,7 +233,7 @@ InterpretByte:
 ;
 ; The intitialise routine. This intialises everything except the stack pointer, including the
 ; RAM calibration values. The stack pointer is initialised before this is called.
-; It could be called by main, or by the initialise call from the BSL
+; It could be called by main, or by the initialise call from the BSL.
 ; If called by the BSL, the BSL's ReadByte loop is called, so that password detection and downloads
 ; are handled. If started by a cold start (reset or JTAG), it is assumed that the BSL may not be
 ; present, so a simple ReadByte loop is used that doesn't check for password bytes.
@@ -224,18 +242,36 @@ initialise:
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #endif
-			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
+			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
 			_DO		#TIB-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
-			; Set P1.4 (the Vref+ pin) as an output as well as the LED. This will put 0V at the
-			; bottom of the link voltage divider, so we can test with paralleled boards,
-			; and not have > Vcc on any analogue input (trust me, you get meaningless conversions)
-#if REV61
+#if G2553
+			; Initialise port 1
+			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			mov.b	#TxPlCmu,&P1OUT			; Set TXDp high (idle), all other outputs low.
+			cmp.b	#255,&ID				; If we're not a BMU
+			_IF		_NE
+				mov.b	#VREFp|TxPlCmu|TxMiCmu|TouchV_Byp,&P1DIR ; Set VREFp, TX bits, bypass as outputs
+			_ELSE							; Else
+				mov.b	#VREFp|TxPlCmu|TxMiCmu,&P1DIR ; Set VREFp, TX bits as outputs
+			_ENDIF
+
+			; Initialise port 2
+			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
+			mov.b	#0,&P2OUT				; Set all outputs low.
+			mov.b	#RELAYm|RELAYp|TxMiScu|PIEZO|ERRLED,&P2DIR ; Set relays,Tx, piezo, errLED as outputs
+
+			; Initialise port 3
+			; Default settings of P3SEL are OK. No timer comms in TestICal.
+			mov.b	#0,&P3OUT
+			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Tx, conts as outputs
+#else
+	#if REV61
 			mov.b	#TXDp,&P1OUT			; Set TXDp. Short the piezo.
 			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
-#else
+	#else
 			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
@@ -243,26 +279,38 @@ initialise:
 			_ELSE
 				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
 			_ENDIF
-#endif
+	#endif // REV61
 			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
 			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off (RLY- and RLY+ if we're an IMU)
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
+#endif // G2553
 
 			cmp.b	#DATAVERS,&infoDataVers
 			jnc		unknownVersBSL			; Can't handle obsolete version 5 or earlier data layout
 			; Now running 1 MHz SMCLK for compatibility with the monitor, hence watchdog timeout now 32 ms
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2	; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
-			; Works for version 6 data or new chip, not other versions
+			; Works for version 6 info-flash calibration data, or new chip, not other versions
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz cal data from info-flash
 			mov.b	&info8MHzCalD,&DCOCTL
+#if !G2553
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
-
-			clr		rERR					; Clear error register
+#endif
+			clr		rERR					; Clear the error register
 
 ;
 ; Initialise the ADC10
 ;
+#if G2553
+			cmp.b	#255,&ID					; If we're not a BMU (BMS Master Unit)
+			_IF		_NE
+				; Enable analog inputs and Vref+ out, but not TouchV
+				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
+			_ELSE
+				; Enable analog inputs and Vref+ out
+				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan)|(1<<TouchVChan),&ADC10AE0
+			_ENDIF
+#else
 			cmp.b	#0,&ID					; If we're not an IMU (Insulation Monitoring Unit)
 			_IF		_NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
@@ -271,9 +319,11 @@ initialise:
 				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ENDIF
+#endif // G2553
+
 			; Initialise ADC10
 			; SREF_1    = +-refs are Vref+ and AVSS
-			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temperature)
 			; REFOUT    = connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
 			; No MSC	= single sample and conversion

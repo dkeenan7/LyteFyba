@@ -37,7 +37,7 @@ BSL2:		; Initialisation
 			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
 			bis.b	#TXDp|TXDm|ACTLED|VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
 #endif
-			mov		#$300,SP		; Initialise the stack pointer
+			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
 
 			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
 			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
@@ -74,8 +74,9 @@ BSL2:		; Initialisation
 
 			; Log the reason for the reset, as the contents of IFG1.
 			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
-			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset, namely
-			; a flash key violation or an instruction fetch in range $0 to $1FF (special function regs).
+			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset,
+			; namely a flash key violation or an instruction fetch in range $0 to $1FF
+			; (special function regs).
 
 			mov			&resetCounter,R8
 			and			#$0F,R8
@@ -85,7 +86,8 @@ BSL2:		; Initialisation
 mainLoop2:
 			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
 			; or main program not present.
-			; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here, to fake a normal reset.
+			; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here,
+			; to fake a normal reset.
 #if 1	// Set to 1 only when JTAG debugging
 	#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
 			bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
@@ -196,7 +198,7 @@ testNoInterp2:
 				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
 					bit.b	#bDontEcho,&intFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
-					call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation						ActLedOff						; Turn off the activity LED set in writeByte
+					call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
 					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
@@ -219,7 +221,7 @@ testNoInterp2:
 				_IF		_NN				; If we're not programming (state not negative)
 					tst.b	R8
 					_IF		_L				; If data is a status byte (bit 7 set)
-						mov.b	#$C0,R8			; Send status with comms error bit and bad check bit, $C0
+						mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
@@ -289,7 +291,12 @@ WriteByte:
 
 			_BEGIN					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
+#if	G2553
+				subc.b	#TXDm,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
+				inv.b	R11				; (1)
+#else
 				subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
+#endif
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
 #if REV61
@@ -332,11 +339,13 @@ freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
 ; Interrupt Vectors at the end of the last flash segment
 ;-------------------------------------------------------------------------------
 
-				ORG		BSL2+$1F0		; $FFF0, Timer A Vectors
+				ORG		BSL2+$1EC		; $FFEC, UART Vectors
+
+				ORG		BSL2+$1F0		; $FFF0, Timer A0 Vectors
 				DW		jRxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTxIsr			; Timer A CC0IFG (transmit compare)
 
-				ORG		BSL2+$1F8		; $FFF8
+				ORG		BSL2+$1F8		; $FFF8, Timer A1 Vectors
 				br		#BSL2			; No longer used. Was so it still worked with an old BSL1.
 
 				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
