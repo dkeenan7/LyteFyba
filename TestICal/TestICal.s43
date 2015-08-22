@@ -53,14 +53,14 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
-#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
-#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
+#define REV61	0				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
+#define	G2553	0				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.
 ; Its most common use is to restore a sensible DCO clock frequency calibration value when this has
 ; been erased or corrupted, thereby rendering communications impossible or unreliable.
-; In that case, it must of course be loading using a JTAG programmer as the BSL will not work.
+; In that case, it must of course be loaded using a JTAG programmer as the BSL will not work.
 
 #define INIT_CMD_STRING ''	 			// No initial command
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
@@ -167,8 +167,8 @@ ramDataStart
 ramVoltCal	DS		2				; Voltage scale calibration word; may be written by BSL writer
 ramTempCal	DS		1				; Temperature offset calibration; may be written by BSL writer
 ramLinkCal	DS		1				; Link voltage offset calibration data; may be written by BSL writer
-ram8MHzCalD DS		1				; 4 MHz DCO frequency calibration byte
-ram8MHzCalB DS		1				; 4 MHz DCO range calibration byte
+ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
+ram8MHzCalB DS		1				; 8 MHz DCO range calibration byte
 ramID		DS		1				; Cell/CMU identifier byte; first cell is 0; written by 'i' cmd
 ramDataVers	DS		1				; Data version
 ramDataEnd
@@ -247,6 +247,48 @@ initialise:
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
+;
+; Copy calibration data into RAM
+;
+			_CASE
+			;_OFb	#DATAVERS-1,&infoDataVers
+				; Copy/translate stuff from previous version to RAM
+			;_ENDOF
+			_OFb	#DATAVERS,&infoDataVers
+				; The RAM image has the same layout as current version data, so we use a block move
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+					mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+			_ENDOF
+			_OFb	#$FF,&infoDataVers
+				; If we find $FF at infoDataVers (an area of info-flash that we assume in new chips
+				; will be erased), then assume it's a new chip. If not a new chip, it will have the data version number (way < $80)
+				; A new chip. We want to preserve some of the existing DCO calibration data
+				; Set the ID, voltage, temperature and link calibration
+newChip:
+				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC calibration data
+				mov.b	#$00,&ramTempCal
+				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
+				mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
+				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
+				mov.b	#$FF,&ramID					; ID 255 (erased)
+				mov.b	#DATAVERS,&ramDataVers		; The current data version
+			_ENDOF
+			; default case
+#if !G2553
+				; We could have an unprogrammed non G2553 chip; in that case infoDataVers is actually
+				; one of the 1 MHz frequency calibration values. We know that it will be >= $80 to
+				; disable XT2
+				tst.b	infoDataVers
+				jn		newChip
+#endif
+				; Version number is higher or lower than this version of TestICal knows about,
+				; so we should leave it alone and raise an error.
+				mov		#b'01010101,rERR			; 4 flashes
+				call	ErrorFlash					; Infinite loop, never returns
+			_ENDCASE
+
+
 #if G2553
 			; Initialise port 1
 			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
@@ -285,13 +327,11 @@ initialise:
 			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
 #endif // G2553
 
-			cmp.b	#DATAVERS,&infoDataVers
-			jnc		unknownVersBSL			; Can't handle obsolete version 5 or earlier data layout
-			; Now running 1 MHz SMCLK for compatibility with the monitor, hence watchdog timeout now 32 ms
+			; Reinitialise clocks using RAM calibration values. These should have sorted out any data
+			; version issues, new chip, etc.
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2	; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
-			; Works for version 6 info-flash calibration data, or new chip, not other versions
-			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz cal data from info-flash
-			mov.b	&info8MHzCalD,&DCOCTL
+			mov.b	&ram8MHzCalB,&BCSCTL1
+			mov.b	&ram8MHzCalD,&DCOCTL
 #if !G2553
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
@@ -344,49 +384,6 @@ initialise:
 ;			bic.b	#bDontInterpret,&intFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
-;
-; Copy calibration data into RAM
-;
-
-; If we find >= $80 at $10FF (end of info-flash protected segment A),
-; then assume it's a new chip. If not a new chip, it will have the data version number (way < $80)
-			tst.b	&$10FF			; Check the 1 MHz calibration value; in a new chip it should
-									;	always have the MSB set to disable XT2
-			jn		newChip
-
-; It's not a new chip so check the data version number at the end of info-flash.
-			cmp.b	#DATAVERS,&infoDataVers
-			jeq		currVersBSL
-;			jge		unknownVersBSL
-;			jl		unknownVersBSL
-unknownVersBSL
-; Version number is higher or lower than this version of TestICal knows about,
-; so we should leave it alone and raise an error.
-			mov		#b'01010101,rERR			; 4 flashes
-			jmp		ErrorFlash					; Infinite loop, never returns
-
-
-newChip
-; A new chip. We want to preserve some of the existing DCO calibration data
-
-			; Set the ID, voltage, temperature and link calibration
-			mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC calibration data
-			mov.b	#$00,&ramTempCal
-			mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
-			mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
-			bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
-			mov.b	#$FF,&ramID					; ID 255 (erased)
-			mov.b	#DATAVERS,&ramDataVers		; The current data version
-			jmp		returnFromInitialise
-
-
-currVersBSL
-; The RAM image has the same layout as current version data, so we use a block move
-			_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
-				mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-			_LOOP	R8							; Decrement loop counter by 1, loop if non zero
-
-returnFromInitialise
 			mov		#initCmdString,Rip			; Interpret the init string as commands
 			call	#_ENTER
 
@@ -430,13 +427,13 @@ TxByte:		call	#WriteByte
 ; Relies on definitions like infoDataStart and mainDataEnd to sort out the boundaries
 ; Trashes R12
 compareInfoFlash:
-			mov		#infoDataStart,R12
+			clr		R12					; Loop counter
 			_BEGIN
-				cmp.b	@R12,ramDataStart-infoDataStart(R12)
+				cmp.b	infoDataStart(R12),ramDataStart(R12)
 				_WHILE	_EQ ; _Z
 					inc		R12
-					cmp		#infoDataEnd,R12
-			_UNTIL	_EQ					; Loop until R12 gets to infoDataEnd
+					cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret

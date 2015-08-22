@@ -48,7 +48,7 @@ SocPortDIR	EQU		P3DIR			; Soc meter PWM output on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT
 
-#define		PROG_START	$C000		// Start of program image in flash memory. Ends at $FDFF
+#define		PROG_START	$E000		// Start of program image in flash memory. Ends at $FDFF
 
 #else							// Else using the older MSP430G2452 processor
 
@@ -99,19 +99,26 @@ BypPortOUT	EQU		P2OUT
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-
+#if G2553
+			ORG		$1010			; Stay away from manufacturer supplied data
+	#define		CAL_IN_SEG_A	0
+#else
 			ORG		$10F8
+	#define		CAL_IN_SEG_A	1
+#endif
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
 infoVoltCal		ds		2			; Voltage scale calibration word; may be written by BSL writer
 infoTempCal		ds		1			; Temperature offset calibration; may be written by BSL writer
 infoLinkCal		ds		1			; Link voltage offset calibration data; may be written by BSL writer
-info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte (same address as in new chip)
-info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte (same address as in new chip)
+info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte
+info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte
 infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS value above
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration data
 infoDataEnd							; Used when copying between ram and info-flash
 
+origInfo8MHzCalD EQU	$10FC		; Original (TI supplled) calibration values
+origInfo8MHzCalB EQU	$10FD

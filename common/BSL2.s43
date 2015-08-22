@@ -28,10 +28,11 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 ;			ORG		$FE00			; Start of the last 512 byte flash segment
 BSL2:		; Initialisation
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
-			mov.b	&info8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
-			mov.b	&info8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
+			; Use original TI frequency calibration values, in case our values not set up or wildly bad
+			mov.b	&origInfo8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
+			mov.b	&origInfo8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 #if REV61
-			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, Vref output off
+			mov.b	#TXDp,&P1OUT	; Set TXDs to idle state, Vref output off
 			bis.b	#TXDp|TXDm|VREFp,&P1DIR ; Set TXDs and VREFp as outputs
 #else
 			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off

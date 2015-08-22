@@ -242,45 +242,37 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
 
-; Erase info flash including segment A.
-#if 0
-			mov		#$1000,R12				; Start of info-flash
-			_BEGIN
-				mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
-				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase (doesn't seem to "stick")
-				rra		@R12					; Dummy write: erase segment
-				add		#64,R12					; Next segment
-				cmp		#$10C0,R12
-			_UNTIL	_EQ						; Loop until at start of segment A
-#endif
-			mov		#$10C0,R12				; Start of info-flash segment A
-			mov		#FWKEY+LOCKA,&FCTL3		; Clear LOCK, toggle LOCKA
+; Erase appropriate info flash segment.
+			mov		#FWKEY,&FCTL3			; Clear LOCK
+#if	CAL_IN_SEG_A
 			CLRLOCKA						; Ensure segment A is unlocked
+#endif
 			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
-			rra		@R12					; Dummy write: erase segment A
+			mov		#0,&infoDataStart		; Dummy write: Start of cal data in info-flash
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
-			mov		#ramDataStart,R12
+			clr		R12						; Loop counter
 			_BEGIN
-				mov.b	@R12,infoDataStart-ramDataStart(R12)	; Write a byte to info-flash
+				mov.b	ramDataStart(R12),infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
-				cmp		#ramDataEnd,R12
-			_UNTIL	_EQ						; Loop until R12 gets to ramDataEnd
+				cmp		#ramDataEnd-ramDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
-			mov		#FWKEY+LOCK+LOCKA,&FCTL3 ; Set LOCK, toggle LOCKA
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+#if	CAL_IN_SEG_A
 			SETLOCKA						; Ensure segment A is locked
+#endif
 			;
 			; Check that the flash programming worked
 			;
-			call	#compareInfoFlash		; Compare the for1000 image with what's at 1000
-			jnz		failCompare
-
+			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
+			_IF    _NE
+				mov		#b'01010000,rERR		; 2 flashes
+				call	#ErrorFlash				; Infinite loop, never returns
+			_ENDIF
 			ret
-
-failCompare mov		#b'01010000,rERR		; 2 flashes
-			br		#ErrorFlash
 
 ;
 ; update Bootstrap loader ( -- )
@@ -478,6 +470,7 @@ bitDelay	dec		R11
 			jnz		_sendNulls
 			ret
 
+#if		G2553
 ; Convert a contactor number or letter to a bitmask for the output port.
 ; This is a helper for the Contactor on and off (Joy and Misery) commands.
 ; GetContactorBitmask ( n -- m )
@@ -518,3 +511,4 @@ GetContactorBitmask:
 			call	#GetContactorBitmask
 			bic.b	Rtos,&P3OUT
 			ret
+#endif // G2553
