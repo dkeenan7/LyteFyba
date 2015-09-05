@@ -682,3 +682,46 @@ DepthOfDischarge:
 			mov.w	#0,&WDTCTL		; Write an incorrect password to the watchdog control reg
 			ret
 #endif
+
+#if		G2553
+; Convert a contactor number or letter to a bitmask for the output port.
+; This is a helper for the Contactor on and off (Joy and Misery) commands.
+; GetContactorBitmask ( n -- m )
+GetContactorBitmask:
+			_CASE
+			_OFb	#1,Rtos				; Precharge
+				mov.b	#PreCont,Rtos
+			_ENDOF
+			_OFb	#2,Rtos				; Battery
+				mov.b	#BatCont,Rtos
+			_ENDOF
+			_OFb	#3,Rtos				; Charge sources
+				mov.b	#ChgCont,Rtos
+			_ENDOF
+			_OFb	#4,Rtos				; Discharge / Discretionary loads
+				mov.b	#DisCont,Rtos
+			_ENDOF
+			_OFb	#5,Rtos				; Normal loads
+				mov.b	#NrmCont,Rtos
+			_ENDOF
+			_ENDCASE
+			ret
+
+;
+; Liven contactor ( n --- )
+; Turn on the output for contactor n
+;
+			xCODE	'L',liven,_liven
+			call	#GetContactorBitmask
+			bis.b	Rtos,&P3OUT
+			ret
+
+;
+; Unliven contactor ( n --- )
+; Turn off the output for contactor n
+;
+			xCODE	'U',unliven,_unliven
+			call	#GetContactorBitmask
+			bic.b	Rtos,&P3OUT
+			ret
+#endif // G2553
