@@ -277,18 +277,27 @@ WaitTxComplete:
 TxIsrUartMacro	MACRO	TxSz, txBuf, txRd, txWr
 ; Macro for Transmit (UART) interrupt service routines
 ;-------------------------------------------------------------------------------
+			; Must avoid the problem of the TX interrupt "sucking air"
+			;   and needing to be re-primed.
+			; If the queue will be empty after sending next char
+			;   disable TX interrupt
+
+			push	R8
+			push	R9
+			mov.b 	&txRd,R9				; Get read index in R9
+			mov.b	txBuf(R9),R8			; Get next char from queue into R8
+											;   but mustn't write it to UART TX register
+			inc.b 	R9						; Increment the read index
+			and.b 	#TxSz-1,R9				;	modulo the queue size.
+			mov.b 	R9,&txRd				; Update the read index
 			cmp.b 	&txWr,&txRd				; Test if TX queue is empty
 			_IF		_EQ						; If TX queue is empty
-				bic.b	#UCA0TXIE,&IE2			; Disable Tx interrupts
-			_ELSE							; Else there is a char in the queue
-				push	R9
-				mov.b 	&txRd,R9				; Get read index in R9
-				mov.b	txBuf(R9),&UCA0TXBUF	; Get next char from queue into UART TX register
-				inc.b 	R9						; Increment the read index
-				and.b 	#TxSz-1,R9				;	modulo the queue size.
-				mov.b 	R9,&txRd				; Update the read index
-				pop		R9
+				bic.b	#UCA0TXIE,&IE2		; Disable Tx interrupts
+				nop							; Wait because the above doesn't take effect immediately
 			_ENDIF							; Endif TX queue is not empty
+			mov.b	R8,&UCA0TXBUF			; Send the character (safe to do so now)
+			pop		R9
+			pop		R8
 			reti
 			ENDM
 

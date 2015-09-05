@@ -349,14 +349,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise timer and interrupt comms
 ;
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
-
 			; Initialise IO ports
-			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
 #if REV61
 			clr.b	&P1OUT						; All outputs low on port 1
 			bic.b	#PIEZO,&PiezoPortOUT		; Piezo output low on whichever port
@@ -376,12 +369,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
 
 #if G2553
-			; Use the comparator to get an inverted version of TxPlCmu (P1.2/UCA0TXD/CA2) to appear on
-			; TxMiCmu (P1.3/CAOUT).
+			mov.b	#RXD+TXDm,&P1SEL			; Select UART functions (not I/O port)
+			mov.b	#RXD+TXDm,&P1SEL2			; Select UART functions (not I/O port)
+
+			; Use the Analog Comparator to get an inverted version of TxPlCmu (P1.2/UCA0TXD/CA2) to
+			; appear on TxMiCmu (P1.3/CAOUT).
 			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator + input and turn it on
-			mov.b	#P2CA2,&CACTL2				; CA2 to the comparatotor - input
+			mov.b	#P2CA2,&CACTL2				; CA2 to the comparator - input
 			mov.b	#CAPD2,&CAPD				; Enable the comparator input function of P1.2
-			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Compare mode, "toggle" output mode
 			bis.b	#TxMiCmu,&P1SEL				; Select the comparator output function of P1.3
 			bis.b	#TxMiCmu,&P1SEL2
 
@@ -396,7 +391,39 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bis.b	#TxPlCmu,&P1SEL2
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 			bis.b	#UCA0TXIE | UCA0RXIE, &IE2	; Enable UCSI interrupts
+
+			;Initialise the Timers
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			; TAIE = interrupt enable (for timer overflow)
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
+
+			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode
+
+			mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
+			mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
+			mov.b	#$FF,&scuTxData+1			; Init top half of TXData to all 1s (stop bit, idle bit)
+			mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
+;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
+
+			mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
+			mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
+			mov.b	#$FF,&chgTxData+1			; Init top half of TXData to all 1s (stop bit, idle bit)
+			mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
+;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
 #else
+			mov.b	#RXD+TXDm,&P1SEL			; Select timer functions CCI1A and TA0 (not I/O port)
+
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			; TAIE = interrupt enable (for timer overflow)
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
+
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
