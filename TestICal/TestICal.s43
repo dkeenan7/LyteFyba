@@ -53,8 +53,8 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
-#define REV61	0				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
-#define	G2553	0				// MSP430 model. False for older devices that used the MSP430G2452.
+#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
+#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.
@@ -503,12 +503,25 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDF2
+				ORG		$FDE2
+CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
+										;  interrupt vector
+jUCA0TxIsr		reti					; UART transmit not used
+				nop
+jUCA0RxIsr		reti					; UART receive not used
+				nop
+
+jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
+				nop
+jTA1TxIsr		reti					; TA1 CC0 not used
+				nop
+
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
-jRxTiovIsr		nop						; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-				reti					; Not used by TestICal
-jTxIsr			nop						; Timer A CC0IFG (transmit compare)
-				reti					; Not used by TestICal
+
+jTA0RxTiovIsr	reti					; Combined TA0 CC1&2IFG & TAIFG (ovf) not used
+				nop
+jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
+				nop
 
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)

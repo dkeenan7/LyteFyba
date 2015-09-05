@@ -61,13 +61,15 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
+
+; Couldn't fit both masterless charging and insulation monitoring in 4k.
 #define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
 #if G2553
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 #else
-#define		INSULATION_MONITORING 0	// Can leave out the insulation monitoring code if not needed.
+#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 #endif
-									// Can't fit both of the above in 4k.
+
 ; Constants
 
 ; Stress calculations
@@ -157,10 +159,36 @@ TouchVChan	EQU		$3				; ADC channel number for touch voltage (IMUs only)
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 
 ; Serialio definitions (Here because used in initialisation)
-#define		TACCTLr		TACCTL1		// Receive using CCI1 (P1.2)
-#define		TACCTLt		TACCTL0		// Transmit (and everything else) using TA0
-#define		TACCRt		TACCR0		// Transmit compare register
-#define		TACCRr		TACCR1		// Receive capture/compare register
+#if G2553	// MSP430G2553 processor
+	; CMU comms uses UART
+	; Charger/inverter comms and SoC meter PWM
+ChgTAR		EQU			TA0R		; Charger/inverter timer register
+ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
+ChgCCTLt	EQU			TA0CCTL0	; Charger/inverter Transmit capture/compare control register
+ChgCCRt		EQU			TA0CCR0		; Charger/inverter Transmit compare register
+SocCCTLp	EQU			TA0CCTL1	; SoC meter PWM capture/compare control register (BMU only)
+SocCCRp		EQU			TA0CCR1		; SoC meter PWM capture/compare register (BMU only)
+ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
+ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
+	; SCU comms and Piezo 4.2 kHz square wave
+ScuTAR		EQU			TA1R		; SCU timer register
+ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
+ScuCCTLt	EQU			TA1CCTL0	; SCU Transmit capture/compare control register
+ScuCCRt		EQU			TA1CCR0		; SCU Transmit compare register
+PizCCTLp	EQU			TA1CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
+PizCCRp		EQU			TA1CCR1		; Piezo 4.2 kHz square wave capture/compare register
+ScuCCTLr	EQU			TA1CCTL2	; SCU Receive capture/compare control register
+ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
+
+#else // Older MSP430G2452 processor
+	; CMU comms and SoC meter PWM
+TACCTLt		EQU			TACCTL0		; CMU Transmit capture/compare control register
+TACCRt		EQU			TACCR0		; CMU Transmit capture/compare register
+TACCTLr		EQU			TACCTL1		; CMU Receive capture/compare control register
+TACCRr		EQU			TACCR1		; CMU Receive capture/compare register
+SocCCTLp	EQU			TACCTL2		; SoC meter PWM capture/compare control register (IMU only)
+SocCCRp		EQU			TACCR2		; SoC meter PWM capture/compare register (IMU only)
+#endif
 
 ;
 ; RAM allocation
@@ -223,16 +251,15 @@ temperature		DS		2			; Temperature most recently measured, in degrees Celsius (s
 smoothStressX4	DS		1			; Moving average of stress used by IMU to control contactors
 
 ; Serial-io variables
-
+	; Cell monitoring units comms variables
 				ALIGNRAM 1
 txBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
 bitCntRx		DS		1			; Bit count 8 -> 1
-txCksum			DS		1			; Simple xor checksum used on transmit
-				ALIGNRAM 1
-txCrc			DS		2			; CRC-16-CCITT for transmitting to PIP-4048MS inverter-charger
+txCksum			DS		1			; Transmit checksum
+txCrc			DS		2			; Transmit cyclic redundancy check
 
 RxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
@@ -242,9 +269,53 @@ TxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 rxBuf			DS		RxSz		; Receive queue buffer
 rxWr			DS		1			; Receive queue write index
 rxRd			DS		1			; Receive queue read index
-txBuf			DS		TxSz		; Transmit queue buffer
+txBuf			DS		RxSz		; Transmit queue buffer
 txWr			DS		1			; Transmit queue write index
 txRd			DS		1			; Transmit queue read index
+
+#if G2553
+	; System control unit comms variables
+				ALIGNRAM 1
+scuTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+scuTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
+scuRxData		DS		1			; Received char
+scuBitCntTx		DS		1			; Bit count 10 -> 1
+scuBitCntRx		DS		1			; Bit count 8 -> 1
+scuTxCksum		DS		1			; Transmit checksum
+
+ScuRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
+									; 8 is sufficient to prevent dropped cmd and response characters
+ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
+									; 4 is sufficient to reduce dropped status to less than one a minute
+				ALIGNRAM 1
+scuRxBuf		DS		RxSz		; Receive queue buffer
+scuRxWr			DS		1			; Receive queue write index
+scuRxRd			DS		1			; Receive queue read index
+scuTxBuf		DS		RxSz		; Transmit queue buffer
+scuTxWr			DS		1			; Transmit queue write index
+scuTxRd			DS		1			; Transmit queue read index
+
+	; Charger/inverter comms variables
+				ALIGNRAM 1
+chgTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+chgTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
+chgRxData		DS		1			; Received char
+chgBitCntTx		DS		1			; Bit count 10 -> 1
+chgBitCntRx		DS		1			; Bit count 8 -> 1
+chgTxCksum		DS		1			; Transmit checksum
+
+ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
+									; 8 is sufficient to prevent dropped cmd and response characters
+ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
+									; 4 is sufficient to reduce dropped status to less than one a minute
+				ALIGNRAM 1
+chgRxBuf		DS		RxSz		; Receive queue buffer
+chgRxWr			DS		1			; Receive queue write index
+chgRxRd			DS		1			; Receive queue read index
+chgTxBuf		DS		RxSz		; Transmit queue buffer
+chgTxWr			DS		1			; Transmit queue write index
+chgTxRd			DS		1			; Transmit queue read index
+#endif
 
 ; Command Character Interpreter variables
 
@@ -349,7 +420,25 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
 
 #if G2553
+			; Use the comparator to get an inverted version of TxPlCmu (P1.2/UCA0TXD/CA2) to appear on
+			; TxMiCmu (P1.3/CAOUT).
+			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator + input and turn it on
+			mov.b	#P2CA2,&CACTL2				; CA2 to the comparatotor - input
+			mov.b	#CAPD2,&CAPD				; Enable the comparator input function of P1.2
+			bis.b	#TxMiCmu,&P1SEL				; Select the comparator output function of P1.3
+			bis.b	#TxMiCmu,&P1SEL2
 
+			;Initialise the UART
+			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
+			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
+			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
+			mov.b	#104,&UCA0BR0 				; Set 9600 baud
+			mov.b	#0,&UCA0BR1
+			mov.b	#UCBRS_1,&UCA0MCTL
+			bis.b	#TxPlCmu,&P1SEL				; Select the UART output function of P1.2
+			bis.b	#TxPlCmu,&P1SEL2
+			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
+			bis.b	#UCA0TXIE | UCA0RXIE, &IE2	; Enable UCSI interrupts
 #else
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
@@ -370,7 +459,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
 			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
-#endif
 
 			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
 			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
@@ -378,6 +466,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+#endif
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxRd
@@ -510,7 +599,9 @@ SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discha
 ; Initialise the PIP4048MS inverter with various non-default settings
 ;
 InitPip:
+#if	!G2553
 			call		#WaitTxComplete		; Wait for transmission to complete
+#endif
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
 			_DO			#15,R8				; Number of initialisation strings,
@@ -1272,7 +1363,9 @@ SendChargerPackets:
 ; and when lowering it, float will have to be sent before bulk.
 PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAKed
 
+#if !G2553
 			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
+#endif
 			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			;
 			; Although we have waited long enough to send the last 9600 bps character completely, it is
@@ -1359,7 +1452,9 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 
 			mov		#PipJunkSweep,R10	; Send 'PExSh(' so the following 2400 baud junk, caused
 			call	#TxString			; by 9600 baud commands sent to CMUs, will be ACKed by the PIP.
+#if !G2553
 			call	#WaitTxComplete		; Wait for 2400 baud transmission to complete
+#endif
 			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 
 			ret
@@ -1470,9 +1565,13 @@ DoPassword:
 			;	without using interrupts.
 			; May be important: it could be bad to have receive interrupts sending stress bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
+#if G2553
+			bic.b	#UCA0RXIFG | UCA0TXIFG,&IFG2	; Disable UART interrupts
+#else
 			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
 			call	#WaitTxComplete
+#endif
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
@@ -1523,15 +1622,41 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDF2
-jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
-jRxTiovIsr		br		#RxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-jTxIsr			br		#TxIsr			; Timer A CC0IFG (transmit compare)
+				ORG		$FDE2
+CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
+										;  interrupt vector
+#if G2553
+jUCA0TxIsr		br		#TxIsr			; UART transmit
+jUCA0RxIsr		br		#RxIsr			; UART receive
+#else
+jUCA0TxIsr		reti					; UART transmit not used
+				nop
+jUCA0RxIsr		reti					; UART receive not used
+				nop
+#endif
 
+#if G2553
+jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
+jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
+#else
+jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
+				nop
+jTA1TxIsr		reti					; TA1 CC0 not used
+				nop
+#endif
+
+jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+
+#if G2553
+jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
+jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
+#else
+jTA0RxTiovIsr	br		#RxTiovIsr		; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
+jTA0TxIsr		br		#TxIsr			; Timer A0 CC0IFG (transmit compare)
+#endif
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
-
 
 ;---------------------------------------------------------------------------------
 ; Second bootstrap loader, in the last main-flash segment

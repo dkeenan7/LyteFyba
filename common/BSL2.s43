@@ -341,13 +341,17 @@ freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
 ;-------------------------------------------------------------------------------
 
 				ORG		BSL2+$1EC		; $FFEC, UART Vectors
+				DW		jUCA0TxIsr		; UART transmit
+				DW		jUCA0RxIsr		; UART receive
 
 				ORG		BSL2+$1F0		; $FFF0, Timer A0 Vectors
-				DW		jRxTiovIsr		; Combined CC1IFG (receive capture/compare) & TAIFG (overflow)
-				DW		jTxIsr			; Timer A CC0IFG (transmit compare)
+				DW		jTA0RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+				DW		jTA0TxIsr		; Timer A CC0IFG (transmit compare)
 
 				ORG		BSL2+$1F8		; $FFF8, Timer A1 Vectors
-				br		#BSL2			; No longer used. Was so it still worked with an old BSL1.
+				DW		jTA1RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+				DW		jTA1TxIsr		; Timer A CC0IFG (transmit compare)
+
 
 				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.

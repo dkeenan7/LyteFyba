@@ -94,8 +94,8 @@ MinusROT	MACRO
 _LO_CMDCHR	EQU	' '+1						; Lowest definable cmd-character is char after space, "!"
 _HI_CMDCHR	EQU	$7F							; Highest definable cmd-character has low 7 bits set, DEL
 
-_CMDCHRTBL	EQU	$FDEE-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest used
-											; interrupt vector (FDEE is used for the JTAGstart "vector")
+_CMDCHRTBL	EQU	CMDCHRTBLEND-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest used
+											; interrupt vector
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.

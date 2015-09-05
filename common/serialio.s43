@@ -75,30 +75,31 @@ TxStringCk: _DOb	@R10+,R11
 			_LOOPb	R11
 			ret
 
-;-------------------------------------------------------------------------------
-; TxByteCk	; Transmit the character in R8 while accumulating checksum.
-			; If necessary, wait until the queue is not full.
-			; Trashes R9.
-;-------------------------------------------------------------------------------
-
-TxByteCk:
-			xor.b	R8,&txCksum
-TxByte:	; Alternative entry which does not accumulate checksum
-			_BEGIN
-
-				ClearWatchdog
-
-				call	#TxByteNoWait
-			_UNTIL	_NZ
+;
+; Attempt to put the character from R8 into the transmit queue.
+; If the queue is full, return immediately with the Z status bit set.
+; Preserves R8, trashes R9.
+TxByteNWUartMacro	MACRO	TxSz, txBuf, txRd, txWr
+			mov.b	&txWr,R9				; Get the write index (not changed by TxIsr)
+			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
+											;	there's always at least one free space,
+											;	but don't increment the write index yet.
+			inc.b	R9						; Increment a copy of the write index
+			and.b	#TxSz-1,R9				;	modulo the queue size
+			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
+			_IF		_NE
+				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
+				bis.b	#UCA0TXIE,&IE2		; Enable transmit interrupts
+				clrz						; Indicate char was accepted
+			_ENDIF
 			ret
-
+			ENDM
 
 ;
 ; Attempt to put the character from R8 into the transmit queue.
 ; If the queue is full, return immediately with the Z status bit set.
 ; Preserves R8, trashes R9.
-;
-TxByteNoWait:
+TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 			mov.b	&txWr,R9				; Get the write index (not changed by TxIsr)
 			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
 											;	there's always at least one free space,
@@ -111,7 +112,7 @@ TxByteNoWait:
 
 				; If transmit interrupts are disabled, set up the timer for a new start bit
 				; and enable transmit compare interrupts.
-				bit		#CCIE,&TACCTLt		; Test transmit interrupts enabled bit
+				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
 				_IF		_Z					; If transmit interrupts disabled
 #if !G2553
 					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
@@ -129,14 +130,14 @@ TxByteNoWait:
 					mov		#((23+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
 					add		&TAR,R9				; R9 := timer value + setup time
 					_COND						; Start short circuit conditional
-						bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
+						bit		#CCIFG,&CCTLt	; (5) Test transmit compare interrupt flag
 					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
-						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
+						cmp		&CCRt,R9		; (4) Test (TAR+setup) - TACCRt
 					_OR_IFS		_NN				; (2) Or If existing TACCRt AFTER TAR+setup, keep TACCRt
-						mov		R9,&TACCRt			; (4) Set the new compare value for the start-bit
+						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing TACCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
-					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
+					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set out mode for start bit, enable compare ints
 
 					ActLedOn					; Turn on the (inverted) activity LED for visual feedback
 				_ENDIF 						; Endif transmit interrupts disabled
@@ -144,6 +145,48 @@ TxByteNoWait:
 				clrz						; Indicate char was accepted
 			_ENDIF
 			ret
+			ENDM
+
+#if G2553
+TxByteNoWait: 		TxByteNWUartMacro	TxSz, txBuf, txRd, txWr
+ScuTxByteNoWait:	TxByteNWTimerMacro	ScuTAR, ScuCCRt, ScuCCTLt, scuBitCntTx, ScuTxSz, scuTxBuf, scuTxRd, scuTxWr
+ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
+#else
+TxByteNoWait:		TxByteNWTimerMacro	TAR, TACCRt, TACCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
+#endif
+
+;-------------------------------------------------------------------------------
+; TxByteCk	; Transmit the character in R8 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R9.
+;-------------------------------------------------------------------------------
+
+TxByteMacro	MACRO	TxByteNoWait
+			_BEGIN
+
+				ClearWatchdog
+
+				call	#TxByteNoWait
+			_UNTIL	_NZ
+			ret
+			ENDM
+
+#if	G2553
+TxByteCk: 	xor.b	R8,&txCksum
+TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulate checksum
+
+ScuTxByteCk: xor.b	R8,&txCksum
+ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate checksum
+
+ChgTxByteCk: xor.b	R8,&txCksum
+ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accumulate checksum
+
+#else
+
+TxByteCk: 	xor.b	R8,&txCksum
+TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulate checksum
+
+#endif
 
 #if 0
 TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
@@ -214,8 +257,9 @@ TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte ins
 			ret
 #endif
 
+#if !G2553
 ;
-; Wait for the transmit queue to empty and last byte to be sent.
+; Wait for the CMU transmit queue to empty and last byte to be sent.
 ; Called by DoPassword in monitor and monolith before disabling interrupts and branching to BSLErase.
 ; Called before changing baud rate in monolith.
 ;
@@ -227,9 +271,30 @@ WaitTxComplete:
 				bit		#CCIE,&TACCTLt		; Test the transmit interrupts enabled bit
 			_UNTIL	_Z					; Until it is cleared
 			ret
+#endif
 
 ;-------------------------------------------------------------------------------
-TxIsr:	; Transmit (timer capture/compare 0) interrupt service routine
+TxIsrUartMacro	MACRO	TxSz, txBuf, txRd, txWr
+; Macro for Transmit (UART) interrupt service routines
+;-------------------------------------------------------------------------------
+			cmp.b 	&txWr,&txRd				; Test if TX queue is empty
+			_IF		_EQ						; If TX queue is empty
+				bic.b	#UCA0TXIE,&IE2			; Disable Tx interrupts
+			_ELSE							; Else there is a char in the queue
+				push	R9
+				mov.b 	&txRd,R9				; Get read index in R9
+				mov.b	txBuf(R9),&UCA0TXBUF	; Get next char from queue into UART TX register
+				inc.b 	R9						; Increment the read index
+				and.b 	#TxSz-1,R9				;	modulo the queue size.
+				mov.b 	R9,&txRd				; Update the read index
+				pop		R9
+			_ENDIF							; Endif TX queue is not empty
+			reti
+			ENDM
+
+;-------------------------------------------------------------------------------
+TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
+; Macro for Transmit (timer capture/compare 0) interrupt service routines
 ;-------------------------------------------------------------------------------
 ; 1st interrupt BitCntTx is 10 (dec to 9), falling edge of start-bit just sent, need to set up for LSB
 ; 8th interrupt, BitCntTx is 3, just transitioned to data bit 6, need to set up for transition to MSB
@@ -245,8 +310,9 @@ TxIsr:	; Transmit (timer capture/compare 0) interrupt service routine
 ; before the stop bit has finished. The question is whether it would be less messy than it is now,
 ; use less code, or not need to disable interrupts for so long. -- DK
 
+
 											; (6) cycles for interrupt accepted
-			add.w	&txBitTime,&TACCRt		; (6) Set timer compare reg for when next transition is due
+			add.w	&txBitTime,&CCRt		; (6) Set timer compare reg for when next transition is due
 			dec.b	&bitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
@@ -266,29 +332,59 @@ TxIsr:	; Transmit (timer capture/compare 0) interrupt service routine
 				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
 												;	so stop and idle bits are always treated like data 1s
 				_IF		_NC						; (2) If bit is 0
-					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) then set TXDm = TA0 output high
+					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) then set TXDm = TA0 output high
 				_ELSE							; (2) Else bit is 1
-					mov		#OUTMOD_5+CCIE,&TACCTLt	; (5) Else clear TXDm = TA0 output low
+					mov		#OUTMOD_5+CCIE,&CCTLt	; (5) Else clear TXDm = TA0 output low
 				_ENDIF							; Endif bit is 1
 			_ELSE							; Else Stop bit initiated
 				cmp.b 	&txWr,&txRd				; Test if TX queue is empty
 				_IF		_EQ						; If TX queue is empty
-					bic.w	#CCIE,&TACCTLt			; (5) Disable Tx interrupts
+					bic.w	#CCIE,&CCTLt			; (5) Disable Tx interrupts
 					ActLedOff						; (5) Turn off activity LED at end of the transmit
 				_ELSE							; Else TX queue is not empty
 #if !G2553
 					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK)
 #endif												;   will continue to be an inversion of TXDm (TA0).
 					mov.b	#10,&bitCntTx			; Load bit transition counter: 10 bits
-					mov.w	#OUTMOD_1+CCIE,&TACCTLt ; (5) Set output mode for start bit
+					mov.w	#OUTMOD_1+CCIE,&CCTLt	; (5) Set output mode for start bit
 
 					ActLedOn						; Turn on the activity LED for visual feedback.
 				_ENDIF							; Endif TX queue is not empty
 			_ENDIF							; Endif Stop bit initiated
 			reti
+			ENDM
+
+#if	G2553
+TxIsr:		TxIsrUartMacro	TxSz, txBuf, txRd, txWr
+ScuTxIsr:	TxIsrTimerMacro	ScuCCRt, ScuCCTLt, txData, scuBitCntTx, scuTxBitTime, ScuTxSz, scuTxBuf, scuTxRd, scuTxWr
+ChgTxIsr:	TxIsrTimerMacro	ChgCCRt, ChgCCTLt, txData, chgBitCntTx, chgTxBitTime, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
+#else
+TxIsr:		TxIsrTimerMacro	TACCRt, TACCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
+#endif
 
 ;-------------------------------------------------------------------------------
-RxTiovIsr:	; Combined Receive (timer capture/compare 1) and timer overflow interrupt service routine
+RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
+;-------------------------------------------------------------------------------
+		push		R9
+		; Put received data into the queue if there's space, otherwise it's lost
+		mov.b	&rxWr,R9				; Get the write index
+		mov.b	&UCA0RXBUF,rxBuf(R9)	; Tentatively write the character to the receive queue
+										;  there's always at least one free space,
+										;  but don't increment the write index yet.
+		inc.b	R9						; Increment a copy of the write index
+		and.b	#RxSz-1,R9				;  modulo the queue size
+		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
+		_IF		_NE						; If queue not full
+			mov.b	R9,&rxWr				; Update write index so char is properly in queue
+		_ENDIF							; Endif queue not full
+		pop		R9						; Restore R9
+		reti							; Return from interrupt
+		ENDM
+
+;-------------------------------------------------------------------------------
+RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+				LOCAL	TiovSubIsr, RxSubIsr, PwmSubIsr, WakeExit
+; Combined Receive (timer capture/compare 1) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
 			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
 			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
@@ -301,33 +397,33 @@ RxTiovIsr:	; Combined Receive (timer capture/compare 1) and timer overflow inter
 											; (6) cycles for interrupt accepted
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
-			cmp		#4,R9					; (1) Was it a PWM interrupt (TACCR2)
-			jeq		PwmCmp
-			cmp		#2,R9					; (1) Was it a receive interrupt (TACCR1)
-			jeq		RxIsr					; (2) Yes, jump to receive interrupt service routine
+			cmp		#CCRp-CCRt,R9			; (1) Was it a PWM interrupt
+			jeq		PwmSubIsr
+			cmp		#CCRr-CCRt,R9			; (1) Was it a receive interrupt
+			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
 ;	Regular timer overflow interrupt: Cause the mainline code to measure voltages etc
 ;
-TiovIsr:
+TiovSubIsr:
  			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
 			jmp		WakeExit				; Arrange to wake CPU, restore R9 and return from interrupt
 
 ;
 ;	Receive interrupt: Handle start-bit timer-capture or data-bit timer-compare
 ;
-RxIsr:		add		#BitTime96,&TACCRr		; (5) Time to next bit
-			bit		#CAP,&TACCTLr			; (5) Capture mode = start bit edge
+RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
+			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
-				bic		#CAP,&TACCTLr		; (5) Switch to compare mode
-				add		#BitTime96/2,&TACCRr; (5) First databit 1.5 bits from edge
+				bic		#CAP,&CCTLr				; (5) Switch to compare mode
+				add		#BitTime96/2,&CCRr		; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
-				bit		#SCCI,&TACCTLr			; (4) Sampled bit to carry
+				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
 				rrc.b	&rxData					; (4) Store received bit
 				dec.b	&bitCntRx				; (4) All bits RXed?
 				_IF		_Z						; (2) If this is the last data bit
 					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
-					bis		#CAP,&TACCTLr			; Set back to capture mode
+					bis		#CAP,&CCTLr				; Set back to capture mode
 
 					; Put received data into the queue if there's space, otherwise it's lost
 					mov.b	&rxWr,R9				; Get the write index
@@ -346,10 +442,9 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
 
-;
-; TACCTL2 interrupt (compare match for PWM)
-;
-PwmCmp:
+PwmSubIsr:	; TACCTL2 interrupt (compare match for PWM)
+#if CCRp = SocCCRp							// If this is the TA0 ISR, then we specialise to
+											//	the SOCPWM code
 ; These interrupts should only be enabled on IMUs with ID 255 running monolith, not monitor
 #ifdef Monolith
 			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
@@ -360,38 +455,33 @@ PwmCmp:
 				mov		#1000,R9				; (2)
 				sub		&pwmAdv,R9				; (3) = 1000 (PWM period) - pwmAdv
 			_ENDIF
-			add		R9,&TACCR2				; (4) Advance TACCR2 by this amount
+			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
 			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
+#endif
+#else										// Else this is piezo PWM
+			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
+			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
+			add		#119,&PizCCRp				; Advance the counter by half a period
 #endif
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
+			ENDM
 
-;--------------------------------------------------
-; RxByte	; Subroutine Receives Character into R8
-;			; Trashes R9
-;--------------------------------------------------
-#if 0
-;
-; Get a character from the receive queue into R8.
-; If necessary, wait until the queue is not empty. Trashes R9
-; NOT USED, and probably never will be
-;
-RxByte:
-			_BEGIN
-
-				ClearWatchdog
-
-				call	#RxByteNoWait
-			_UNTIL	_NZ
-			ret
+#if	G2553
+RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
+ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, PizCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, SocCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+#else
+RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, TACCRt, TACCRr, TACCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif
+
 
 ;
 ; Attempt to get a character from the receive queue into R8.
 ; If the queue is empty, return immediately with the Z status bit set.
 ; Trashes R9
 ;
-RxByteNoWait:
+RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 			mov.b 	&rxRd,R9			; Get the read index into R9
 			cmp.b 	&rxWr,R9			; Equal if queue empty
 			_IF		_NE
@@ -402,4 +492,13 @@ RxByteNoWait:
 				clrz					; Indicate char available
 			_ENDIF
 			ret
+			ENDM
+
+#if G2553
+RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
+ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
+ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr
+#else
+RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
+#endif
 

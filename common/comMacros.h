@@ -1,5 +1,6 @@
 ActLedOff	MACRO
-#if	REV61
+#if !G2553			// Activity LEDs are done in hardware on newer devices
+	#if	REV61
 			tst.b	&ID
 			_IF		_NZ
 				bit.b	#ERRLED,&P2OUT		; Activity and error LEDs share an output.
@@ -7,21 +8,24 @@ ActLedOff	MACRO
 					bic.b	#ERRLED,&P2DIR		; make output high-Z so activity LED goes off
 				_ENDIF							; without turning error LED on.
 			_ENDIF
-#else
+	#else
 			bis.b	#ACTLED,&P1OUT
+	#endif
 #endif
 			ENDM
 
 ActLedOn	MACRO
-#if	REV61
+#if !G2553			// Activity LEDs are done in hardware on newer devices
+	#if	REV61
 			; No provision for oscillating to light both LEDs yet.
 			; Error LED has priority.
 			tst.b	&ID
 			_IF		_NZ
 				bis.b	#ERRLED,&P2DIR		; Make it a proper output again
 			_ENDIF
-#else
+	#else
 			bic.b	#ACTLED,&P1OUT
+	#endif
 #endif
 			ENDM
 
