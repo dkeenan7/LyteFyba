@@ -317,7 +317,7 @@ STACKSPACE		EQU		$300-$		; Look at listing to see what this is
 
 InterpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
-			mov.w	#$300,SP				; Initialize stackpointer
+			mov.w	#InitSP,SP				; Initialize stackpointer
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #else
@@ -347,27 +347,49 @@ main:										; For IAR Embedded Workbench IDE debugger
 #endif
 
 ;
+;	Initialise io ports
+;
+#if G2553
+			; Initialise port 1
+			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			mov.b	#TxPlCmu,&P1OUT			; Set TXDp high (idle), all other outputs low.
+			cmp.b	#255,&ID				; If we're not a BMU
+			_IF		_NE
+				mov.b	#VREFp|TxPlCmu|TxMiCmu|TouchV_Byp,&P1DIR ; Set VREFp, TX bits, bypass as outputs
+			_ELSE							; Else
+				mov.b	#VREFp|TxPlCmu|TxMiCmu,&P1DIR ; Set VREFp, TX bits as outputs
+			_ENDIF
+
+			; Initialise port 2
+			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
+			mov.b	#0,&P2OUT				; Set all outputs low.
+			mov.b	#RELAYm|RELAYp|TxMiScu|PIEZO|ERRLED,&P2DIR ; Set relays,Tx, piezo, errLED as outputs
+
+			; Initialise port 3
+			; Default settings of P3SEL are OK. No timer comms in TestICal.
+			mov.b	#0,&P3OUT
+			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Tx, conts as outputs
+#else
+	#if REV61
+			mov.b	#TXDp,&P1OUT			; Set TXDp. Short the piezo.
+			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+	#else
+			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
+			cmp.b	#0,&ID					; If we're not an IMU
+			_IF		_NE
+				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+			_ELSE
+				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			_ENDIF
+	#endif // REV61
+			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
+			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off (RLY- and RLY+ if we're an IMU)
+			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
+#endif // G2553
+
+;
 ;	Initialise timer and interrupt comms
 ;
-			; Initialise IO ports
-#if REV61
-			clr.b	&P1OUT						; All outputs low on port 1
-			bic.b	#PIEZO,&PiezoPortOUT		; Piezo output low on whichever port
-			mov.b	#VREFp|TXDp|TXDm,&P1DIR 	; Set VREFp, TX bits and piezo as outputs
-			bis.b	#PIEZO,&PiezoPortDIR
-#else
-			mov.b	#ACTLED,&P1OUT				; All outputs low, except (inverted) ActLED, on port 1
-			cmp.b	#0,&ID						; If we're not an IMU
-			_IF		_NE
-				mov.b	#ACTLED|VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
-			_ELSE
-				mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
-			_ENDIF
-#endif
-			mov.b	#0,&P2SEL					; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set BYPASS and ERRLED off (RLY- and RLY+ if IMU)
-			mov.b	#$FF,&P2DIR					; Set BYPASS and ERRLED (RLY- and RLY+) as outputs
-
 #if G2553
 			mov.b	#RXD+TXDm,&P1SEL			; Select UART functions (not I/O port)
 			mov.b	#RXD+TXDm,&P1SEL2			; Select UART functions (not I/O port)
@@ -390,7 +412,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bis.b	#TxPlCmu,&P1SEL				; Select the UART output function of P1.2
 			bis.b	#TxPlCmu,&P1SEL2
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
-			bis.b	#UCA0TXIE | UCA0RXIE, &IE2	; Enable UCSI interrupts
+			bis.b	#UCA0RXIE, &IE2				; Enable UART RX interrupts
 
 			;Initialise the Timers
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
@@ -994,7 +1016,7 @@ DoPassword:
 			bic.b	#USIPE5,&USICTL0	; Make TXDp (P1.5) ordinary I/O also
 #endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
-			mov		#$300,SP			; Give the BSL maximum stack
+			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
