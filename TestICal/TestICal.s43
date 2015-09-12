@@ -260,9 +260,9 @@ initialise:
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
 			; MC: 2 = continuous mode 1 = up mode
-			mov		#TASSEL_2 + ID_0 + MC_2 + TAIE, &TA0CTL
+			mov		#TASSEL_2 + ID_0 + MC_2, &TA0CTL
 			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode, interrupts
-
+			eint								; Enable interrupts generally
 ;
 ; Copy calibration data into RAM
 ;
