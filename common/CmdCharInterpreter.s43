@@ -204,7 +204,7 @@ ACCEPT
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
-				bit.b	#bChecksumming,&intFlags
+				bit.b	#bChecksumming,&interpFlags
 				_IF		_NZ				; If checksumming
 					tst.b	&rxCksum
 					_IF		_Z				; If good checksum
@@ -215,7 +215,7 @@ ACCEPT
 						_ENDIF
 				_END_PRIOR_IF			; Endif checksumming
 						mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
-						bit.b	#bDontInterpret,&intFlags
+						bit.b	#bDontInterpret,&interpFlags
 						_IF		_Z				; If the dont-interpret flag is clear
 							mov		#TIB,Rip		; Interpret the packet as command characters
 							call	#_ENTER
@@ -239,18 +239,18 @@ ACCEPT
 		_ENDOF					; EndOf backspace
 
 		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
-			bic.b	#bDontEcho,&intFlags ; Clear the don't-echo flag
+			bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 		_ENDOF					; EndOf XON
 
 		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
-			bit.b	#bDontInterpret,&intFlags
+			bit.b	#bDontInterpret,&interpFlags
 			_IF		_Z				; If the dont-interpret flag is clear
-				bis.b	#bDontEcho,&intFlags ; Set the don't-echo flag
+				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
 		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
-			bic.b	#bDontInterpret,&intFlags ; Clear the don't-interpret flag
+			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
 		; Default case, if not CR, BS, XON, XOFF or ESC

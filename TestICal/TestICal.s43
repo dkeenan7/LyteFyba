@@ -180,26 +180,29 @@ txCksum		DS		1				; Transmit checksum
 ; Command Character Interpreter variables
 
 rxCksum		DS		1				; Received packet xor checksum
-intFlags	DS		1				; Interpreter flags, bitmask definitions follow
+interpFlags	DS		1				; Interpreter flags, bitmask definitions follow
 bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
 bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
 bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing? (not yet implemented in TestICal)
-			ALIGNRAM 1
-ToIN		DS		2				; Pointer to current character being stored in Text Input Buffer
+
+ALIGNRAM 1
+ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
 TIB			DS		48				; Text Input Buffer (packet buffer)
 TIBEnd
-; Must leave room for stack (about 36 bytes)
+; Must leave room for stack (about 36 bytes minimum)
+STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 
-;
-; TestICal code in main-flash.
-			ORG		PROG_START
+;-------------------------------------------------------------------------------
+				ORG		PROG_START	; In main-flash
+;-------------------------------------------------------------------------------
 
 			; Assemble any initialisation command string
 initCmdString
 			DB		INIT_CMD_STRING
 			DB		EXIT					; Must end with an EXIT command
 			ALIGN	1
+
 InterpretByte:
 ; The BSL will call this when any bytes are received by the serial port, including "password" bytes.
 ; The BSL will also call this with a null that was not received by the serial port
@@ -229,14 +232,13 @@ InterpretByte:
 
 			ret								; Return to the BSL
 
-
+;-------------------------------------------------------------------------------
+; Initialisation
+;-------------------------------------------------------------------------------
 ;
-; The intitialise routine. This intialises everything except the stack pointer, including the
-; RAM calibration values. The stack pointer is initialised before this is called.
-; It could be called by main, or by the initialise call from the BSL.
-; If called by the BSL, the BSL's ReadByte loop is called, so that password detection and downloads
-; are handled. If started by a cold start (reset or JTAG), it is assumed that the BSL may not be
-; present, so a simple ReadByte loop is used that doesn't check for password bytes.
+; This intialises everything including the RAM calibration values, but excluding the stack pointer.
+; The stack pointer is initialised before this is called.
+; Called due to the initialisation call of InterpretByte from the BSL.
 ;
 initialise:
 #if !WATCHDOG
@@ -261,17 +263,18 @@ initialise:
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 			_OFb	#$FF,&infoDataVers
-				; If we find $FF at infoDataVers (an area of info-flash that we assume in new chips
-				; will be erased), then assume it's a new chip. If not a new chip, it will have the data version number (way < $80)
-				; A new chip. We want to preserve some of the existing DCO calibration data
-				; Set the ID, voltage, temperature and link calibration
+				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
+				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
+				; version number (way < $80).
+				; A new chip. We want to preserve some of the existing DCO calibration data.
+				; Set the ID, voltage, temperature and link calibration.
 newChip:
-				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC calibration data
+				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC cal data
 				mov.b	#$00,&ramTempCal
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 				mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
 				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
-				mov.b	#$FF,&ramID					; ID 255 (erased)
+				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
 			_ENDOF
 			; default case
@@ -282,7 +285,7 @@ newChip:
 				tst.b	infoDataVers
 				jn		newChip
 #endif
-				; Version number is higher or lower than this version of TestICal knows about,
+				; Data version number is higher or lower than can be handled by this version of TestICal
 				; so we should leave it alone and raise an error.
 				mov		#b'01010101,rERR			; 4 flashes
 				call	ErrorFlash					; Infinite loop, never returns
@@ -292,18 +295,18 @@ newChip:
 #if G2553
 			; Initialise port 1
 			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
-			mov.b	#TxPlCmu,&P1OUT			; Set TXDp high (idle), all other outputs low.
+			mov.b	#TxPl,&P1OUT			; Set TxPl high (idle), all other outputs low.
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
-				mov.b	#VREFp|TxPlCmu|TxMiCmu|TouchV_Byp,&P1DIR ; Set VREFp, TX bits, bypass as outputs
+				mov.b	#VrefP|TxPl|TxMi|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
 			_ELSE							; Else
-				mov.b	#VREFp|TxPlCmu|TxMiCmu,&P1DIR ; Set VREFp, TX bits as outputs
+				mov.b	#VrefP|TxPl|TxMi,&P1DIR ; Set VrefP, Tx bits as outputs
 			_ENDIF
 
 			; Initialise port 2
 			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
 			mov.b	#0,&P2OUT				; Set all outputs low.
-			mov.b	#RELAYm|RELAYp|TxMiScu|PIEZO|ERRLED,&P2DIR ; Set relays,Tx, piezo, errLED as outputs
+			mov.b	#RelayM|RelayP|TxMiScu|Piezo|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
 
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
@@ -311,20 +314,20 @@ newChip:
 			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Tx, conts as outputs
 #else
 	#if REV61
-			mov.b	#TXDp,&P1OUT			; Set TXDp. Short the piezo.
-			mov.b	#VREFp|TXDp|TXDm|PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
+			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 	#else
-			mov.b	#ACTLED+TXDp,&P1OUT		; Turn off (inverted) ActLED and set TXDp. Short the piezo.
+			mov.b	#ActLed+TxPl,&P1OUT		; Turn off (inverted) ActLed and set TxPl. Short the piezo.
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
-				mov.b	#ACTLED+VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set ACTLED, VREFp, TXs, piezo as outputs
+				mov.b	#ActLed+VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set ActLed, VrefP, Txs, Piezo as outputs
 			_ELSE
-				mov.b	#VREFp+TXDp+TXDm+PIEZO,&P1DIR ; Set VREFp, TX bits and piezo as outputs
+				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
 	#endif // REV61
-			mov.b	#0,&P2SEL				; Set BYPASS and ERRLED to not be crystal osc pins
-			mov.b	#0,&P2OUT				; Set BYPASS and ERRLED off (RLY- and RLY+ if we're an IMU)
-			mov.b	#$FF,&P2DIR				; Set BYPASS and ERRLED as outputs
+			mov.b	#0,&P2SEL				; Set Bypass and ErrLed to not be crystal osc pins
+			mov.b	#0,&P2OUT				; Set Bypass and ErrLed off (RLY- and RLY+ if we're an IMU)
+			mov.b	#$FF,&P2DIR				; Set Bypass and ErrLed as outputs
 #endif // G2553
 
 			; Reinitialise clocks using RAM calibration values. These should have sorted out any data
@@ -379,9 +382,9 @@ newChip:
 ; Initialise the command character interpreter
 ;
 ;			clr.b	&RXCksum					; Clear the receive checksum
-;			bic.b	#bHexOutput,&intFlags		; Decimal output mode by default
-;			bic.b	#bChecksumming,&intFlags	; Checksumming of packets, off by default
-;			bic.b	#bDontInterpret,&intFlags	; Interpret
+;			bic.b	#bHexOutput,&interpFlags		; Decimal output mode by default
+;			bic.b	#bChecksumming,&interpFlags	; Checksumming of packets, off by default
+;			bic.b	#bDontInterpret,&interpFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
 			mov		#initCmdString,Rip			; Interpret the init string as commands
@@ -487,7 +490,7 @@ ErrorFlash:
 
 
 ; ----------------------------------------------------------------------------
-; Inactive copy of second bootstrap loader (BSL2b)
+; Inactive copy of bootstrap loader (BSL2b)
 ;---------------------------------------------------------------------------------
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00.
@@ -528,7 +531,7 @@ ProgPresence	DB		$AA				; For BSL2 to check before calling main program (Interpr
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
 ;---------------------------------------------------------------------------------
-; Second bootstrap loader (BSL2), active copy
+; Bootstrap loader (BSL2), active copy
 ;---------------------------------------------------------------------------------
 ; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
 ; Updated by TestICal 'b' command, or by JTAGing.

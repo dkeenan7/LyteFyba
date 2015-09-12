@@ -3,7 +3,7 @@
 ;
 ;	Description: Use Timer_A CCR0 hardware output modes and SCCI data latch
 ;	to implement UART function @ 9600 baud. Software does not directly read and
-;	write to RX and TX pins, instead proper use of output modes and SCCI data
+;	write to Rx and Tx pins, instead proper use of output modes and SCCI data
 ;	latch are demonstrated. Use of these hardware features eliminates ISR
 ;	latency effects as hardware insures that output and input bit latching and
 ;	timing are perfectly synchronised with Timer_A regardless of other
@@ -16,10 +16,10 @@
 ;		  | |				|
 ;		  --|RST			|
 ;			|				|
-;			|		TA0/P1.1|--------> TXDm (mark = low)
-;			|	   SCLK P1.5|--------> TXDp (mark = high; via internal inverter from TA0)
+;			|		TA0/P1.1|--------> TxMi (mark = low)
+;			|	   SCLK P1.5|--------> TxPl (mark = high; via internal inverter from TA0)
 ;			|				| 9600 8N1 full duplex
-;			|	  CCI1A/P1.2|<-------- RXD
+;			|	  CCI1A/P1.2|<-------- Rx
 ;
 ;
 ;	September 2010
@@ -115,14 +115,14 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
 				_IF		_Z					; If transmit interrupts disabled
 #if !G2553
-					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
-												;   will continue to be an inversion of TXDm (TA0).
+					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TxPl (SCLK)
+												;   will continue to be an inversion of TxMi (TA0).
 #endif
 					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
-					; Calculate max number of timer clocks till TACCRt & TACCTLt will be correctly set up.
+					; Calculate max number of timer clocks till CCRt & CCTLt will be correctly set up.
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; Half of the +2 is in case the TAR increments just after we read it.
 					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
@@ -132,10 +132,10 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&CCTLt	; (5) Test transmit compare interrupt flag
 					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
-						cmp		&CCRt,R9		; (4) Test (TAR+setup) - TACCRt
-					_OR_IFS		_NN				; (2) Or If existing TACCRt AFTER TAR+setup, keep TACCRt
+						cmp		&CCRt,R9		; (4) Test (TAR+setup) - CCRt
+					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
-					_ENDIF						; Endif existing TACCRt is AFTER TAR+setup
+					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set out mode for start bit, enable compare ints
 
@@ -148,11 +148,12 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 			ENDM
 
 #if G2553
+	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 TxByteNoWait: 		TxByteNWUartMacro	TxSz, txBuf, txRd, txWr
 ScuTxByteNoWait:	TxByteNWTimerMacro	ScuTAR, ScuCCRt, ScuCCTLt, scuBitCntTx, ScuTxSz, scuTxBuf, scuTxRd, scuTxWr
 ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
 #else
-TxByteNoWait:		TxByteNWTimerMacro	TAR, TACCRt, TACCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
+TxByteNoWait:		TxByteNWTimerMacro	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 #endif
 
 ;-------------------------------------------------------------------------------
@@ -206,17 +207,17 @@ TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte ins
 				dint
 				tst.b	&bitCntTx			; BitCntTx = 0 means stop -> idle
 				_IF	_Z
-					mov		&TACCRt,R9			; Get the compare value
+					mov		&CCRt,R9			; Get the compare value
 					sub		&TAR,R9				; Subtract the timer value
 					; Compare it with the required setup time.
-					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
+					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up
 					; The +1 is in case the TAR increments just after we read it.
 					cmp		#((9+MckPerTAck-1)/MckPerTAck)+1,R9 ; (2)
 					_IF _GE								; (2)
-						mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode fr start bit, enble cmpare ints
-#if !G2553
-						mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
-#endif												;   will continue to be an inversion of TXDm (TA0).
+						mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set outmode fr start bit, enble cmpre ints
+	#if !G2553
+						mov.b	#8,&USICNT			; Load USI ctr to keep USIIFG clear so TxPl (SCLK)
+	#endif											;   will continue to be an inversion of TxMi (TA0).
 						mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					_ENDIF
 				_ENDIF
@@ -225,29 +226,29 @@ TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte ins
 				; If transmit interrupts are disabled, stop bit has finished,
 				; so set up the timer for a new start bit ASAP
 				; and enable transmit compare interrupts.
-				bit		#CCIE,&TACCTLt		; Test transmit interrupts enabled bit
+				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
 				_IF		_Z					; If transmit interrupts disabled
-#if !G2553
-					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TXDp (SCLK)
-#endif											;   will continue to be an inversion of TXDm (TA0).
+	#if !G2553
+					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TxPl (SCLK)
+	#endif										;   will continue to be an inversion of TxMi (TA0).
 					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
 					dint
-					; We want the max number of clock cycles till TCCRt and TACCTLt are correctly set up.
-					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
+					; We want the max number of clock cycles till TCCRt and CCTLt are correctly set up
+					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up
 					; The +1 is in case the TAR increments just after we read it.
-					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protected by dint
+					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protctd by dint
 					add		&TAR,R9				; R9 := timer value + setup time
 					_COND						; Start short circuit conditional
-						bit		#CCIFG,&TACCTLt		; (5) Test transmit compare interrupt flag
+						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
 					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
-						cmp		&TACCRt,R9			; (4) Test (TAR+setup) - TACCRt
-					_OR_IFS		_NN				; (2) Or If existing TACCRt AFTER TAR+setup, keep TACCRt
-						mov		R9,&TACCRt			; (4) Set the new compare value for the start-bit
-					_ENDIF						; Endif existing TACCRt is AFTER TAR+setup
+						cmp		&CCRt,R9			; (4) Test (TAR+setup) - CCRt
+					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
+						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
+					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
-					mov		#OUTMOD_1+CCIE,&TACCTLt ; (5) Set out mode for start bit, enable compare ints
+					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set outmode for start bit, enable compare ints
 
 					ActLedOn					; Turn on the (inverted) activity LED for visual feedback
 				_ENDIF 						; Endif transmit interrupts disabled
@@ -268,7 +269,7 @@ WaitTxComplete:
 
 				ClearWatchdog
 
-				bit		#CCIE,&TACCTLt		; Test the transmit interrupts enabled bit
+				bit		#CCIE,&CCTLt		; Test the transmit interrupts enabled bit
 			_UNTIL	_Z					; Until it is cleared
 			ret
 #endif
@@ -329,7 +330,7 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 				_IF		_EQ						; (2) If start bit just started
 					push	R9
 					mov.b 	&txRd,R9				; Get read index in R9
-					mov.b	txBuf(R9),&txData		; Get next char from queue into TXData
+					mov.b	txBuf(R9),&txData		; Get next char from queue into txData
 					inc.b 	R9						; Increment the read index
 					and.b 	#TxSz-1,R9				;	modulo the queue size.
 					mov.b 	R9,&txRd				; Update the read index
@@ -338,22 +339,22 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 					; in the mainline after taking a byte from the TX queue. -- DK
 					; bic		#CPUOFF,0(SP)			; When return, wake CPU if needed
 				_ENDIF							; Endif start bit just started
-				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always,
-												;	so stop and idle bits are always treated like data 1s
+				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always
+												; so stop and idle bits are always treated like data 1s
 				_IF		_NC						; (2) If bit is 0
-					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) then set TXDm = TA0 output high
+					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) then set TxMi = TA0 output high
 				_ELSE							; (2) Else bit is 1
-					mov		#OUTMOD_5+CCIE,&CCTLt	; (5) Else clear TXDm = TA0 output low
+					mov		#OUTMOD_5+CCIE,&CCTLt	; (5) Else clear TxMi = TA0 output low
 				_ENDIF							; Endif bit is 1
 			_ELSE							; Else Stop bit initiated
-				cmp.b 	&txWr,&txRd				; Test if TX queue is empty
-				_IF		_EQ						; If TX queue is empty
+				cmp.b 	&txWr,&txRd				; Test if Tx queue is empty
+				_IF		_EQ						; If Tx queue is empty
 					bic.w	#CCIE,&CCTLt			; (5) Disable Tx interrupts
 					ActLedOff						; (5) Turn off activity LED at end of the transmit
-				_ELSE							; Else TX queue is not empty
-#if !G2553
-					mov.b	#8,&USICNT				; Load USI counter to keep USIIFG clear so TXDp (SCLK)
-#endif												;   will continue to be an inversion of TXDm (TA0).
+				_ELSE							; Else Tx queue is not empty
+	#if !G2553
+					mov.b	#8,&USICNT				; Load USI ctr to keep USIIFG clear so TxPl (SCLK)
+	#endif											;   will continue to be an inversion of TxMi (TA0).
 					mov.b	#10,&bitCntTx			; Load bit transition counter: 10 bits
 					mov.w	#OUTMOD_1+CCIE,&CCTLt	; (5) Set output mode for start bit
 
@@ -364,11 +365,12 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 			ENDM
 
 #if	G2553
+	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 TxIsr:		TxIsrUartMacro	TxSz, txBuf, txRd, txWr
 ScuTxIsr:	TxIsrTimerMacro	ScuCCRt, ScuCCTLt, txData, scuBitCntTx, scuTxBitTime, ScuTxSz, scuTxBuf, scuTxRd, scuTxWr
 ChgTxIsr:	TxIsrTimerMacro	ChgCCRt, ChgCCTLt, txData, chgBitCntTx, chgTxBitTime, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
 #else
-TxIsr:		TxIsrTimerMacro	TACCRt, TACCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
+TxIsr:		TxIsrTimerMacro	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
 #endif
 
 ;-------------------------------------------------------------------------------
@@ -451,11 +453,10 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
 
-PwmSubIsr:	; TACCTL2 interrupt (compare match for PWM)
-#if CCRp = SocCCRp							// If this is the TA0 ISR, then we specialise to
-											//	the SOCPWM code
-; These interrupts should only be enabled on IMUs with ID 255 running monolith, not monitor
-#ifdef Monolith
+PwmSubIsr:	; Compare match for PWM
+#if CCRp = SocCCRp							// Specialise this sub-ISR to SoC meter PWM versus piezo
+	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
+	#ifdef Monolith
 			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
 			bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 			_IF		_Z						; (2) If now set,
@@ -466,7 +467,7 @@ PwmSubIsr:	; TACCTL2 interrupt (compare match for PWM)
 			_ENDIF
 			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
 			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-#endif
+	#endif
 #else										// Else this is piezo PWM
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
 			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
@@ -477,11 +478,12 @@ PwmSubIsr:	; TACCTL2 interrupt (compare match for PWM)
 			ENDM
 
 #if	G2553
+	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, PizCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, SocCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 #else
-RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, TACCRt, TACCRr, TACCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif
 
 
@@ -504,6 +506,7 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 			ENDM
 
 #if G2553
+	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
 ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr

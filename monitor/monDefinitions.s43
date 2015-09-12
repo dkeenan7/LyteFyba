@@ -8,7 +8,7 @@
 ; checKsumming ( -- )						; Toggle bChecksumming
 			; kk to turn checksumming off, k to turn it on (irrespective of current state)
 			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&intFlags ; Toggle bChecksumming bit in intFlags
+			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
 			ret
 
 ; Kill status sending ( boolean -- )		; 1 for no status, 0 for status
@@ -81,8 +81,8 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			_IF		_LO
 				ret
 			_ENDIF
-			push.b	&intFlags				; Save current number base
-			bic.b	#bHexOutput,&intFlags	; Set to decimal output
+			push.b	&interpFlags				; Save current number base
+			bic.b	#bHexOutput,&interpFlags	; Set to decimal output
 
 			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
 			mov		#EXIT,R8				; Send initial slosh (EXIT command or comment character)
@@ -159,7 +159,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#TxEndOfPacket
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
-			pop.b	&intFlags				; Restore number base
+			pop.b	&interpFlags			; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
 			ALIGN	1

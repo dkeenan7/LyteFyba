@@ -1,5 +1,5 @@
 ; ----------------------------------------------------------------------------
-; The second bootstrap loader (BSL2)
+; The bootstrap loader (BSL2)
 ; ----------------------------------------------------------------------------
 ; This file is included by monitor.s43 and TestICal.s43.
 ; This code will be assembled into the last main-flash segment which starts at $FE00.
@@ -10,6 +10,8 @@
 ; Once at $FE00-$FFFF as expected, for when TestICal is JTAG-loaded,
 ; and elsewhere in main-flash for when TestICal is bootstrap-loaded,
 ; so that it can then be copied to $FE00-$FFFF by a 'b' command (updateBSL2).
+; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
+; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
 BSL2MACRO	MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
 			LOCAL	BSL2, MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
@@ -32,21 +34,21 @@ BSL2:		; Initialisation
 			mov.b	&origInfo8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&origInfo8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 #if REV61
-			mov.b	#TXDp,&P1OUT	; Set TXDs to idle state, Vref output off
-			bis.b	#TXDp|TXDm|VREFp,&P1DIR ; Set TXDs and VREFp as outputs
+			mov.b	#TxPl,&P1OUT	; Set Txs to idle state, Vref output off
+			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
 #else
-			mov.b	#TXDm,&P1OUT	; Set TXDs to break state, (inverted) ACTLED on, Vref output off
-			bis.b	#TXDp|TXDm|ACTLED|VREFp,&P1DIR ; Set TXDs, activity LED and VREFp as outputs
+			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
+			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs
 #endif
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
 
-			; On reset the BYPASS pin is set as a crystal oscillator pin XIN
-			; and the ERRLED pin is set as a crystal oscillator pin XOUT.
+			; On reset the Bypass pin is set as a crystal oscillator pin XIN
+			; and the ErrLed pin is set as a crystal oscillator pin XOUT.
 			; This is safe, as the bypass MOSFET has a pulldown on its gate,
 			; so the BSL can avoid consuming flash space with the following code.
-;			mov.b	#0,&P2SEL 		; Set BYPASS and ERRLED to not be crystal osc pins
-;			mov.b	#0,&P2OUT		; Set BYPASS and ERRLED off
-;			mov.b	#$FF,&P2DIR 	; Set BYPASS and ERRLED as outputs
+;			mov.b	#0,&P2SEL 		; Set Bypass and ErrLed to not be crystal osc pins
+;			mov.b	#0,&P2OUT		; Set Bypass and ErrLed off
+;			mov.b	#$FF,&P2DIR 	; Set Bypass and ErrLed as outputs
 
 			; We really only want to do this for use with monolith, where we need to
 			; prevent breaks from eternally circulating around the loop.
@@ -179,7 +181,7 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 
 			mov.b	#RSTIFG | OFIFG,&IFG1	; Good checksum, reset no interpret flag (watchdog flag),
 									;	fake a normal reset so BSL2 will call interpretByte
-		; FIXME: need to call interpretByte with 00 for initialisation. Dave says may not want above
+		; FIXME: need to call interpretByte with $00 for initialisation. Dave says may not want above
 			jmp		mainLoop2		; Back to looking for password,
 									; but first make init call to jInterpretByte
 			; end FSM code
@@ -197,19 +199,19 @@ testNoInterp2:
 				_COND							; Begin short circuit conditional
 					cmp.b		#$11,R8
 				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
-					bit.b	#bDontEcho,&intFlags
+					bit.b	#bDontEcho,&interpFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
 					call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
 					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
-				; We are about to jump to $FFF8 to interpretByte. In case the flash is corrupted by a
+				; We are about to jump via $FFF8 to InterpretByte. In case the flash is corrupted by a
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
 
-				; Tail-call interpretByte in main flash. If you change this to a proper call, you also
-				; need to change interpretByte in TestICal to look one level deeper on the stack
+				; Tail-call InterpretByte in main flash. If you change this to a proper call, you also
+				; need to change InterpretByte in TestICal to look one level deeper on the stack
 				; when checking if this is an init call.
 				; It must preserve at least R8 and bsl2state.
 				; We get there via the PROG_START-independent vector "jInterpretByte".
@@ -241,7 +243,7 @@ ReadByte:
 									; (Number of cycles)
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; (5) Hold the Watchdog Timer
 			_BEGIN
-				bit.b	#RXD,&P1IN		; (4) Start bit?
+				bit.b	#Rx,&P1IN		; (4) Start bit?
 			_UNTIL	_Z					; (2) Loop until 0 (start bit)
 			; The loop above takes 6 cycles so on average we will have missed the start bit by
 									; (3) cycles
@@ -256,7 +258,7 @@ ReadByte:
 
 			mov		#8,R10			; (1) Bit count
 			_BEGIN
-				bit.b	#RXD,&P1IN		; (4) Sampled bit to carry
+				bit.b	#Rx,&P1IN		; (4) Sampled bit to carry
 				rrc.b	R8				; (1) Store received bit
 
 				mov.b	#(BitCycles-10+1)/3,R11 ; (2) Pad RX bit loop out to one bit time
@@ -293,20 +295,20 @@ WriteByte:
 			_BEGIN					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
 #if	G2553
-				subc.b	#TXDm,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
+				subc.b	#TxMi,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
 				inv.b	R11				; (1)
 #else
-				subc.b	#TXDp,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
+				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 #endif
 										; Note: R11 must be guaranteed clear in advance
-				xor.b	&P1OUT,R11		; (3) Determine if TXD bits need toggling
+				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
 #if REV61
-				and.b	#TXDp|TXDm,R11 ; (2) Ensure only TXD bits can be toggled below
+				and.b	#TxPl|TxPl,R11 ; (2) Ensure only Tx bits can be toggled below
 #else
-				; The activity LED has a lower bit number than TXDp so the below will
+				; The activity LED has a lower bit number than TxPl so the below will
 				; turn off the (inverted) activity LED when a zero bit or start bit is sent,
 				; and turn it on when a one bit or stop bit is sent.
-				and.b	#TXDp|ACTLED|TXDm,R11 ; (2) Ensure only TXD and ACTLED bits can be toggled below
+				and.b	#TxPl|ActLed|TxMi,R11 ; (2) Ensure only Tx and ActLed bits can be toggled below
 #endif
 				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
@@ -319,10 +321,10 @@ WriteBreak:		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad ou
 			_UNTIL	_NC				; (2) Loop until -1
 
 #if REV61
-			mov.b	#TXDp,&P1OUT	; Send a stop bit
+			mov.b	#TxPl,&P1OUT	; Send a stop bit
 			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
 #else
-			mov.b	#TXDp,&P1OUT	; Send a stop bit and leave the (inverted) ACTLED on
+			mov.b	#TxPl,&P1OUT	; Send a stop bit and leave the (inverted) ActLed on
 			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
 #endif
 			; To ensure the stop bit has sufficient duration we rely in the fact that
@@ -331,9 +333,9 @@ WriteBreak:		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad ou
 			ret
 
 			; Any free last segment space is between here and the timer-A interrupt vectors
-freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the second BSL
+freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the BSL
 
-; The end of the second bootstrap loader (BSL2)
+; The end of the bootstrap loader (BSL2)
 ; -----------------------------------------------------------------------------
 
 ;-------------------------------------------------------------------------------

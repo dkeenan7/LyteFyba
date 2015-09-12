@@ -13,13 +13,13 @@
 ; HEX ( flag -- ) ; Set the number base to hexadecimal
 
 		xCODE	'h',HEX,_HEX
-		bis.b	#bHexOutput,&intFlags
+		bis.b	#bHexOutput,&interpFlags
 _Space	ret					; When _Space is called, be a no-op (for separating literal numbers)
 
 ; DECIMAL ( flag -- ) ; Set the number base to decimal
 
 		xCODE	'd',DECIMAL,_DECIMAL
-		bic.b	#bHexOutput,&intFlags
+		bic.b	#bHexOutput,&interpFlags
 		ret
 
 ; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
@@ -50,7 +50,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ;
 		xCODE	'x',eXclusive,_eXclusive
 		xCODE	'W',excleWsive,_excleWsive	; Synonym for when 'x' is rejected as 2400 baud in monolith
-		bis.b	#bDontInterpret,&intFlags
+		bis.b	#bDontInterpret,&interpFlags
 		; Fall through to _Select
 ;
 ; Select ( id -- ) ; Ignore to end of line if ID on TOS is not our ID
@@ -62,7 +62,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		_IF		_NE					; If not correct ID
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
 		_ELSE						; Else
-			bic.b	#bDontInterpret,&intFlags ; Needed to handle _eXclusive fall-through
+			bic.b	#bDontInterpret,&interpFlags ; Needed to handle _eXclusive fall-through
 		_ENDIF						; Endif
 		ret
 
@@ -72,7 +72,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		xCODE	'X',eXclude,_eXclude
 		cmp.b	&ID,Rtos			; specified ID?
 		_IF		_EQ					; If specified ID
-			bis.b	#bDontInterpret,&intFlags	; Stop interpreting
+			bis.b	#bDontInterpret,&interpFlags	; Stop interpreting
 		_ENDIF
 		ret
 ;
@@ -92,7 +92,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		xCODE	'n',emitNum,_emitNum
 #if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
-		bit.b	#bHexOutput,&intFlags ; Hexadecimal or decimal?
+		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
 			tst		Rsec
 			_IF		_L					; If n is negative
@@ -141,7 +141,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			_UNTIL	_L					; Jump back to matching _BEGIN if loop counter not negative
 
 #else	// This version of emitNum takes less flash but uses up to 8 bytes of stack to reverse digits
-		bit.b	#bHexOutput,&intFlags ; Hexadecimal or decimal?
+		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
 			tst		Rsec
 			_IF		_L					; If n is negative
@@ -256,14 +256,14 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			mov		R10,Rcellv
 
 			; Positive relay only
-			bis.b	#RELAYp,&P2OUT		; Turn on positive relay
+			bis.b	#RelayP,&P2OUT		; Turn on positive relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
-			bis.b	#RELAYm,&P2OUT		; Turn on negative relay
+			bis.b	#RelayM,&P2OUT		; Turn on negative relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
@@ -273,7 +273,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			mov		R10,Rtest
 
 			; Negative relay only
-			bic.b	#RELAYp,&P2OUT		; Turn off positive relay
+			bic.b	#RelayP,&P2OUT		; Turn off positive relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
 			call	#touchV				; Return touch value in R10
@@ -284,7 +284,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			_ENDIF
 
 			; Both relays off
-			bic.b	#RELAYm,&P2OUT		; Turn off negative relay
+			bic.b	#RelayM,&P2OUT		; Turn off negative relay
 
 			mov.b	#$FF,R8				; If battery voltage is less than 109 * 255 mV ~= 28 V
 			cmp.w	R8,Rcellv			;  e.g. if battery contactors are off
@@ -393,7 +393,7 @@ DelayMs:
 		tst.b	&ID
 		_IF		_Z					; If we're an IMU (would operate the error LED on a CMU)
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#RELAYp,&P2OUT ; Move only the #RELAYp bit from Rtos to &P2OUT. Trashes Rtos.
+			movBits_B	Rtos,#RelayP,&P2OUT ; Move only the #RelayP bit from Rtos to &P2OUT. Trashs Rtos
 		_ENDIF
 ;		pop		Rtos				; Remove operand
 		ret
@@ -406,7 +406,7 @@ DelayMs:
 		xCODE	'y',bypass,_bypass
 _relayM	EQU		_bypass				; An alias for use in IMU code
 		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#BYPASS,&P2OUT ; Move only the #BYPASS bit from Rtos to &P2OUT. Trashes Rtos.
+		movBits_B	Rtos,#Bypass,&P2OUT ; Move only the #Bypass bit from Rtos to &P2OUT. Trashes Rtos.
 ;		pop		Rtos				; Remove operand
 		ret
 #endif	// PROG_START < $F800
@@ -421,7 +421,7 @@ _prettyPrint3:
 ; (no command letter)
 _prettyPrint:
 		ClearWatchdog
-		push.b	&intFlags			; Save present number base
+		push.b	&interpFlags			; Save present number base
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
@@ -431,7 +431,7 @@ _prettyPrint:
 		push	Rtos				; Save m
 		push	Rthd				; Save ch
 
-		bic.b	#bHexOutput,&intFlags ; Set to decimal output
+		bic.b	#bHexOutput,&interpFlags ; Set to decimal output
 		mov.b	&ID,Rsec
 		mov		#3,Rtos
 		call	#_emitNum			; Emit the ID in decimal
@@ -447,7 +447,7 @@ _prettyPrint:
 
 		pop		Rtos				; Restore m
 		pop		Rsec				; Restore n
-		pop.b	&intFlags			; Restore number base to print n with
+		pop.b	&interpFlags			; Restore number base to print n with
 		call	#_emitNum
 
 		call	#TxEndOfPacket
@@ -462,10 +462,10 @@ _prettyPrint:
 		tst		Rtos
 		_IF		_Z
 			ErrLedOff						; Turn off the error LED
-			bic.b	#PIEZO,&PiezoPortSEL	; Short out the piezo
+			bic.b	#Piezo,&PiezoPortSEL	; Short out the piezo
 		_ELSE
 			ErrLedOn						; Turn on the error LED
-			bis.b	#PIEZO,&PiezoPortSEL	; Make the piezo squeal
+			bis.b	#Piezo,&PiezoPortSEL	; Make the piezo squeal
 		_ENDIF
 
 ;		pop		Rtos				; Remove operand
@@ -492,8 +492,8 @@ _prettyPrint:
 
 			; Now prettyPrint the reasons for the resets, in hex
 			pop		R8						; Restore maxResetsToShow
-			push.b	&intFlags				; Save present number base
-			bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
+			push.b	&interpFlags				; Save present number base
+			bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
 
 			cmp		&resetCounter,R8		; Take min of maxResetsToShow and resetCounter
 			_IF		_HS
@@ -529,7 +529,7 @@ _prettyPrint:
 				dec		R8
 			_REPEAT
 
-			pop.b	&intFlags				; Restore number base
+			pop.b	&interpFlags				; Restore number base
 			ret
 
 ; Reset the reset-log ( -- )
@@ -554,7 +554,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 				mov		#$11,R8				; Transmit an XON (ctrl-Q)
 				call	#TxByteCk
 			_ELSE						; Else (ID not 1)
-				bit.b	#bDontEcho,&intFlags
+				bit.b	#bDontEcho,&interpFlags
 				_IF		_NZ					; If the dont-echo flag is set
 					call	#cmd				; Do the command
 				_ENDIF

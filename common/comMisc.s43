@@ -9,7 +9,7 @@
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
 ;
 TxCksum:
-			bit.b		#bChecksumming,&intFlags
+			bit.b		#bChecksumming,&interpFlags
 			_IF		_NZ
 				mov.b	&txCksum,R8
 				cmp.b	#$20,R8				; If the checksum would be a control character and therefore

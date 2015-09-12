@@ -210,7 +210,7 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 			; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
 			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 			; and responds with the ID _after_ the last ID.
-			bit.b	#bDontEcho,&intFlags
+			bit.b	#bDontEcho,&interpFlags
 			_IF		_NZ					; If the dont-echo flag is set
 				; Save our new ID to RAM
 				mov.b	Rtos,&ramID
@@ -398,7 +398,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 ;
 ; f command ( -- )
-; This outputs a fixed frequency to the activity LED and TX- for 5 seconds.
+; This outputs a fixed frequency to TxPl for 5 seconds.
 ; Used for checking clock calibration.
 ; NOTE: this command can only be used (in conjunction with `fw) to make small adjustments to
 ;	CPU speed, since communications will be affected!
@@ -421,7 +421,8 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 
 ;
-; Toggle TXDm with an 10 cycle loop,
+; Toggle TxPl with a 10 cycle loop,
+; This timing depends on TxPl being in the low 4 bits of its output register.
 ; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/10 = 200.0 kHz.
 ; If we were trying to achieve exact 9600 baud comms we'd want 9600*416/2/10 = 199.7 kHz.
 ; But we've gone with minimising the number of controllers whose default DCO calibration
@@ -434,16 +435,17 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 			clr		R10
-			bic.b	#TXDp,&P1DIR			; Set TXD+ open circuit
-burstLp		xor.b	#TXDm,&P1OUT 			; (4) Toggle the TXD- bit
-			; We used to toggle both TXD lines in phase but this caused problems with IFO outputs.
-			; Leaving TXD+ as a high output caused problems due to C4 (100n) on the next board.
-			; We rely on an even number of toggles to restore TXD-.
+			bic.b	#TxMi,&TxMiPortDIR		; Set TxMi open circuit
+burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit
+			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
+			; Leaving one of them as a high output caused problems due to C4 (100n) on the next board.
+			; We used to toggle TxMi, but the BMU has it on P3.7.
+			; We rely on an even number of toggles to restore TxPl.
 			dec		R10						; (1)
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
-			bis.b	#TXDp,&P1DIR			; Set TXD+ back to being an output
+			bis.b	#TxMi,&TxMiPortDIR		; Set TxMi back to being an output
 
 			ClearWatchdog					; Clear and restart Watchdog Timer
 

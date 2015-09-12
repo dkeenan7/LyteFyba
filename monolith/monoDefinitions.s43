@@ -8,7 +8,7 @@
 ; checKsumming ( -- )						; Toggle bChecksumming
 			; kk to turn checksumming off, k to turn it on (irrespective of present state)
 			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&intFlags ; Toggle bChecksumming bit in intFlags
+			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
 			ret
 
 ; Kill status sending ( boolean -- )		; 1 for no status, 0 for status
@@ -79,8 +79,8 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			_IF		_LO
 				ret
 			_ENDIF
-			push.b	&intFlags				; Save present number base
-			bic.b	#bHexOutput,&intFlags	; Set to decimal output
+			push.b	&interpFlags				; Save present number base
+			bic.b	#bHexOutput,&interpFlags	; Set to decimal output
 
 			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
 			mov		#EXIT,R8				; Send initial slosh (EXIT command or comment character)
@@ -157,7 +157,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#TxEndOfPacket
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
-			pop.b	&intFlags				; Restore number base
+			pop.b	&interpFlags			; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
 			ALIGN	1
@@ -344,10 +344,10 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 		mov		&discharge+2,Rsec
 		mov		#5,Rtos					; 5 digit field width
-		push.b	&intFlags				; Save number base
-		bis.b	#bHexOutput,&intFlags	; Set to hexadecimal output
+		push.b	&interpFlags			; Save number base
+		bis.b	#bHexOutput,&interpFlags; Set to hexadecimal output
 		call	#_emitNum				; Transmit the number
-		pop.b	&intFlags				; Restore number base
+		pop.b	&interpFlags			; Restore number base
 		ClearWatchdog
 
 		mov		#'Z',R8					; Transmit a "Z" for ZtoreDischarge
