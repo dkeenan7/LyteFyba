@@ -132,7 +132,7 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 ; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
 
 MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
-MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU only)
+MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU or BMU only)
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -161,6 +161,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; Serialio definitions (Here because used in initialisation)
 #if G2553	// MSP430G2553 processor
 	; CMU comms uses UART
+	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
 	; Charger/inverter comms and SoC meter PWM
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
@@ -184,10 +185,10 @@ ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
 
 #else // Older MSP430G2452 processor
 	; CMU comms and SoC meter PWM
-TACCTLt		EQU			TACCTL0		; CMU Transmit capture/compare control register
-TACCRt		EQU			TACCR0		; CMU Transmit capture/compare register
-TACCTLr		EQU			TACCTL1		; CMU Receive capture/compare control register
-TACCRr		EQU			TACCR1		; CMU Receive capture/compare register
+CCTLt		EQU			TACCTL0		; CMU Transmit capture/compare control register
+CCRt		EQU			TACCR0		; CMU Transmit capture/compare register
+CCTLr		EQU			TACCTL1		; CMU Receive capture/compare control register
+CCRr		EQU			TACCR1		; CMU Receive capture/compare register
 SocCCTLp	EQU			TACCTL2		; SoC meter PWM capture/compare control register (IMU only)
 SocCCRp		EQU			TACCR2		; SoC meter PWM capture/compare register (IMU only)
 #endif
@@ -195,7 +196,7 @@ SocCCRp		EQU			TACCR2		; SoC meter PWM capture/compare register (IMU only)
 ;
 ; RAM allocation
 ;
-				ORG		$200		; Start of RAM. Ends at $27F
+				ORG		$200		; Start of RAM. Ends at InitSP-1
 ; This area is common to both Monitor and TestICal and is not erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
@@ -203,7 +204,7 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
 									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
-pwmAdv			DS		2			; Amount to add to TACCTL2 for next compare value
+socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
 comNoEraseEnd
 
 #if	ADCBUF
@@ -254,6 +255,7 @@ smoothStressX4	DS		1			; Moving average of stress used by IMU to control contact
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
+	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
 txBitTime		DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
@@ -350,7 +352,7 @@ TIBEnd
 STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 
 ;-------------------------------------------------------------------------------
-				ORG		PROG_START
+				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
 InterpretByte:
@@ -386,58 +388,47 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
-			; Prepare ACLK for piezo drive -- 3 kHz square wave
-			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
+
+#if G2553
+;
+;	Initialise io ports
+;
+			; Initialise port 1
+			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
+			cmp.b	#255,&ID					; If we're not a BMU
+			_IF		_NE
+				mov.b	#VrefP|TxPl|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
+			_ELSE								; Else
+				mov.b	#VrefP|TxPl,&P1DIR			; Set VrefP, Tx bits as outputs
+			_ENDIF
+			mov.b	#Rx|TxPl,&P1SEL				; Select UART functions for Rx and TxPl pins
+			mov.b	#Rx|TxPl,&P1SEL2
+
+			; Initialise port 2
+			mov.b	#0,&P2SEL					; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
+			mov.b	#0,&P2OUT					; Set all outputs low.
+			mov.b	#RelayM|RelayP|TxMiScu|Piezo|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
+			mov.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
+												; Piezo SEL bit is only set by the errorLed function
+
+			; Initialise port 3
+			; Default settings of P3SEL are OK. No timer comms in TestICal.
+			mov.b	#0,&P3OUT					; Set all outputs low.
+			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Txs, conts as out
+			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
+			bis.b	#TxMi,&P3SEL				; Select the comparator output function of P3.7
 
 ;
 ;	Initialise timer and interrupt comms
 ;
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
+			; Use the Analog Comparator to get an inverted version of TxPlIn (P1.3/CA3)
+			; (which is the UART TxPl looped back) to appear on TxMi (P3.7/CAOUT).
+			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator pos input and turn it on
+			mov.b	#P2CA2|P2CA1,&CACTL2		; Feed CA3 to the comparator neg input
+			mov.b	#TxPlIn,&CAPD				; Disable the digital input buffer of P1.3
 
-			; Initialise IO ports
-			mov.b	#Rx+TxMi,&P1SEL				; Select timer functions CCI1A and TA0 (not I/O port)
-#if REV61
-			clr.b	&P1OUT						; All outputs low on port 1
-			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
-			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
-			bis.b	#Piezo,&PiezoPortDIR
-			cmp.b	#255,&ID
-			_IF		_EQ
-				bis.b	#SocMeter,&SocPortDIR		; For IMU only, set up output for SoC meter PWM
-				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
-			_ENDIF
-#else
-			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
-			cmp.b	#255,&ID					; If we're not an IMU
-			_IF		_NE
-				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
-			_ELSE
-				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-			_ENDIF
-#endif
-			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
-			cmp.b	#255,&ID
-			_IF		_EQ							; If we're an IMU
-				bis.b	#LoadCont,&P2OUT				; Set load contactor on so battery contactor goes on
-													; and we stay powered up
-			_ENDIF
-			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed (RLY- and RLY+) as outputs
-
-#if G2553
-			; Use the comparator to get an inverted version of TxPlCmu (P1.2/UCA0TXD/CA2) to appear on
-			; TxMiCmu (P1.3/CAOUT).
-			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator + input and turn it on
-			mov.b	#P2CA2,&CACTL2				; CA2 to the comparatotor - input
-			mov.b	#CAPD2,&CAPD				; Enable the comparator input function of P1.2
-			bis.b	#TxMi,&P1SEL				; Select the comparator output function of P1.3
-			bis.b	#TxMi,&P1SEL2
-
-			;Initialise the UART
+			; Initialise the UART
 			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
 			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
 			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
@@ -447,8 +438,73 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bis.b	#TxPl,&P1SEL				; Select the UART output function of P1.2
 			bis.b	#TxPl,&P1SEL2
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
-			bis.b	#UCA0TXIE | UCA0RXIE, &IE2	; Enable UCSI interrupts
-#else
+			bis.b	#UCA0RXIE, &IE2				; Enable UART RX interrupts
+
+			; Initialise the Timers
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			; TAIE = interrupt enable (for timer overflow)
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
+
+			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode
+
+			mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
+			mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
+			mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
+			mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
+;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
+
+			mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
+			mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
+			mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
+			mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
+;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+#else // G2452
+;
+;	Initialise io ports
+;
+	#if REV61
+			clr.b	&P1OUT						; All outputs low on port 1
+			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
+			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
+			bis.b	#Piezo,&PiezoPortDIR
+			cmp.b	#255,&ID
+			_IF		_EQ
+				bis.b	#SocMeter,&SocPortDIR		; For IMU only, set up output for SoC meter PWM
+				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
+			_ENDIF
+	#else
+			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
+			cmp.b	#255,&ID					; If we're not an IMU
+			_IF		_NE
+				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
+			_ELSE
+				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
+			_ENDIF
+	#endif // REV61
+			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
+			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
+			cmp.b	#255,&ID
+			_IF		_EQ							; If we're an IMU
+				bis.b	#LoadCont,&P2OUT			; Set load contactor on so battery contactor goes on
+													; and we stay powered up
+			_ENDIF
+			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed (RLY- and RLY+) as outputs
+;
+;	Initialise timer and interrupt comms
+;
+			mov.b	#Rx+TxMi,&P1SEL				; Select timer functions CCI1A and TA0 (not I/O port)
+
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			; TAIE = interrupt enable (for timer overflow)
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
+
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
 			; when TA0 appears on P1.1.
@@ -463,18 +519,22 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
 			; We want to set the CCIFG so that TxByte won't think there's an uncompleted stop bit
 			; and wait for it to complete.
-			mov		&TAR,&TACCRt				; Make an output event
-			add		#4,&TACCRt					;	happen in a dozen or so instructions
+			mov		&TAR,&CCRt					; Make an output event
+			add		#4,&CCRt					;	happen in a dozen or so instructions
 			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
-			mov.w	#OUTMOD_0 + OUT, &TACCTLt	; TA0=1 Space; seems necessary to "wake up" SCLK divider
-			mov.w	#OUTMOD_5, &TACCTLt			; When the compare happens, set TA0=0 Idle or Mark
+			mov.w	#OUTMOD_0 + OUT, &CCTLt		; TA0=1 Space; seems necessary to "wake up" SCLK divider
+			mov.w	#OUTMOD_5, &CCTLt			; When the compare happens, set TA0=0 Idle or Mark
 
 			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
 			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
 												;	idle bit)
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&TACCTLr	; Falling edge, Input A, Sync, Capture
+			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&CCTLr	; Falling edge, Input A, Sync, Capture
+
+; Prepare ACLK for piezo drive -- 3 kHz square wave
+			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
+
 #endif
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
@@ -497,7 +557,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.w	&piPrevOutput				; Initialise PI controller state
 ;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
-
 
 			mov.w	#OV_ZERO,&ovZero
 			mov.w	#OV_STEP,&ovStep
@@ -1541,7 +1600,7 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			_IF			_HS					; If higher or same,
 				mov			#1000-MinAdvance,R9	; Enforce maximum value to avoid timer compare wrap
 			_ENDIF
-			mov			R9,&pwmAdv			; Save in the pre-computed advance variable
+			mov			R9,&socPwmAdv		; Save in the pre-computed advance variable
 			pop			R9
 			pop			R8
 			ret
@@ -1549,9 +1608,9 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 
 DoPassword:
 ;
-; Check for a password character
-; After decrementing passWordState below, 3 = waiting for first byte, 2 = waiting for second,
-; 0 = waiting for last and erase if received. We should not receive any negative value
+; Check for a password character in R8
+; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
+; 0 = waiting for ^D and erase if received. We should not receive any negative value
 ; Trashes R9
 ;
 			dec.b	&passWordState
@@ -1559,10 +1618,10 @@ DoPassword:
 										; process as an ordinary command
 
 			; Check for a continuing password match
-			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02 or $07 $06 $05 $04
-#if PROG_START_FOR_BSL == $E000			; Changed password for 8 KiB image
+			mov.b	&passWordState,R9	; Password is $07 $06 $05 $04
+#if PROG_START_FOR_BSL <= $E000			; Changed password between 4 KiB and 8 KiB images
 			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
-#else									; Assume non 8 KiB image
+#else									; Assume 4 KiB image
 			bis.b	#4,R9				; Expected password char is equal to &passWordState with bit 2 set
 #endif
 			cmp.b	R9,R8				; Check for a match
@@ -1576,30 +1635,37 @@ DoPassword:
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 #if G2553
 			bic.b	#UCA0RXIFG | UCA0TXIFG,&IFG2	; Disable UART interrupts
+			clr		&ScuCCTLr			; Clear at least the CCIE RX interrupt enable bit
+			clr		&ChgCCTLr			; Clear at least the CCIE RX interrupt enable bit
 #else
-			clr		&TACCTLr			; Clear at least the CCIE RX interrupt enable bit
-			; Important: wait for the last password byte to be echoed before disabling interrupts!
-			call	#WaitTxComplete
+			clr		&CCTLr				; Clear at least the CCIE RX interrupt enable bit
 #endif
+			; Important: wait for the last password byte to be echoed before disabling interrupts!
+			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
 #if REV61
-			mov.b	#TxPl,&P1OUT		; Set Tx to idle
+			bis.b	#TxPl,&P1OUT		; Set Tx to idle
+			bic.b	#TxMi,&TxMiPortOUT
 			ActLedOff					; (inverted) activity LED off
 #else
 			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
 #endif
-			cmp.b	#255,&ID
-			_IF		_NE
-				clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
-			_ENDIF
+
+#if G2553
+			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
+			mov.b	#0,Rtos				; Set Error Led and Piezo off
+			call	#_errorLed
+			bic.b	#Rx|TxPl,&P1SEL		; Restore CMU comms pins to GPIO function
+			bic.b	#Rx|TxPl,&P1SEL2
+#else
+			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
-#if !G2553
 			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
 #endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
-			mov		#$300,SP			; Give the BSL maximum stack
+			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
