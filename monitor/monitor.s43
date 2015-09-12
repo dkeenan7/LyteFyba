@@ -152,6 +152,7 @@ ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 ChgCCTLt	EQU			TA0CCTL0	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA0CCR0		; Charger/inverter Transmit compare register
 PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
+PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
 ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
 ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
@@ -161,6 +162,7 @@ ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
 ScuCCTLt	EQU			TA1CCTL0	; SCU Transmit capture/compare control register
 ScuCCRt		EQU			TA1CCR0		; SCU Transmit compare register
 SocCCTLp	EQU			TA1CCTL1	; SoC meter PWM capture/compare control register (BMU only)
+SocCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as SoC meter
 SocCCRp		EQU			TA1CCR1		; SoC meter PWM capture/compare register (BMU only)
 ScuCCTLr	EQU			TA1CCTL2	; SCU Receive capture/compare control register
 ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
@@ -371,7 +373,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#0,&P2SEL					; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
 			mov.b	#0,&P2OUT					; Set all outputs low.
 			mov.b	#RelayM|RelayP|TxMiScu|Piezo|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
-			mov.b	#RxScu|TxMiScu|Piezo,&P2SEL	; Select timer functions for Rx and Tx pins and piezo
+			mov.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
+												; Piezo SEL bit is only set by the errorLed function
 
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.

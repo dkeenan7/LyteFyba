@@ -76,6 +76,7 @@
 PizTAR		EQU			TA0R		; Charger/inverter timer register
 PizTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
+PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
 
 ; ADC channel numbers
@@ -254,6 +255,13 @@ initialise:
 			_DO		#TIB-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
+
+			; Initialise the Timer to run the piezo
+			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+			; MC: 2 = continuous mode 1 = up mode
+			mov		#TASSEL_2 + ID_0 + MC_2 + TAIE, &TA0CTL
+			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode, interrupts
 
 ;
 ; Copy calibration data into RAM
@@ -497,6 +505,32 @@ ErrorFlash:
 			_UNTIL	_Z							; Until 16 bits sent
 			jmp		ErrorFlash					; Infinite loop
 
+;-------------------------------------------------------------------------------
+PizTiovIsr:
+; Combined timer capture/compare 1 or 2 and timer overflow interrupt service routine
+;-------------------------------------------------------------------------------
+			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
+			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
+			; it took a lot of effort to trace the problem to this instruction.
+			; It appears that despite only reading and not writing to its "destination" operand, the
+			; compare instruction is still treated as making _two_ accesses to TAIV, in the sense that
+			; it clears not only the interrupt flag being serviced but also any other TAIV interrupt
+			; that might be pending, causing it to never be serviced.
+
+											; (6) cycles for interrupt accepted
+			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
+			mov		&PizTAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
+			cmp		#PizCCRp-PizCCR0,R9		; (1) Was it a PWM interrupt
+			jeq		PwmSubIsr
+			jmp		ExitIsr					; Restore R9 and return from interrupt
+
+PwmSubIsr	; Compare match for PWM
+			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
+			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
+			add		#119,&PizCCRp			; Advance the counter by half a period
+ExitIsr
+			pop		R9						; Restore R9
+			reti							; Return from interrupt
 
 
 #include "TesDefinitions.s43"	// Include command character definitions
@@ -535,9 +569,7 @@ jTA1TxIsr		reti					; TA1 CC0 not used
 
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
 
-jTA0RxTiovIsr	;br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Piezo 4.2 kHz
-				reti
-				nop
+jTA0RxTiovIsr	br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Piezo 4.2 kHz
 jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
 				nop
 

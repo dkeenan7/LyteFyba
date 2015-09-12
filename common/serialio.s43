@@ -393,7 +393,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		ENDM
 
 ;-------------------------------------------------------------------------------
-RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 				LOCAL	TiovSubIsr, RxSubIsr, PwmSubIsr, WakeExit
 ; Combined Receive (timer capture/compare 1) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
@@ -408,7 +408,7 @@ RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCRp, rxData, bitCntRx, rxBuf
 											; (6) cycles for interrupt accepted
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
-			cmp		#CCRp-CCRt,R9			; (1) Was it a PWM interrupt
+			cmp		#CCRp-CCR0,R9			; (1) Was it a PWM interrupt
 			jeq		PwmSubIsr
 			cmp		#CCRr-CCRt,R9			; (1) Was it a receive interrupt
 			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
@@ -480,8 +480,8 @@ PwmSubIsr:	; Compare match for PWM
 #if	G2553
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
-ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCR0, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCR0, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 #else
 RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif
