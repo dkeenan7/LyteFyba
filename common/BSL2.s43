@@ -36,6 +36,12 @@ BSL2:		; Initialisation
 #if REV61
 			mov.b	#TxPl,&P1OUT	; Set Txs to idle state, Vref output off
 			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
+#if G2553
+			mov.b	#TxMi,&P3DIR 			; Set TxMi because need comparator to invert output
+											; Also done in monitor, testical etc but they may not be
+											;	downloaded properly
+			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
+#endif
 #else
 			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
 			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs

@@ -378,6 +378,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#0,&P3OUT					; Set all outputs low.
 			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Txs, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
+			bis.b	#TxMi,&P3SEL				; Select the comparator output function of P3.7
 
 ;
 ;	Initialise timer and interrupt comms
@@ -387,7 +388,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator pos input and turn it on
 			mov.b	#P2CA2|P2CA1,&CACTL2		; Feed CA3 to the comparator neg input
 			mov.b	#TxPlIn,&CAPD				; Disable the digital input buffer of P1.3
-			bis.b	#TxMi,&P3SEL				; Select the comparator output function of P3.7
 
 			; Initialise the UART
 			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
