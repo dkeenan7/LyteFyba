@@ -362,7 +362,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialisation
 ;-------------------------------------------------------------------------------
 
-			mov.w	#$300,SP				; Initialize stackpointer
+			mov.w	#InitSP,SP				; Initialize stackpointer
 #if !WATCHDOG
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
 #else

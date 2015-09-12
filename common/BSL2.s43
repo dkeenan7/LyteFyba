@@ -253,11 +253,12 @@ ReadByte:
 			_UNTIL	_Z					; (2) Loop until 0 (start bit)
 			; The loop above takes 6 cycles so on average we will have missed the start bit by
 									; (3) cycles
+			dint					; (1) cycle
 			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and enable the Watchdog Timer
 
 			; Pad out the average delay between starting edge of start bit
 			; and sampling of first bit below to ~ 1.5 bittimes
-			mov.b	#(BitCyc1_5-17+1)/3,R11 ; (2) Loop count for waitMid delay loop
+			mov.b	#(BitCyc1_5-18+1)/3,R11 ; (2) Loop count for waitMid delay loop
 			_BEGIN
 				dec		R11				; (1) Delay loop
 			_UNTIL	_Z					; (2) Note: Clearing R11 here may be assumed in WriteByte below
@@ -277,6 +278,7 @@ ReadByte:
 			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
 			; But it's not needed, since we always send something before waiting for the next byte
+			eint
 
 			ret					; Return from ReadByte
 
@@ -297,6 +299,7 @@ WriteByte:
 			rla		R9				; Add the start bit
 			; Stop bit was bis#1<<9,R9, but it's done after the loop now
 			; to allow sending a break
+			dint
 
 			_BEGIN					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
@@ -336,6 +339,8 @@ WriteBreak:		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad ou
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
 			; to allow any receiving CMU's BSL time to both read and echo the byte.
+			eint
+
 			ret
 
 			; Any free last segment space is between here and the timer-A interrupt vectors

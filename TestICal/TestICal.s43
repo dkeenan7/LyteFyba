@@ -507,29 +507,12 @@ ErrorFlash:
 
 ;-------------------------------------------------------------------------------
 PizTiovIsr:
-; Combined timer capture/compare 1 or 2 and timer overflow interrupt service routine
+; Timer capture/compare interrupt service routine
 ;-------------------------------------------------------------------------------
-			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
-			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
-			; it took a lot of effort to trace the problem to this instruction.
-			; It appears that despite only reading and not writing to its "destination" operand, the
-			; compare instruction is still treated as making _two_ accesses to TAIV, in the sense that
-			; it clears not only the interrupt flag being serviced but also any other TAIV interrupt
-			; that might be pending, causing it to never be serviced.
-
-											; (6) cycles for interrupt accepted
-			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
-			mov		&PizTAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
-			cmp		#PizCCRp-PizCCR0,R9		; (1) Was it a PWM interrupt
-			jeq		PwmSubIsr
-			jmp		ExitIsr					; Restore R9 and return from interrupt
-
-PwmSubIsr	; Compare match for PWM
+			clr		&PizTAIV				; Access TAIV to reset the sub interrupt flag
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
 			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
 			add		#119,&PizCCRp			; Advance the counter by half a period
-ExitIsr
-			pop		R9						; Restore R9
 			reti							; Return from interrupt
 
 
