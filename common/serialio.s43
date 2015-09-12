@@ -480,8 +480,8 @@ PwmSubIsr:	; Compare match for PWM
 #if	G2553
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, PizCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
-ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, SocCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 #else
 RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif

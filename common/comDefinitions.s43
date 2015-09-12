@@ -475,10 +475,17 @@ _prettyPrint:
 ; Quiet (bool -- )
 ; Stop the piezo coming on with the error LED
 		xCODE	'Q',quiet,_quiet
+#if G2553
+		allBitsIfZ	Rtos,Rtos		; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
+		movBits_B	Rtos,#OUTMOD_4|CCIE,&PizCCTLp ; Move only these bits from Rtos to &BCSCTL3.
+									; If Rtos is zero, the zeroes will select output mode 0 (direct
+									; control) and output value zero, so no DC on Piezzo. Trashes Rtos
+#else	// G2452
 		allBitsIfZ	Rtos,Rtos		; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 		movBits_B	Rtos,#LFXT1S_2,&BCSCTL3 ; Move only #LFXT1S_2 bit from Rtos to &BCSCTL3. Trashes Rtos
 		; Select either VLOCLK (~12 kHz) or LFXT1 (unused crystal oscillator) as source for ACLK divider
 ;		pop		Rtos				; Remove operand
+#endif
 		ret
 
 ; Query the reset-log ( maxResetsToShow -- )
