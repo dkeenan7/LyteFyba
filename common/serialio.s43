@@ -17,6 +17,8 @@
 ;	October 2005
 ;*******************************************************************************
 
+#define		ALL_TO_ALL 1				// Take input from any port and send output to all - for testing
+
 ; Timer A overflow is used for the regular processing "tick" or status frequency
 ; while its capture/compare regs are used for the interrupt-driven software UART
 ;
@@ -24,7 +26,7 @@
 DCOfreq		EQU		8000000				; DCO clock in Hz
 DCOckPerMck	EQU		2					; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
 DCOckPerSMck EQU	8					; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
-#ifdef Monolith
+#ifdef MONOLITH
 StatusFreq	EQU		2					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #else
 StatusFreq	EQU		16					; Status frequency in hertz (allowed 2, 4, 8 or 16)
@@ -156,6 +158,10 @@ TxByteMacro	MACRO	TxByteNoWait
 				ClearWatchdog
 
 				call	#TxByteNoWait
+#if ALL_TO_ALL
+				call	#ScuTxByteNoWait
+				call	#ChgTxByteNoWait
+#endif
 			_UNTIL	_NZ
 			ret
 			ENDM
@@ -177,74 +183,6 @@ TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulat
 
 #endif
 
-#if 0
-TxByteNoWaitAlternateVersion:	; In progress. Requires 11 interrupts per byte instead of 10. -- DK
-			mov.b	&txWr,R9				; Get the write index (not changed by TxIsr)
-			mov.b 	R8,txBuf(R9)			; Tentatively write the character to the transmit queue
-											;	there's always at least one free space,
-											;	but don't increment the write index yet.
-			inc.b	R9						; Increment a copy of the write index
-			and.b	#txSz-1,R9				;	modulo the queue size
-			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
-			_IF		_NE
-				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
-
-				; If we're in a stop bit and the next timer compare match would transition to idle state
-				; and we have time to set it up it before the compare match occurs,
-				; then set it up it so it will transition to a start bit instead.
-				dint
-				tst.b	&bitCntTx			; BitCntTx = 0 means stop -> idle
-				_IF	_Z
-					mov		&CCRt,R9			; Get the compare value
-					sub		&TAR,R9				; Subtract the timer value
-					; Compare it with the required setup time.
-					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up
-					; The +1 is in case the TAR increments just after we read it.
-					cmp		#((9+MckPerTAck-1)/MckPerTAck)+1,R9 ; (2)
-					_IF _GE								; (2)
-						mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set outmode for start bit, enble cmpre ints
-	#if !G2553
-						mov.b	#8,&USICNT			; Load USI ctr to keep USIIFG clear so TxPl (SCLK)
-	#endif											;   will continue to be an inversion of TxMi (TAx.0)
-						mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
-					_ENDIF
-				_ENDIF
-				eint
-
-				; If transmit interrupts are disabled, stop bit has finished,
-				; so set up the timer for a new start bit ASAP
-				; and enable transmit compare interrupts.
-				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
-				_IF		_Z					; If transmit interrupts disabled
-	#if !G2553
-					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TxPl (SCLK)
-	#endif										;   will continue to be an inversion of TxMi (TAx.0).
-					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
-					; Ensure a predictable delay between reading timer and setting
-					; compare time and output mode for a start bit.
-					dint
-					; We want the max number of clock cycles till TCCRt and CCTLt are correctly set up
-					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up
-					; The +1 is in case the TAR increments just after we read it.
-					mov		#((23+MckPerTAck-1)/MckPerTAck)+1,R9 ; R9 := setup time. Not protctd by dint
-					add		&TAR,R9				; R9 := timer value + setup time
-					_COND						; Start short circuit conditional
-						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
-					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
-						cmp		&CCRt,R9			; (4) Test (TAR+setup) - CCRt
-					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
-						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
-					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
-					eint						; (1) Next instruction still protected
-					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set outmode for start bit, enable compare ints
-
-					ActLedOn					; Turn on the (inverted) activity LED for visual feedback
-				_ENDIF 						; Endif transmit interrupts disabled
-
-				clrz						; Indicate char was accepted
-			_ENDIF
-			ret
-#endif
 
 ;
 ; Wait for the CMU transmit queue to empty and last byte to be sent.
@@ -449,7 +387,7 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 PwmSubIsr:	; Compare match for PWM
 #if CCRp = SocCCRp							// Specialise this sub-ISR to SoC meter PWM versus piezo
 	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
-	#ifdef Monolith
+	#ifdef MONOLITH
 			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
 			bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 			_IF		_Z						; (2) If now set,
@@ -495,15 +433,30 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 				mov.b 	R9,&rxRd		; Update the read index
 				clrz					; Indicate char available
 			_ENDIF
-			ret
 			ENDM
 
 #if G2553
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
+	#if ALL_TO_ALL
+				_IF		_NZ
+					ret
+				_ENDIF
+	#else
+		ret
+	#endif
 ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
+	#if ALL_TO_ALL
+				_IF		_NZ
+					ret
+				_ENDIF
+	#else
+				ret
+	#endif
 ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr
-#else
+				ret
+#else			// else not G2553
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
-#endif
+				ret
+#endif			// end if G2553
 

@@ -155,7 +155,8 @@ cellV:
 ; Trashes: R8, R9
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
-#ifdef Monolith		// If we're assembling Monolith, not TestICal or Monitor
+#ifdef MONOLITH		// If we're assembling Monolith, not Monitor or TestICal
+	#if HELIDON			// and it's for the prototype at Helidon
 			cmp.b		#255,&ID
 			_IF			_EQ			; If we're an IMU (modified for reading negative HazV to -200 V)
 				; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
@@ -163,7 +164,7 @@ cellV:
 				; so there's a 1.5 V offset. Hence fullscale is -203.1 V.
 				; To calibrate such an IMU using TestICal, apply a voltage -V
 				; where V is between 100 and 190 V.
-				; Type 0x<cr> so you don't screw up any CMUs in the comms chain.
+				; Type 255x<cr> so you don't screw up any CMUs in the comms chain.
 				; Type 32768'vwv<cr> to obtain a reading R.
 				; Calculate K = 32768 * V * 20 / (4062 - R).
 				; Type the value of K followed by 'vwu<cr>.
@@ -186,6 +187,7 @@ cellV:
 			_ELSE
 				jmp		measAndScale				; Tail-call measAndScale and return
 			_ENDIF
+	#endif
 #else
 			jmp		measAndScale				; Tail-call measAndScale and return
 #endif

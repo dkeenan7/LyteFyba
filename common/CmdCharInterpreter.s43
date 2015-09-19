@@ -32,6 +32,18 @@ DPUSHb		MACRO	arg
 			mov.b	arg,Rtos
 			ENDM
 
+DPOP		MACRO	arg
+			mov		Rtos,arg
+			mov		Rsec,Rtos
+			mov		Rthd,Rsec
+			ENDM
+
+DPOPb		MACRO	arg
+			mov.b	Rtos,arg
+			mov		Rsec,Rtos
+			mov		Rthd,Rsec
+			ENDM
+
 DROP		MACRO
 			mov		Rsec,Rtos
 			mov		Rthd,Rsec
@@ -127,12 +139,12 @@ _NEXT
 							; command character is interpreted
 		mov.b	@Rip+,Rw	; Fetch the next character
 
-		cmp.b	#_LO_CMDCHR,Rw ; Treat all undefinable characters, including space,
+_RUN	cmp.b	#_LO_CMDCHR,Rw ; Treat all undefinable characters, including space,
 		jlo		NotDigit	; as literal-separator no-ops
 		cmp.b	#_HI_CMDCHR+1,Rw
 		jhs		NotDigit
 
-_RUN	rla.b	Rw			; Multiply character code by 2
+		rla.b	Rw			; Multiply character code by 2
 FncOPCD mov _CMDCHRTBL-(_LO_CMDCHR*2)(Rw),Rw ; Use 2*charcode to index the command-character-table to get
 							;	the code address
 

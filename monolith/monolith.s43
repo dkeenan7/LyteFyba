@@ -17,10 +17,12 @@
 ;
 ; "Monolith" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
-#define Monolith				// Used for some conditional assembly in otherwise common code
+#define MONOLITH				// Used for some conditional assembly in otherwise common code
+#define	HELIDON 	0			// Is it the prototype monolith at Helidon
+								// which reads negative battery and array voltages up to 203.1 V
 
-#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU
-#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
+#define REV61		1			// For CMU board rev 61 or later, and IMU and BMU
+#define	G2553		1			// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their ram counterparts instead of info-flash

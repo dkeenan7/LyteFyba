@@ -5,32 +5,36 @@
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
 ; Causes any characters following to be treated as comments only (Forth "\").
-
+;
 		xCODE	'\\',EXIT,_EXIT	; Slosh (backslash)
-		incd	SP			; Drop the return address within the interpreter
+		incd	SP			; Drop the return address (which is within the interpreter)
 		ret					; Return to whoever called the interpreter (_ENTER)
 
 ; HEX ( flag -- ) ; Set the number base to hexadecimal
-
+;
 		xCODE	'h',HEX,_HEX
 		bis.b	#bHexOutput,&interpFlags
 _Space	ret					; When _Space is called, be a no-op (for separating literal numbers)
 
 ; DECIMAL ( flag -- ) ; Set the number base to decimal
-
+;
 		xCODE	'd',DECIMAL,_DECIMAL
 		bic.b	#bHexOutput,&interpFlags
 		ret
 
-; CLIT ( -- c ) ; Character literal. Pronounced "see lit".
+; C_LIT ( -- c ) ; Character literal. Also acts like Forth's "tick".
 ; Treat the next character in a command sequence as a literal character.
-
-		xCODE	'\'',CLIT,_CLIT	; Tick (single-quote)
-		xCODE	':',cLIT,_cLIT	; Colon, an alias for tick, used by the max and min commands
-;		PUSH	Rtos
-;		MOV.B	@Rip+,Rtos
+; or equivalently, return the execution token of the next command.
+		xCODE	'\'',C_LIT,_C_LIT	; Tick (single-quote)
 		DPUSHb	@Rip+
 		ret
+
+; EXECUTE ( c -- ) ; Interpret the character on the top of the interpreter data stack as a command.
+; The inverse of C_LIT or tick.
+		xCODE	'`',EXECUTE,_EXECUTE	; Tock (back-quote)
+		DPOPb	Rw			; Pop the top of the interpreter data stack into Rw
+		incd	SP			; Drop the return address (which is within the interpreter)
+		br		#_RUN		; Interpret the character in Rw
 
 ; changeSign ( n -- -n )
 ;
@@ -604,7 +608,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 ; <n>'gw	Write the battery capacity to be the number <n>, in tenths of an amp-hour.
 
 		xCODE	'g',fuelGauge,_fuelGauge
-#ifdef Monolith
+#ifdef MONOLITH
 		cmp.b	#255,&ID
 #else
 		cmp.b	#0,&ID
@@ -732,3 +736,16 @@ GetContactorBitmask:
 			bic.b	Rtos,&P3OUT
 			ret
 #endif // G2553
+
+
+; Modbus ( -- ) ; Begins a Modbus/ASCII packet. Packet ends with <cr><lf>.
+; The Modbus/ASCII packet format is
+; :<dev_id><func_code><reg_adr_hi><reg_adr_lo><reg_cnt_hi><reg_cnt_lo><checksum><cr><lf>
+; where everything except the colon and <cr><lf> consists of a pair of ASCII hex digits.
+; This is translated before being interpreted, to
+; $<dev_id>s$<reg_addr_hi>$<reg_addr_lo>`\
+; and a modbus-mode flag is set so PrettyPrint will format the response as a Modbus response.
+;
+		xCODE	':',Modbus,_Modbus	; Colon, begins a Modbus/ASCII packet
+		; To be written
+		ret
