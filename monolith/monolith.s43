@@ -150,8 +150,15 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
+#if G2553
+SourceCont	EQU		ChgCont			; Source contactor MOSFET and orange LED
+LoadCont	EQU 	DisCont			; Load contactor MOSFET and cyan/white LED
+ContPortOUT	EQU		P3OUT
+#else
 SourceCont	EQU		RelayM			; Source contactor MOSFET and yellow LED
 LoadCont	EQU 	RelayP			; Load contactor MOSFET and magenta LED
+ContPortOUT	EQU		P2OUT
+#endif
 
 ; ADC channel numbers
 CellVChan	EQU		$7				; ADC channel number for cell voltage
@@ -1262,7 +1269,7 @@ ControlCharger:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(SourceCont | LoadCont),P2OUT ; Drop out both source and load contactors
+			bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
 											; and hence also the battery contactor
 		_ENDIF							; Endif
 
@@ -1296,14 +1303,14 @@ ControlCharger:
 		_AND_IF	_NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
+			bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
 		_ELSES							; Else
 			push	R8
 			call	#cellV					; Get the PV array voltage
 			pop		R8
 			cmp		#145*10,R10
 			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
-				bic.b	#SourceCont,&P2OUT		; Drop out the source contactor (yellow LED)
+				bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
 			_ENDIF
 		_ENDIF
 
@@ -1317,7 +1324,7 @@ ControlCharger:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#SourceCont,&P2OUT		; Turn on the source contactor (yellow LED)
+			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
 		_ENDIFS
 
 		; If all considered full (and no comms error), reset the coulomb counter

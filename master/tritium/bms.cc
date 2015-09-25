@@ -347,9 +347,9 @@ void bms_processStatusByte(unsigned char status)
 		// (stress 7) maps to 0x0000 and taking care to avoid overflow or underflow.
 		output = pidCharge.tick(sat_minus(((int)stress-8) << 12, (SET_POINT-8) << 12));
 		// Scale the output. +1.0 has to correspond to maximum charger current,
-		// and -1 to zero current. This is a range of 2^16 (-$8000 .. $7FFF),
-		// which we want to map to 0 .. uChgrCurrLim (a global that defaults to CHGR_CURR_LIMIT, but
-		//	could be set lower via a CAN packet with ID CHGR_LIM)
+		// and -1 to minimum current. This is a range of 2^16 (-$8000 .. $7FFF),
+		// which we want to map to CHGR_CURR_MIN .. uChgrCurrLim (a global that defaults to
+		// CHGR_CURR_LIMIT, but	could be set lower via a CAN packet with ID CHGR_LIM).
 		// We have a hardware multiplier, so the most efficient way to do this is with a
 		// 16x16 bit multiply giving a 32-bit result, and taking the upper half of the result.
 		// But we also want to offset the output by 1.0 ($8000).
@@ -359,7 +359,7 @@ void bms_processStatusByte(unsigned char status)
         //         =  ((out + $8000L) * max) >> 16		// Do division as shifts, for speed
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
-		current = (unsigned int)(((output + 0x8000L) * uChgrCurrLim + 0x8000) >> 16);
+		current = (unsigned int)(((output + 0x8000L) * (uChgrCurrLim - CHGR_CURR_MIN) + 0x8000) >> 16) + CHGR_CURR_MIN;
 		// Only send a packet to the charger if the current has changed, or on a timeout
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
