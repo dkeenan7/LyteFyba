@@ -122,8 +122,11 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			_IF		_LO
 				mov		#2,Rtos
 			_ENDIF
-			mov.b	#'$',R8				; Emit dollar sign for hex
-			call	#TxByteCk
+			bit.b	#bModbusOutput,&interpFlags
+			_IF		_Z					; If not in modbus output mode
+				mov.b	#'$',R8				; Emit dollar sign for hex
+				call	#TxByteCk
+			_ENDIF
 			mov		Rsec,R9				; R9 := n
 			mov		#16,Rsec			; Rsec := 16 (radix)
 			_BEGIN
@@ -431,30 +434,45 @@ _prettyPrint:
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 		call	#TxByteCk			; Stops rest of packet being interpreted
 
-		push	Rsec				; Save n
-		push	Rtos				; Save m
-		push	Rthd				; Save ch
+		push	Rsec				; Save n -- the result
 
-		bic.b	#bHexOutput,&interpFlags ; Set to decimal output
-		mov.b	&ID,Rsec
-		mov		#3,Rtos
-		call	#_emitNum			; Emit the ID in decimal
-
-		mov		#':',R8				; Colon separator
-		call	#TxByteCk
-
-		pop		R8					; Restore ch (type of measurement)
-		call	#TxByteCk			; Transmit ch
-
-		mov		#' ',R8				; Transmit a space
-		call	#TxByteCk
-
-		pop		Rtos				; Restore m
-		pop		Rsec				; Restore n
-		pop.b	&interpFlags			; Restore number base to print n with
-		call	#_emitNum
-
-		call	#TxEndOfPacket
+		bit.b	#bModbusOutput,&interpFlags
+		_IF		_Z					; If not in modbus output mode, give a human-readable response
+			push	Rtos				; Save m -- the digit count
+			push	Rthd				; Save ch -- the command character
+			bic.b	#bHexOutput,&interpFlags ; Set to decimal output
+			mov.b	&ID,Rsec
+			mov		#3,Rtos
+			call	#_emitNum			; Emit the ID in decimal
+			mov		#':',R8				; Colon separator
+			call	#TxByteCk
+			pop		R8					; Restore ch (type of measurement)
+			call	#TxByteCk			; Transmit ch
+			mov		#' ',R8				; Transmit a space
+			call	#TxByteCk
+			pop		Rtos				; Restore m
+			pop		Rsec				; Restore n
+			pop.b	&interpFlags		; Restore number base to print n with
+			call	#_emitNum
+			call	#TxEndOfPacket
+		_ELSE						; Else generate a modbus/ASCII response
+			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
+			mov		#':',R8				; Colon is start of modbus packet
+			call	#TxByteCk			; Send the colon
+			mov.b	&ID,Rsec			; Get our ID
+			mov		#3,Rtos				; Request 2 hex digits ($ is suppressed)
+			call	#_emitNum			; Emit the device id as two hex digits
+			mov.b	#3,Rsec				; Function code always 3
+			call	#_emitNum			; Emit the function code as two hex digits
+			mov.b	#2,Rsec				; Indicate that 2 bytes of data follow
+			call	#_emitNum			; Emit the data count as two hex digits
+			mov		#5,Rtos				; Request 4 hex digits ($ is suppressed)
+			pop		Rsec				; Restore the result, i.e. the register value
+			call	#_emitNum			; Emit register value as 4 hex digits
+			call	#TxEndOfModbusPacket ; Checksum not implemented yet
+			pop.b	&interpFlags		; Restore number base
+			bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
+		_ENDIF							; End Else in modbus mode
 
 		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
@@ -738,7 +756,7 @@ GetContactorBitmask:
 #endif // G2553
 
 
-; Modbus ( -- ) ; Begins a Modbus/ASCII packet. Packet ends with <cr><lf>.
+; Modbus ( -- ) ; A colon begins a Modbus/ASCII packet. Packet ends with <cr><lf>.
 ; The Modbus/ASCII packet format is
 ; :<dev_id><func_code><reg_adr_hi><reg_adr_lo><reg_cnt_hi><reg_cnt_lo><checksum><cr><lf>
 ; where everything except the colon and <cr><lf> consists of a pair of ASCII hex digits.
@@ -747,5 +765,15 @@ GetContactorBitmask:
 ; and a modbus-mode flag is set so PrettyPrint will format the response as a Modbus response.
 ;
 		xCODE	':',Modbus,_Modbus	; Colon, begins a Modbus/ASCII packet
-		; To be written
+		; Modbus checksum checking not implemented yet
+		bis.b	#bModbusOutput,&interpFlags	; Set the flag for PrettyPrint
+		dec		Rip					; Back up to the start of the packet
+		mov.b	#'$',0(Rip)			; Overwrite the colon with $ for the following <dev_id> hex digits
+		mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
+		mov.b	#'$',4(Rip)			; Overwrite <func_code> lo digit with '$' for <reg_adr_hi> digits
+		mov.b	8(Rip),9(Rip)		; Move the <reg_adr_lo> hex digits along by one byte
+		mov.b	7(Rip),8(Rip)
+		mov.b	#'$',7(Rip)			; Insert a $ before the <reg_adr_lo> hex digits
+		mov.b	#'`',10(Rip)		; Put a tock (EXECUTE command) after them
+		mov.b	#'\\',11(Rip)		; And an EXIT command after that
 		ret
