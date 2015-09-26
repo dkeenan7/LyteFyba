@@ -686,12 +686,12 @@ static void __inline__ brief_pause(register unsigned int n)
 void clock_init( void )
 {
 	BCSCTL3 = 0x20; 				// ACLK source = VLOCLK (4 to 20 kHz typ 12 kHz)
-	BCSCTL1 = CALBC1_16MHZ | 0x20;	// ACLK divider 0x0000 = /1, 0x0100 = /2, 0x0200 = /4, 0x0300 = /8
+	BCSCTL1 = CALBC1_16MHZ | 0x20;	// ACLK divider 0x00 = /1, 0x10 = /2, 0x20 = /4, 0x30 = /8
 	DCOCTL = CALDCO_16MHZ;
 	P2OUT &= (uchar)~0x01;					// Set P2.0 output to zero. Was IN_GEAR_1 input.
 	P2DIR |= 0x01;					// Set P2.0 direction to output (piezo speaker)
 //	BCSCTL1 = 0x8F;					// Only used if calibration values are lost from info flash
-//	DCOCTL = 0x83;
+//	DCOCTL = 0x86;					// 0x86 for DCU A, 0x9E for DCU B
 }
 
 /*
