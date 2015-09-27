@@ -769,7 +769,15 @@ GetContactorBitmask:
 		bis.b	#bModbusOutput,&interpFlags	; Set the flag for PrettyPrint
 		dec		Rip					; Back up to the start of the packet
 		mov.b	#'$',0(Rip)			; Overwrite the colon with $ for the following <dev_id> hex digits
-		mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
+		mov.b	#'\\',3(Rip)		; Overwrite <func_code> hi digit with slosh (EXIT command)
+		call	#_ENTER				; Interpret the hex device ID
+		sub		#4,Rip				; Back up to the start of the packet again
+		tst		Rtos
+		_IF		_Z					; If the ID is zero, treat as broadcast
+			mov.b	#' ',3(Rip)			; Overwrite <func_code> hi digit with space (no-op)
+		_ELSE
+			mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
+		_ENDIF
 		mov.b	#'$',4(Rip)			; Overwrite <func_code> lo digit with '$' for <reg_adr_hi> digits
 		mov.b	8(Rip),9(Rip)		; Move the <reg_adr_lo> hex digits along by one byte
 		mov.b	7(Rip),8(Rip)
