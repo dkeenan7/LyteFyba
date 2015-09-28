@@ -196,7 +196,7 @@ cellV:
 boltV:
 ; Trashes: R8, R9
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
-			mov		#ArrayV_BoltVPl_Chan<<12,R8
+			mov		#BoltVPlChan<<12,R8
 			jmp		measAndScale				; Tail-call measAndScale and return
 
 
@@ -228,7 +228,7 @@ extT:	; Temp of external thermistor. Called from 'H' command. Used in white mono
 ; internal temperature sensor, between -5^C and 50^C.
 ; Output: R10 = calibrated in degrees Celsius, approx range ???
 ; Trashes: R8, R9
-			mov		#ArrayV_BoltVPl_Chan<<12,R8
+			mov		#BoltVPlChan<<12,R8
 			call	#measAndScale
 			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
 			; But the measurement M is 4096* V/1.5 = 2731*V.

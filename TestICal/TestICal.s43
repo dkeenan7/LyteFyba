@@ -192,6 +192,7 @@ InterpretByte:
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
 			cmp		#initRetAddr2,0(SP)
+;			tst.b	R8						; Null indicates initialisation
 			_IF		_EQ						; If the call is merely for initialisation
 				jmp		initialise				; Tail-call initialise, and return
 			_ELSE
@@ -229,6 +230,7 @@ initialise:
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
+#if	G2553
 			; Initialise the Timer to run the piezo
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
@@ -236,6 +238,8 @@ initialise:
 			mov		#TASSEL_2 + ID_0 + MC_2, &TA0CTL
 			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode, interrupts
 			eint								; Enable interrupts generally
+#endif
+
 ;
 ; Copy calibration data into RAM
 ;
@@ -482,10 +486,12 @@ ErrorFlash:
 PizTiovIsr:
 ; Timer capture/compare interrupt service routine
 ;-------------------------------------------------------------------------------
+#if G2553
 			clr		&PizTAIV				; Access TAIV to reset the sub interrupt flag
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
 			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
 			add		#119,&PizCCRp			; Advance the counter by half a period
+#endif
 			reti							; Return from interrupt
 
 

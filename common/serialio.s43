@@ -71,6 +71,7 @@ CCRt		EQU			TACCR0		; CMU Transmit capture/compare register
 CCTLr		EQU			TACCTL1		; CMU Receive capture/compare control register
 CCRr		EQU			TACCR1		; CMU Receive capture/compare register
 SocCCTLp	EQU			TACCTL2		; SoC meter PWM capture/compare control register (IMU only)
+SocCCR0		EQU			TACCR0		; Capture/compare register zero on the same timer as SoC meter
 SocCCRp		EQU			TACCR2		; SoC meter PWM capture/compare register (IMU only)
 #endif
 
@@ -436,9 +437,11 @@ PwmSubIsr:	; Compare match for PWM
 			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
 	#endif
 #else										// Else this is piezo PWM
+	#if	G2553
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
 			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
 			add		#119,&PizCCRp				; Advance the counter by half a period
+	#endif
 #endif
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
@@ -450,7 +453,7 @@ RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCR0, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCR0, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 #else
-RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCR0, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif
 
 

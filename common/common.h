@@ -60,6 +60,7 @@ BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU
 TempChan	EQU		$A				; Temperature
 LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
 CellVChan	EQU		BatV_StrapVPl_Chan
+BoltVPlChan EQU		ArrayV_BoltVPl_Chan
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
 ; i.e. By adding up 4^n samples you get 2n more bits in the result,
@@ -104,6 +105,7 @@ BypPortOUT	EQU		P2OUT
 
 ; ADC channel numbers
 TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
+BoltVPlChan	EQU		$3				; Bolt+ voltage (CMU only)
 VRefPChan	EQU		$4				; Vref+ out
 LinkVChan	EQU		$6				; Link voltage
 CellVChan	EQU		$7				; Cell voltage
