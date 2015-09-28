@@ -13,7 +13,7 @@ t l Name or description
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
     Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
-	Letters not used so far: HJMVW (all lowercase are used)
+	Letters not used so far: HJMW (all lowercase are used)
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
@@ -65,7 +65,8 @@ t t Temperature
 T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
   u UpdateInfoFlash
   U Unliven contactor (1-5)
-v v cell(v)oltage
+v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
+V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   w WriteCalValue
 x x e(x)clusive   (single-BMU interaction mode)
 X X e(X)clude     (single-BMU ignore mode)

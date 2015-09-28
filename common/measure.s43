@@ -193,10 +193,42 @@ cellV:
 #endif
 
 
+boltV:
+; Trashes: R8, R9
+; Output: R10 = calibrated in millivolts, approx range 0 to 4095
+			mov		#ArrayV_BoltVPl_Chan<<12,R8
+			jmp		measAndScale				; Tail-call measAndScale and return
+
+
 temp:
 ; Output: R10 = calibrated in degrees Celsius, approx range ???
 ; Trashes: R8, R9
 			mov		#TempChan<<12,R8
+			call	#measAndScale
+			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
+			; But the measurement M is 4096* V/1.5 = 2731*V.
+			; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
+			; To divide by 9.694 counts/°C, multiply by 65536/9.694 = 6760, and keep the top half
+			mov		R10,R8
+			mov		#6760,R9
+			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
+			sub		#273,R10				; M/9.694 - 273
+			mov.b	&TempCal,R8
+			sxt		R8
+			sub		R8,R10					; R10 has temperature in degrees Celsius
+			ret
+
+
+extT:	; Temp of external thermistor. Called from 'H' command. Used in white monolith prototype.
+; Uses Vishay NTCLE413E2103F102L NTC thermistor (R_25^C = 10k, K = 3435) from Digikey.
+; CMU mods are R17 (bottom of divider) = 12k4. R4c (in parallel with thermistor) = 10k5.
+; R4b (in series with thermistor) = 11k3. R4a is removed.
+; Vcc (2.5 V) from reg is fed into R4b via connected R4a pad. Thermistor is connected across R4c.
+; This resistor network makes the thermistor input have a similar V/T relationship to the the MSP430's
+; internal temperature sensor, between -5^C and 50^C.
+; Output: R10 = calibrated in degrees Celsius, approx range ???
+; Trashes: R8, R9
+			mov		#ArrayV_BoltVPl_Chan<<12,R8
 			call	#measAndScale
 			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
 			; But the measurement M is 4096* V/1.5 = 2731*V.

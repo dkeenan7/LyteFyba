@@ -78,35 +78,7 @@ PizTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
 PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
-
-; ADC channel numbers
-TouchVChan	EQU		$0				; Touch (insulation test) voltage (BMU only)
-VRefPChan	EQU		$4				; Vref+ out
-ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
-ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
-BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU)
-TempChan	EQU		$A				; Temperature
-LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
-CellVChan	EQU		BatV_StrapVPl_Chan
-NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
-
-#else
-
-; ADC channel numbers
-TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
-VRefPChan	EQU		$4				; Vref+ out
-LinkVChan	EQU		$6				; Link voltage
-CellVChan	EQU		$7				; Cell voltage
-TempChan	EQU		$A				; Temperature
-NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
-
 #endif
-
-; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
-; i.e. By adding up 4^n samples you get 2n more bits in the result,
-; but half of them are noise and should be thrown away,
-; leaving us with n bits of additional information.
-
 
 ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 										; commands. Monitor uses the info-flash copy

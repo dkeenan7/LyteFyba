@@ -195,11 +195,22 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 ;
 ; cellVolt ( -- )
-; Transmit the cell voltage measurement in millivolts (0 to 4095 mV)
+; Transmit the cell (strap+) voltage measurement in millivolts (0 to 4095 mV)
 ;
 		xCODE		'v',cellVolt,_cellVolt
 		call		#cellV				; Return cell voltage in millivolts in R10
 		mov			#'v',Rthd			; Type is cell Voltage
+		mov			R10,Rsec			; Result in millivolts
+		mov			#4,Rtos				; Print 4 digits
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; boltVolt ( -- )
+; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4095 mV)
+;
+		xCODE		'V',boltVolt,_boltVolt
+		call		#boltV				; Return cell voltage in millivolts in R10
+		mov			#'V',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
@@ -211,6 +222,18 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		xCODE		't',cellTemp,_cellTemp
 		call		#temp				; Return temperature in degrees Celsius in R10
 		mov			#'t',Rthd			; Type is temperature
+										; Don't use degree symbol ($F8 Terminal font). Looks like status
+		mov			R10,Rsec			; Result in degrees Celsius
+		mov			#2,Rtos				; Print 2 digits
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; External thermistor temperature measurement ( -- )
+; Transmit cell temperature in degrees C
+;
+		xCODE		'H',extTemp,_extTemp
+		call		#extT				; Return temperature in degrees Celsius in R10
+		mov			#'H',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). Looks like status
 		mov			R10,Rsec			; Result in degrees Celsius
 		mov			#2,Rtos				; Print 2 digits

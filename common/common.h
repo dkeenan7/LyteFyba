@@ -51,6 +51,21 @@ TxMiPortDIR	EQU		P3DIR			; Transmit- to CMUs output is on port 3
 TxMiPortSEL	EQU		P3SEL
 TxMiPortOUT	EQU		P3OUT
 
+; ADC channel numbers
+TouchVChan	EQU		$0				; ADC channel number for touch voltage (BMU only)
+VRefPChan	EQU		$4				; Vref+ out
+ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
+ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
+BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU)
+TempChan	EQU		$A				; Temperature
+LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
+CellVChan	EQU		BatV_StrapVPl_Chan
+NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
+; i.e. By adding up 4^n samples you get 2n more bits in the result,
+; but half of them are noise and should be thrown away,
+; leaving us with n bits of additional information.
+
 #define		PROG_START	$E000		// Start of program image in flash memory. Ends at $FDFF
 
 #else							// Else using the older MSP430G2452 processor
@@ -86,6 +101,18 @@ RelayP		EQU		1<<7			; IMU relay for HazV+ test on P2.7
 BypPortDIR	EQU		P2DIR			; Bypass MOSFET output is on port 2
 BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
+
+; ADC channel numbers
+TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
+VRefPChan	EQU		$4				; Vref+ out
+LinkVChan	EQU		$6				; Link voltage
+CellVChan	EQU		$7				; Cell voltage
+TempChan	EQU		$A				; Temperature
+NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
+; To get n more bits of ADC resolution, add up 4^n samples and shift the result right by n bits.
+; i.e. By adding up 4^n samples you get 2n more bits in the result,
+; but half of them are noise and should be thrown away,
+; leaving us with n bits of additional information.
 
 #define		PROG_START	$E000		// Start of program image in flash memory. Ends at $FDFF
 
