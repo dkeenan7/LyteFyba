@@ -10,6 +10,9 @@
   <project>
     <path>$WS_DIR$\TestICal\TestICal.ewp</path>
   </project>
+  <project>
+    <path>$WS_DIR$\wmonolith\wmonolith.ewp</path>
+  </project>
   <batchBuild/>
 </workspace>
 

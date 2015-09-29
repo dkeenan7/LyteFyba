@@ -201,7 +201,7 @@ boltV:
 
 
 temp:
-; Output: R10 = calibrated in degrees Celsius, approx range ???
+; Output: R10 = temperature calibrated in degrees Celsius, approx range ???
 ; Trashes: R8, R9
 			mov		#TempChan<<12,R8
 			call	#measAndScale
@@ -224,9 +224,10 @@ extT:	; Temp of external thermistor. Called from 'H' command. Used in white mono
 ; CMU mods are R17 (bottom of divider) = 12k4. R4c (in parallel with thermistor) = 10k5.
 ; R4b (in series with thermistor) = 11k3. R4a is removed.
 ; Vcc (2.5 V) from reg is fed into R4b via connected R4a pad. Thermistor is connected across R4c.
-; This resistor network makes the thermistor input have a similar V/T relationship to the the MSP430's
-; internal temperature sensor, between -5^C and 50^C.
-; Output: R10 = calibrated in degrees Celsius, approx range ???
+; This resistor network is designed to make the thermistor input have a similar V/T relationship to
+; the MSP430's internal temperature sensor, within 1^C from 0^C to 55^C,
+; within 2^C between -4^C and 57^C, within 3^C between -9^C and 61^C, ignoring component tolerances.
+; Output: R10 = temperature in degrees Celsius
 ; Trashes: R8, R9
 			mov		#BoltVPlChan<<12,R8
 			call	#measAndScale

@@ -18,7 +18,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
 - - change-sign (postfix negate)
-: : characterLiteral (same as single-quote)
+: : begins a Modbus/ASCII packet
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 {   resetWorstStress :-{
@@ -106,6 +106,7 @@ Y Y relaY+ (on IMU only)
   a ADCScaled or r(A)wVoltage (TestICal only)
   p ParallelPullDown (when testing with BMUs paralleled on power supply)
 v v cell(V)oltage
+V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
 l l LinkVoltage
 t t Temperature
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
@@ -120,7 +121,7 @@ I I Insulation test - touch current in tenths of a milliamp (only when ID=0, ins
 
 <XOFF> Stop echoing
 <XON> Resume echoing
-: : characterLiteral (same as single-quote)
+: : begins a Modbus/ASCII packet
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
 N N Number of cells

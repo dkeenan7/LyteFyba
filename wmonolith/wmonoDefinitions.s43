@@ -1,0 +1,359 @@
+;
+; Command character definitions for the monitor
+;
+
+#include "../common/comDefinitions.s43"			; Include the definitions common to monitor
+												; and TestICal
+
+; checKsumming ( -- )						; Toggle bChecksumming
+			; kk to turn checksumming off, k to turn it on (irrespective of present state)
+			xCODE	'k',checksumming,_checksumming
+			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
+			ret
+
+; Kill status sending ( boolean -- )		; 1 for no status, 0 for status
+			xCODE	'K',KillStatus,_KillStatus
+			allBitsIfNZ	Rtos,Rtos			; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
+			ret
+
+; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
+			; This lets the CMU include undertemperature and exclude undervoltage as stress when charging,
+			; and when masterless-charging is enabled via the 'o' command, this command
+			; start and stops charging.
+			xCODE	'c',Charging,_Charging
+			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
+			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
+			ret
+
+#if MASTERLESS_CHARGING
+; ChargerC(o)ntrol ( voltMin voltMax -- )
+			; This command only makes sense for the last CMU/IMU in the string, with an adapter
+			; from its fibre-optic output to the serial input of a PIP inverter/charger.
+			; If voltMax is non-zero, whenever you get a '1c' command, run a PI controller on stress
+			; to control a PIP inverter/charger at 2400 baud.
+			; If voltMax is zero, disable charger control and go back to status sending at 9600 baud.
+			; voltMin is minimum charger voltage in tenths of a volt.
+			; voltMax is maximum charger voltage in tenths of a volt.
+			; e.g. 480 584o<cr> for charger control between 48.0 and 58.4 volts, the PIP's maximum range
+			; 0o<cr> to go back to status sending.
+			xCODE	'o',ChargerControl,_ChargerControl
+			mov		Rtos,&chargerVoltMax		; Set the maximum charger voltage
+			tst		Rtos
+			_IF		_Z							; If the maximum is zero
+				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
+			_ELSE
+				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
+				mov		Rsec,&chargerVoltMin		; Set the minimum charger voltage
+			_ENDIF
+			ret
+#endif // MASTERLESS_CHARGING
+
+#if PROG_START < $F800		// Commented out if need to save space
+; Rx state ( -- )
+			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
+			mov		#'r',Rthd				; Type is Rx state
+			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
+;			mov		#3,Rtos					; Print 3 digits
+			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+#endif
+
+; Comms error ( -- )						; Report temporary master's ID
+_commsError	; No command character since it never needs to be interpreted and 'c' is used for Charging
+			mov		#'c',Rthd				; Type is comms error
+			mov		#0,Rsec					; Zero value (so no minus sign)
+			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
+			jmp		_prettyPrint			; Tail-call pretty-print and return
+
+; Stress ( -- )								; Report local stress
+			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
+			mov		#'p',Rthd				; Type is stress
+			mov.b	&localStatus,Rsec		; Get local status
+			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+;			mov		#3,Rtos					; Print 3 digits
+			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+
+; Query worst stress ( minStressToShow -- )
+			xCODE	'q',queryWorstStress,_queryWorstStress
+			cmp.b	Rtos,&worstStress
+			_IF		_LO
+				ret
+			_ENDIF
+			push.b	&interpFlags				; Save present number base
+			bic.b	#bHexOutput,&interpFlags	; Set to decimal output
+
+			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
+			mov		#EXIT,R8				; Send initial slosh (EXIT command or comment character)
+			call	#TxByteCk				; which stops rest of packet being interpreted
+
+			mov.b	&ID,Rsec				; Emit the ID
+			mov		#3,Rtos					; as 3 digits
+			call	#_emitNum
+
+			mov		#ColonQspace,R10
+			call	#TxStringCk
+
+		;	mov		#':',R8					; Colon separator
+		;	call	#TxByteCk
+		;	mov		#'q',R8					; 'q' as type of result
+		;	call	#TxByteCk
+		;	mov		#' ',R8					; Space separator
+		;	call	#TxByteCk
+
+			mov.b	&worstStress,Rsec		; Emit worstStress
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Space separator
+			call	#TxByteCk
+
+			ClearWatchdog
+
+			; Now send the index of the following measurement that caused the worst stress
+			mov.b	&worstStressType,Rsec	; Send index of following measurement that caused worst stress
+			mov		#1,Rtos					; as 1 digit
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			; Now send the worst over-voltage
+			mov		&worstOV,Rsec			; Send worst over-voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			ClearWatchdog
+
+			; Now send the worst under-voltage
+			mov		&worstUV,Rsec			; Send worst under-voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			; Now send the worst over-temperature
+			mov		&worstOT,Rsec			; Send worst over-temperature
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			ClearWatchdog
+
+			; Now send the worst under-temperature
+			mov		&worstUT,Rsec			; Send worst under-temperature
+			mov		#2,Rtos					; as 2 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			; Now send the worst absolute link voltage
+			mov		&worstAL,Rsec			; Send worst absolute link voltage
+			mov		#4,Rtos					; as 4 digits
+			call	#_emitNum
+			mov		#' ',R8					; Transmit a space
+			call	#TxByteCk
+
+			call	#TxEndOfPacket
+
+			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
+			pop.b	&interpFlags			; Restore number base
+			ret
+ColonQspace	DB		3, ':q '				; First byte is length of following string
+			ALIGN	1
+
+; Reset worst stress ( -- )
+			xCODE	'{',resetWorstStress,_resetWorstStress ; Frowny mouth :-{ because irreversible
+			clr.b	&worstStress
+			clr.b	&worstStressType
+			clr		&worstOV
+			mov		#9999,&worstUV
+			mov		#-99,&worstOT
+			mov		#99,&worstUT
+			clr		&worstAL
+			ret
+
+; Min  ( id type value -- ) ; Gives the minimum voltage or temperature and the ID of the cell
+		xCODE	'<',min,_min
+			NO_ECHO_CMD	doMin0,doMin			; Use the no-echo wrapper macro
+doMin0:
+		mov		#0,Rthd				; Default ID
+		mov		Rtos,Rsec			; Type
+		mov		#$7FFF,Rtos			; Default value infinity
+doMin:	; Emit another Min command with its last parameter min-ed with the
+		; relevant local value. The second parameter tells which type of local value, voltage or temp.
+		; The first parameter gives the ID of the cell having the max value.
+ 		_CASE
+			_OF #'v',Rsec
+				call	#cellV			; Get cell voltage in millivolts in R10
+				push	#4				; Save the field width, 4 digits
+			_ENDOF
+			_OF #'t',Rsec
+				call	#temp			; Get temperature in degrees Celsius in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'p',Rsec
+				mov.b	&localStatus,R10 ; Get stress level in R10
+				and.b	#$0F,R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+		mov		#$7FFF,R10			; Default case, unknown type, set R10 to infinity
+		push	#1					; Save the field width, 1 digit
+		_ENDCASE
+
+		cmp		Rtos,R10			; Find min of parameter and local value
+		_IF		_L
+			mov		R10,Rtos
+			mov.b	&ID,Rthd			; If new min, update ID
+		_ENDIF
+
+		push	Rtos				; Save value
+		push	Rsec				; Save type
+
+		mov		Rthd,Rsec			; Put ID into Rsec
+		mov		#3,Rtos				; Use a 3 digit field width
+		call	#_emitNum			; Transmit the ID as text in the present number base
+
+		mov		#':',R8				; Transmit a colon, an alias for tick
+		call	#TxByteCk
+
+		pop		R8					; Pop and transmit the type, 'v' or 't'
+		call	#TxByteCk
+
+		mov		#' ',R8				; Transmit a space
+		call	#TxByteCk
+
+		pop		Rsec				; Pop the min value
+		pop		Rtos				; Pop the field width
+		call	#_emitNum			; Transmit the value as text in the present number base
+
+		mov		#'<',R8				; Transmit a "<"
+		call	#TxByteCk
+
+		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
+;		ret
+
+#if (PROG_START < $F000)
+; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
+		xCODE	'>',max,_max
+			NO_ECHO_CMD	doMax0,doMax	; Use the no-echo wrapper macro
+doMax0:
+		mov		#0,Rthd				; Default ID
+		mov		Rtos,Rsec			; Type
+		mov		#$8000,Rtos			; Default value neg infinity
+doMax:	; Emit another Max command with its last parameter max-ed with the
+		; relevant local value. The second parameter tells which type of local value, voltage or temp.
+		; The first parameter gives the ID of the cell having the max value.
+ 		_CASE
+			_OF #'v',Rsec
+				call	#cellV			; Get cell voltage in millivolts in R10
+				push	#4				; Save the field width, 4 digits
+			_ENDOF
+			_OF #'t',Rsec
+				call	#temp			; Get temperature in degrees Celsius in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'p',Rsec
+				mov.b	&localStatus,R10 ; Get stress level in R10
+				and.b	#$0F,R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+			_OF #'q',Rsec
+				mov.b	&worstStress,R10 ; Get stress level in R10
+				push	#2				; Save the field width, 2 digits
+			_ENDOF
+		mov		#$8000,R10			; Default case, unknown type, set R10 to neg infinity
+		push	#1					; Save the field width, 1 digit
+		_ENDCASE
+
+		cmp		R10,Rtos			; Find max of parameter and local value
+		_IF		_L
+			mov		R10,Rtos
+			mov.b	&ID,Rthd			; If new max, update ID
+		_ENDIF
+
+		push	Rtos				; Save value
+		push	Rsec				; Save type
+
+		mov		Rthd,Rsec			; Put ID into Rsec
+		mov		#3,Rtos				; Use a 3 digit field width
+		call	#_emitNum			; Transmit the ID as text in the present number base
+
+		mov		#':',R8				; Transmit a colon, an alias for tick
+		call	#TxByteCk
+
+		pop		R8					; Pop and transmit the type, 'v' or 't'
+		call	#TxByteCk
+
+		mov		#' ',R8				; Transmit a space
+		call	#TxByteCk
+
+		pop		Rsec				; Pop the max value
+		pop		Rtos				; Pop the field width
+		call	#_emitNum			; Transmit the value as text in the present number base
+
+		mov		#'>',R8				; Transmit a ">"
+		call	#TxByteCk
+
+		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
+;		ret
+#endif
+
+
+; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3353 3'VP
+		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
+ 		_CASE
+			_OF #'V',Rtos				; Set overvoltage zero and step
+				mov		Rsec,&ovStep	; ovStep = Rsec
+				add		Rsec,Rthd		; ovZero = Rthd - 7 * Rsec
+				rla3	Rsec
+				sub		Rsec,Rthd
+				mov		Rthd,&ovZero
+			_ENDOF
+		_ENDCASE
+		ret
+
+
+; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
+		xCODE	'i',Current,_Current
+		cmp.b	#255,&ID
+		_IF	_NE							; If we're not an IMU
+			mov		Rtos,&current			; Set the current
+		_ENDIF
+		ret
+
+; Store discharge counter high word (dischargeHi -- )
+		; Sent periodically by IMU to CMU 1, and sent by CMU 1 to IMU on receiving a 'G' command.
+		; The IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
+		; it can restore it after the monolith has been shut down and hence IMU has been powered down.
+		xCODE	'Z',ZtoreDischarge,_ZtoreDischarge
+		mov		Rtos,&discharge+2		; Set the discharge counter high word to the received value
+		ret
+
+; Get discharge counter high word ( -- )
+		; Sent by IMU to CMU 1 when IMU is reset. Sends a 'Z' command back to the IMU with the
+		; high byte of the discharge counter.
+		xCODE	'G',GetDischarge,_GetDischarge
+		mov		#SelectIMU,R10			; Transmit "255s" to select the IMU only
+		call	#TxStringCk
+		ClearWatchdog
+
+		mov		&discharge+2,Rsec
+		mov		#5,Rtos					; 5 digit field width
+		push.b	&interpFlags			; Save number base
+		bis.b	#bHexOutput,&interpFlags; Set to hexadecimal output
+		call	#_emitNum				; Transmit the number
+		pop.b	&interpFlags			; Restore number base
+		ClearWatchdog
+
+		mov		#'Z',R8					; Transmit a "Z" for ZtoreDischarge
+		call	#TxByteCk
+		br		#TxEndOfPacket			; Tail-call TxEndOfPacket and return
+;		ret
+
+SelectIMU	DB	4, '255s'				; First byte is length of following string
+			ALIGN	1
