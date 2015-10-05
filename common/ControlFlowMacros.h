@@ -93,10 +93,20 @@ Jxx	 SET 1<<13 | (cond_field&7)<<10 | (offset>>1)&$03FF
 						LSTOUT-
 						ENDM
 
+;------------------------------------------------------------
+; Define macros for simple conditionals
 
-; Define macros for
-; _IF _CC ... _ENDIF
-; _IF _CC ... _ELSE ... _ENDIF
+;		<test>
+;		_IF _CC
+;			<stuff to do if _CC>
+;		_ENDIF
+
+;		<test>
+;		_IF _CC
+;			<stuff to do if _CC>
+;		_ELSE
+;			<stuff to do if NOT _CC>
+;		_ENDIF
 
 ; Mark the origin of a forward unconditional branch.
 ; Called by _ELSE.
@@ -143,10 +153,30 @@ _ELSE	MACRO
 		_ENDIF		  ; Back-fill the jump and offset for previous _IF.
 						ENDM
 
-; Define macros for
-; _BEGIN ... _AGAIN				  (infinite)
-; _BEGIN ... _UNTIL _CC			  (post-tested
-; _BEGIN ... _WHILE _CC ... _REPEAT  (pre or mid tested)
+;------------------------------------------------------------
+; Define macros for tested loops
+
+;		_BEGIN
+;			<do_stuff>
+;		_AGAIN				(infinite)
+
+;		_BEGIN
+;			<do_stuff>
+;			<test>
+;		_UNTIL _CC			(post-tested
+
+;		_BEGIN
+;			<test>
+;		_WHILE _CC			(pre-tested)
+;			<do_stuff>
+;		_REPEAT
+
+;		_BEGIN
+;			<do_stuff>
+;			<test>
+;		_WHILE _CC			(mid tested)
+;			<do_other_stuff>
+;		_REPEAT
 
 ; Mark a backward destination (i.e. the start of a loop)
 _BEGIN  MACRO
@@ -207,37 +237,69 @@ _REPEAT MACRO
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
 
+;------------------------------------------------------------
 ; Short-circuit conditionals (using overlapping structures)
+; Note: More-readable non-overlapping versions appear further below. See _AND_IF, OR_ELSE etc.
+
+; _IF _CC1 && _CC2 && _CC3 ... _ENDIF
+; is written as
+;
+;		<test1>
+;		_IF _CC1
+;			<test2>
+;			_IF _CC2
+;				<test3>
+;				_IF _CC3
+;					<stuff to do when _CC1 && _CC2 && _CC3>
+;				_ENDIF
+;			_ENDIF
+;		_ENDIF
 
 ; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
 ; is written as
-;	   ...
-;	   _IF _CC1
-;		   ...
-;		   _IF _CC2
-;			   ...
-;			   _IF _CC3
-;				   ...
+;
+;		<test1>
+;		_IF _CC1
+;			<test2>
+;			_IF _CC2
+;				<test3>
+;				_IF _CC3
+;					<stuff to do when _CC1 && _CC2 && _CC3>
 ;				_ELSE
-;		   _END_PRIOR_IF
-;	   _END_PRIOR_IF
-;				   ...
-;			   _ENDIF
+;			_END_PRIOR_IF
+;		_END_PRIOR_IF
+;					<stuff to do when NOT (_CC1 && _CC2 && _CC3)>
+;				_ENDIF
+
+; _IF _CC1 || _CC2 || _CC3 ... _ENDIF
+; is written as
+;
+;		<test1>
+;		_IF _CC1_inverse
+;			<test2>
+;			_IF _CC2_inverse
+;				<test3>
+;				_IF _CC3
+;			_END_PRIOR_IF
+;		_END_PRIOR_IF
+;					<stuff to do when _CC1 || _CC2 || _CC3>
+;				_ENDIF
 
 ; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
 ; is written as
-;	   ...
-;	   _IF _CC1_inverse
-;		   ...
-;		   _IF _CC2_inverse
-;			   ...
-;			   _IF _CC3
-;		   _END_PRIOR_IF
-;	   _END_PRIOR_IF
-;				   ...
+;
+;		<test1>
+;		_IF _CC1_inverse
+;			<test2>
+;			_IF _CC2_inverse
+;				<test3>
+;				_IF _CC3
+;			_END_PRIOR_IF
+;		_END_PRIOR_IF
+;					<stuff to do when _CC1 || _CC2 || _CC3>
 ;				_ELSE
-;				   ...
-;			   _ENDIF
+;					<stuff to do when NOT (_CC1 || _CC2 || _CC3)>
+;				_ENDIF
 
 _END_PRIOR_IF	MACRO
 						LSTOUT-
@@ -246,34 +308,63 @@ _END_PRIOR_IF	MACRO
 						ENDM
 
 
+;------------------------------------------------------------
 ; Short-circuit conditionals (without overlapping structures)
+
+; _IF _CC1 && _CC2 && _CC3 ... _ENDIF
+; is written as
+;
+;		_COND
+;			<test1>
+;		_AND_IF		_CC1
+;			<test2>
+;		_AND_IF		_CC2
+;			<test3>
+;		_AND_IF		_CC3
+;			<stuff to do when _CC1 && _CC2 && _CC3>
+;		_ENDIFS				; Note plural _ENDIFS when there is no ELSES clause
 
 ; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
 ; is written as
+;
 ;		_COND
-;			...
+;			<test1>
 ;		_AND_IF		_CC1
-;			...
+;			<test2>
 ;		_AND_IF		_CC2
-;			...
+;			<test3>
 ;		_AND_IF		_CC3
-;			...
-;		_ELSES
-;			...
-;		_ENDIF			; Use _ENDIFS if there is no ELSES clause
+;			<stuff to do when _CC1 && _CC2 && _CC3>
+;		_ELSES				; Note plural _ELSES
+;			<stuff to do when NOT (_CC1 && _CC2 && _CC3)>
+;		_ENDIF				; Note singular _ENDIF when there is an ELSES clause
+
+; _IF _CC1 || _CC2 || _CC3 ... _ENDIF
+; is written as
+;
+;		_COND
+;			<test1>
+;		_OR_ELSE	_CC1
+;			<test2>
+;		_OR_ELSE	_CC2
+;			<test3>
+;		_OR_IFS 	_CC3	; Note plural _OR_IFS for last condition
+;			<stuff to do when _CC1 || _CC2 || _CC3>
+;		_ENDIF
 
 ; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
 ; is written as
+;
 ;		_COND
-;			...
+;			<test1>
 ;		_OR_ELSE	_CC1
-;			...
+;			<test2>
 ;		_OR_ELSE	_CC2
-;			...
-;		_OR_IFS 	_CC3
-;			...
+;			<test3>
+;		_OR_IFS 	_CC3	; Note plural _OR_IFS for last condition
+;			<stuff to do when _CC1 || _CC2 || _CC3>
 ;		_ELSE
-;			...
+;			<stuff to do when NOT (_CC1 || _CC2 || _CC3)>
 ;		_ENDIF
 
 
@@ -342,7 +433,7 @@ _count  SET _CS_TOP		; Copy the _IF-count
 		_CS_DROP		; and take it off the stack for good
 		_IF	cond
 						LSTOUT-
-		REPT _count		; Repeat _OF-count times
+		REPT _count		; Repeat _IF-count times
 			_END_PRIOR_IF	; Resolve an unconditional forward jump
 						LSTOUT-
 		ENDR
@@ -350,6 +441,7 @@ _count  SET _CS_TOP		; Copy the _IF-count
 						ENDM
 
 
+;------------------------------------------------------------
 ; CASE statement macros
 
 ; Typical use:
@@ -426,8 +518,24 @@ _count  SET _CS_TOP		; Copy the _OF-count
 						ENDM
 
 
-; Implement DO or ?DO ... LOOP or -LOOP
+;------------------------------------------------------------
+; Counted loops
 
+;	_DO src,dest
+;		<do_stuff>		; dest = src down to 1   (src 0 = 65536)
+;	_LOOP dest
+
+;	_DO src,dest
+;		<do_stuff>		; dest = src down to 1 in steps of src2   (src 0 = 65536)
+;	_mLOOP src2,dest
+
+;	_qDO src,dest
+;		<do_stuff>		; dest = src down to 0
+;	_qLOOP dest
+
+;	_qDO src,dest
+;		<do_stuff>		; dest = src down to 0 in steps of src2
+;	_qmLOOP src2,dest
 
 _DO	 MACRO src,dest
 		MOV src,dest
