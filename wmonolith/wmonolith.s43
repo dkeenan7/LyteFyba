@@ -9,14 +9,14 @@
 ; Set the IAR Embedded Workbench IDE Project/Options/Linker/Extra Output options to:
 ; Generate Extra Output File
 ;	Override default
-;	monolith.bin
+;	wmonolith.bin
 ;	Output format: raw-binary
 ;
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for solar power systems.
 ;
-; "WMonolith" is the standard operating software for our cell-top
-; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
+; "WMonolith" is a special operating software for our Battery Monitoring Unit
+; (BMU) based on an MSP430 microcontroller.
 #define MONOLITH				// Used for some conditional assembly in otherwise common code
 #define	HELIDON 	0			// Is it the prototype monolith at Helidon
 								// which reads negative battery and array voltages up to 203.1 V
@@ -800,6 +800,7 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
+#if 0			// Useful for testing. Set to 1 normally
 				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
 				// Tell the CMUs what the current is, by sending an 'i' command
 				mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
@@ -821,6 +822,9 @@ DoMeasurement:
 				mov		#'i',R8					; Transmit an "i" for current
 				call	#TxByteCk
 				call	#TxEndOfPacket
+#else			// #else testing								
+				ClearWatchdog					; When testing, seem to need this
+#endif			// #endif testing
 
 				tst		&current
 				_IF		_NN						; If current is not negative

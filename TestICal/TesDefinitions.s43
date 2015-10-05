@@ -151,7 +151,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				jmp		_EMIT					; Tail-call EMIT and return
 			_ENDIF							; Endif unrecognised
 			mov.b		#' ',Rthd			; Trailing char (space)
-			jmp 	_prettyPrint			; Tail-call prettyPrint and return
+			br	 	#_prettyPrint			; Tail-call prettyPrint and return
 
 ;
 ; Write calibration value ( n ch --- )

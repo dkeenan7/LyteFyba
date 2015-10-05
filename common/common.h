@@ -1,6 +1,12 @@
 ; Common definitions for monitor, TestICal and BSL
 
-#if	G2553						// If using the newer MSP430G2553 processor
+; Capacities of the battery system
+CAP_TOTV	EQU		(16*32)			; Decivolts
+CAP_AH		EQU		(180)			; Capacity in Ah
+CAP_ENERGY	EQU		CAP_TOTV * CAP_AH / 10
+CAP_POWER	EQU		CAP_TOTV * 200 / 10 ; Power in watts
+
+#if	G2553							// If using the newer MSP430G2553 processor
 
 InitSP		EQU		$400			; Initial value of stack pointer
 

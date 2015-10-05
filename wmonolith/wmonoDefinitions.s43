@@ -355,5 +355,20 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		br		#TxEndOfPacket			; Tail-call TxEndOfPacket and return
 ;		ret
 
+; Get state of charge ( -- )
+		xCODE	'f',fuelSOC,_fuelSOC
+		call	#DepthOfDischarge		; Get the depth of discharge as a number 0-1000 in R9
+		mov		#'f',Rthd				; Type is fuel gauge (state of charge)
+		mov		#1000,Rsec				; 100% - DOD = SOC
+		sub		R9,Rsec					; SOC in tenths of a percent
+		_IF		_N						; If result is negative,
+			clr		Rsec					; then saturate at zero
+		_ENDIF
+		mov		#4,Rtos					; Use 4 digits (but we never do)
+		call	#_prettyPrint			; Call pretty-print
+		ret
+		
+
+
 SelectIMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1

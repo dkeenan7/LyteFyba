@@ -14,6 +14,7 @@ t l Name or description
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
     Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
 	Letters not used so far: HJMW (all lowercase are used)
+@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.	
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
@@ -33,8 +34,9 @@ c   Charging, '1c' to include undertemp and exclude undervolt as stress, and sta
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
+f   (f)uel gauge. State if charge in tenths of a percent. (wmonolith only)
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
-G   Get high word of fuel-gauge discharge accumulator (monolith only)
+G   Get high word of fuel-gauge discharge accumulator (monoliths only)
   G Get byte (peek byte)
 h h Hex output
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
@@ -145,7 +147,9 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
-G   Get high word of fuel-gauge discharge accumulator (monolith only)
+G   Get high word of fuel-gauge discharge accumulator (monoliths only)
+f   (f)uel gauge. State if charge in tenths of a percent. (wmonolith only)
+@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.	
 
   j JumpToSubroutine (call)
   Z Ztore byte (poke byte)

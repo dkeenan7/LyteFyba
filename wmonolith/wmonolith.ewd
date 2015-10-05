@@ -41,7 +41,7 @@
         </option>
         <option>
           <name>DynDriver</name>
-          <state>SIM430</state>
+          <state>430FET</state>
         </option>
         <option>
           <name>dDllSlave</name>
@@ -244,7 +244,7 @@
         </option>
         <option>
           <name>RadioSoftwareBreakpointType</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>TargetSettlingtime</name>
@@ -351,7 +351,7 @@
     </settings>
     <debuggerPlugins>
       <plugin>
-        <file>$TOOLKIT_DIR$\plugins\lcd\lcd.ewplugin</file>
+        <file>$TOOLKIT_DIR$\plugins\Lcd\lcd.ewplugin</file>
         <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
@@ -368,6 +368,10 @@
       </plugin>
       <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\OpenRTOS\OpenRTOSPlugin.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\PowerPac\PowerPacRTOS.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>
@@ -757,7 +761,7 @@
     </settings>
     <debuggerPlugins>
       <plugin>
-        <file>$TOOLKIT_DIR$\plugins\lcd\lcd.ewplugin</file>
+        <file>$TOOLKIT_DIR$\plugins\Lcd\lcd.ewplugin</file>
         <loadFlag>1</loadFlag>
       </plugin>
       <plugin>
@@ -774,6 +778,10 @@
       </plugin>
       <plugin>
         <file>$TOOLKIT_DIR$\plugins\rtos\OpenRTOS\OpenRTOSPlugin.ewplugin</file>
+        <loadFlag>0</loadFlag>
+      </plugin>
+      <plugin>
+        <file>$TOOLKIT_DIR$\plugins\rtos\PowerPac\PowerPacRTOS.ewplugin</file>
         <loadFlag>0</loadFlag>
       </plugin>
       <plugin>

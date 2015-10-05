@@ -10,6 +10,8 @@ CFLAGS          = -mmcu=${CPU} -D__MSP430F147__ -Wall -Wconversion -Wsign-conver
 #switch the compiler (for the internal make rules)
 CC              = msp430-gcc
 AS              = msp430-gcc
+#CC              = msp430-elf-gcc		# Newer TI gcc toolchain
+#AS              = msp430-elf-gcc		#	has new executable names
 
 .PHONY: all FORCE clean download download-jtag download-bsl dist
 
