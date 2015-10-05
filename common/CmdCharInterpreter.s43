@@ -218,13 +218,16 @@ ACCEPT
 			_IF		_LO				; If packet buffer not full
 				bit.b	#bChecksumming,&interpFlags
 				_IF		_NZ				; If checksumming
-					tst.b	&rxCksum
-					_IF		_Z				; If good checksum
-						dec		R9				; Prepare to overwrite checksum with EXIT command char
-						cmp		#TIB,R9			; Handle case of empty packet with no checksum
-						_IF		_LO
-							mov		#TIB,R9
-						_ENDIF
+					cmp.b	#':',&TIB			; Is this a colon command?
+					_IF		_NZ					; Only if not...
+						tst.b	&rxCksum
+						_IF		_Z				; If good checksum
+							dec		R9				; Prepare to overwrite checksum with EXIT command char
+							cmp		#TIB,R9			; Handle case of empty packet with no checksum
+							_IF		_LO
+								mov		#TIB,R9
+							_ENDIF
+					_END_PRIOR_IF
 				_END_PRIOR_IF			; Endif checksumming
 						mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
 						bit.b	#bDontInterpret,&interpFlags

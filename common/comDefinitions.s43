@@ -455,7 +455,7 @@ _prettyPrint:
 
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
 		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
-		call	#TxByteCk			; Stops rest of packet being interpreted
+;		call	#TxByteCk			; Stops rest of packet being interpreted
 
 		push	Rsec				; Save n -- the result
 
