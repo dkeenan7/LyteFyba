@@ -889,8 +889,11 @@ abortColon
 		_OFb	#$B,Rtos			; B: Battery total nominal voltage
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
-		_OFb	#$D,Rtos			; D (sounds like P) Power capacity
-			mov		#CAP_POWER,Rsec
+		_OFb	#$D,Rtos			; Discharge power capability
+			mov		#CAP_DISCH,Rsec
+		_ENDOF
+		_OFb	#$C,Rtos			; Charge power capability
+			mov		#CAP_CHARGE,Rsec
 		_ENDOF
 		_ENDCASE
 		mov		#5,Rtos				; Use 5 digits
