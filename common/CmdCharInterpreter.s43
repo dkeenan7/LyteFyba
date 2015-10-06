@@ -213,33 +213,37 @@ ACCEPT
 		mov		&ToIN,R9
 		_CASE
 
+		_OFb	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
+		_ENDOF
+
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
 				bit.b	#bChecksumming,&interpFlags
 				_IF		_NZ				; If checksumming
-					cmp.b	#':',&TIB			; Is this a colon command?
-					_IF		_NZ					; Only if not...
+					cmp.b	#':',&TIB
+					_IF		_NE				; And if not a modbus packet (starts with colon)
 						tst.b	&rxCksum
-						_IF		_Z				; If good checksum
+						_IF		_Z				; And if good checksum
 							dec		R9				; Prepare to overwrite checksum with EXIT command char
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
 							_IF		_LO
 								mov		#TIB,R9
 							_ENDIF
-					_END_PRIOR_IF
-				_END_PRIOR_IF			; Endif checksumming
-						mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
-						bit.b	#bDontInterpret,&interpFlags
-						_IF		_Z				; If the dont-interpret flag is clear
-							mov		#TIB,Rip		; Interpret the packet as command characters
-							call	#_ENTER
-						_ENDIF					; Endif dont-interpret flag is clear
-					_ENDIF					; Endif good checksum
-				_ENDIF					; Endif packet buffer not full
+					_END_PRIOR_IF			; End if not modbus
+				_END_PRIOR_IF			; End if checksumming
+							; We get here when not-checksumming or a modbus packet or a good checksum
+							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
+							bit.b	#bDontInterpret,&interpFlags
+							_IF		_Z				; If the dont-interpret flag is clear
+								mov		#TIB,Rip		; Interpret the packet as command characters
+								call	#_ENTER
+							_ENDIF					; End if dont-interpret flag is clear
+						_ENDIF					; End if good checksum
+			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
 			clr.b	&rxCksum		; Clear the packet checksum
-		_ENDOF					; EndOf carriage return
+		_ENDOF					; End of carriage return
 
 		_OFb	#$08,R8			; Backspace editing
 			cmp		#TIBEnd,R9

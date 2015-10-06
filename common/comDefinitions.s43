@@ -450,17 +450,15 @@ _prettyPrint3:
 ; and precede with ID and ch.
 ; (no command letter)
 _prettyPrint:
-		ClearWatchdog
-		push.b	&interpFlags			; Save present number base
-
 		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
-		mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
-;		call	#TxByteCk			; Stops rest of packet being interpreted
-
+		ClearWatchdog
+		push.b	&interpFlags		; Save present number base
 		push	Rsec				; Save n -- the result
 
 		bit.b	#bModbusOutput,&interpFlags
 		_IF		_Z					; If not in modbus output mode, give a human-readable response
+			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
+			call	#TxByteCk			; Stops rest of packet being interpreted
 			push	Rtos				; Save m -- the digit count
 			push	Rthd				; Save ch -- the command character
 			bic.b	#bHexOutput,&interpFlags ; Set to decimal output
@@ -480,6 +478,8 @@ _prettyPrint:
 			call	#TxEndOfPacket
 		_ELSE						; Else generate a modbus/ASCII response
 			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
+;			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
+;			call	#TxByteCk			; Stops rest of packet being interpreted
 			mov		#':',R8				; Colon is start of modbus packet
 			call	#TxByteCk			; Send the colon
 			cmp.b	#255,&ID			; Is our ID 255?
@@ -507,7 +507,7 @@ _prettyPrint:
 		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
 
-; Transmit the end of a Modbus packet: LCR, CR, LF
+; Transmit the end of a Modbus packet: LRC, CR, LF
 TxEndOfModbusPacket:
 			; Transmit modbus/ASCII checksum in hex. R8 must have the 16-bit result just transmitted
 			mov.w	R8, Rsec				; Copy the result
@@ -523,11 +523,11 @@ TxEndOfModbusPacket:
 			inv.b	Rsec						; The checksum is the negation of all this
 			inc.b	Rsec
 			mov		#3, Rtos
-			call	#_emitNum				; Transmit the checksum as two hex digits			
+			call	#_emitNum				; Transmit the checksum as two hex digits
 			clr.b	&txCksum				; Restart regular checksums
 			mov		#$0D,R8					; Transmit a carriage return.
 			call	#TxByte
-			mov		#$0A,R8					; Transmit a carriage return.
+			mov		#$0A,R8					; Transmit a line feed.
 			br		#TxByte					; Tail-call TxByte and return
 ;			ret
 
@@ -848,7 +848,7 @@ GetContactorBitmask:
 		tst		R9						; Sum should be zero
 		jne		abortColon
 		pop		Rip					; Restore input pointer
-		
+
 		bis.b	#bModbusOutput,&interpFlags	; Set the flag for PrettyPrint
 		dec		Rip					; Back up to the start of the packet
 		mov.b	#'$',0(Rip)			; Overwrite the colon with $ for the following <dev_id> hex digits
@@ -878,7 +878,7 @@ abortColon
 		add		#4,SP				; Remove saved Rip, and return address in the interpreter
 		ret							; So now we return to the caller of the interpreter, thus
 									; ignoring the packet with the bad LCC
-		
+
 ; Capacity ( code -- ) ; Emit some constants, code determines which constant
 ;
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
