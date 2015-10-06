@@ -71,7 +71,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov.b	&localStatus,Rsec		; Get local status
 			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
 ;			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress

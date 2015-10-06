@@ -57,7 +57,7 @@
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
 ; Comms error ( -- )						; Report temporary master's ID
@@ -65,7 +65,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#'c',Rthd				; Type is comms error
 			mov		#0,Rsec					; Zero value (so no minus sign)
 			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+			br		#_prettyPrint			; Tail-call pretty-print and return
 
 ; Stress ( -- )								; Report local stress
 			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select

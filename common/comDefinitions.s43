@@ -478,8 +478,8 @@ _prettyPrint:
 			call	#TxEndOfPacket
 		_ELSE						; Else generate a modbus/ASCII response
 			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
-;			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
-;			call	#TxByteCk			; Stops rest of packet being interpreted
+			; We can't send a slosh, so we rely on the fact that our Modbus responses are shorter
+			; than the accepted Modbus commands, to allow following devices to ignore them.
 			mov		#':',R8				; Colon is start of modbus packet
 			call	#TxByteCk			; Send the colon
 			cmp.b	#255,&ID			; Is our ID 255?
@@ -680,13 +680,15 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 ;		discharge converted to tenths of an amp-hour (use only when run flat).
 ; <n>'gw	Write the battery capacity to be the number <n>, in tenths of an amp-hour.
 
-		xCODE	'g',fuelGauge,_fuelGauge
+
+; Get depth of discharge ( -- )
+		xCODE	'g',fuelDOD,_fuelDOD
 #ifdef MONOLITH
 		cmp.b	#255,&ID
 #else
 		cmp.b	#0,&ID
 #endif
-		_IF		_EQ					; IMUs only
+		_IF		_EQ					; BMUs and IMUs only
 			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
@@ -820,14 +822,20 @@ GetContactorBitmask:
 ; and a modbus-mode flag is set so PrettyPrint will format the response as a Modbus response.
 ;
 		xCODE	':',Modbus,_Modbus	; Colon, begins a Modbus/ASCII packet
+		; Ignore it if it's a Modbus response.
+		; Our Modbus responses are shorter than the Modbus commands we recognise.
+		cmp.b	#EXIT,13(Rip)		; Is there an EXIT command character (was CR)) at the 13th position
+		jeq		abortColon			; If so, abort
+
 		; Modbus LRC check
 		mov		#0,R9				; Clear LRC
 		push	Rip					; Save position in buffer
+
 		_BEGIN
-		cmp.b	#EXIT,0(Rip)			; Current ch an EXIT? (was CR)
+			cmp.b	#EXIT,0(Rip)		; Current ch an EXIT? (was CR)
 		_WHILE	_NE
 			mov.b	@Rip+,R8			; Get a high hex digit
-			cmp		#EXIT,0(Rip)		; Is next an EXIT? (was CR)
+			cmp.b	#EXIT,0(Rip)		; Is next an EXIT? (was CR)
 			jeq		abortColon			; Should not be! Abort if so
 			sub.b	#'0',R8				; Convert to binary
 			cmp.b	#9+1,R8				; Was it A-F?
@@ -843,9 +851,9 @@ GetContactorBitmask:
 				sub.b	#7,R8				; Adjust for A-F
 			_ENDIF
 			add.b	R8,R9				; Add to sum
-										; Ready to check is next ch a CR?
-		_REPEAT
-		tst		R9						; Sum should be zero
+		_REPEAT						; Ready to check is next ch a CR?
+
+		tst.b	R9						; Sum should be zero
 		jne		abortColon
 		pop		Rip					; Restore input pointer
 
@@ -855,29 +863,29 @@ GetContactorBitmask:
 		mov.b	#'\\',3(Rip)		; Overwrite <func_code> hi digit with slosh (EXIT command)
 		call	#_ENTER				; Interpret the hex device ID
 		sub		#4,Rip				; Back up to the start of the packet again
-		cmp		#246,Rtos
+		cmp.b	#246,Rtos
 		_IF		_EQ					; If the ID is 246, treat as broadcast
 			mov.b	#' ',3(Rip)			; Overwrite <func_code> hi digit with space (no-op)
 		_ELSE
 			mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
-			cmp.b	#247,Rtos			; For this BMU?
+			cmp.b	#247,Rtos			; For the BMU?
 			_IF		_EQ
 				mov.b	#'F',1(Rip)			; Yes, replace with FF (255)
-				mov.b	#'F',2(Rip)			;	(255 is not a valid device address)
+				mov.b	#'F',2(Rip)			;	(255 is not a valid Modbus device address)
 			_ENDIF
 		_ENDIF
 		mov.b	#'$',4(Rip)			; Overwrite <func_code> lo digit with '$' for <reg_adr_hi> digits
 		mov.b	8(Rip),9(Rip)		; Move the <reg_adr_lo> hex digits along by one byte
 		mov.b	7(Rip),8(Rip)
 		mov.b	#'$',7(Rip)			; Insert a $ before the <reg_adr_lo> hex digits
-		mov.b	#'`',10(Rip)		; Put a tock (EXECUTE command) after them
-		mov.b	#'\\',11(Rip)		; And an EXIT command after that
+		mov.b	#EXECUTE,10(Rip)	; Put an EXECUTE command (tock) after them
+		mov.b	#EXIT,11(Rip)		; And an EXIT command (slosh) after that
 		ret
 
 abortColon
 		add		#4,SP				; Remove saved Rip, and return address in the interpreter
 		ret							; So now we return to the caller of the interpreter, thus
-									; ignoring the packet with the bad LCC
+									; ignoring the packet with the bad LRC
 
 ; Capacity ( code -- ) ; Emit some constants, code determines which constant
 ;
@@ -897,5 +905,6 @@ abortColon
 		_ENDOF
 		_ENDCASE
 		mov		#5,Rtos				; Use 5 digits
-		mov		#'C',Rthd			; Response type is C, Capacity Constant
+		mov		#'@',Rthd			; Response type is @, CapATcity Constant
 		jmp		_prettyPrint		; Pretty print and return
+
