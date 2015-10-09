@@ -17,7 +17,11 @@
 ;	October 2005
 ;*******************************************************************************
 
-#define		ALL_TO_ALL 1				// Take input from any port and send output to all - for testing
+#if G2553
+	#define		ALL_TO_ALL 1	// 1 to take input from any port and send output to all - for testing
+#else
+	#define		ALL_TO_ALL 0	// Can't do ALL_TO_ALL without G2553
+#endif
 
 ; Timer A overflow is used for the regular processing "tick" or status frequency
 ; while its capture/compare regs are used for the interrupt-driven software UART

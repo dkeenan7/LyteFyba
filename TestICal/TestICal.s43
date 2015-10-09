@@ -67,12 +67,11 @@
 									// Note that an update command 'u' is required to make it stick.
 
 ; Conditional assembly parameters which may be changed for special purposes
-#include "../common/common.h"		// Definitions common to monitor, TestICal and BSL
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
 #if G2553
-; Timer registers
+; Timer registers for generating 4.2 kHz square wave for Piezo
 PizTAR		EQU			TA0R		; Charger/inverter timer register
 PizTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
@@ -80,26 +79,25 @@ PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as pie
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
 #endif
 
-ID				EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
-										; commands. Monitor uses the info-flash copy
+ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
+									; commands. Monitor uses the info-flash copy
 
-; Locations in info-flash, of calibration data in previous versions of the BSL
-; to allow us to update them to the current version without losing their calibration data.
-
-infN8MHzCalD	EQU		$10FC		; Address of 8 MHz DCO frequency calibration
-infN8MHzCalB	EQU		$10FD		; Address of 8 MHz DCO range calibration
-
-; Interpreter Register Usage
-;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
-#define 	Rip		R5				// Virtual machine instruction pointer
-#define 	Rlit	R6				// Holds partial literals
-#define 	Rw		R8				// Working register - temporary - anyone can use
+; Some definitions so the measure.s43 code will work
+; Monitor defines these as their info-flash counterparts instead of ram
+VoltCal 	EQU	ramVoltCal
+TempCal		EQU	ramTempCal
+LinkCal		EQU	ramLinkCal
 
 			LSTOUT-
-#include "msp430.h"
+#include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
+DELAY_IF_NEEDED MACRO
+			_DO		#1390,R11				; Delay for approx ...
+			_LOOP	R11						;	... 1.04 ms
+			ENDM							; Allows downstream CMU to echo a byte
 			LSTOUT+
+#include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 
 ; Error register. 0 means no error
 #define		rERR	r14					// Overlaps with Rcksum in the BSL, but that is OK
@@ -177,54 +175,51 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
+; Comms routines, since TestICal doesn't use serialio.s43. Needed by common code.
+WaitTxComplete:	ret						; Empty routine: transmit is always complete
+TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
+TxByte:		call	#jWriteByte			; Call the BSL's non-interrupt bit-bashing transmit routine
+			ClearWatchdog
+			DELAY_IF_NEEDED
+			ret
+
+#include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TxCksum
+#include "../common/measure.s43"			// ADC measurement functions
+#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
+#include "../common/math.s43"				// Multiply and divide routines
+#include "TesDefinitions.s43"				// Include command character definitions
+
 			; Assemble any initialisation command string
-initCmdString
+InitCmdString
 			DB		INIT_CMD_STRING
 			DB		EXIT					; Must end with an EXIT command
 			ALIGN	1
 
+
+;-------------------------------------------------------------------------------
+; InterpretByte
+;-------------------------------------------------------------------------------
+;
+; The BSL calls this with any byte that is received by the serial port, including password bytes.
+;
 InterpretByte:
-; The BSL will call this when any bytes are received by the serial port, including "password" bytes.
-; The BSL will also call this with a null that was not received by the serial port
-; but is intended to initialise the monitor or TestICal or other main-flash program.
-; It will do this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
-; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
-			ClearWatchdog					; Clear and restart Watchdog Timer
-
-			cmp		#initRetAddr2,0(SP)
-;			tst.b	R8						; Null indicates initialisation
-			_IF		_EQ						; If the call is merely for initialisation
-				jmp		initialise				; Tail-call initialise, and return
-			_ELSE
-				; The following test allows us to upgrade from the old BSL2 that was called from BSL1
-				; in infoFlash, to the new BSL2 that stands alone. The address from which InterpretByte
-				; was called has changed, so we need to check for calls from the old location
-				; and run the updateBSL command and return to the new location.
-				cmp		#$FE44,0(SP)			; Is the call for initialisation from the old BSL2
-				_IF		_EQ
-					call	#_updateBSL2			; Update BSL2 (flash erase and copy)
-					mov		#initRetAddr2,0(SP)		; Change the return address on the stack
-					jmp		initialise				; Tail-call initialise, and return
-				_ELSE
-					call	#ACCEPT					; Process R8 as part of a command to be interpreted
-					ClearWatchdog
-				_ENDIF
-			_ENDIF
-
+main:										; For IAR Embedded Workbench IDE debugger
+			ClearWatchdog					; Clear and restart Watchdog Timer 32k cyc. BSL sets 64 cyc.
+			call	#ACCEPT					; Process R8 as part of a command to be interpreted
+			ClearWatchdog
 			ret								; Return to the BSL
 
 ;-------------------------------------------------------------------------------
-; Initialisation
+; InterpretInit
 ;-------------------------------------------------------------------------------
 ;
+; The BSL will call this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
+; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
 ; This intialises everything including the RAM calibration values, but excluding the stack pointer.
-; The stack pointer is initialised before this is called.
-; Called due to the initialisation call of InterpretByte from the BSL.
+; The stack pointer is initialised by the BSL before this is called.
 ;
-initialise:
-#if !WATCHDOG
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
-#endif
+InterpretInit:
+			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
 			_DO		#TIB-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
@@ -247,10 +242,16 @@ initialise:
 			;_OFb	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
 			;_ENDOF
-			_OFb	#DATAVERS,&infoDataVers
+			_OFb	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
 				; The RAM image has the same layout as current version data, so we use a block move
 				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
-					mov.b		infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+			_ENDOF
+			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
+				; The RAM image has the same layout as current version data, so we use a block move
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 			_OFb	#$FF,&infoDataVers
@@ -260,20 +261,21 @@ initialise:
 				; A new chip. We want to preserve some of the existing DCO calibration data.
 				; Set the ID, voltage, temperature and link calibration.
 newChip:
-				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chip has manuf's ADC cal data
+				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chips have manuf's ADC cal data
 				mov.b	#$00,&ramTempCal
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
-				mov.w	&infN8MHzCalD,&ram8MHzCalD	; Copy 8 MHz calibration data
-				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz
+				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
+				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
+				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
 				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
 			_ENDOF
-			; default case
+			; default action if none of the above apply
 #if !G2553
 				; We could have an unprogrammed non G2553 chip; in that case infoDataVers is actually
 				; one of the 1 MHz frequency calibration values. We know that it will be >= $80 to
 				; disable XT2
-				tst.b	infoDataVers
+				tst.b	&oldInfoDataVers				; $10FF
 				jn		newChip
 #endif
 				; Data version number is higher or lower than can be handled by this version of TestICal
@@ -386,47 +388,18 @@ newChip:
 ;			bic.b	#bDontInterpret,&interpFlags	; Interpret
 			mov		#TIB,&ToIN				; Packet pointer
 
-			mov		#initCmdString,Rip			; Interpret the init string as commands
+			mov		#InitCmdString,Rip			; Interpret the init string as commands
 			call	#_ENTER
 
-			ret									; Return from initialise
+			ret									; Return to the BSL
 
-; End of initialise
-
-
-DELAY_IF_NEEDED MACRO
-			_DO		#1390,R11			; Delay for approx ...
-			_LOOP	R11					;	... 1.04 ms
-			ENDM						; Allows downstream CMU to echo a byte
-
-
-; Some definitions so the common code will work
-WaitTxComplete:	ret						; Empty routine: transmit is always complete
-TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
-TxByte:		call	#WriteByte
-
-			ClearWatchdog
-
-			DELAY_IF_NEEDED
-			ret
-
-
-; Some definitions so the measure.s43 code will work
-; Monitor defines these as their inf-flash counterparts instead of ram
-#define VoltCal ramVoltCal
-#define TempCal	ramTempCal
-#define LinkCal	ramLinkCal
-
-#include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TxCksum
-#include "../common/measure.s43"			// ADC Measurement
-#include "../common/math.s43"				// Multiply and divide
-#include "../common/CmdCharInterpreter.s43"
+; End of InterpInit
+;-----------------------------------------------------------------------------------------------------
 
 
 ;
-; Compare the 8 bytes of calibration data at ramDataStart with what's at $10F8.
+; Compare the 8 bytes of calibration data at ramDataStart with what's at infoDataStart (in info-flash).
 ; Returns with Z set if OK, Z clear if not.
-; Relies on definitions like infoDataStart and mainDataEnd to sort out the boundaries
 ; Trashes R12
 compareInfoFlash:
 			clr		R12					; Loop counter
@@ -441,12 +414,13 @@ compareInfoFlash:
 			ret
 
 ;
-; Compare the 512 bytes at BSL2b with what's at BSL2 ($FE00). Returns with Z set if OK, Z clear if not.
+; Compare the 512 bytes at jBSLb (inactive copy) with what's at jBSL (active copy at $FE00).
+; Returns with Z set if OK, Z clear if not.
 ; Trashes R12
 compareBSL2:
-			mov		#BSL2,R12
+			mov		#jBSL,R12
 			_BEGIN
-				cmp.w	@R12,BSL2b-BSL2(R12)
+				cmp.w	@R12,jBSLb-jBSL(R12)
 				_WHILE	_EQ ; _Z
 					incd	R12
 			_UNTIL	_Z					; Loop until R12 wraps from $FFFE to 0
@@ -495,18 +469,15 @@ PizTiovIsr:
 			reti							; Return from interrupt
 
 
-#include "TesDefinitions.s43"	// Include command character definitions
-#include "../common/BSL2.s43"	// Include macro for bootstrap-loader and interrupt vectors
-
-
 ; ----------------------------------------------------------------------------
 ; Inactive copy of bootstrap loader (BSL2b)
 ;---------------------------------------------------------------------------------
+#include "../common/BSL2.s43"				// Include macro for bootstrap-loader and interrupt vectors
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00.
-BSL2b			BSL2MACRO	initRetAddr2b, BSLErase2b, ReadByteb, WriteByteb
-				ORG		BSL2b+$1FE			; The copy of the reset vector
-				DW		BSL2				; Points to BSL2 in last main-flash segment, $FE00
+				BSL2MACRO	jBSLb, jBSLEraseb, jReadByteb, jWriteByteb
+				ORG		jBSLb+$1FE			; The copy of the reset vector
+				DW		jBSL				; Points to BSL2 in last main-flash segment, $FE00
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_CMDCHRTBL-$	; From here to the start of the command character table
@@ -516,9 +487,11 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDE2
+				ORG		$FDDE
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
+jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+
 jUCA0TxIsr		reti					; UART transmit not used
 				nop
 jUCA0RxIsr		reti					; UART receive not used
@@ -529,7 +502,7 @@ jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
 jTA1TxIsr		reti					; TA1 CC0 not used
 				nop
 
-jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
 jTA0RxTiovIsr	br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Piezo 4.2 kHz
 jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
@@ -545,9 +518,8 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
 ; Updated by TestICal 'b' command, or by JTAGing.
 				ORG			$FE00		; Start of last main-flash segment
-main:									; For IAR Embedded Workbench IDE debugger
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
+				BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector
-				DW		BSL2
+				DW		jBSL
 				END

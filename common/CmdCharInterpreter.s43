@@ -8,6 +8,10 @@
 ; Bit 15 = literal in progress
 ; Bit 14 = hex literal (otherwise decimal)
 
+#define		Rip		R5		// Interpreter instruction pointer
+#define		Rlit	R6		// Holds partial literals
+#define		Rw		R8		// Working register - temporary - anyone can use
+
 ; Macros for 3-register interpreter data stack
 ; Not sure which choice of registers is best
 #if 1

@@ -1,7 +1,7 @@
 ; ----------------------------------------------------------------------------
 ; The bootstrap loader (BSL2)
 ; ----------------------------------------------------------------------------
-; This file is included by monitor.s43 and TestICal.s43.
+; This file is included by monitor.s43 and TestICal.s43 and other main-flash programs.
 ; This code will be assembled into the last main-flash segment which starts at $FE00.
 ; It is called directly on reset.
 ; It contains the reset and interrupt vectors which point to fixed locations at the end of the
@@ -13,9 +13,10 @@
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
-BSL2MACRO	MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
-			LOCAL	BSL2, MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
-			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, testNoInterp2
+BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
+			LOCAL	BSL, BSLErase, ReadByte, WriteByte
+			LOCAL	MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
+			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, TestNoInterp2
 			LOCAL	testNoInterp, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 
@@ -28,20 +29,26 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
 ;			ORG		$FE00			; Start of the last 512 byte flash segment
-BSL2:		; Initialisation
+; Fixed entry points to BSL2
+jBSL: 		br		#BSL
+jBSLErase:	br		#BSLErase
+jReadByte:	br		#ReadByte
+jWriteByte:	br		#WriteByte
+
+BSL:		; Initialisation
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
 			; Use original TI frequency calibration values, in case our values not set up or wildly bad
-			mov.b	&origInfo8MHzCalB,&BCSCTL1	; Set DCO range for 8 MHz
-			mov.b	&origInfo8MHzCalD,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
+			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
+			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 #if REV61
 			mov.b	#TxPl,&P1OUT	; Set Txs to idle state, Vref output off
 			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
-#if G2553
+	#if G2553
 			mov.b	#TxMi,&P3DIR 			; Set TxMi because need comparator to invert output
-											; Also done in monitor, testical etc but they may not be
+											; Also done in Monitor, TestICal etc but they may not be
 											;	downloaded properly
 			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
-#endif
+	#endif
 #else
 			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
 			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs
@@ -65,21 +72,12 @@ BSL2:		; Initialisation
 			; Send a 27 ms break
 			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
 			clr		R9				; Bit values (all zeros so it's a break)
-			call	#WriteBreak-BSL2+$FE00 ; WriteByte without init part and w/o needing R11 clear
+			call	#WriteBreak-jBSL+$FE00 ; WriteByte without init part and w/o needing R11 clear
 									; Address adjusted for BSL's relocation
 			_ENDIF
 			; End of the initialisation that used to be in BSL1 in info-flash.
 
 			ClearWatchdog			; Clear and restart Watchdog Timer (32k)
-#if 0
-			; Check to see if this is an init call (from BSL1)
-			cmp		#infoInitRetAddr,0(SP)	; Is the call merely for initialisation?
-			_IF		_EQ				; If for initialisation, initialise, and return
-				call	#initBSL2-BSL2+$FE00	; Adjust for relocation
-				ret						; Return to BSL1
-			_ENDIF					; Endif call is for initialisation
-			jmp		processByte2	; Skip over the init routine below
-#endif
 
 			; Log the reason for the reset, as the contents of IFG1.
 			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
@@ -114,16 +112,17 @@ mainLoop2:
 			_ENDIF					; End short circuit conditional
 
 			; Pass initialisation on to main program, if allowed
-			clr.b	R8				; A null to pass to interpretByte (if allowed)
-			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
-initRetAddr2:	; Used by TestICal or other main-flash code
+			mov		#jInterpretInit,R9
+			call	#TestNoInterp2-jBSL+$FE00	; Adjust for relocation
+			; Used by TestICal or other main-flash code
 			; to tell if the interpretByte call is for initialisation
 
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-FSMloop2:	call	#ReadByte-BSL2+$FE00	; Address adjusted for BSL's relocation
+FSMloop2:	call	#ReadByte-jBSL+$FE00	; Address adjusted for BSL's relocation
 processByte2
 			; Pass byte in R8 on to main program, if allowed
-			call	#testNoInterp2-BSL2+$FE00	; Adjust for relocation
+			mov		#jInterpretByte,R9
+			call	#TestNoInterp2-jBSL+$FE00	; Adjust for relocation
 
 			; Password-checking finite-state-machine (FSM)
 			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
@@ -149,7 +148,7 @@ processByte2
 			; Erase only those segments of main flash memory used for the main program, not the last.
 			; Master will need to delay at least 7*16 ms = 112 ms before sending first byte to program.
 			;
-BSLErase2:
+BSLErase:
 			dint					; The main-flash program has probably turned on interrupts
 									; Can't risk an interrupt while the vectors are erased
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
@@ -170,7 +169,7 @@ eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
 
 			; Assume a bad checksum, clear on good checksum.
 			; Also prevents interpreting till the end of flash programming
-			bis.b	#WDTIFG,&IFG1 ; FIXME: MOVE ME EARLIER?
+			bis.b	#WDTIFG,&IFG1
 			jmp		FSMloop2		; Read first byte to program
 
 			; Program (flash write) byte in R8
@@ -185,14 +184,14 @@ progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
 			tst.b	Rcksum			; Check the checksum
 			jnz		resetFSM2		; If bad checksum, leave the no interpret flag set
 
-			mov.b	#RSTIFG | OFIFG,&IFG1	; Good checksum, reset no interpret flag (watchdog flag),
-									;	fake a normal reset so BSL2 will call interpretByte
-		; FIXME: need to call interpretByte with $00 for initialisation. Dave says may not want above
-			jmp		mainLoop2		; Back to looking for password,
-									; but first make init call to jInterpretByte
+			mov.b	#RSTIFG | OFIFG,&IFG1 ; Else clear no-interpret flag (watchdog flag), and fake a
+									;  normal reset so InterpretInit and InterpretByte will be called.
+			jmp		mainLoop2		; Go back to normal operation
 			; end FSM code
 
-testNoInterp2:
+
+; Call the routine whose address is in R9, if it's safe to do so.
+TestNoInterp2:
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
 			_IF		_Z				; If we're interpreting
 				tst.b	R8
@@ -207,11 +206,11 @@ testNoInterp2:
 				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
 					bit.b	#bDontEcho,&interpFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
-					call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
+					call	#WriteByte-jBSL+$FE00	; Echo. Call address adjusted for relocation
 					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
-				; We are about to jump via $FFF8 to InterpretByte. In case the flash is corrupted by a
+				; We are about to jump to jInterpretByte. In case the flash is corrupted by a
 				; partial download, set the watchdog timer to the shortest interval, 64 cycles
 				; InterpretByte should set it back to the longest interval, 32k cycles
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
@@ -221,7 +220,7 @@ testNoInterp2:
 				; when checking if this is an init call.
 				; It must preserve at least R8 and bsl2state.
 				; We get there via the PROG_START-independent vector "jInterpretByte".
-				br		#jInterpretByte
+				br		R9				; Tail call jInterpretInit or jInterpretByte
 				; ret					; Effective ret to BSL2 init or main loop due to tail-call above
 			_ELSE					; Else not interpreting
 				; If we're not programming (bootstrap loading), set comms error bit and a bad check bit
@@ -234,7 +233,7 @@ testNoInterp2:
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
-				call	#WriteByte-BSL2+$FE00	; Echo. Call address adjusted for relocation
+				call	#WriteByte-jBSL+$FE00	; Echo. Call address adjusted for relocation
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
 			ret						; Return to BSL2 init or main loop
@@ -345,8 +344,8 @@ WriteBreak:		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad ou
 
 			ret
 
-			; Any free last segment space is between here and the timer-A interrupt vectors
-freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the BSL
+			; Any free last-segment space is between here and the UART interrupt vectors
+freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
 
 ; The end of the bootstrap loader (BSL2)
 ; -----------------------------------------------------------------------------
@@ -355,20 +354,20 @@ freeSpaceBSL2	EQU		BSL2+$1F0 - $		; Number of bytes spare in the BSL
 ; Interrupt Vectors at the end of the last flash segment
 ;-------------------------------------------------------------------------------
 
-				ORG		BSL2+$1EC		; $FFEC, UART Vectors
+				ORG		jBSL+$1EC		; $FFEC, UART Vectors
 				DW		jUCA0TxIsr		; UART transmit
 				DW		jUCA0RxIsr		; UART receive
 
-				ORG		BSL2+$1F0		; $FFF0, Timer A0 Vectors
+				ORG		jBSL+$1F0		; $FFF0, Timer A0 Vectors
 				DW		jTA0RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTA0TxIsr		; Timer A CC0IFG (transmit compare)
 
-				ORG		BSL2+$1F8		; $FFF8, Timer A1 Vectors
+				ORG		jBSL+$1F8		; $FFF8, Timer A1 Vectors
 				DW		jTA1RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTA1TxIsr		; Timer A CC0IFG (transmit compare)
 
 
-				ORG		BSL2+$1FC		; $FFFC, Unused NMI vector location
+				ORG		jBSL+$1FC		; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
 BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.

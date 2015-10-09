@@ -145,7 +145,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 			ORG		$1010			; Stay away from manufacturer supplied data
 	#define		CAL_IN_SEG_A	0
 #else
-			ORG		$10F8
+			ORG		$10F8			; Old scheme
 	#define		CAL_IN_SEG_A	1
 #endif
 			; Calibration data
@@ -162,5 +162,6 @@ infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS 
 ;	comes after the calibration data
 infoDataEnd							; Used when copying between ram and info-flash
 
-origInfo8MHzCalD EQU	$10FC		; Original (TI supplled) calibration values
-origInfo8MHzCalB EQU	$10FD
+; For when we decide to move non-G2553 calibration data to $1010 as well
+oldInfoDataStart	EQU	$10F8
+oldInfoDataVers		EQU $10FF

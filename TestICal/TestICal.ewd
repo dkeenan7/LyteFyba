@@ -53,11 +53,11 @@
         </option>
         <option>
           <name>DdfOverride</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$PROJ_DIR$\..\common\msp430g2452half.ddf</state>
+          <state>$TOOLKIT_DIR$\config\debugger\msp430g2452.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>
@@ -153,7 +153,7 @@
       <name>430FET</name>
       <archiveVersion>1</archiveVersion>
       <data>
-        <version>28</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -235,7 +235,7 @@
         </option>
         <option>
           <name>FetConnection</name>
-          <version>3</version>
+          <version>4</version>
           <state>0</state>
         </option>
         <option>
@@ -312,6 +312,10 @@
         </option>
         <option>
           <name>DataSampleBpReservation</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>cycleCounterLevel</name>
           <state>0</state>
         </option>
       </data>
@@ -559,7 +563,7 @@
       <name>430FET</name>
       <archiveVersion>1</archiveVersion>
       <data>
-        <version>28</version>
+        <version>29</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -641,7 +645,7 @@
         </option>
         <option>
           <name>FetConnection</name>
-          <version>3</version>
+          <version>4</version>
           <state>0</state>
         </option>
         <option>
@@ -718,6 +722,10 @@
         </option>
         <option>
           <name>DataSampleBpReservation</name>
+          <state>0</state>
+        </option>
+        <option>
+          <name>cycleCounterLevel</name>
           <state>0</state>
         </option>
       </data>

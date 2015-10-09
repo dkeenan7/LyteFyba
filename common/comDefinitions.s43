@@ -824,7 +824,7 @@ GetContactorBitmask:
 		xCODE	':',Modbus,_Modbus	; Colon, begins a Modbus/ASCII packet
 		; Ignore it if it's a Modbus response.
 		; Our Modbus responses are shorter than the Modbus commands we recognise.
-		cmp.b	#EXIT,13(Rip)		; Is there an EXIT command character (was CR)) at the 13th position
+		cmp.b	#EXIT,13(Rip)		; Is there an EXIT command character (was CR)) at the 13th position?
 		jeq		abortColon			; If so, abort
 
 		; Modbus LRC check
@@ -885,7 +885,7 @@ GetContactorBitmask:
 abortColon
 		add		#4,SP				; Remove saved Rip, and return address in the interpreter
 		ret							; So now we return to the caller of the interpreter, thus
-									; ignoring the packet with the bad LRC
+									; ignoring the packet
 
 ; Capacity ( code -- ) ; Emit some constants, code determines which constant
 ;

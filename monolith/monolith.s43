@@ -30,18 +30,21 @@
 #define TempCal	infoTempCal
 #define LinkCal	infoLinkCal
 
-LSTOUT-
+			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
+DELAY_IF_NEEDED MACRO
+			; No delay needed
+			ENDM
 			LSTOUT+
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 
 ; Some definitions so the measure.s43 code will work
-; TestICal defines these as their ram counterparts instead of info-flash
-#define VoltCal infoVoltCal
-#define TempCal	infoTempCal
-#define LinkCal	infoLinkCal
+; TestICal defines these as their RAM counterparts instead of info-flash
+VoltCal 	EQU	infoVoltCal
+TempCal		EQU	infoTempCal
+LinkCal		EQU	infoLinkCal
 
 
 			NAME	main		; Module name
@@ -50,14 +53,6 @@ LSTOUT-
 
 ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
-
-; Command Character Interpreter Register Usage (defined in CmdCharInterpreter.s43)
-;	Registers 0 thru 3 are dedicated machine registers (PC SP SR CG).
-#define		Rip		R5				// Interpreter instruction pointer
-#define		Rlit	R6				// Holds partial literals
-#define		Rtos	R7				// Top of interpreter data stack
-#define		Rsec	R4				// Second element from top
-#define		Rw		R8				// Working register - temporary - anyone can use
 
 ; Conditional assembly
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
@@ -323,21 +318,24 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
-InterpretByte:
-			; This is only called once, by the BSL, on reset, because it then takes over comms
-			; and password recognition, unlike TestICal where the BSL calls it with every character.
+#include "../common/serialio.s43"	// Comms routines
+#include "../common/comMisc.s43"	// Miscellaneous common functions
+#include "../common/measure.s43"	// Voltage measurement functions
+#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
+#include "../common/math.s43"		// Multiply and divide routines
+#include "crc.s43"					// CRC calculation routines
+#include "monoDefinitions.s43"		// Command character definitions
+
+;-------------------------------------------------------------------------------
+; InterpretInit
+;-------------------------------------------------------------------------------
+
+InterpretInit:                              ; This is called by the BSL, on reset.
+InterpretByte:								; Should not be called -- but just in case
 main:										; For IAR Embedded Workbench IDE debugger
-
-;-------------------------------------------------------------------------------
-; Initialisation
-;-------------------------------------------------------------------------------
-
+			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			mov.w	#InitSP,SP				; Initialize stackpointer
-#if !WATCHDOG
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer (bad idea, except while debugging)
-#else
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable Watchdog Timer (32k)
-#endif
+
 			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
 			_DO		#worstStress-comNoEraseEnd,R8
@@ -1634,7 +1632,7 @@ DoPassword:
 #endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#InitSP,SP			; Give the BSL maximum stack
-			br		#BSLErase2			; Jump into BSL2 to flash erase and continue the download
+			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
 
 resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
 
@@ -1642,19 +1640,6 @@ exitOnRx	ret
 ; End of DoPassword
 
 			EVEN
-
-
-DELAY_IF_NEEDED MACRO
-			; No delay needed
-			ENDM
-
-#include "../common/serialio.s43"	// Comms routines
-#include "../common/comMisc.s43"	// Miscellaneous common functions
-#include "../common/measure.s43"	// Voltage measurement functions
-#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
-#include "../common/math.s43"		// Multiply and divide routines
-#include "crc.s43"					// CRC calculation routines
-#include "monoDefinitions.s43"		// Command character definitions
 
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
@@ -1665,9 +1650,11 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDE2
+				ORG		$FDDE
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
+jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+
 #if G2553
 jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
@@ -1688,7 +1675,7 @@ jTA1TxIsr		reti					; TA1 CC0 not used
 				nop
 #endif
 
-jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
+jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
 #if G2553
 jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
@@ -1707,8 +1694,8 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		$FE00			; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	initRetAddr2, BSLErase2, ReadByte, WriteByte
+BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector
-				DW		BSL2			; Reset to BSL2 in case there is a crash
+				DW		jBSL			; Reset to BSL2 in case there is a crash
 
 				END
