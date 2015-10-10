@@ -296,7 +296,7 @@
         </option>
         <option>
           <name>RadioJtagSpeedType</name>
-          <state>1</state>
+          <state>2</state>
         </option>
         <option>
           <name>memoryTypeSlave</name>
