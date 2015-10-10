@@ -317,7 +317,7 @@ WriteByte:
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
 #if REV61
-				and.b	#TxPl|TxPl,R11 ; (2) Ensure only Tx bits can be toggled below
+				and.b	#TxPl|TxMi,R11 ; (2) Ensure only Tx bits can be toggled below
 #else
 				; The activity LED has a lower bit number than TxPl so the below will
 				; turn off the (inverted) activity LED when a zero bit or start bit is sent,
