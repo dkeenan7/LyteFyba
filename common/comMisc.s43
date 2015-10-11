@@ -30,6 +30,32 @@ TxEndOfPacket:
 			br		#TxByte					; Tail-call TxByte and return
 ;			ret
 
+;-------------------------------------------------------------------------------
+; TxString	; Transmit counted string pointed to by R10 while accumulating checksum.
+			; Warning: A zero length string will be treated as 256 bytes long.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8 thru R11.
+;-------------------------------------------------------------------------------
+
+TxString: _DOb	@R10+,R11
+				mov.b	@R10+,R8
+				call	#TxByte
+			_LOOPb	R11
+			ret
+
+;-------------------------------------------------------------------------------
+; TxStringCk ; Transmit counted string pointed to by R10 while accumulating checksum.
+			; Warning: A zero length string will be treated as 256 bytes long.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8 thru R11.
+;-------------------------------------------------------------------------------
+
+TxStringCk: _DOb	@R10+,R11
+				mov.b	@R10+,R8
+				call	#TxByteCk
+			_LOOPb	R11
+			ret
+
 			EVEN
 
 
