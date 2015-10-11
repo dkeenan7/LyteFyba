@@ -223,6 +223,26 @@ ACCEPT
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
+				bit.b	#bEchoResponses,&interpFlags
+				_IF		_NZ				; If echoing responses
+					; This is e.g. to allow CMUs to see Modbus commands, and respond to them
+					cmp.b	#':',&TIB				; Is this a Modbus command, i.e. it starts with : ?
+					_IF		_EQ
+						PUSH	R10
+						PUSH	R9
+						mov		#TIB,R10
+						_BEGIN
+							mov.b	@R10+,R8		; Get char from text input buffer
+							call	#TxByte			; Echo it
+							mov		0(SP),R9		; Restore value to R9, keep on stack
+							cmp		R10,R9			; At end?
+						_UNTIL	_EQ
+						mov.b	#$0D,R8				; Add a CR
+						call	#TxByte
+						pop		R9
+						pop		R10
+					_ENDIF					; Endif Modbus command
+				_ENDIF					; Endif echoing responses
 				bit.b	#bChecksumming,&interpFlags
 				_IF		_NZ				; If checksumming
 					cmp.b	#':',&TIB
