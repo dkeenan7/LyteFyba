@@ -14,7 +14,7 @@ t l Name or description
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
     Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
 	Letters not used so far: HJMW (all lowercase are used)
-@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.	
+@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral
@@ -39,6 +39,7 @@ g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
   G Get byte (peek byte)
 h h Hex output
+H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
@@ -111,6 +112,7 @@ v v cell(V)oltage
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
 l l LinkVoltage
 t t Temperature
+H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each BMU)
 
@@ -144,12 +146,12 @@ q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
 ^ ^ resetResetLog
 
+f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
-f   (f)uel gauge. State if charge in tenths of a percent. (wmonolith only)
-@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.	
+@ @ Capacity constants; takes A-F parameter. Needed by wmonolith.
 
   j JumpToSubroutine (call)
   Z Ztore byte (poke byte)
@@ -170,11 +172,11 @@ or Calibrate command in TestICal.
 
 'v cell (v)oltage
 't Temperature
+'H Hotness (Temperature via external thermistor)
 'l Link voltage
 'g fuel (g)auge
 'f Frequency (DCO 8 MHz)
 'i ID
-
 The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given
 at present would be equivalent to either the character as a command in itself, or a Write command
 with that character as address parameter.

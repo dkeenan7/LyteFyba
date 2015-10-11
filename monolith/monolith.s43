@@ -39,6 +39,7 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
+ThermCal	EQU	infoThermCal
 
 
 			NAME	main		; Module name

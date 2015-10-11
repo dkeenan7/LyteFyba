@@ -28,6 +28,7 @@ calAddressTable
 		DB		'l' , ramLinkCal  & $7F | $00
 		DB		'f' , ram8MHzCalD & $7F	| $80
 		DB		'i' , ramID       & $7F | $00
+		DB		'H' , ramThermCal & $7F | $00
 		; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -114,6 +115,19 @@ TranslateToCalAddr:
 nonCal			mov		#$80,R10
 realCal
 				mov.b	R10,&ramLinkCal				; Save the link calibration value
+			_ENDOF
+
+			_OFb	#'H',Rtos					; 'H': tHermistor (or Hotness)
+				; A resistor network gives it a similar slope to the internal temp sensor,
+				; as described in the comments for the extT routine in measure.s43.
+				mov		#BoltVPlChan<<12,R8			; ADC channel for external thermistor
+				call	#measAndScale
+				mov		R10,R8
+				mov		#6760,R9
+				call	#UMStar
+				sub		#273,R10
+				sub		Rsec,R10					; Subtract 273 and the calibration temperature
+				mov.b	R10,&ramThermCal			; Save temperature offset calibration value
 			_ENDOF
 ;
 ; Default case

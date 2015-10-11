@@ -141,27 +141,23 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-#if G2553
 			ORG		$1010			; Stay away from manufacturer supplied data
 	#define		CAL_IN_SEG_A	0
-#else
-			ORG		$10F8			; Old scheme
-	#define		CAL_IN_SEG_A	1
-#endif
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
-infoVoltCal		ds		2			; Voltage scale calibration word; may be written by BSL writer
-infoTempCal		ds		1			; Temperature offset calibration; may be written by BSL writer
-infoLinkCal		ds		1			; Link voltage offset calibration data; may be written by BSL writer
+infoVoltCal		ds		2			; Voltage scale calibration word
+infoTempCal		ds		1			; Temperature offset calibration for internal sensor
+infoLinkCal		ds		1			; Link voltage offset calibration data
 info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte
 info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte
 infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS value above
+infoThermCal	ds		1			; Temperature offset calibration for external thermistor
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration data
 infoDataEnd							; Used when copying between ram and info-flash
 
-; For when we decide to move non-G2553 calibration data to $1010 as well
+; To allow moving old calibration data from the end of the A segment to the new D segment location
 oldInfoDataStart	EQU	$10F8
 oldInfoDataVers		EQU $10FF

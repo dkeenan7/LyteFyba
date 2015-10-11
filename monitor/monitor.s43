@@ -35,6 +35,7 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
+ThermCal	EQU	infoThermCal
 
 
 			NAME	main			; Module name
@@ -45,7 +46,7 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
 
 ; Conditional assembly
-#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debuggng)
+#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debuging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
 

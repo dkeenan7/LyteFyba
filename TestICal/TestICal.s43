@@ -87,6 +87,7 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 VoltCal 	EQU	ramVoltCal
 TempCal		EQU	ramTempCal
 LinkCal		EQU	ramLinkCal
+ThermCal	EQU	ramThermCal
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -139,15 +140,16 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 
 ; RAM copies of various calibration settings
 ; Same order as stored in info-flash
-			ALIGNRAM 1				; So these can be copied with word moves
+			ALIGNRAM 1				; So ramVoltCal is word-aligned
 ramDataStart
-ramVoltCal	DS		2				; Voltage scale calibration word; may be written by BSL writer
-ramTempCal	DS		1				; Temperature offset calibration; may be written by BSL writer
-ramLinkCal	DS		1				; Link voltage offset calibration data; may be written by BSL writer
+ramVoltCal	DS		2				; Voltage scale calibration word
+ramTempCal	DS		1				; Temperature offset calibration for internal sensor
+ramLinkCal	DS		1				; Link voltage offset calibration data
 ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
 ram8MHzCalB DS		1				; 8 MHz DCO range calibration byte
-ramID		DS		1				; Cell/CMU identifier byte; first cell is 0; written by 'i' cmd
+ramID		DS		1				; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 ramDataVers	DS		1				; Data version
+ramThermCal	DS		1				; Temperature offset calibration for external thermistor
 ramDataEnd
 
 ; Miscellaneous variables
@@ -270,6 +272,7 @@ newChip:
 				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
 				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
+				mov.b	#$00,&ramThermCal
 			_ENDOF
 			; default action if none of the above apply
 #if !G2553
