@@ -20,12 +20,6 @@
 #define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
 #define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
-; Some definitions so the measure.s43 code will work
-; TestICal defines these as their RAM counterparts instead of info-flash
-VoltCal 	EQU	infoVoltCal
-TempCal		EQU	infoTempCal
-LinkCal		EQU	infoLinkCal
-
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -37,10 +31,10 @@ DELAY_IF_NEEDED MACRO
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 
 ; Some definitions so the measure.s43 code will work
-; TestICal defines these as their ram counterparts instead of info-flash
-#define VoltCal infoVoltCal
-#define TempCal	infoTempCal
-#define LinkCal	infoLinkCal
+; TestICal defines these as their RAM counterparts instead of info-flash
+VoltCal 	EQU	infoVoltCal
+TempCal		EQU	infoTempCal
+LinkCal		EQU	infoLinkCal
 
 
 			NAME	main			; Module name
