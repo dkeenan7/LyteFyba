@@ -5,8 +5,6 @@
 ;
 
 AccMaster
-		push	&TxBytePtr
-		mov		#ScuTxByte,&TxBytePtr ; Switch all output to SCU output
 		bit.b	#bBlocked,&masterFlags
 		_IF		_Z						; Presently not blocked. A non carriage return non linefeed
 										;	will block us
@@ -17,10 +15,10 @@ AccMaster
 			_AND_IF	_NE
 				cmp.b	#$0A,R8			; And not linefeed?
 			_AND_IF	_NE
-				bis.b	#bBlocked,masterFlags	; We're now blocked
+				bis.b	#bBlocked,&masterFlags	; We're now blocked
 				mov		&ticks,R9				; Get the medium speed counter
-				add		#2,R9					; ~ one second later
-				mov		&masterUnblockTicks,R9	; Save that time
+				add		#1*StatusFreq,R9		; ~ one second later
+				mov		R9,&masterUnblockTicks	; Save that time
 			_ENDIFS
 		_ELSE						; Presently blocked. A carriage return will unblock
 			cmp.b	#$0D,R8				; Carriage return?
@@ -28,7 +26,7 @@ AccMaster
 				bic.b	#bBlocked,&masterFlags
 			_ELSE
 				; Still blocked. Check for timeout, with care for wrapping
-				cmp.b	&masterUnblockTicks,&ticks
+				cmp		&masterUnblockTicks,&ticks
 				_IF _NN						; If ticks minus masterUnblockTicks is not negative
 					bic.b	#bBlocked,&masterFlags ; then unblock anyway
 				_ENDIF
@@ -107,7 +105,6 @@ AccMaster
 			bic.b	#bSendInit,&masterFlags	; Don't repeat
 		_ENDIF
 
-		pop		&TxBytePtr				; Return to saved TxByte port
 		ret
 
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
