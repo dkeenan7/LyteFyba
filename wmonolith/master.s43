@@ -53,7 +53,7 @@ AccMaster
 			bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
 		_ENDIF
 
-		bit		#bSendi,&masterFlags			; Is an 'i' command due?
+		bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
 		_IF		_NZ
 			; For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
 			; This was shifted left and copied to ram &current (so tenths of an amp)
