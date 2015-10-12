@@ -318,27 +318,27 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		ret
 
 
-; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
+; Current (tenths-of-an-amp -- ) // Sent by BMU to CMUs
 		xCODE	'i',Current,_Current
 		cmp.b	#255,&ID
-		_IF	_NE							; If we're not an IMU
+		_IF	_NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		ret
 
 ; Store discharge counter high word (dischargeHi -- )
-		; Sent periodically by IMU to CMU 1, and sent by CMU 1 to IMU on receiving a 'G' command.
-		; The IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
-		; it can restore it after the monolith has been shut down and hence IMU has been powered down.
+		; Sent periodically by BMU to CMU 1, and sent by CMU 1 to BMU on receiving a 'G' command.
+		; The BMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
+		; it can restore it after the monolith has been shut down and hence BMU has been powered down.
 		xCODE	'Z',ZtoreDischarge,_ZtoreDischarge
 		mov		Rtos,&discharge+2		; Set the discharge counter high word to the received value
 		ret
 
 ; Get discharge counter high word ( -- )
-		; Sent by IMU to CMU 1 when IMU is reset. Sends a 'Z' command back to the IMU with the
+		; Sent by BMU to CMU 1 when BMU is reset. Sends a 'Z' command back to the BMU with the
 		; high byte of the discharge counter.
 		xCODE	'G',GetDischarge,_GetDischarge
-		mov		#SelectIMU,R10			; Transmit "255s" to select the IMU only
+		mov		#SelectIMU,R10			; Transmit "255s" to select the BMU only
 		call	#TxStringCk
 		ClearWatchdog
 

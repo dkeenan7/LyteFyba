@@ -354,12 +354,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
 
-			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
-
 #if G2553
 ;
 ;	Initialise io ports
 ;
+			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
+
 			; Initialise port 1
 			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
 			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.

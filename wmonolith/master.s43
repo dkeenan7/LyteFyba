@@ -86,7 +86,7 @@ AccMaster
 
 		bit.b	#bSendInit,&masterFlags
 		_IF		_NZ
-			; If we're an IMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+			; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 			; then retrieve the high word of the discharge accumulator from CMU 1
 			; All the below could be replaced by a single 9-byte string
 			mov		#'\r',R8				; Clear any junk

@@ -310,9 +310,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
 
+#if G2553
 			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
-#if G2553
 ;
 ;	Initialise io ports
 ;

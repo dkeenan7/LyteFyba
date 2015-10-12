@@ -357,9 +357,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
 
+#if G2553
 			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
-#if G2553
 ;
 ;	Initialise io ports
 ;
@@ -595,10 +595,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 					call	#ScuRxByteNW			; Check if received SCU data
 					_IF		_NZ
 						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
-						; Should we do password checking here? For now, always use CMU port for this
+					_ELSE
+						clr		R8						; Indicate to AccMaster that no char is avail
 					_ENDIF
-					call	#AccMaster				; Call the "master" accept function; R8 has NULL if
-													;	no char received
+					call	#AccMaster				; Call the "master" accept function, char or not
 				_ENDIF
 
 				; Check for a command or status character from the CMU port
@@ -609,9 +609,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
-						bit.b	#255,&ID				; Is this a BMU?
-						_IF		_NZ
-							call	#WmBmuACCEPT			; Call the special ACCEPT for wmono BMUs
+						cmp.b	#255,&ID				; Is this a BMU?
+						_IF		_EQ
+							call	#WmBmuACCEPT			; Call the specialised ACCEPT for wmono BMUs
 						_ELSE
 							call	#ACCEPT					; Process command bytes (could be slow)
 						_ENDIF
