@@ -5,7 +5,7 @@
 ;
 ; Transmit the present checksum if checksumming is on. Clear checksum.
 ;
-; This is not in serialio.s43 because it is used by both the Monitor and TestICal
+; This is not in InterruptComms.s43 because it is used by both the Monitor and TestICal
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
 ;
 TxCksum:
@@ -31,7 +31,7 @@ TxEndOfPacket:
 ;			ret
 
 ;-------------------------------------------------------------------------------
-; TxString	; Transmit counted string pointed to by R10 while accumulating checksum.
+; TxString	; Transmit counted string pointed to by R10 while not accumulating checksum.
 			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
@@ -39,6 +39,7 @@ TxEndOfPacket:
 
 TxString: _DOb	@R10+,R11
 				mov.b	@R10+,R8
+TxBytes:								; Alternative entry point with length in R11
 				call	#TxByte
 			_LOOPb	R11
 			ret

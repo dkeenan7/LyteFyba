@@ -176,9 +176,18 @@ bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
 bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
 bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 
+masterFlags		DS		1			; Master (command injector) flags; bitmask definitions follow
+bBlocked		EQU		1<<0		; 1 if blocked.
+bSendZ			EQU		1<<1		; 1 if Z command is due to be sent
+bSendi			EQU		1<<2		; 1 if 'i' command is due
+bSendInit		EQU		1<<3		; 1 if initialisation string should be sent
+masterUnblockTicks DS	1			; When the master is blocked, this field indicates what the tick
+									; counter will read when the timeout expires
+
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
+ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
@@ -301,6 +310,9 @@ worstAL			DS		2			; Worst absolute link voltage since the last resetWorstStress 
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
+
+TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte
+
 ; Must leave room for stack (about 36 bytes minimum)
 STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 
@@ -308,12 +320,13 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
-#include "../common/serialio.s43"	// Comms routines
-#include "../common/comMisc.s43"	// Miscellaneous common functions
+#include "../common/InterruptComms.s43"	// Comms routines
+#include "../common/ComComms.s43"	// Common comms functions
 #include "../common/measure.s43"	// Voltage measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
 #include "wmonoDefinitions.s43"		// Command character definitions
+#include "master.s43"				// AccMaster function for injecting commands
 
 ;-------------------------------------------------------------------------------
 ; InterpretInit
@@ -343,6 +356,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
+
+			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
 #if G2553
 ;
@@ -563,37 +578,45 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; If we're an IMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
+; This is now done in AccMaster, using the bSendInit masterFlag.
 
 			cmp.b	#255,&ID
 			_IF		_EQ
-				mov		#'\r',R8				; Clear any junk
-				call	#TxByte
-				mov		#'k',R8					; Transmit "k" with no checksum
-				call	#TxByte					;	to tell CMUs to send and expect checksums
-				mov		#'\r',R8
-				call	#TxByte
-
-				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
-				call	#TxStringCk
-				call	#TxEndOfPacket
-
-				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
-				call	#TxStringCk
-				call	#TxEndOfPacket
+				bis.b	#bSendInit,&masterFlags
 			_ENDIF
 
 
 ; Main loop
 			_BEGIN
+				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
+				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
+				cmp.b	#255,&ID
+				_IF		_EQ
+					call	#ScuRxByteNW			; Check if received SCU data
+					_IF		_NZ
+						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
+						; Should we do password checking here? For now, always use CMU port for this
+					_ENDIF
+					call	#AccMaster				; Call the "master" accept function; R8 has NULL if
+													;	no char received
+				_ENDIF
+
+				; Check for a command or status character from the CMU port
+				; For both CMUs and the BMU, read from CMU Rx
 				call	#RxByteNoWait			; Check if received data
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
-						call	#ACCEPT					; Process command bytes (could take a long time)
-					_ELSE
-						call	#DoStatus				; Forward possibly-updated status bytes
+						bit.b	#255,&ID				; Is this a BMU?
+						_IF		_NZ
+							call	#WmBmuACCEPT			; Call the special ACCEPT for wmono BMUs
+						_ELSE
+							call	#ACCEPT					; Process command bytes (could be slow)
+						_ENDIF
+					_ELSE								; Else was status byte
+						call	#DoStatus					; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
@@ -611,9 +634,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
-EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
-SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
-				ALIGN	1
 
 
 
@@ -630,7 +650,7 @@ DoEcho:		_COND							; Begin short circuit conditional
 
 DoMeasurement:
 ;
-; Regular measurement. Called StatusFreq times per second (2-16 times per second, see serialio.s43)
+; Regular measurement. Called StatusFreq times per second (2-16 times per second, see InterruptComms.s43)
 ;
 #define Rstrs R12				// Worst stress (present, not trip)
 #define Rmeas R14				// Measurement causing worst stress
@@ -793,31 +813,10 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
-#if 0			// Useful for testing. Set to 1 normally
-				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
-				// Tell the CMUs what the current is, by sending an 'i' command
-				mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
-				call	#TxByte					; Trashes R9 but preserves R10
-
 				rla		R10						; Convert to tenths of an amp
 				mov		R10,&current			; Save in RAM variable
-				abs		R10						; Take the absolute value of the current in R10
-				mov		R10,Rsec
-				mov		#4,Rtos					; 4 digit field width
-				ClearWatchdog
-				call	#_emitNum				; Transmit the number
-				ClearWatchdog
-				cmp		#0,&current
-				_IF		_L						; If current is negative
-					mov		#'-',R8					; Transmit a postfix minus sign
-					call	#TxByteCk
-				_ENDIF
-				mov		#'i',R8					; Transmit an "i" for current
-				call	#TxByteCk
-				call	#TxEndOfPacket
-#else			// #else testing
+				bis.b	#bSendi,&masterFlags	; Indicate that an 'i' command using &current is due
 				ClearWatchdog					; When testing, seem to need this
-#endif			// #endif testing
 
 				tst		&current
 				_IF		_NN						; If current is not negative
@@ -841,21 +840,7 @@ DoMeasurement:
 				; Send the high word of the discharge counter to safe storage
 				tst.b	&statusFreqCtr				; Every 136 seconds
 				_IF	_Z
-					mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
-					call	#TxStringCk
-					ClearWatchdog
-
-					mov		&discharge+2,Rsec
-					mov		#5,Rtos						; 5 digit field width
-					push.b	&interpFlags				; Save number base
-					bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
-					call	#_emitNum					; Transmit the number
-					pop.b	&interpFlags				; Restore number base
-					ClearWatchdog
-
-					mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
-					call	#TxByteCk
-					call	#TxEndOfPacket
+					bis.b	#bSendZ,&masterFlags		; Indicate to the master that a Z command is due
 				_ENDIF ; Every 136 seconds
 			_ENDIF ; IMU current measurement
 
@@ -1255,7 +1240,7 @@ UpdateSoC:
 MinAdvance	EQU			20					; To avoid timer compare wraparound
 			push		R8
 			push		R9
-			; Although we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
+			; Though we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
 			call		#DepthOfDischarge	; Get DoD as value 0-1000 (0 to 100.0%)
 			cmp			#MinAdvance,R9		; Compare with minimum value
 			_IF			_LO					; If lower,

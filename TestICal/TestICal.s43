@@ -165,7 +165,6 @@ bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checks
 bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
 ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
@@ -178,15 +177,8 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
-; Comms routines, since TestICal doesn't use serialio.s43. Needed by common code.
-WaitTxComplete:	ret						; Empty routine: transmit is always complete
-TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
-TxByte:		call	#jWriteByte			; Call the BSL's non-interrupt bit-bashing transmit routine
-			ClearWatchdog
-			DELAY_IF_NEEDED
-			ret
-
-#include "../common/comMisc.s43"			// Miscellaneous common functions, e.g. TxCksum
+#include "BitBangComms.s43"					// TxByte etc
+#include "../common/ComComms.s43"			// Common comms functions, e.g. TxCksum
 #include "../common/measure.s43"			// ADC measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"				// Multiply and divide routines

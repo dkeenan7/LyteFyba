@@ -155,6 +155,7 @@ bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 localStatus		DS		1			; Bits 0-3 stress, 4 check-bit, 5 all-full, 6 comms error
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
+ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
@@ -244,7 +245,6 @@ bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checks
 bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing at the character level?
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -264,6 +264,9 @@ worstAL			DS		2			; Worst absolute link voltage since last resetWorstStress comm
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
+
+TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte
+
 ; Must leave room for stack (about 36 bytes minimum)
 STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 
@@ -271,8 +274,8 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
-#include "../common/serialio.s43"	// Comms routines
-#include "../common/comMisc.s43"	// Miscellaneous common functions, e.g. TxCksum
+#include "../common/InterruptComms.s43" // Comms routines
+#include "../common/ComComms.s43"	// Common comms functions, e.g. TxCksum
 #include "../common/measure.s43"	// ADC measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
@@ -306,6 +309,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
+
+			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
 #if G2553
 ;
@@ -541,7 +546,7 @@ DoEcho:		_COND							; Begin short circuit conditional
 
 DoMeasurement:
 ;
-; Regular measurement. Called StatusFreq times per second (2-16 times per second, see serialio.s43)
+; Regular measurement. Called StatusFreq times per second (2-16 times per second, see InterruptComms.s43)
 ;
 #define Rstrs R12				// Worst stress (present, not trip)
 #define Rmeas R14				// Measurement causing worst stress

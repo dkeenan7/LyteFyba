@@ -822,11 +822,6 @@ GetContactorBitmask:
 ; and a modbus-mode flag is set so PrettyPrint will format the response as a Modbus response.
 ;
 		xCODE	':',Modbus,_Modbus	; Colon, begins a Modbus/ASCII packet
-		; Ignore it if it's a Modbus response.
-		; Our Modbus responses are shorter than the Modbus commands we recognise.
-		cmp.b	#EXIT,13(Rip)		; Is there an EXIT command character (was CR)) at the 13th position?
-		jeq		abortColon			; If so, abort
-
 		; Modbus LRC check
 		mov		#0,R9				; Clear LRC
 		push	Rip					; Save position in buffer

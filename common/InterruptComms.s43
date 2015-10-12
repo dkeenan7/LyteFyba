@@ -18,7 +18,7 @@
 ;*******************************************************************************
 
 #if G2553
-	#define		ALL_TO_ALL 1	// 1 to take input from any port and send output to all - for testing
+	#define		ALL_TO_ALL 0	// 1 to take input from any port and send output to all - for testing
 #else
 	#define		ALL_TO_ALL 0	// Can't do ALL_TO_ALL without G2553
 #endif
@@ -174,6 +174,7 @@ TxByteMacro	MACRO	TxByteNoWait
 
 				call	#TxByteNoWait
 #if ALL_TO_ALL
+				// FIXME: the below should be to the two *other* ports. But ALL_TO_ALL no longer needed?
 				call	#ScuTxByteNoWait
 				call	#ChgTxByteNoWait
 #endif
@@ -183,7 +184,14 @@ TxByteMacro	MACRO	TxByteNoWait
 
 #if	G2553
 TxByteCk: 	xor.b	R8,&txCksum
-TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulate checksum
+TxByte:		; Alternative entry which does not accumulate checksum
+			; If a BMU (ID-255), send all output to SCU port
+			br		&TxBytePtr					; Branch to handler at *TxBytePtr
+
+
+CmuTxByte:										; Alternative entry point that always goes to CMU port,
+												;	and doesn't update the Wunth checksum
+				TxByteMacro	TxByteNoWait
 
 ScuTxByteCk: xor.b	R8,&txCksum
 ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate checksum
@@ -364,6 +372,7 @@ RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx,
 ;
 TiovSubIsr:
  			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
+			inc.b	&ticks					; Increment this counter; allowed to wrap
 			jmp		WakeExit				; Arrange to wake CPU, restore R9 and return from interrupt
 
 ;
