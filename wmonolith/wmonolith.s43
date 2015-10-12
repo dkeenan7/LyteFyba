@@ -935,8 +935,7 @@ DoMeasurement:
 			_ENDIF							; End if sending status
 			ret
 ; End of DoMeasurement
-SelectCMU1	DB	2, '1s'				; First byte is length of following string
-			ALIGN 1
+
 
 DoStress:
 ;

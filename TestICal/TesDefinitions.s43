@@ -349,22 +349,6 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 		_ENDIF
 ;		DROP
 		ret
-
-;
-; GetByte - get a byte (NOT to stack) and display it ( addr -- )
-;
-			xCODE	'G',GetByte,_GetByte
-			mov.b	#' ',Rthd
-			mov.b	@Rtos,Rsec
-;			mov		#3,Rtos
-			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits
-
-;
-; ZtoreByte - store a byte (a la CStore) ( ch addr -- )
-;
-			xCODE	'Z',ZtoreByte,_ZtoreByte
-			mov.b	Rsec,0(Rtos)
-			ret
 #endif
 
 #if 1 && (PROG_START < $F800)		// Commented out if need to save space

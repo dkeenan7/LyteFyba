@@ -79,6 +79,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			bis.b	#bDontInterpret,&interpFlags	; Stop interpreting
 		_ENDIF
 		ret
+
 ;
 ; deSelect ( id -- ) ; Ignore to end of line if ID on TOS is our ID
 ;
@@ -88,6 +89,24 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
 		_ENDIF						; Endif
 		ret
+
+#if (PROG_START < $F000)			// Commented out when need to save space
+;
+; ? GetByte - get a byte (NOT to stack) and display it ( addr -- )
+;
+			xCODE	'?',GetByte,_GetByte
+			mov.b	#' ',Rthd
+			mov.b	@Rtos,Rsec
+;			mov		#3,Rtos
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits
+
+;
+; ! StoreByte - store a byte (Forth C!) ( ch addr -- )
+;
+			xCODE	'!',ZtoreByte,_ZtoreByte
+			mov.b	Rsec,0(Rtos)
+			ret
+#endif
 
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
@@ -450,7 +469,7 @@ _prettyPrint3:
 ; and precede with ID and ch.
 ; (no command letter)
 _prettyPrint:
-		DELAY_IF_NEEDED				; Allow time for CR to be echoed upstream if needed
+		DELAY_IF_NEEDED				; Allow time for a typed CR to be echoed upstream if needed
 		ClearWatchdog
 		push.b	&interpFlags		; Save present number base
 		push	Rsec				; Save n -- the result

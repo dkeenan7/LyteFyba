@@ -12,12 +12,15 @@ t l Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-    Special characters not used so far: !"#&()*+,./;=?@[]_`|}~
+    Special characters not used so far: "#&()*+,./;=[]_|}~
 	Letters not used so far: HJMW (all lowercase are used)
 @ @ Capacity constants; takes A-F parameter. Needed by wmonolith.
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
-' ' characterLiteral
+' ' characterLiteral (tick)
+` ` execute (tock, inverse of tick)
+? ? get byte (peek byte)
+! ! store byte (poke byte)
 - - change-sign (postfix negate)
 : : begins a Modbus/ASCII packet
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
@@ -35,9 +38,8 @@ d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
 f   (f)uel gauge. State if charge in tenths of a percent. (wmonolith only)
-g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
+g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
-  G Get byte (peek byte)
 h h Hex output
 H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
@@ -50,14 +52,14 @@ l l LinkVoltage
   m e(m)itCharacter
 n n emit(n)um. Precede with a number or calculation, and a field width
 N N Number of cells
-o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
-  o Change Octave of piezo alarm
-  O StOre wOrd (poke wOrd)
-p   Stress level (Pain) (local to each BMU)
-  p ParallelPullDown (when testing with BMUs paralleled on power supply)
+o   charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
+  o change Octave of piezo alarm
+  O stOre wOrd (poke wOrd)
+p   stress level (Pain) (local to each CMU)
+  p ParallelPullDown (when testing with CMUs paralleled on power supply)
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
-  q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+  q pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Q Q Quiet. Stop piezo beeper coming on with error LED
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
@@ -71,13 +73,12 @@ T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   w WriteCalValue
-x x e(x)clusive   (single-BMU interaction mode)
-X X e(X)clude     (single-BMU ignore mode)
+x x e(x)clusive   (single-CMU interaction mode)
+X X e(X)clude     (single-CMU ignore mode)
 y y b(y)pass (Yellow) (relaY- on IMU)
 Y Y relaY+ (on IMU only)
   z send nulls (send (z)eros)
 Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
-  Z Ztore byte (poke byte)
 
 In logical groupings:
 
@@ -87,7 +88,8 @@ n c
 i a
 t l Name or description
 --------------------------------------------
-' ' characterLiteral
+' ' characterLiteral (tick)
+` ` execute (tock, inverse of tick)
   m e(m)itCharacter
   z send nulls (send (z)eros)
 
@@ -107,18 +109,18 @@ Y Y relaY+ (on IMU only)
   U Unliven contactor (1-5)
 
   a ADCScaled or r(A)wVoltage (TestICal only)
-  p ParallelPullDown (when testing with BMUs paralleled on power supply)
-v v cell(V)oltage
+  p ParallelPullDown (when testing with CMUs paralleled on power supply)
+v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
 l l LinkVoltage
 t t Temperature
 H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
-p   Stress level (Pain) (local to each BMU)
+p   Stress level (Pain) (local to each CMU)
 
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
-o   Charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
+o   charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
 
 T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
@@ -133,8 +135,8 @@ N N Number of cells
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 s s select
 S S deSelect
-x x e(x)clusive   (single-BMU interaction mode)
-X X e(X)clude     (single-BMU ignore mode)
+x x e(x)clusive   (single-CMU interaction mode)
+X X e(X)clude     (single-CMU ignore mode)
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
 \ \ exit or comment
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
@@ -147,23 +149,24 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 ^ ^ resetResetLog
 
 f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
-g g fuel (g)auge. Depth of discharge in tenths of a percent. (IMU only)
+g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
 @ @ Capacity constants; takes A-F parameter. Needed by wmonolith.
 
   j JumpToSubroutine (call)
-  Z Ztore byte (poke byte)
-  g Get byte   (peek byte)
-  O St(O)re word (poke word)
-  q Pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+? ? get byte (peek byte)
+! ! store byte (poke byte)
+  O st(O)re word (poke word)
+  q pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
 
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
   w WriteCalValue
   c Calibrate
+  o change Octave of piezo alarm
   u UpdateInfoFlash
 
 In addition, the following character literals (character preceded by a single-quote)

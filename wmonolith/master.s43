@@ -35,7 +35,6 @@ AccMaster
 
 		bit.b	#bSendZ,&masterFlags		; Is a Z command due?
 		_IF		_NZ
-			// FIXME this will be sent to the wrong port. We need port steering, as Dave suggested.
 			mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
 			call	#TxStringCk
 			ClearWatchdog
@@ -56,14 +55,9 @@ AccMaster
 
 		bit		#bSendi,&masterFlags			; Is an 'i' command due?
 		_IF		_NZ
-			// For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
-			// This was shifted left and copied to ram &current (so tenths of an amp)
-			// Tell the CMUs what the current is, by sending an 'i' command
-#if 0
-			mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
-			call	#TxByte					; Trashes R9
-#endif
-
+			; For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
+			; This was shifted left and copied to ram &current (so tenths of an amp)
+			; Tell the CMUs what the current is, by sending an 'i' command
 			mov		&current,R10			; Get the saved current, tenths of an amp
 			abs		R10						; Take the absolute value of the current in R10
 			mov		R10,Rsec
@@ -86,7 +80,9 @@ AccMaster
 		_IF		_NZ
 			; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 			; then retrieve the high word of the discharge accumulator from CMU 1
-			; All the below could be replaced by a single 9-byte string
+			; The below can't be replaced by a single 9-byte string.
+			; They must go as separate packets because the 'k' must be sent without checksum
+			; and the 1sG is for a single CMU.
 			mov		#'\r',R8				; Clear any junk
 			call	#TxByte
 			mov		#'k',R8					; Transmit "k" with no checksum
@@ -107,6 +103,7 @@ AccMaster
 
 		ret
 
+SelectCMU1		DB		2, '1s'			; Length-prefixed command string to select CMU 1
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
 		ALIGN	1
@@ -146,8 +143,8 @@ WmBmuACCEPT
 					tst		R8						; Test our condition flag
 					_IF		_Z						; Zero indicates a response to be echoed
 						; Echo the response
-						PUSH	R10
-						PUSH	R11
+						push	R10
+						push	R11
 						mov		#TIB,R10			; Start of TIB to R10
 						mov		R9,R11				; R11 has position where CR would be
 						mov.b	#$0D,0(R11)			; Store CR there
