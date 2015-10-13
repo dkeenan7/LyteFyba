@@ -217,8 +217,8 @@ smoothStressX4	DS		1			; Moving average of stress used by IMU to control contact
 	; Cell monitoring units comms variables
 	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
-txBitTime		DS		2			; Determines transmit baud rate. 104/N for 9600 baud, 417/N for 2400
-									; baud, N=DCOckPerSMck. So 13 or 52 for monolith/wmonolith
+txBitTime		DS		2			; Determines transmit baud rate for timer-based comms (not UART).
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
@@ -562,7 +562,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
 			_ELSE
 				mov.b	#bChecksumming | bDontEcho | bEchoResponses,&interpFlags ; Don't want to echo
-													; Modbus packets, do want to see resonses
+													; command packets, do want to see responses
 			_ENDIF
 ;			bic.b	#bHexOutput,&interpFlags	; Default numeric output to be in decimal, not hexadecimal
 ;			bic.b	#bDontInterpret,&interpFlags ; Do interpret
