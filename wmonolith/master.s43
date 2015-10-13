@@ -129,6 +129,7 @@ WmBmuACCEPT
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
+				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
 				bit.b	#bEchoResponses,&interpFlags
 				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
 				_IF		_NZ				; If echoing responses
@@ -137,7 +138,7 @@ WmBmuACCEPT
 					_IF		_NZ					; Otherwise,
 						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
 						_IF		_EQ
-							cmp		#TIB+13,R9			; Would the CR be at position 13?
+							cmp		#TIB+13,R9			; Is the CR at position 13?
 							_IF		_EQ					; If so, it's a Modbus response
 								clr		R8					; Clear boolean R8 if so
 							_ENDIF
@@ -149,8 +150,7 @@ WmBmuACCEPT
 						push	R10
 						push	R11
 						mov		#TIB,R10			; Start of TIB to R10
-						mov		R9,R11				; R11 has position where CR would be
-						mov.b	#$0D,0(R11)			; Store CR there
+						mov		R9,R11				; R11 has position of CR
 						sub		#TIB-1,R11			; R11 has length including CR
 						push	&TxBytePtr
 						mov		#ScuTxByte,&TxBytePtr ; Switch to SCU output
