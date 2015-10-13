@@ -16,9 +16,9 @@ AccMaster
 				cmp.b	#$0A,R8			; And not linefeed?
 			_AND_IF	_NE
 				bis.b	#bBlocked,&masterFlags	; We're now blocked
-				mov		&ticks,R9				; Get the medium speed counter
-				add		#1*StatusFreq,R9		; ~ one second later
-				mov		R9,&masterUnblockTicks	; Save that time
+				mov.b	&ticks,R9				; Get the medium speed counter
+				add.b	#2*StatusFreq,R9		; ~ two second later. Check what can be tolerated!
+				mov.b	R9,&masterUnblockTicks	; Save that time
 			_ENDIFS
 		_ELSE						; Presently blocked. A carriage return will unblock
 			cmp.b	#$0D,R8				; Carriage return?
@@ -26,80 +26,83 @@ AccMaster
 				bic.b	#bBlocked,&masterFlags
 			_ELSE
 				; Still blocked. Check for timeout, with care for wrapping
-				cmp		&masterUnblockTicks,&ticks
+				cmp.b		&masterUnblockTicks,&ticks
 				_IF _NN						; If ticks minus masterUnblockTicks is not negative
 					bic.b	#bBlocked,&masterFlags ; then unblock anyway
 				_ENDIF
 			_ENDIF
 		_ENDIF
 
-		bit.b	#bSendZ,&masterFlags		; Is a Z command due?
-		_IF		_NZ
-			mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
-			call	#TxStringCk
-			ClearWatchdog
+		bit.b	#bBlocked,&masterFlags
+		_IF		_Z						; Now not blocked. Can inject commands as needed
+			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
+			_IF		_NZ
+				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
+				call	#TxStringCk
+				ClearWatchdog
 
-			mov		&discharge+2,Rsec
-			mov		#5,Rtos						; 5 digit field width
-			push.b	&interpFlags				; Save number base
-			bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
-			call	#_emitNum					; Transmit the number
-			pop.b	&interpFlags				; Restore number base
-			ClearWatchdog
+				mov		&discharge+2,Rsec
+				mov		#5,Rtos						; 5 digit field width
+				push.b	&interpFlags				; Save number base
+				bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
+				call	#_emitNum					; Transmit the number
+				pop.b	&interpFlags				; Restore number base
+				ClearWatchdog
 
-			mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
-			call	#TxByteCk
-			call	#TxEndOfPacket
-			bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
-		_ENDIF
-
-		bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
-		_IF		_NZ
-			; For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
-			; This was shifted left and copied to ram &current (so tenths of an amp)
-			; Tell the CMUs what the current is, by sending an 'i' command
-			mov		&current,R10			; Get the saved current, tenths of an amp
-			abs		R10						; Take the absolute value of the current in R10
-			mov		R10,Rsec
-			mov		#4,Rtos					; 4 digit field width
-			ClearWatchdog
-			call	#_emitNum				; Transmit the number
-			ClearWatchdog
-			cmp		#0,&current
-			_IF		_L						; If current is negative
-				mov		#'-',R8					; Transmit a postfix minus sign
+				mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
 				call	#TxByteCk
+				call	#TxEndOfPacket
+				bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
 			_ENDIF
-			mov		#'i',R8					; Transmit an "i" for current
-			call	#TxByteCk
-			call	#TxEndOfPacket
-			bic.b	#bSendi,&masterFlags	; Don't repeat until needed
-		_ENDIF							; End if 'i' command was due
 
-		bit.b	#bSendInit,&masterFlags
-		_IF		_NZ
-			; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
-			; then retrieve the high word of the discharge accumulator from CMU 1
-			; The below can't be replaced by a single 9-byte string.
-			; They must go as separate packets because the 'k' must be sent without checksum
-			; and the 1sG is for a single CMU.
-			mov		#'\r',R8				; Clear any junk
-			call	#TxByte
-			mov		#'k',R8					; Transmit "k" with no checksum
-			call	#TxByte					;	to tell CMUs to send and expect checksums
-			mov		#'\r',R8
-			call	#TxByte
+			bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
+			_IF		_NZ
+				; For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
+				; This was shifted left and copied to ram &current (so tenths of an amp)
+				; Tell the CMUs what the current is, by sending an 'i' command
+				mov		&current,R10			; Get the saved current, tenths of an amp
+				abs		R10						; Take the absolute value of the current in R10
+				mov		R10,Rsec
+				mov		#4,Rtos					; 4 digit field width
+				ClearWatchdog
+				call	#_emitNum				; Transmit the number
+				ClearWatchdog
+				cmp		#0,&current
+				_IF		_L						; If current is negative
+					mov		#'-',R8					; Transmit a postfix minus sign
+					call	#TxByteCk
+				_ENDIF
+				mov		#'i',R8					; Transmit an "i" for current
+				call	#TxByteCk
+				call	#TxEndOfPacket
+				bic.b	#bSendi,&masterFlags	; Don't repeat until needed
+			_ENDIF							; End if 'i' command was due
 
-			mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
-			call	#TxStringCk
-			call	#TxEndOfPacket
+			bit.b	#bSendInit,&masterFlags
+			_IF		_NZ
+				; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+				; then retrieve the high word of the discharge accumulator from CMU 1
+				; The below can't be replaced by a single 9-byte string.
+				; They must go as separate packets because the 'k' must be sent without checksum
+				; and the 1sG is for a single CMU.
+				mov		#'\r',R8				; Clear any junk
+				call	#TxByte
+				mov		#'k',R8					; Transmit "k" with no checksum
+				call	#TxByte					;	to tell CMUs to send and expect checksums
+				mov		#'\r',R8
+				call	#TxByte
 
-			mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
-			call	#TxStringCk
-			call	#TxEndOfPacket
+				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
+				call	#TxStringCk
+				call	#TxEndOfPacket
 
-			bic.b	#bSendInit,&masterFlags	; Don't repeat
-		_ENDIF
+				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
+				call	#TxStringCk
+				call	#TxEndOfPacket
+
+				bic.b	#bSendInit,&masterFlags	; Don't repeat
+			_ENDIF		; If init due
+		_ENDIF		; If unblocked
 
 		ret
 
