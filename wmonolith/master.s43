@@ -6,38 +6,50 @@
 
 #if		G2553							; The master "task" is only possible in a BMU running a G2553
 AccMaster
-		bit.b	#bBlocked,&masterFlags
-		_IF		_Z						; Presently not blocked. A non carriage return non linefeed
-										;	will block us
-			_COND
-				tst.b	R8				; Not null? (Indicates no char received)
-			_AND_IF		_NZ
-				cmp.b	#$0D,R8			; And not carriage return?
-			_AND_IF	_NE
-				cmp.b	#$0A,R8			; And not linefeed?
-			_AND_IF	_NE
-				bis.b	#bBlocked,&masterFlags	; We're now blocked
-				mov.b	&ticks,R9				; Get the medium speed counter
-				add.b	#2*StatusFreq,R9		; ~ two second later. Check what can be tolerated!
-				mov.b	R9,&masterUnblockTicks	; Save that time
-			_ENDIFS
-		_ELSE						; Presently blocked. A carriage return will unblock
-			cmp.b	#$0D,R8				; Carriage return?
-			_IF		_EQ
-				bic.b	#bBlocked,&masterFlags
-			_ELSE
-				; Still blocked. Check for timeout, with care for wrapping
+		cmp.b	#$0D,R8				; Carriage return?
+		_IF		_EQ
+			; No longer blocked, and if we unblocked via a timeout but didn't have anything to inject,
+			;	then forget about the timeout (CR no longer required for next injection)
+			bic.b	#bBlocked | bTimeout,&masterFlags
+		_ELSE
+			bit.b	#bBlocked,&masterFlags
+			_IF		_Z						; Presently not blocked. A non null non linefeed will block
+				_COND
+					tst.b	R8				; Not null? (Indicates no char received)
+				_AND_IF		_NZ
+					cmp.b	#$0A,R8			; And not linefeed?
+				_AND_IF	_NE
+					bis.b	#bBlocked,&masterFlags	; We're now blocked
+					mov.b	&ticks,R9				; Get the medium speed counter
+					add.b	#2*StatusFreq,R9		; ~ two second later. Check what can be tolerated!
+					mov.b	R9,&masterUnblockTicks	; Save that time
+				_ENDIFS
+			_ELSE						; Presently blocked. A carriage return will unblock
+				; Presently blocked. Check for timeout, with care for wrapping
 				cmp.b		&masterUnblockTicks,&ticks
 				_IF _NN						; If ticks minus masterUnblockTicks is not negative
 					bic.b	#bBlocked,&masterFlags ; then unblock anyway
+					bis.b	#bTimeout,&masterFlags ; remember we forced an unblock
 				_ENDIF
 			_ENDIF
 		_ENDIF
 
 		bit.b	#bBlocked,&masterFlags
+		; Warning: the below branch is ~15 words away from overflow. If necessary, branch around a ret
 		_IF		_Z						; Now not blocked. Can inject commands as needed
 			push	&TxBytePtr				; Save current destination for TxByte
 			mov		#CmuTxByte,&TxBytePtr	; Switch to CMU output
+			_COND
+				bit.b	#bTimeout,&masterFlags	; If we recently unblocked via a timeout,
+			_AND_IF	_NZ
+				bit.b	#bSendZ | bSendi | bSendInit, &masterFlags		; And we have anything to send,
+			_AND_IF	_NZ
+				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
+												; reset checksums (at receivers)
+				call	#TxByte
+				clr.b	&txCksum				; Explicitly clear our transmit checksum
+				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
+			_ENDIFS
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
 			_IF		_NZ
 				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
