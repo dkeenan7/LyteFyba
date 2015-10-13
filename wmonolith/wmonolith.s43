@@ -312,7 +312,8 @@ ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 
-TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte
+TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte, except for BMUs
+									;	which initialise it to ScuTxByte
 
 ; Must leave room for stack (about 36 bytes minimum)
 STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
@@ -359,7 +360,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	&info8MHzCalD,&DCOCTL
 
 #if G2553
-			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
+			cmp.b	#255,&ID					; Is this a BMU?
+			_IF		_EQ
+				mov		#ScuTxByte,&TxBytePtr		; By default, TxByte goes to the SCU port for a BMU
+			_ELSE
+				mov		#CmuTxByte,&TxBytePtr		; In other cases, particularly CMUs, TxByte goes to
+													;	the CMU port
+			_ENDIF
 
 ;
 ;	Initialise io ports
@@ -590,6 +597,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
+#if		G2553			// Only 2553s even have Scu ports to check
 				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
 				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
 				cmp.b	#255,&ID
@@ -602,6 +610,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 					call	#AccMaster				; Call the "master" accept function, char or not
 				_ENDIF
+#endif
 
 				; Check for a command or status character from the CMU port
 				; For both CMUs and the BMU, read from CMU Rx
@@ -611,12 +620,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
-						cmp.b	#255,&ID				; Is this a BMU?
-						_IF		_EQ
-							call	#WmBmuACCEPT			; Call the specialised ACCEPT for wmono BMUs
-						_ELSE
-							call	#ACCEPT					; Process command bytes (could be slow)
-						_ENDIF
+						call	#ACCEPT					; Process command bytes (could be slow)
 					_ELSE								; Else was status byte
 						call	#DoStatus					; Forward possibly-updated status bytes
 					_ENDIF

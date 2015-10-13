@@ -4,6 +4,7 @@
 ; sending)
 ;
 
+#if		G2553							; The master "task" is only possible in a BMU running a G2553
 AccMaster
 		bit.b	#bBlocked,&masterFlags
 		_IF		_Z						; Presently not blocked. A non carriage return non linefeed
@@ -35,6 +36,8 @@ AccMaster
 
 		bit.b	#bBlocked,&masterFlags
 		_IF		_Z						; Now not blocked. Can inject commands as needed
+			push	&TxBytePtr				; Save current destination for TxByte
+			mov		#CmuTxByte,&TxBytePtr	; Switch to CMU output
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
 			_IF		_NZ
 				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
@@ -102,6 +105,7 @@ AccMaster
 
 				bic.b	#bSendInit,&masterFlags	; Don't repeat
 			_ENDIF		; If init due
+			pop		&TxBytePtr				; Restore previous TxByte port
 		_ENDIF		; If unblocked
 
 		ret
@@ -111,120 +115,4 @@ EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sen
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
 		ALIGN	1
 
-;-------------------------------------------------------------------------------
-; The outer (packet) interpreter, specialised for BMUs in wmonolith
-; Sends all output to SCU port; checks bEchoResponses flag, and if set echoes all responses
-; (Wunth and Modbus) to SCU port
-; WmACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
-; Trashes R8 and R9, and more if carriage return is processed.
-; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
-; to interpret the line when a valid checksum and a carriage return are received.
-WmBmuACCEPT
-		mov		&ToIN,R9
-		_CASE
-
-		_OFb	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
-		_ENDOF
-
-		_OFb	#$0D,R8			; Carriage return = end of packet
-			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
-				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
-				bit.b	#bEchoResponses,&interpFlags
-				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
-				_IF		_NZ				; If echoing responses
-					mov.b	&TIB,R8				; Get first char of text input buffer
-					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Wunth resp.
-					_IF		_NZ					; Otherwise,
-						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
-						_IF		_EQ
-							cmp		#TIB+13,R9			; Is the CR at position 13?
-							_IF		_EQ					; If so, it's a Modbus response
-								clr		R8					; Clear boolean R8 if so
-							_ENDIF
-						_ENDIF
-					_ENDIF
-					tst		R8						; Test our condition flag
-					_IF		_Z						; Zero indicates a response to be echoed
-						; Echo the response
-						push	R10
-						push	R11
-						mov		#TIB,R10			; Start of TIB to R10
-						mov		R9,R11				; R11 has position of CR
-						sub		#TIB-1,R11			; R11 has length including CR
-						push	&TxBytePtr
-						mov		#ScuTxByte,&TxBytePtr ; Switch to SCU output
-						call	#TxBytes			; Send this string
-						pop		&TxBytePtr			; Restore TxByte destination
-						pop		R11
-						pop		R10
-					_ENDIF					; Endif copying this response
-				_ENDIF					; Endif bEchoResponses
-				bit.b	#bChecksumming,&interpFlags
-				_IF		_NZ				; If checksumming
-					cmp.b	#':',&TIB
-					_IF		_NE				; And if not a modbus packet (starts with colon)
-						tst.b	&rxCksum
-						_IF		_Z				; And if good checksum
-							dec		R9				; Prepare to overwrite checksum with EXIT command char
-							cmp		#TIB,R9			; Handle case of empty packet with no checksum
-							_IF		_LO
-								mov		#TIB,R9
-							_ENDIF
-					_END_PRIOR_IF			; End if not modbus
-				_END_PRIOR_IF			; End if checksumming
-							; We get here when not-checksumming or a modbus packet or a good checksum
-							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
-							bit.b	#bDontInterpret,&interpFlags
-							_IF		_Z				; If the dont-interpret flag is clear
-								mov		#TIB,Rip		; Interpret the packet as command characters
-								push	&TxBytePtr
-								mov		#ScuTxByte,&TxBytePtr ; Switch to SCU output
-								call	#_ENTER
-								pop		&TxBytePtr		; Restore TxByte destination
-							_ENDIF					; End if dont-interpret flag is clear
-						_ENDIF					; End if good checksum
-			_ENDIF					; End if packet buffer not full
-			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			clr.b	&rxCksum		; Clear the packet checksum
-		_ENDOF					; End of carriage return
-
-		_OFb	#$08,R8			; Backspace editing
-			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
-				dec		R9				; Decrement the pointer, but
-				cmp		#TIB,R9			; don't go back past start of packet
-				_IF		_LO
-					mov		#TIB,R9
-				_ENDIF
-				mov		R9,&ToIN
-			_ENDIF					; Endif packet buffer not full
-		_ENDOF					; EndOf backspace
-
-		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
-			bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
-		_ENDOF					; EndOf XON
-
-		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
-			bit.b	#bDontInterpret,&interpFlags
-			_IF		_Z				; If the dont-interpret flag is clear
-				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
-			_ENDIF
-		_ENDOF					; EndOf XOFF
-
-		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
-			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
-		_ENDOF					; EndOf escape
-
-		; Default case, if not CR, BS, XON, XOFF or ESC
-			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
-				mov.b	R8,0(R9)		; Write the byte to the buffer
-				inc		&ToIN			; Increment the pointer
-				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum
-			_ENDIF					; Endif packet buffer not full
-
-		_ENDCASE				; End Case char
-
-		ret
-
+#endif		// If G2553

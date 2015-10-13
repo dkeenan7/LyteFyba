@@ -213,6 +213,7 @@ NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 ; Trashes R8 and R9, and more if carriage return is processed.
 ; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
+; Outputs go to the default port (usually CMU, but SCU for the case of a BMU running wmonolith)
 ACCEPT
 		mov		&ToIN,R9
 		_CASE
@@ -223,6 +224,34 @@ ACCEPT
 		_OFb	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
 			_IF		_LO				; If packet buffer not full
+				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
+				bit.b	#bEchoResponses,&interpFlags
+				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
+				_IF		_NZ				; If echoing responses
+					mov.b	&TIB,R8				; Get first char of text input buffer
+					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Wunth resp.
+					_IF		_NZ					; Otherwise,
+						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
+						_IF		_EQ
+							cmp		#TIB+13,R9			; Is the CR  at position 13?
+							_IF		_EQ					; If so, it's a Modbus response
+								clr		R8					; Clear boolean R8 if so
+							_ENDIF
+						_ENDIF
+					_ENDIF
+					tst		R8						; Test our condition flag
+					_IF		_Z						; Zero indicates a response to be echoed
+						; Echo the response
+						push	R10
+						push	R11
+						mov		#TIB,R10			; Start of TIB to R10
+						mov		R9,R11				; R11 has position of CR
+						sub		#TIB-1,R11			; R11 has length including CR
+						call	#TxBytes			; Send this string
+						pop		R11
+						pop		R10
+					_ENDIF					; Endif copying this response
+				_ENDIF					; Endif bEchoResponses
 				bit.b	#bChecksumming,&interpFlags
 				_IF		_NZ				; If checksumming
 					cmp.b	#':',&TIB
@@ -281,12 +310,11 @@ ACCEPT
 			_IF		_LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
-				xor.b	R8,&rxCksum	; Accumulate the checksum
+				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum
 			_ENDIF					; Endif packet buffer not full
 
 		_ENDCASE				; End Case char
 
 		ret
-
 
 
