@@ -187,6 +187,8 @@ cellV:
 			_ELSE
 				jmp		measAndScale				; Tail-call measAndScale and return
 			_ENDIF
+	#else
+			jmp		measAndScale				; Tail-call measAndScale and return
 	#endif
 #else
 			jmp		measAndScale				; Tail-call measAndScale and return
