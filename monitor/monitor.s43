@@ -970,7 +970,7 @@ DoPassword:
 			; May be important: it could be bad to have receive interrupts sending stress bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
 #if G2553
-			bic.b	#UCA0RXIFG | UCA0TXIFG,&IFG2	; Disable UART interrupts
+			bic.b	#UCA0RXIE | UCA0TXIE,&IE2	; Disable UART interrupts
 			clr		&ScuCCTLr			; Clear at least the CCIE RX interrupt enable bit
 			clr		&ChgCCTLr			; Clear at least the CCIE RX interrupt enable bit
 #else
