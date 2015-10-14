@@ -247,7 +247,12 @@ ACCEPT
 						mov		#TIB,R10			; Start of TIB to R10
 						mov		R9,R11				; R11 has position of CR
 						sub		#TIB-1,R11			; R11 has length including CR
-						call	#TxBytes			; Send this string
+						call	#TxBytes			; Send the response packet (ptr R10 length R11)
+						cmp.b	#':',&TIB			; If it started with a colon (modbus)
+						_IF		_EQ
+							mov.b	#$0A,R8				; Send a line-feed
+							call	#TxByte
+						_ENDIF
 						pop		R11
 						pop		R10
 					_ENDIF					; Endif copying this response
