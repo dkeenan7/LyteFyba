@@ -54,7 +54,7 @@
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
 #define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
-#define	G2553	0				// MSP430 model. False for older devices that used the MSP430G2452.
+#define	G2553	1				// MSP430 model. False for older devices that used the MSP430G2452.
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.

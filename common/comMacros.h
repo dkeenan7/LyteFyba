@@ -1,7 +1,10 @@
+; We must test &infoID, not &ID in the macros below, as they are used in the BSL
+; and we don't want it using &ramID as this only exists in TestICal.
+
 ActLedOff	MACRO
 #if !G2553			// Activity LEDs are done in hardware on newer devices
 	#if	REV61
-			tst.b	&ID
+			tst.b	&infoID
 			_IF		_NZ
 				bit.b	#ErrLed,&P2OUT		; Activity and error LEDs share an output.
 				_IF		_Z					; If the error LED is off
@@ -19,7 +22,7 @@ ActLedOn	MACRO
 	#if	REV61
 			; No provision for oscillating to light both LEDs yet.
 			; Error LED has priority.
-			tst.b	&ID
+			tst.b	&infoID
 			_IF		_NZ
 				bis.b	#ErrLed,&P2DIR		; Make it a proper output again
 			_ENDIF
@@ -30,7 +33,7 @@ ActLedOn	MACRO
 			ENDM
 
 ErrLedOff	MACRO
-			tst.b	&ID
+			tst.b	&infoID
 			_IF		_NZ
 #if	REV61
 				bic.b	#ErrLed,&P2DIR		; Make output high-Z so activity LED will not come on
@@ -42,7 +45,7 @@ ErrLedOff	MACRO
 			ENDM
 
 ErrLedOn	MACRO
-			tst.b	&ID
+			tst.b	&infoID
 			_IF		_NZ
 #if	REV61
 				; No provision for oscillating to light both LEDs yet.
@@ -51,6 +54,18 @@ ErrLedOn	MACRO
 				bis.b	#ErrLed,&P2OUT		; Turn on the error LED
 #else
 				bis.b	#ErrLed,&P2OUT		; Turn on the error LED
+#endif
+			_ENDIF
+			ENDM
+
+ErrLedToggle	MACRO
+			tst.b	&infoID
+			_IF		_NZ
+#if	REV61
+				xor.b	#ErrLed,&P2DIR		; Toggle high-Z-ness so activity LED will not come on
+				xor.b	#ErrLed,&P2OUT		; Toggle the error LED (so ActLedOff/On can tell)
+#else
+				xor.b	#ErrLed,&P2OUT		; Toggle the error LED
 #endif
 			_ENDIF
 			ENDM

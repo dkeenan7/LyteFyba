@@ -923,10 +923,16 @@ DoMeasurement:
 					cmp.b	#1,&ID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
+#if 0
+// This is meaningless to a Modbus SCU. If not running in the BMU, it could be made to send a command
+// to the BMU, which would set a register that the SCU could interrogate to find out
+// where the comms break is. Otherwise we'll just eyeball the CMUs for out-of-sync blue LEDs.
+// The SCU will learn there is a comms break, from the status byte, via the 'p' command.
 						tst.b	&statusFreqCtr
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
+#endif
 					_ENDIF
 
 					; Act as a master -- send our status
