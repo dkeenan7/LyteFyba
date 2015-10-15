@@ -469,3 +469,16 @@ bitDelay	dec		R11
 			dec.b 	Rtos					; Do it n times, max 256 when n is zero
 			jnz		_sendNulls
 			ret
+
+
+;
+; Measure Vcc ( M -- )	; Emit the Vcc voltage
+;
+		xCODE	'M',MeasVcc,_MeasVcc
+		mov		#0xB<<12,R8				; FIXME: I need a pretty definition
+		call	#measAndScale			; Gives us 0-4092 for 0-1.25
+		mov			#'M',Rthd			; Type is Vcc Measurement
+		mov			R10,Rsec			; Result in millivolts
+		mov			#4,Rtos				; Print 4 digits
+		br			#_prettyPrint		; Tail-call pretty-print and return
+
