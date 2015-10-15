@@ -341,6 +341,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
 		_IF		_NE						; If queue not full
 			mov.b	R9,&rxWr				; Update write index so char is properly in queue
+			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 		_ENDIF							; Endif queue not full
 		pop		R9						; Restore R9
 		reti							; Return from interrupt

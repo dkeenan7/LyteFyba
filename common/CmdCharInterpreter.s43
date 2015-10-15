@@ -242,6 +242,7 @@ ACCEPT
 					tst		R8						; Test our condition flag
 					_IF		_Z						; Zero indicates a response to be echoed
 						; Echo the response
+						push	R9
 						push	R10
 						push	R11
 						mov		#TIB,R10			; Start of TIB to R10
@@ -255,6 +256,7 @@ ACCEPT
 						_ENDIF
 						pop		R11
 						pop		R10
+						pop		R9
 					_ENDIF					; Endif copying this response
 				_ENDIF					; Endif bEchoResponses
 				bit.b	#bChecksumming,&interpFlags
