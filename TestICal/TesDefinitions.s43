@@ -420,7 +420,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 ;
 ; Toggle TxPl with a 10 cycle loop,
-; This timing depends on TxPl being in the low 4 bits of its output register.
+; This timing depends on TxPl or TxMi being in the low 4 bits of its output register.
 ; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/10 = 200.0 kHz.
 ; If we were trying to achieve exact 9600 baud comms we'd want 9600*416/2/10 = 199.7 kHz.
 ; But we've gone with minimising the number of controllers whose default DCO calibration
@@ -433,8 +433,13 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 			clr		R10
+#if G2553	// Toggle TxPl since it will result in a 10 cycle loop
 			bic.b	#TxMi,&TxMiPortDIR		; Set TxMi open circuit
 burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit
+#else		// Toggle TxMi since it will result in a 10 cycle loop
+			bic.b	#TxPl,&P1DIR			; Set TxPl open circuit
+burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
+#endif
 			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
 			; Leaving one of them as a high output caused problems due to C4 (100n) on the next board.
 			; We used to toggle TxMi, but the BMU has it on P3.7.
@@ -443,8 +448,11 @@ burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
+#if G2553
 			bis.b	#TxMi,&TxMiPortDIR		; Set TxMi back to being an output
-
+#else
+			bis.b	#TxPl,&P1DIR			; Set TxPl back to being an output
+#endif
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
 			ret
