@@ -1158,7 +1158,9 @@ ControlContactors:
 			bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
 		_ELSES							; Else
 			push	R8
+			push	R9
 			call	#cellV					; Get the PV array voltage
+			pop		R9
 			pop		R8
 			cmp		#145*10,R10
 			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
