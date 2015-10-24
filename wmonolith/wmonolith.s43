@@ -1143,6 +1143,8 @@ DoPrecharge:
 		bis.b	#PreCont,&ContPortOUT		; Turn on the Precharge contactor
 		mov		#10*1000/100,R12			; 10 seconds = 100 x 100 ms
 		_BEGIN
+			mov		#100,R8						; 100 milliseconds; placed at start
+			call	#DelayMs					;	of loop to allow ADC system to settle after reset
 			call	#CapV						; Trashes R8, R9, R11 result in R10
 			push	R10							; Save capacitor voltage measurement
 			call	#BatV						; Trashes R8, R9, R11 result in R10
@@ -1150,11 +1152,14 @@ DoPrecharge:
 			sub		R8,R10						; R10 = BatV - CapV
 			cmp		#5*10,R10
 			_WHILE	_HS							; Wait for less than 5V across contactor
-				mov		#100,R8						; 100 milliseconds
-				call	#DelayMs
 				dec		R12
 		_UNTIL	_Z
+			mov		#1,Rtos
 			call	#_errorLed					; We who are about to die beep at you
+			bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save its resistor
+			_BEGIN
+				ClearWatchdog
+			_AGAIN								; Endless loop
 			_ELSE
 				bis.b	#(BatCont | ChgCont),&ContPortOUT		; Turn on the Battery contactor
 				mov		#100,R8						; 100 milliseconds
