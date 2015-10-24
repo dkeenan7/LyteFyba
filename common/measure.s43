@@ -131,7 +131,7 @@ measure:
 ; measAndScale
 ; Input:  R8  = analog channel number shifted left 12 bits.
 ; Output: R10 = 12-bit measurement result with scale calibration applied.
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 ;
 ; Scale the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
@@ -152,7 +152,7 @@ measAndScale:
 
 BatV:
 cellV:
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
 #ifdef MONOLITH		// If we're assembling Monolith, not Monitor or TestICal
@@ -197,7 +197,7 @@ cellV:
 CapV:		; When used by wmonolith to check precharge
 ArrayV:
 BoltV:
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#BoltVPlChan<<12,R8
 			jmp		measAndScale				; Tail-call measAndScale and return
@@ -205,7 +205,7 @@ BoltV:
 
 temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range ???
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 			mov		#TempChan<<12,R8
 			call	#measAndScale
 			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
@@ -231,7 +231,7 @@ extT:	; Temp of external thermistor. Called from 'H' command. Used in white mono
 ; the MSP430's internal temperature sensor, within 1^C from 0^C to 55^C,
 ; within 2^C between -4^C and 57^C, within 3^C between -9^C and 61^C, ignoring component tolerances.
 ; Output: R10 = temperature in degrees Celsius
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 			mov		#BoltVPlChan<<12,R8
 			call	#measAndScale
 			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
@@ -251,7 +251,7 @@ extT:	; Temp of external thermistor. Called from 'H' command. Used in white mono
 linkV:
 ; Output: R10 = calibrated in millivolts, approx range -1500 to +1500.
 ; 9999 means linkV not valid, ignore.
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 			mov.b		&LinkCal,R8		; Link offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
 			_IF			_EQ				; If link calibration value is $80
@@ -291,7 +291,7 @@ linkV:
 
 #if INSULATION_MONITORING
 touchV:
-; Trashes: R8, R9
+; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4095
 			mov		#TouchVChan<<12,R8
 			jmp		measAndScale				; Tail-call measAndScale and return
