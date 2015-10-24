@@ -46,6 +46,7 @@ H H Hotness. Temperature as measured by external thermistor (wmonolith and TestI
 i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
+j   Just local status (not the full stress)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
@@ -58,7 +59,7 @@ N N Number of cells
 o   charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
   o change Octave of piezo alarm
   O stOre wOrd (poke wOrd)
-p   stress level (Pain) (local to each CMU)
+p   status (local to each CMU, but global when BMU)
   p ParallelPullDown (when testing with CMUs paralleled on power supply)
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)

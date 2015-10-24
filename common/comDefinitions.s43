@@ -227,8 +227,8 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; boltVolt ( -- )
 ; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4095 mV)
 ;
-		xCODE		'V',boltVolt,_boltVolt
-		call		#boltV				; Return cell voltage in millivolts in R10
+		xCODE		'V',BoltVolt,_BoltVolt
+		call		#BoltV				; Return cell voltage in millivolts in R10
 		mov			#'V',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits

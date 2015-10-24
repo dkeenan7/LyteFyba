@@ -140,15 +140,10 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-#if G2553
+; Used by BMU only (and hence G2553 only)
 SourceCont	EQU		ChgCont			; Source contactor MOSFET and orange LED
 LoadCont	EQU 	DisCont			; Load contactor MOSFET and cyan/white LED
 ContPortOUT	EQU		P3OUT
-#else
-SourceCont	EQU		RelayM			; Source contactor MOSFET and yellow LED
-LoadCont	EQU 	RelayP			; Load contactor MOSFET and magenta LED
-ContPortOUT	EQU		P2OUT
-#endif
 
 ;
 ; RAM allocation
@@ -188,6 +183,7 @@ masterUnblockTicks DS	1			; When the master is blocked, this field indicates wha
 									; counter will read when the timeout expires
 
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
+globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
@@ -469,11 +465,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 	#endif // REV61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
-			cmp.b	#255,&ID
-			_IF		_EQ							; If we're a BMU
-				bis.b	#LoadCont,&P2OUT			; Set load contactor on so battery contactor goes on
-													; and we stay powered up
-			_ENDIF
 			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed (RLY- and RLY+) as outputs
 ;
 ;	Initialise timer and interrupt comms
@@ -588,15 +579,21 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
 			eint							; Enable interrupts now that all initialisation is complete
 
+
+; Do precharge and get the main contactor on, so we stay powered up
+; even when the human lets go of the green button.
+			cmp.b	#255,&ID
+			_IF		_EQ							; If we're a BMU
+				call	#DoPrecharge
+			_ENDIF
+
 ; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
 ; This is now done in AccMaster, using the bSendInit masterFlag.
-
 			cmp.b	#255,&ID
 			_IF		_EQ
 				bis.b	#bSendInit,&masterFlags
 			_ENDIF
-
 
 ; Main loop
 			_BEGIN
@@ -940,11 +937,12 @@ DoMeasurement:
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
 
 					; Send status or control a charger
-					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for BMU
-					_IF		_Z							; If we're not in charge control mode
-						call	#TxByte						; Send the status byte. Wait buffer not full
-					_ELSE								; Else we're in charger control mode
-						call	#ControlContactors			; Control contactors
+					cmp.b	#255,&ID				; If we're a CMU
+					_IF		_NE
+						call	#TxByte					; Send the status byte. Wait buffer not full
+					_ELSE							; Else we're in charger control mode
+						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
+						call	#ControlContactors		; Control contactors
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -1027,66 +1025,59 @@ DoStatus:
 		bit.b	#COM_ERR,&localStatus
 		_IF		_Z						; If no comms error
 
+			; Do MAX of local and incoming stress, and handle stress type and all considered full
+			mov.b	&localStatus,R10		; Get local status to R10
+			and.b	#STRESS,R10				; Extract stress bits
+			cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
+			_IF		_LO						; If incoming stress (R9) is less than ours (R10)
+				mov		R8,R9					; Make a copy of incoming status for tests below
+				mov.b	&localStatus,R10		; Get local status to R10
+				movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
+				_COND
+					and		#TYPE,R9
+					cmp		#ALL_FULL,R9
+				_AND_IF	_NE						; If incoming was not all considered full
+					mov.b	&localStatus,R10
+					and		#TYPE,R10
+					cmp		#ALL_FULL,R10
+				_AND_IF	_EQ						; and if local is in bypass
+					bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
+				_ENDIFS
+			_ELSE							; Else incoming stress is not less than ours
+				_IF		_EQ						; If incoming stress is equal to ours
+					mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
+					and		#TYPE,R10				; which won't go away when sources dropped, and
+					cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
+					_IF		_EQ						; If local is undervoltage
+						movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
+					_ENDIF
+				_ENDIF
+				; Incoming stress not less than ours
+				mov		R8,R9					; Make a copy of incoming status for tests below
+				_COND
+					and		#TYPE,R9
+					cmp		#ALL_FULL,R9
+				_AND_IF	_EQ						; If incoming is all considered full
+					mov.b	&localStatus,R10
+					and		#TYPE,R10
+					cmp		#ALL_FULL,R10
+				_AND_IF	_NE						; and if local is not in bypass
+					bic		#UV_AF,R8 				; Clear UV_AF (UV or all considered full) bit
+				_ENDIFS
+			_ENDIF							; End else incoming stress is not less than ours
+
+			; Process incoming comms error bit.
+			; Since we received a valid status byte, there is no local
+			;	comms error, so just pass the incoming comms error bit through.
+
+			; Send status or control a charger
 			cmp.b	#255,&ID
 			_IF		_NE						; If we're a CMU
-				; Do MAX of local and incoming stress, and handle stress type and all considered full
-				mov.b	&localStatus,R10		; Get local status to R10
-				and.b	#STRESS,R10				; Extract stress bits
-				cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
-				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
-					mov		R8,R9					; Make a copy of incoming status for tests below
-					mov.b	&localStatus,R10		; Get local status to R10
-					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
-					_COND
-						and		#TYPE,R9
-						cmp		#ALL_FULL,R9
-					_AND_IF	_NE						; If incoming was not all considered full
-						mov.b	&localStatus,R10
-						and		#TYPE,R10
-						cmp		#ALL_FULL,R10
-					_AND_IF	_EQ						; and if local is in bypass
-						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
-					_ENDIFS
-				_ELSE							; Else incoming stress is not less than ours
-					_IF		_EQ						; If incoming stress is equal to ours
-						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
-						and		#TYPE,R10				; which won't go away when sources dropped, and
-						cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
-						_IF		_EQ						; If local is undervoltage
-							movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
-						_ENDIF
-					_ENDIF
-					; Incoming stress not less than ours
-					mov		R8,R9					; Make a copy of incoming status for tests below
-					_COND
-						and		#TYPE,R9
-						cmp		#ALL_FULL,R9
-					_AND_IF	_EQ						; If incoming is all considered full
-						mov.b	&localStatus,R10
-						and		#TYPE,R10
-						cmp		#ALL_FULL,R10
-					_AND_IF	_NE						; and if local is not in bypass
-						bic		#UV_AF,R8 				; Clear UV_AF (UV or all considered full) bit
-					_ENDIFS
-				_ENDIF							; End else incoming stress is not less than ours
-
-				; Process incoming comms error bit.
-				; Since we received a valid status byte, there is no local
-				;	comms error, so just pass the incoming comms error bit through.
-
-				; Send status or control a charger
-				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
-				_IF		_Z							; If we're not in charge control mode
-					call	#TxByte						; Send the status byte. Wait buffer not full
-				_ELSE								; Else we're in charger control mode
-					call	#ControlContactors			; Control contactors (was call #ControlCharger)
-				_ENDIF
-			_ELSE							; Else we're a BMU
-				; Process incoming status for BMU. Stress in R9, complete status in R8.
-;				mov.b	R8,&globalStatus		; So '255sp' (or modbus equiv) will read global status
-				mov.b	R8,&localStatus		; So '255sp' (or modbus equiv) will read global status
-				call	#ControlContactors		; Control contactors
-			_ENDIF							; End else BMU
+				call	#TxByte						; Send the status byte. Wait buffer not full
+			_ELSE								; Else we're in charger control mode
+				mov.b	R8,&globalStatus			; '255sp' (or modbus equiv) reads global status
+				call	#ControlContactors			; Control contactors (was call #ControlCharger)
+			_ENDIF
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
@@ -1121,65 +1112,9 @@ ControlContactors:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
-											; and hence also the battery contactor
+			bic.b	#BatCont,ContPortOUT ; Drop out the battery contactor
 		_ENDIF							; Endif
 
-		; If not OV_UT && not charging && stress >= 12
-		;	turn off discharging/loads contactors
-		_COND							; Begin short circuit conditional
-			bit		#OV_UT,R8
-		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
-			bit.b	#bCharging,&monFlags
-		_AND_IF	_Z						; And if we're not charging
-			cmp.b	#MinContStress,R9
-		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
-		_ENDIFS
-
-		; If stress <= 7
-		;	turn on discharging/loads contactors
-		cmp.b	#8,R9
-		_IF	_L							; If incoming stress is normal
-			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
-		_ENDIF
-
-		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
-		;	turn off charging/source contactors
-		mov		R8,R10					; Make a copy of the status byte in R10
-		and		#TYPE,R10				; Extract the two stress type bits
-		_COND							; Begin short circuit conditional
-			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
-		_AND_IF	_NE						; If the stress is not due to UnderVoltage
-			bit.b	#bCharging,&monFlags
-		_AND_IF	_NZ						; And if we're charging
-			cmp.b	#MinContStress,R9
-		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
-		_ELSES							; Else
-			push	R8
-			push	R9
-			call	#cellV					; Get the PV array voltage
-			pop		R9
-			pop		R8
-			cmp		#145*10,R10
-			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
-				bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
-			_ENDIF
-		_ENDIF
-
-		; If stress <= 7 && array voltge < 140 V
-		;	turn on charging/source contactors
-		_COND							; Begin short circuit conditional
-			cmp.b	#8,R9
-		_AND_IF	_L						; And if incoming stress is normal
-			push	R8
-			call	#cellV
-			pop		R8
-			cmp		#140*10,R10
-		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
-		_ENDIFS
 
 		; If all considered full (and no comms error), reset the coulomb counter
 		_COND
@@ -1201,7 +1136,32 @@ ControlContactors:
 		pop		R10
 		pop		R9
 		ret
-; End of ControlCharger
+; End of ControlContactors
+
+
+DoPrecharge:
+		bis.b	#PreCont,&ContPortOUT		; Turn on the Precharge contactor
+		mov		#10*1000/100,R11			; 10 seconds = 100 x 100 ms
+		_BEGIN
+			call	#CapV
+			push	R10							; Save capacitor voltage measurement
+			call	#BatV
+			pop		R8							; Restore cap voltage to R8
+			sub		R8,R10						; R10 = BatV - CapV
+			cmp		#5*10,R10
+			_WHILE	_HS							; Wait for less than 5V across contactor
+				mov		#100,R8						; 100 milliseconds
+				call	#DelayMs
+				dec		R11
+		_UNTIL	_Z
+			call	#_errorLed					; We who are about to die beep at you
+			_ELSE
+				bis.b	#BatCont,&ContPortOUT		; Turn on the Battery contactor
+				mov		#100,R8						; 100 milliseconds
+				call	#DelayMs					; Wait for relay bounce and voltage settling
+			_ENDIF
+		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
+		ret
 
 
 PiController:

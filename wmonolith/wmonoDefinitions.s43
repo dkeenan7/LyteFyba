@@ -66,12 +66,21 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			jmp		_prettyPrint			; Tail-call pretty-print and return
 
 ; Stress ( -- )								; Report local stress
-			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
-			mov		#'p',Rthd				; Type is stress
+			xCODE	'j',Stress,_Stress		; 'j' for just local stress (not the full status)
+			mov		#'j',Rthd				; Type is stress
 			mov.b	&localStatus,Rsec		; Get local status
-			bit.b	#bModbusOutput,&interpFlags
-			_IF		_Z						; If not modbus
-				and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+;			mov		#3,Rtos					; Print 3 digits
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+
+; Status ( -- )								; Report global status if a BMU, else local status
+			xCODE	'p',Status,_Status		; 'p' for pain since we've already used 's' for select
+			mov		#'p',Rthd				; Type is stress
+			cmp.b	#255,&ID
+			_IF		_EQ						; If BMU
+				mov.b	&globalStatus,Rsec		; Get global status
+			_ELSE
+				mov.b	&localStatus,Rsec		; Get local status
 			_ENDIF
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
