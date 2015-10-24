@@ -12,8 +12,9 @@ t l Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-    Special characters not used so far: "#&()*+,./;=[]_|}~
-	Letters not used so far: JW (all lowercase are used)
+    Characters not used so far:                           JW"#&()*+,./;=[]_|}~
+	Characters not used so far in TestICal:          kGJKPWZ"#&()*+,./;=[]_|}~<>{
+	Characters not used so far in Monitor etc: abjmuwzJLMOUW"#&()*+,./;=[]_|}~
 @ @ Capacity constants; takes A-F parameter. Needed by wmonolith.
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -37,11 +38,12 @@ c   Charging, '1c' to include undertemp and exclude undervolt as stress, and sta
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
-f   (f)uel gauge. State if charge in tenths of a percent. (wmonolith only)
+f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
 h h Hex output
 H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
+i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
   j JumpToSubroutine (call)
@@ -74,6 +76,7 @@ T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   w WriteCalValue
+W W excle(W)sive  (single-CMU interaction mode) alternative for 'x' when 2400 baud must be blocked.
 x x e(x)clusive   (single-CMU interaction mode)
 X X e(X)clude     (single-CMU ignore mode)
 y y b(y)pass (Yellow) (relaY- on IMU)
@@ -111,6 +114,7 @@ Y Y relaY+ (on IMU only)
 
   a ADCScaled or r(A)wVoltage (TestICal only)
   p ParallelPullDown (when testing with CMUs paralleled on power supply)
+i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   M Measure Vcc

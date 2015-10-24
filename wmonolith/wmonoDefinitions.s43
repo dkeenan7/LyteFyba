@@ -69,7 +69,10 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
 			mov		#'p',Rthd				; Type is stress
 			mov.b	&localStatus,Rsec		; Get local status
-			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+			bit.b	#bModbusOutput,&interpFlags
+			_IF		_Z						; If not modbus
+				and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+			_ENDIF
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
