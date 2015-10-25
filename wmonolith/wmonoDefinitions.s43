@@ -75,6 +75,8 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 ; Status ( -- )								; Report global status if a BMU, else local status
 			xCODE	'p',Status,_Status		; 'p' for pain since we've already used 's' for select
+			push.b	&interpFlags			; Save present number base
+			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
 			mov		#'p',Rthd				; Type is stress
 			cmp.b	#255,&ID
 			_IF		_EQ						; If BMU
@@ -82,8 +84,11 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			_ELSE
 				mov.b	&localStatus,Rsec		; Get local status
 			_ENDIF
+			and.b	#$7F,Rsec				; Clear the high bit
 ;			mov		#3,Rtos					; Print 3 digits
-			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			call	#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			pop.b	&interpFlags			; Restore number base
+			ret
 
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
