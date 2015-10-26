@@ -140,10 +140,11 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-; Used by BMU only (and hence G2553 only)
+#if G2553							; Used by BMU only (and hence G2553 only)
 SourceCont	EQU		ChgCont			; Source contactor MOSFET and orange LED
 LoadCont	EQU 	DisCont			; Load contactor MOSFET and cyan/white LED
 ContPortOUT	EQU		P3OUT
+#endif
 
 ;
 ; RAM allocation
@@ -582,10 +583,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Do precharge and get the main contactor on, so we stay powered up
 ; even when the human lets go of the green button.
+#if G2553
 			cmp.b	#255,&ID
 			_IF		_EQ							; If we're a BMU
 				call	#DoPrecharge
 			_ENDIF
+#endif
 
 ; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
@@ -940,9 +943,11 @@ DoMeasurement:
 					cmp.b	#255,&ID				; If we're a CMU
 					_IF		_NE
 						call	#TxByte					; Send the status byte. Wait buffer not full
+#if G2553
 					_ELSE							; Else we're in charger control mode
 						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 						call	#ControlContactors		; Control contactors
+#endif
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -1074,15 +1079,18 @@ DoStatus:
 			cmp.b	#255,&ID
 			_IF		_NE						; If we're a CMU
 				call	#TxByte						; Send the status byte. Wait buffer not full
+#if G2553
 			_ELSE								; Else we're in charger control mode
 				mov.b	R8,&globalStatus			; '255sp' (or modbus equiv) reads global status
 				call	#ControlContactors			; Control contactors (was call #ControlCharger)
+#endif
 			_ENDIF
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
 
+#if G2553
 ControlContactors:
 ;
 ; Status byte is in R8. Use it to control contactors
@@ -1167,7 +1175,7 @@ DoPrecharge:
 			_ENDIF
 		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
 		ret
-
+#endif		// if G2553
 
 PiController:
 ;
