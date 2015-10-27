@@ -235,7 +235,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		mov		#3,Rtos				; Use a 3 digit field width
 		call	#_emitNum			; Transmit the ID as text in the present number base
 
-		mov		#':',R8				; Transmit a colon, an alias for tick
+		mov		#'\'',R8			; Transmit a tick
 		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'
@@ -300,7 +300,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#3,Rtos				; Use a 3 digit field width
 		call	#_emitNum			; Transmit the ID as text in the present number base
 
-		mov		#':',R8				; Transmit a colon, an alias for tick
+		mov		#'\'',R8			; Transmit a tick
 		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'

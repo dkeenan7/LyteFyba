@@ -779,7 +779,7 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
 			_ENDIF	; not a BMU
 
-			; Do temperature measurement
+			; Do temperature measurement using internal sensor
 			call	#temp					; Get temperature in degrees Celsius in R10
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
@@ -801,6 +801,28 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
 
+#if REV61
+			; Do temperature measurement using external thermistor
+			call	#extT					; Get temperature in degrees Celsius in R10
+
+			cmp.b	#255,&ID
+			_IF		_NE						; If we're not a BMU
+				push	R10						; Save measurement for undertemperature stress calc
+				; Calculate stress due to overtemperature
+				push	R10						; Measurement for overtemperature stress calc
+				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
+				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
+				push	#3						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
+
+				; Calculate stress due to undertemperature
+												; Measurement saved on stack earlier
+				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
+				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
+				push	#4						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
+			_ENDIF
+#endif
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#linkV					; Get link voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not a BMU
