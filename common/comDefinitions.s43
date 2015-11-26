@@ -901,21 +901,28 @@ abortColon
 		ret							; So now we return to the caller of the interpreter, thus
 									; ignoring the packet
 
-; Capacity ( code -- ) ; Emit some constants, code determines which constant
+; Capacity ( code -- ) ; Emit some constants, hex digit determines which constant
 ;
+; Capacities of the battery system
+; For the first Genevo Demand Charge Management system at Kingscliff TAFE
+CAP_TOTV	EQU		16 * 32					; Nominal total volltage in decivolts. 16 cells at 3.2 V
+CAP_ENERGY	EQU		CAP_TOTV * BatCapacity / 100	; Energy capacity in Wh. Nom voltage x Ah capacity
+CAP_DISCH	EQU		CAP_ENERGY * 1			; Discharge power in W. 1C
+CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
+
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
 		_CASE
-		_OFb	#$E,Rtos			; E: Energy capacity (Wh)
-			mov		#CAP_ENERGY,Rsec
-		_ENDOF
-		_OFb	#$B,Rtos			; B: Battery total nominal voltage
+		_OFb	#$B,Rtos			; B: Battery total nominal voltage (0.1 V)
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
-		_OFb	#$D,Rtos			; Discharge power capability
+		_OFb	#$C,Rtos			; C: Charge power capability (W)
+			mov		#CAP_CHARGE,Rsec
+		_ENDOF
+		_OFb	#$D,Rtos			; D: Discharge power capability (W)
 			mov		#CAP_DISCH,Rsec
 		_ENDOF
-		_OFb	#$C,Rtos			; Charge power capability
-			mov		#CAP_CHARGE,Rsec
+		_OFb	#$E,Rtos			; E: Energy capacity (Wh)
+			mov		#CAP_ENERGY,Rsec
 		_ENDOF
 		_ENDCASE
 		mov		#5,Rtos				; Use 5 digits

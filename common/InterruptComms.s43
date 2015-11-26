@@ -424,8 +424,8 @@ PwmSubIsr:	; Compare match for PWM
 			_ENDIF
 			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
 			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-		#endif
-	#endif
+		#endif // REV61
+	#endif // MONOLITH
 #else										// Else this is piezo PWM
 	#if	G2553
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or

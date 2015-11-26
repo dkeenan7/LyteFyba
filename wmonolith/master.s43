@@ -72,8 +72,9 @@ AccMaster
 
 			bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
 			_IF		_NZ
-				; For a BMU, the so-called link-voltage is really shunt current in 1/5ths of an amp.
-				; This was shifted left and copied to ram &current (so tenths of an amp)
+				; For the BMU in the Kingscliff DCM, the so-called link-voltage is really shunt current
+				; in half amps.
+				; This was multiplied by 5 and copied to the variable &current (so tenths of an amp)
 				; Tell the CMUs what the current is, by sending an 'i' command
 				mov		&current,R10			; Get the saved current, tenths of an amp
 				abs		R10						; Take the absolute value of the current in R10
@@ -83,7 +84,7 @@ AccMaster
 				call	#_emitNum				; Transmit the number
 				ClearWatchdog
 				cmp		#0,&current
-				_IF		_L						; If current is negative
+				_IF		_L						; If current is negative (discharge)
 					mov		#'-',R8					; Transmit a postfix minus sign
 					call	#TxByteCk
 				_ENDIF

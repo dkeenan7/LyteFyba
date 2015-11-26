@@ -198,11 +198,14 @@ chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' 
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
-BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
-HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
+BatCapacity		EQU		4000		; Battery capacity in tenths of an amp-hour
+HiTempCellRes	EQU		360			; Cell internal resistance at high temp in micro-ohms
+				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
 				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
 				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+				; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
 				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+				; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
@@ -680,7 +683,8 @@ DoMeasurement:
 			call	#cellV					; Get cell voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
-				; Estimate OCV by subtracting current times internal resistance from measured voltage
+				; Estimate OCV by subtracting current times internal resistance from measured voltage.
+				; Shunt must be wired so charge current is positive and discharge current is negative.
 				push	R10						; Save the cell voltage measurement
 
 				; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
@@ -734,10 +738,10 @@ DoMeasurement:
 				mov		R10,R9					; Use only the high word of the result, put into R9
 				pop		R10						; Restore the cell voltage measurement to R10
 				tst		&current
-				_IF		_NN						; If current is not negative (charge)
-					sub		R9,R10					; OCV is lower than measured
-				_ELSE							; Else charging
-					add		R9,R10					; OCV is higher than measured
+				_IF		_NN						; If current is not negative (i.e. if charging)
+					sub		R9,R10					; OCV is lower than measured, when charging
+				_ELSE							; Else discharging
+					add		R9,R10					; OCV is higher than measured, when discharging
 				_ENDIF							; Endif
 			_ENDIF	; not BMU
 
@@ -844,7 +848,12 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; BMU
-				rla		R10						; Convert to tenths of an amp
+				; We have a 500 A 50 mV shunt for the Genevo DCM at Kingscliff,
+				; and the diffamp has a gain of 10, so the linkV result should be
+				; in units of 0.5 A. So -1500 to 1500 corresp to -750 A to 750 A.
+				mov		R10,R9					; Multiply by 5 to
+				rla2	R10						;  convert to tenths of an amp
+				add		R9,R10
 				mov		R10,&current			; Save in RAM variable
 				bis.b	#bSendi,&masterFlags	; Indicate that an 'i' command using &current is due
 				ClearWatchdog					; When testing, seem to need this
@@ -1117,6 +1126,7 @@ ControlContactors:
 ;
 ; Status byte is in R8. Use it to control contactors
 ;
+#if	G2553
 		push 	R9
 		push	R10
 
@@ -1142,7 +1152,8 @@ ControlContactors:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(BatCont | ChgCont),ContPortOUT ; Drop out the battery contactors -- we die
+			bic.b	#(BatCont|ChgCont|DisCont|NrmCont),ContPortOUT	; Drop out all battery contactors,
+																	; and we die
 		_ENDIF							; Endif
 
 
@@ -1165,13 +1176,15 @@ ControlContactors:
 
 		pop		R10
 		pop		R9
+#endif // G2553
 		ret
 ; End of ControlContactors
 
 
 DoPrecharge:
+#if G2553
 		bis.b	#PreCont,&ContPortOUT		; Turn on the Precharge contactor
-		mov		#10*1000/100,R12			; 10 seconds = 100 x 100 ms
+		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
 			call	#DelayMs					;	of loop to allow ADC system to settle after reset
@@ -1181,21 +1194,36 @@ DoPrecharge:
 			pop		R8							; Restore cap voltage to R8
 			sub		R8,R10						; R10 = BatV - CapV
 			cmp		#5*10,R10
-			_WHILE	_HS							; Wait for less than 5V across contactor
+			_WHILE	_HS							; Wait for less than 5 V across contactor
 				dec		R12
 		_UNTIL	_Z
-			mov		#1,Rtos
-			call	#_errorLed					; We who are about to die beep at you
-			bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save its resistor
-			_BEGIN
-				ClearWatchdog
-			_AGAIN								; Endless loop
-			_ELSE
-				bis.b	#(BatCont | ChgCont),&ContPortOUT		; Turn on the Battery contactor
-				mov		#100,R8						; 100 milliseconds
+				mov		#1,Rtos						; Fall thru to here on timeout
+				call	#_errorLed					; We who are about to die beep at you
+				bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save resistor
+				_BEGIN
+					ClearWatchdog
+				_AGAIN								; Endless loop
+			_ELSE									; Come here from WHILE, when less than 5 V
+				; Stagger the turn-on of the main contactors so that the DC-DC converter can cope.
+				; The battery contactors are in two parallel sets (upper and lower) so they can
+				; carry 500 amps continuous between them, even if it is not shared very equally.
+				; Each set consists of two contactors in anti-series so one can break charge
+				; current while the other can break discharge current.
+				bis.b	#ChgCont,&ContPortOUT 		; Turn on the lower charge-direction contactor
+				mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
+				call	#DelayMs					; Wait for economiser to reduce coil current
+				bis.b	#NrmCont,&ContPortOUT ; Turn on the upper charge-direction contactor
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for economiser to reduce coil current
+				bis.b	#BatCont,&ContPortOUT ; Turn on the lower discharge-direction contactor
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for economiser to reduce coil current
+				bis.b	#DisCont,&ContPortOUT ; Turn on the upper discharge-direction contactor
+				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for relay bounce and voltage settling
 			_ENDIF
 		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
+#endif // G2553
 		ret
 #endif		// if G2553
 
