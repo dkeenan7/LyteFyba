@@ -204,8 +204,8 @@ int main( void )
 			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
 			iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 30625) >> 16);
-			if (iAuxBatMilliVolts < 12500) bAuxBatNeedsCharge = !bDCUb; // FIXME! when DCU-B analog inputs are fixed
-			if (iAuxBatMilliVolts > 14150) bAuxBatNeedsCharge = false;
+			if (iAuxBatMilliVolts < 13200) bAuxBatNeedsCharge = !bDCUb; // FIXME! when DCU-B analog inputs are fixed
+			if (iAuxBatMilliVolts > 13760) bAuxBatNeedsCharge = false;
 
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
