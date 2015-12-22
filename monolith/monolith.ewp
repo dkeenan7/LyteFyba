@@ -804,7 +804,7 @@
         </option>
         <option>
           <name>XclFile</name>
-          <state>$TOOLKIT_DIR$\config\linker\lnk430g2553.xcl</state>
+          <state>$TOOLKIT_DIR$\config\linker\lnk430g2452.xcl</state>
         </option>
         <option>
           <name>XclFileSlave</name>
@@ -812,7 +812,7 @@
         </option>
         <option>
           <name>DoFill</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>FillerByte</name>

@@ -63,8 +63,9 @@
 ; In that case, it must of course be loaded using a JTAG programmer as the BSL will not work.
 
 #define INIT_CMD_STRING ''	 			// No initial command
+; #define INIT_CMD_STRING 'ub'			// Move old cal data to new location and update BSL
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
-									// Note that an update command 'u' is required to make it stick.
+;										// Note that an update command 'u' is required to make it stick.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
