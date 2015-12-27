@@ -17,7 +17,10 @@ OPAMP4||5
 OPTO||4
 OPTO AC||4
 PIEZO||2
+PMOS||3
 Relay Coil + Diode||2
+Schmitt Inverter||4
 Transorb||2
 TVS||3
 VREG||5
+XTAL||2
