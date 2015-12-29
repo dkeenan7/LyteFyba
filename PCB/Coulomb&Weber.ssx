@@ -13,6 +13,7 @@ MPLIB_MSP_20||20
 MPLIB_MSP_28||28
 NMOS||3
 NPN Photo||2
+NPN Photo with base||3
 OPAMP4||5
 OPTO||4
 OPTO AC||4
