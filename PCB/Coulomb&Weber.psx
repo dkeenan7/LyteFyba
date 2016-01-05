@@ -18,9 +18,11 @@ IFO transceiver no pads||0
 IFO transceiver normal||5
 IFO transceiver pegless||3
 IFO transceiver RA||3
+IR RECEIVER||3
 LED 0805||2
 LED 0805 (shine thru PCB)||2
 LED side view||2
+LED side view thru hole||2
 LEDT175||2
 LSOP-4||4
 PIEZO_SMD||2
