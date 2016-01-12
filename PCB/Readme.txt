@@ -69,18 +69,17 @@ Rotation Procedure
 ==================
 Click in space to deselect all
 Context menu in space and choose Clear Copper
-Context menu on the left cell-terminal pad and choose Group / Select Group
-Press R twice. We don't know how it chooses what point to rotate about, 
-but it is affected by what you click on in the previous step.
-So to correct the offset, press shift-"+" and enter 62,-14.6 into the X and Y fields and OK.
-If the above doesn't work because it no longer rotates about the same point, then
+Select SG1. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the rotation.
+Context menu on SG1 and choose Group / Select Group.
+Press R twice.
+If the above doesn't work because it no longer rotates about the origin, then
 manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
-update the above numbers to correspond to the new dx and dy figures from the bottom of the window.
-Click in space to deselect all
+remember the new dx and dy figures from the bottom of the window to use in a + command from now on.
+Click in space/ to deselect all.
 Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
 This assumes the existence of an "Arrows" group containing both arrows.
 Press F
-Press shift-"+" and enter 1780 into the X field and OK
+Press shift-"+" and enter 1780 [FIXME!] into the X field and OK
 Click in space to deselect all
 Context menu in space and choose Pour Copper
 
