@@ -46,15 +46,14 @@ should disappear from the interaction bar.
 * Show all layers except Top and Bottom Documentation.
 * Ensure only the copper-pour-area outlines are displayed, not their fills.
 Context menu in space and choose Clear Copper if necessary.
-* Make a rectangular selection from -2500,300 to 2500,-300. The 2500 numbers are
-not critical, as long as everything is selected in the middle section. However the 300
+* Make a rectangular selection from -63.5,7.5 to 63.5,-7.5. The 63.5 numbers are
+not critical, as long as everything is selected in the middle section. However the 7.5
 numbers are critical. Using the arrow keys allows better accuracy and will (mostly) snap to
 grid.
 * Add the thick red GND track north of the processor, and the thin red Vdd track
-south of R7, if necessary.
+south of R7, if necessary. [needs updating for present design]
 * Add R9 and its tracks and vias to the selection.
 * Add all bypass resistors to the selection (easier with one layer displayed at a time).
-* Add the snap-off holes for the bypass outriggers.
 * Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
 interior, just the outlines). Ctrl-Shift-Clicking is useful here.
 * Remove the board outline, including the oval holes, from the selection. Ctrl-Shift-Clicking is useful here.
@@ -63,17 +62,20 @@ interior, just the outlines). Ctrl-Shift-Clicking is useful here.
 * Deselect everything from the top and bottom documentation layers, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
 * Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
-* Context menu select "Group", uncheck "Tight" and give the group a name such as "Rotatables"
+* Context menu on one of the selected objects and select "Group", uncheck "Tight" 
+and give the group the name "Rotatables"
 
 Rotation Procedure
 ==================
 Click in space to deselect all
 Context menu in space and choose Clear Copper
 Context menu on the left cell-terminal pad and choose Group / Select Group
-Press R twice
-Press shift-"+" and enter 2440 into the X field (or maybe 100 -240 into the X and Y fields) and OK.
+Press R twice. We don't know how it chooses what point to rotate about, 
+but it is affected by what you click on in the previous step.
+So to correct the offset, press shift-"+" and enter 62,-14.6 into the X and Y fields and OK.
 If the above doesn't work because it no longer rotates about the same point, then
-manually overlap (just barely) the blue blobs where the rotatables connect to the non-rotatables.
+manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
+update the above numbers to correspond to the new dx and dy figures from the bottom of the window.
 Click in space to deselect all
 Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
 This assumes the existence of an "Arrows" group containing both arrows.
