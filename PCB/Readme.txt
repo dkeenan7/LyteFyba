@@ -58,7 +58,7 @@ south of R7, if necessary. [needs updating for present design]
 interior, just the outlines). Ctrl-Shift-Clicking is useful here.
 * Remove the board outline, including the oval holes, from the selection. Ctrl-Shift-Clicking is useful here.
 * From the top and bottom silkscreens, deselect all text except component designators.
-* Deselect the arrows (objects can only be a member of one group). Leave the plus and minus signs selected.
+* Leave the plus and minus signs selected.
 * Deselect everything from the top and bottom documentation layers, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
 * Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
@@ -75,12 +75,7 @@ Press R twice.
 If the above doesn't work because it no longer rotates about the origin, then
 manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
 remember the new dx and dy figures from the bottom of the window to use in a + command from now on.
-Click in space/ to deselect all.
-Context menu on the arrow near the left cell-terminal pad and choose Group / Select Group.
-This assumes the existence of an "Arrows" group containing both arrows.
-Press F
-Press shift-"+" and enter 1780 [FIXME!] into the X field and OK
-Click in space to deselect all
+Click in space to deselect all.
 Context menu in space and choose Pour Copper
 
 
@@ -93,16 +88,16 @@ Frame select the whole BMU including the squiggle-join cutouts above
 Deselect board outline including the oval holes, by Ctrl-Shift-click.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
-Press shift-"+" and enter 0 into the X field and -1810 into the Y field. OK
+Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
 Click in space to deselect all
 Delete the mounting hole and its keepout circle (a tight group) from the original.
-Apply the rotation procedure to the north (original) board only
+Apply the rotation procedure to the south (copy) CMU only
 Now is a good time for a design rule check.
 Make all layers visible
 Zoom out; select the two BMUs; deselect outline; copy paste; All No
-Press shift-"+" and enter X = 0 and Y = 3620
+Press shift-"+" and enter X = 0 and Y = 92
 Zoom out; select all 4 BMUs; deselect outline; copy; paste; All No
-Press shift-"+" and enter X = 0 and Y = 7240
+Press shift-"+" and enter X = 0 and Y = 184
 Zoom in near the top of the 8 BMUs
 Select around the top squiggle join; delete
 Remove dangling tracks and via at top and dangling tracks at bottom.
