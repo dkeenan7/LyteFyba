@@ -83,9 +83,9 @@ Replication Procedure
 ======================
 Copy or Save As the .pcb file to a suitable name
 Zoom out; leave room below; 
-Ensure all layers are visible, except the two documentation layers.
+Ensure all layers are visible, except the two documentation layers and Cutouts text.
 Apply the above rotation procedure.
-Frame select the whole BMU including the squiggle-join cutouts above
+Frame select the whole BMU including the squiggle-join cutouts above.
 Deselect board outline by Ctrl-Shift-click. Keep the oval cutouts and squiggle-join cutouts.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
