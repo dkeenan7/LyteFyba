@@ -53,10 +53,10 @@ grid.
 * Add the thick red GND track north of the processor, and the thin red Vdd track
 south of R7, if necessary. [needs updating for present design]
 * Add R9 and its tracks and vias to the selection.
-* Add all bypass resistors to the selection (easier with one layer displayed at a time).
+* Add the printed bypass resistor to the selection by Ctrl-ShiftClick.
 * Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
 interior, just the outlines). Ctrl-Shift-Clicking is useful here.
-* Remove the board outline, including the oval holes, from the selection. Ctrl-Shift-Clicking is useful here.
+* Remove the board outline from the selection but keep the oval holes. Ctrl-Shift-Clicking is useful here.
 * From the top and bottom silkscreens, deselect all text except component designators.
 * Leave the plus and minus signs selected.
 * Deselect everything from the top and bottom documentation layers, if necessary.
@@ -79,29 +79,28 @@ Click in space to deselect all.
 Context menu in space and choose Pour Copper
 
 
-Panelisation Procedure
+Replication Procedure
 ======================
 Copy or Save As the .pcb file to a suitable name
 Zoom out; leave room below; 
-Ensure all layers are visible
+Ensure all layers are visible, except the two documentation layers.
+Apply the above rotation procedure.
 Frame select the whole BMU including the squiggle-join cutouts above
-Deselect board outline including the oval holes, by Ctrl-Shift-click.
+Deselect board outline by Ctrl-Shift-click. Keep the oval cutouts and squiggle-join cutouts.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
 Click in space to deselect all
 Delete the mounting hole and its keepout circle (a tight group) from the original.
-Apply the rotation procedure to the south (copy) CMU only
+Apply the rotation procedure again, to the original CMU only, to return it to normal.
 Now is a good time for a design rule check.
-Make all layers visible
-Zoom out; select the two BMUs; deselect outline; copy paste; All No
+Make all layers visible, except the two documentation layers.
+Zoom out; select the two CMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
-Zoom out; select all 4 BMUs; deselect outline; copy; paste; All No
-Press shift-"+" and enter X = 0 and Y = 184
-Zoom in near the top of the 8 BMUs
+Zoom in near the top of the 4 BMUs
 Select around the top squiggle join; delete
-Remove dangling tracks and via at top and dangling tracks at bottom.
-Deselect all; Context menu in space Pour copper (may not be necessary)
+Remove dangling tracks at top and bottom.
+Deselect all; Context menu in space and Pour copper, if necessary.
 Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
 plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
 
