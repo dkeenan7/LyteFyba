@@ -79,13 +79,14 @@ Click in space to deselect all.
 Context menu in space and choose Pour Copper
 
 
-Replication Procedure
-======================
+Replication Procedure and Preparing for Manufacture (Squiggle-joined CMUs for prismatic cells)
+===================================================
 Copy or Save As the .pcb file to a suitable name
+Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
 Zoom out; leave room below; 
 Ensure all layers are visible, except the two documentation layers and Cutouts text.
 Apply the above rotation procedure.
-Frame select the whole BMU including the squiggle-join cutouts above.
+Frame select the whole CMU including the squiggle-join cutouts above.
 Deselect board outline by Ctrl-Shift-click. Keep the oval cutouts and squiggle-join cutouts.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
@@ -97,10 +98,53 @@ Now is a good time for a design rule check.
 Make all layers visible, except the two documentation layers.
 Zoom out; select the two CMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
-Zoom in near the top of the 4 BMUs
+Zoom in near the top of the 4 CMUs
 Select around the top squiggle join; delete
 Remove dangling tracks at top and bottom.
 Deselect all; Context menu in space and Pour copper, if necessary.
 Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
 plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
+
+Isomerisation Procedure and Preparing for Manufacture (Octagonal CMUs for cylindrical cells)
+===================================================
+Copy or Save As the .pcb file to a suitable name
+Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
+Zoom out; leave room below; 
+Ensure all layers are visible, except the two documentation layers.
+Frame select the whole CMU excluding any IFO daughter board or detached IFO connector.
+Copy and Paste.
+When the Paste Net dialog comes up, select All No
+Press shift-"+" and enter 44.5 into the X field and 0 into the Y field. OK
+Click in space to deselect all
+
+From the left CMU:
+Delete fuse F2 and its associated text.
+Delete the left-hand large minus sign.
+Turn the middle plus sign into a minus sign by deleting the vertical stroke.
+Delete the pad for Strap- and its associated strain relief hole.
+Delete the dangling Strap+ track from the large terminal pad.
+
+From the right CMU:
+Delete fuse F1 and its associated text.
+Reconnect from the VDD track to the via and connect from D1 to the via, using Power Min track style.
+Delete the right-hand large plus sign.
+Delete the pad for Straq+ and its associated strain relief hole.
+Delete the GNE track from the large terminal pad.
+Change the net of the large terminal pad (subnet only) to Straq+.
+Complete the dangling Straq+ track so it's no longer dangling.
+
+On both CMUs:
+Add a small piece of dangling track to the bypR track (the printed resistor track) 
+close to where it connects to the 0R resistor.
+Delete the 0R.
+Drag the end of the dangling track (without first selecting anything) up to the centre 
+of the VDD via that used to be connected to the other side of the 0R.
+Don't worry about the fact that the whole printed resistor is now a dangling track. 
+This will give rise to one T-V error and one dangling track error per CMU. Ignore these errors. 
+In fact delete all DRC error notifications, so as not to confuse the manufacturer.
+
+Deselect all; Context menu in space and Pour copper, if necessary.
+Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
+plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
+
 
