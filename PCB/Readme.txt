@@ -107,24 +107,16 @@ plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plo
 
 Isomerisation Procedure and Preparing for Manufacture (Octagonal CMUs for cylindrical cells)
 ===================================================
-Copy or Save As the .pcb file to a suitable name
-Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
-Zoom out; leave room below; 
-Ensure all layers are visible, except the two documentation layers.
-Frame select the whole CMU excluding any IFO daughter board or detached IFO connector.
-Copy and Paste.
-When the Paste Net dialog comes up, select All No
-Press shift-"+" and enter 44.5 into the X field and 0 into the Y field. OK
-Click in space to deselect all
+Copy or Save As the .pcb file twice, to two suitable names e.g. CMUp and CMUn.
 
-From the left CMU:
+From CMUn:
 Delete fuse F2 and its associated text.
 Delete the left-hand large minus sign.
 Turn the middle plus sign into a minus sign by deleting the vertical stroke.
 Delete the pad for Strap- and its associated strain relief hole.
 Delete the dangling Strap+ track from the large terminal pad.
 
-From the right CMU:
+From CMUp:
 Delete fuse F1 and its associated text.
 Reconnect from the VDD track to the via and connect from D1 to the via, using Power Min track style.
 Delete the right-hand large plus sign.
@@ -143,8 +135,10 @@ Don't worry about the fact that the whole printed resistor is now a dangling tra
 This will give rise to one T-V error and one dangling track error per CMU. Ignore these errors. 
 In fact delete all DRC error notifications, so as not to confuse the manufacturer.
 
-Deselect all; Context menu in space and Pour copper, if necessary.
+Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
+Deselect all; Context menu in space and Pour copper.
 Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
 plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
-
+For OSH Park use 3:3 metric for gerbers and 3:4 metric for the single (combined plated and non-plated) drill file.
+For OSH Park Ensure the drill file does not include the outline.
 
