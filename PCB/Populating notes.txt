@@ -6,7 +6,7 @@ place them by hand after the main red-side components. Also leave off C3 (neares
 and the fuse. (C3 interferes with soldering and even inspecting processor pins 13-16.)
 
 On two pin devices, apply paste towards the middle of the component (away from the ends). There
-two exceptions: D6 (Schottly diode), and C6 (electrolytic on the blue side of the boards).
+are two exceptions: D6 (Schottky diode), and C6 (100 uF electrolytic).
 
 For reflowing bypass resistors and LEDs, use a medium nozzle, 260^C temperature, and the lowest
 fan setting.
@@ -18,9 +18,9 @@ For bypass resistors, the fan speed can be increased to 4 (of 8 on an Atten 858D
 can be moved to one end if the other end melts first, attempting to keep the nozzle centred the
 instant that the resistor is seen to move.
 
-For the electrolytic capacitor, don't use a heat gun but use a soldering iron instead. Ensure
-that there is plenty of paste on the pads, including (mainly for these only) at the ends of the
-pads.
+For the 100 uF electrolytic capacitor, don't use a heat gun but use a soldering iron instead.
+Ensure that there is plenty of paste on the pads, including (mainly for these only) at the
+outer ends of the pads.
 
 To quickly test the bypass resistors before the processors are working: on the red side, measure
 resistance from the fuse pad furthest from D1 to both of the bypass resistor pads nearest D1
@@ -29,14 +29,16 @@ bypass resistor area; these should read about 4.1 ohms to either VDD or BypR.
 
 Another method: measure each resistor using the resistor's terminals. If either connection from
 the resistor to its pad is open circuit, it will read 3.3 ohms. In circuit, it seems to read
-around 2.6 ohms plus or minus 0.1 ohms.
+around 2.6 ohms plus or minus 0.1 ohms. However the probe pressure may cause it to make contact 
+despite not being properly soldered.
 
-A quick test for the electrolytic capacitor C6: Fluke 87 III multimeter locked to 400 kOhm range,
-positive probe to the via near the C of Coulomb on the red side, negative end on the square
-(inner of 2, marked - on the other side) terminal of TX (north east corner). The resistance
-should increase about 10 kOhms per second.
+A quick test for the electrolytic capacitor C6: Fluke 87 III multimeter locked to 400 kilohm
+range, positive probe to the via near the C of Coulomb on the red side, negative end on the
+square (inner of 2, marked - on the other side) terminal of TX (north east corner).
+The resistance should increase about 10 kilohms per second.
 
-The yellow LED cannot easily be tested without the processor. The blue/red LED can, with a good
-multimeter, negative probe towards the bypass resistor. If the red LED lights only very dimly,\
+The yellow LED cannot easily be tested without the processor. The blue/red LED can, with a
+multimeter having high enough diode-test voltage (e.g. Fluke 87 III), 
+negative probe towards the bypass resistor. If the red LED lights only very dimly,
 with around 1.2 V reading instead of the expected almost 1.7 V, suspect soldering near processor
-pin 11. Note that unpowered LED tests are impractical once the farad capactitor is installed.
+pin 11. Note that unpowered LED tests are impractical once the farad capacitor is installed.

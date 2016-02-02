@@ -80,7 +80,7 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 20 mV below 3.460 V, to a maximum of 15 at <= 3.16 V
-// UV setpoint is 3.32 to 3.12 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
+// UV setpoint is 3.32 to 3.30 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
 UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62degC

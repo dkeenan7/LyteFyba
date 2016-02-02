@@ -35,24 +35,29 @@ of the step it failed.
    Wait for it to complete before moving to the next CMU. If there is an error,
    you may need to unplug the USB connector, wait a few seconds and replug it.
 4) Use the netbook's taskbar (bottom of screen) to choose the icon that looks like
-   a computer with a "VT" on its screen (TeraTerm). Press the orange oscilloscope probe
+   a computer with a "VT" on its screen (TeraTerm). Clip the oscilloscope probe alligator 
+   clip to the negative bolt on the test jig. Press the oscilloscope probe tip
    against the southwest pin of the part marked (OP1) in the southeast corner of each CMU.
    Hold down the <Shift>+U keys to send auto-repeated U characters and observe
    approximate square waves with some rounded corners.
    The first CMU will be closer to 50/50 hi/lo as it is not being driven by a previous CMU.
    Apart from that, they should all look the same.
-5) Type <Ctrl-s>1i<Enter><Ctrl-q> to set the IDs.
+5) Type <Ctrl-s>1i<Enter><Ctrl-q> to set the IDs. You will see ---i where --- is 
+   one more than the ID of the last CMU.
    Type 0'lwu (zero tick lowercase-LWU) to turn on link voltage measurement for all CMUs, 
    and to save the IDs.
-6) Type v<Enter> to check that the last ID is the same as the number of CMUs in the string,
+6) Type v<Enter> to check that the last ID is correct (first_ID + number_in_string - 1),
    and that all blue LEDs are working.
+
+<page break>
+
 7) For each CMU:
   a) Type <n>x<enter> where <n> is the number of the CMU, to address the CMU on its own.
      Don't worry if <n> doesn't show.
   b) Use the v command to verify that only the current CMU's blue light comes on.
      If not, <escape><enter> and re-do the x command.
-  c) Use the Fluke 87 III multimeter to measure the voltage directly at the CMU's + and - 
-     terminals pads.
+  c) Use both probes of the Fluke 87 III multimeter to measure the voltage directly 
+     at the CMU's + and - terminals pads.
      Use the <nnnn>'vc command to calibrate the voltage based on the multimeter reading.
      Check that the calibration
      value is in the ranges -31500 to -32768 or 31500 to 32767. Check the voltage
@@ -72,16 +77,14 @@ of the step it failed.
      This can usually be done by placing the beeper frequency in one of two ranges:
      For the 17 mm beeper (PS1740P02E): 1.15 to 1.4 kHz or 2.8 to 4.6 kHz.
      For the 13 mm beeper (PKM13EPYH4000): 1.3 to 1.7 kHz or 3.4 to 5.2 kHz.
-     Use 0e to turn the beeper off. Push the "Hz" button on the multimeter twice to go back 
-     to voltage measurement.
+     Use 0e to turn the beeper off.
   j) Move the multimeter lead to the left hole of P3 (TX-). Use the 'f' command and read
      the frequency. You may find it easier to use 2 or more 'f' commands so the reading
      is stable for longer. The reading should be between 199.5 and 200.5 kHz at 20 degC
      (200.5 to 201.5 kHz at 30 degC).
+     Push the "Hz" button on the multimeter twice to go back to voltage measurement.
   k) Use u<enter> to update the calibration values.
      The u is very important otherwise all the above work will be lost.
-     Ignore the strange characters emitted as following CMUs are reset as a result
-     of the u command.
   l) Type the <ESC> key (upper left corner of keyboard).
      This cancels the previous <n>x command.
   m) Go back to the start of step 7 until all CMUs are done.
@@ -95,4 +98,4 @@ of the step it failed.
    The quiescent current (after supercap has charged) should be between 1.7 and 2.1 mA.
    (was less than 1.0 mA for pre-rev 61 CMUs). Disconnect comms from the last CMU as
    the Novus device may be pumping up the supply.
-11) Turn off the power supply.
+11) First disconnect the CMU board from the test jig, then turn off the power supply.
