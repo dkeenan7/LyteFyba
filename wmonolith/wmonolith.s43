@@ -1028,9 +1028,9 @@ meas	EQU		8				; The measurement
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step, clears R11
-			cmp		R9,Rstrs				; Is this stress worse than present stress calculated so far?
-			_IF		_LO
-				mov		R9,Rstrs				; Yes, new present stress
+			cmp		R9,Rstrs
+			_IF		_LO						; If this stress worse than present stress calculated so far
+				mov		R9,Rstrs				; Make it the new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
 			_ENDIF

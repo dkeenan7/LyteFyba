@@ -1,7 +1,10 @@
 ;
-; Command character definitions common to both the monitor and TestICal,
-; which need no customisation in either
+; Command character definitions common to TestICal, monitor, monolith and wmonolith,
+; which need no customisation in any of them.
 ;
+
+BmuModbusID			EQU	240
+BroadcastModbusID	EQU	239
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
 ; Causes any characters following to be treated as comments only (Forth "\").
@@ -501,10 +504,10 @@ _prettyPrint:
 			; than the accepted Modbus commands, to allow following devices to ignore them.
 			mov		#':',R8				; Colon is start of modbus packet
 			call	#TxByteCk			; Send the colon
-			cmp.b	#255,&ID			; Is our ID 255?
-			_IF		_EQ
-				mov		#247,Rsec			; Yes, translate it to 247
-			_ELSE
+			cmp.b	#255,&ID
+			_IF		_EQ					; If our ID is 255 (i.e. BMU)
+				mov		#BmuModbusID,Rsec	; Translate it to corresponding modbus ID
+			_ELSE						; Else
 				mov.b	&ID,Rsec			; Use our ID unchanged
 			_ENDIF
 			mov		#3,Rtos				; Request 2 hex digits ($ is suppressed)
@@ -533,13 +536,13 @@ TxEndOfModbusPacket:
 			swpb	Rsec					; Get upper byte to lower Byte
 			add.b	R8, Rsec				; Add the lower byte of result
 			add.b	#03+02,Rsec				; Add the constant terms of the checksum
-			cmp.b	#255, &ID				; Is our ID 255?
-			_IF		_EQ						; If so,
-				add.b	#247, Rsec				; add 247, our Modbus ID
-			_ELSE
-				add.b	&ID, Rsec				; else a CMU, use our ID directly
+			cmp.b	#255, &ID
+			_IF		_EQ						; If our ID is 255 (a BMU)
+				add.b	#BmuModbusID, Rsec		; add the corresponding modbus ID
+			_ELSE							; Else a cmu
+				add.b	&ID, Rsec				; add our ID directly
 			_ENDIF
-			inv.b	Rsec						; The checksum is the negation of all this
+			inv.b	Rsec					; The checksum is the negation of all this
 			inc.b	Rsec
 			mov		#3, Rtos
 			call	#_emitNum				; Transmit the checksum as two hex digits
@@ -877,14 +880,14 @@ GetContactorBitmask:
 		mov.b	#'\\',3(Rip)		; Overwrite <func_code> hi digit with slosh (EXIT command)
 		call	#_ENTER				; Interpret the hex device ID
 		sub		#4,Rip				; Back up to the start of the packet again
-		cmp.b	#246,Rtos
-		_IF		_EQ					; If the ID is 246, treat as broadcast
+		cmp.b	#BroadcastModbusID,Rtos
+		_IF		_EQ					; If it uses the broadcast ID
 			mov.b	#' ',3(Rip)			; Overwrite <func_code> hi digit with space (no-op)
-		_ELSE
+		_ELSE						; Else
 			mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
-			cmp.b	#247,Rtos			; For the BMU?
-			_IF		_EQ
-				mov.b	#'F',1(Rip)			; Yes, replace with FF (255)
+			cmp.b	#BmuModbusID,Rtos
+			_IF		_EQ					; If it's for the BMU
+				mov.b	#'F',1(Rip)			; Replace with FF (255)
 				mov.b	#'F',2(Rip)			;	(255 is not a valid Modbus device address)
 			_ENDIF
 		_ENDIF
