@@ -3,8 +3,8 @@
 ; which need no customisation in any of them.
 ;
 
-BmuModbusID			EQU	240
-BroadcastModbusID	EQU	239
+BmuModbusID			EQU	247				; Normally the highest valid ID of 247, but Geli use 100
+BroadcastModbusID	EQU	BmuModbusID - 1
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
 ; Causes any characters following to be treated as comments only (Forth "\").
