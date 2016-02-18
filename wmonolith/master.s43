@@ -61,7 +61,7 @@ AccMaster
 				push.b	&interpFlags				; Save number base
 				bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
 				call	#_emitNum					; Transmit the number
-				pop.b	&interpFlags				; Restore number base
+				popBits_B #bHexOutput,&interpFlags	; Restore number base
 				ClearWatchdog
 
 				mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge

@@ -3,7 +3,7 @@
 ; which need no customisation in any of them.
 ;
 
-BmuModbusID			EQU	247				; Normally the highest valid ID of 247, but Geli use 100
+BmuModbusID			EQU	100				; Normally the highest valid ID of 247, but Geli use 100
 BroadcastModbusID	EQU	BmuModbusID - 1
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
@@ -249,6 +249,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		mov			#2,Rtos				; Print 2 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
+#if		EXTTEMP
 ;
 ; External thermistor temperature measurement ( -- )
 ; Transmit cell temperature in degrees C
@@ -260,6 +261,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		mov			R10,Rsec			; Result in degrees Celsius
 		mov			#2,Rtos				; Print 2 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
+#endif
 
 ;
 ; Link voltage measurement ( -- )
@@ -495,7 +497,7 @@ _prettyPrint:
 			call	#TxByteCk
 			pop		Rtos				; Restore m
 			pop		Rsec				; Restore n
-			pop.b	&interpFlags		; Restore number base to print n with
+			popBits_B #bHexOutput,&interpFlags ; Restore number base to print n with
 			call	#_emitNum
 			call	#TxEndOfPacket
 		_ELSE						; Else generate a modbus/ASCII response
@@ -522,8 +524,7 @@ _prettyPrint:
 			call	#_emitNum			; Emit register value as 4 hex digits
 			pop		R8					; Pop result to R8, needed for LRC
 			call	#TxEndOfModbusPacket ; Send LRC, CR and LF
-			pop.b	&interpFlags		; Restore number base
-			bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
 		_ENDIF							; End Else in modbus mode
 
 		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
@@ -635,7 +636,7 @@ TxEndOfModbusPacket:
 				dec		R8
 			_REPEAT
 
-			pop.b	&interpFlags				; Restore number base
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 
 ; Reset the reset-log ( -- )

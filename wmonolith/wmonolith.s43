@@ -20,9 +20,10 @@
 #define MONOLITH				// Used for some conditional assembly in otherwise common code
 #define	HELIDON 	0			// Is it the prototype monolith at Helidon
 								// which reads negative battery and array voltages up to 203.1 V
+#define EXTTEMP		0			// True if using external thermistor temperature sensors
 
 #define REV61		1			// For CMU board rev 61 or later, and IMU and BMU
-#define	G2553		1			// MSP430 model. False for older devices that used the MSP430G2452.
+#define	G2553		0			// MSP430 model. False for older devices that used the MSP430G2452.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -39,8 +40,9 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
+#if 		EXTTEMP
 ThermCal	EQU	infoThermCal
-
+#endif
 
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
@@ -237,7 +239,7 @@ TxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 rxBuf			DS		RxSz		; Receive queue buffer
 rxWr			DS		1			; Receive queue write index
 rxRd			DS		1			; Receive queue read index
-txBuf			DS		RxSz		; Transmit queue buffer
+txBuf			DS		TxSz		; Transmit queue buffer
 txWr			DS		1			; Transmit queue write index
 txRd			DS		1			; Transmit queue read index
 
@@ -256,10 +258,10 @@ ScuRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 2
 ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
-scuRxBuf		DS		RxSz		; Receive queue buffer
+scuRxBuf		DS		ScuRxSz		; Receive queue buffer
 scuRxWr			DS		1			; Receive queue write index
 scuRxRd			DS		1			; Receive queue read index
-scuTxBuf		DS		RxSz		; Transmit queue buffer
+scuTxBuf		DS		ScuTxSz		; Transmit queue buffer
 scuTxWr			DS		1			; Transmit queue write index
 scuTxRd			DS		1			; Transmit queue read index
 
@@ -277,10 +279,10 @@ ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 2
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
-chgRxBuf		DS		RxSz		; Receive queue buffer
+chgRxBuf		DS		ChgRxSz		; Receive queue buffer
 chgRxWr			DS		1			; Receive queue write index
 chgRxRd			DS		1			; Receive queue read index
-chgTxBuf		DS		RxSz		; Transmit queue buffer
+chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 #endif
@@ -805,6 +807,7 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
 
+#if EXTTEMP
 #if REV61
 			; Do temperature measurement using external thermistor
 			call	#extT					; Get temperature in degrees Celsius in R10
@@ -826,6 +829,7 @@ DoMeasurement:
 				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
+#endif
 #endif
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#linkV					; Get link voltage in mV in R10

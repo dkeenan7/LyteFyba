@@ -55,7 +55,7 @@
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
 ; Comms error ( -- )						; Report temporary master's ID
@@ -63,7 +63,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#'c',Rthd				; Type is comms error
 			mov		#0,Rsec					; Zero value (so no minus sign)
 			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
-			jmp		_prettyPrint			; Tail-call pretty-print and return
+			br		#_prettyPrint			; Tail-call pretty-print and return
 
 ; Stress ( -- )								; Report local stress
 			xCODE	'j',Stress,_Stress		; 'j' for just local stress (not the full status)
@@ -87,7 +87,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			and.b	#$7F,Rsec				; Clear the high bit
 ;			mov		#3,Rtos					; Print 3 digits
 			call	#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
-			pop.b	&interpFlags			; Restore number base
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 
 ; Query worst stress ( minStressToShow -- )
@@ -174,7 +174,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#TxEndOfPacket
 
 			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
-			pop.b	&interpFlags			; Restore number base
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
 			ALIGN	1
@@ -364,7 +364,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		push.b	&interpFlags			; Save number base
 		bis.b	#bHexOutput,&interpFlags; Set to hexadecimal output
 		call	#_emitNum				; Transmit the number
-		pop.b	&interpFlags			; Restore number base
+		popBits_B #bHexOutput,&interpFlags ; Restore number base
 		ClearWatchdog
 
 		mov		#'Z',R8					; Transmit a "Z" for ZtoreDischarge

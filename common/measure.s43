@@ -221,7 +221,7 @@ temp:
 			sub		R8,R10					; R10 has temperature in degrees Celsius
 			ret
 
-
+#if EXTTEMP
 extT:	; Temp of external thermistor. Called from 'H' command. Used in white monolith prototype.
 ; Uses Vishay NTCLE413E2103F102L NTC thermistor (R_25^C = 10k, K = 3435) from Digikey.
 ; CMU mods are R17 (bottom of divider) = 12k4. R4c (in parallel with thermistor) = 10k5.
@@ -246,6 +246,7 @@ extT:	; Temp of external thermistor. Called from 'H' command. Used in white mono
 			sxt		R8
 			sub		R8,R10					; R10 has temperature in degrees Celsius
 			ret
+#endif
 
 
 linkV:

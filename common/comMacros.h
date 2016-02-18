@@ -105,6 +105,13 @@ movBits_B	MACRO	src,mask,dest	; Trashes src
 			xor.b	src,dest	; Toggle bits as required
 			ENDM
 
+; Replace e.g. pop.B &interpFlags with popBits_B #bHexOutput, &interpFlags
+popBits_B	MACRO	mask,dest
+			xor.b	dest,0(SP)	; Get one bits in TOS for bits that need to toggle
+			and.b	mask,0(SP)	; Mask so we only change those we want to change
+			xor.b	@SP+,dest	; Toggle bits as required and drop from stack
+			ENDM
+
 rra2		MACRO  dest
 			rra	dest
 			rra	dest

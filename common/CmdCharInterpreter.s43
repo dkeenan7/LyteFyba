@@ -214,7 +214,7 @@ NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 ; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
 ; to interpret the line when a valid checksum and a carriage return are received.
 ; Outputs go to the default port (usually CMU, but SCU for the case of a BMU running wmonolith)
-ACCEPT
+ACCEPT:
 		mov		&ToIN,R9
 		_CASE
 
@@ -278,6 +278,7 @@ ACCEPT
 							_IF		_Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
 								call	#_ENTER
+								bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
 							_ENDIF					; End if dont-interpret flag is clear
 						_ENDIF					; End if good checksum
 			_ENDIF					; End if packet buffer not full
