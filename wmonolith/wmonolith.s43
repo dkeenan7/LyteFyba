@@ -1187,7 +1187,67 @@ ControlContactors:
 
 DoPrecharge:
 #if G2553
-		bis.b	#PreCont,&ContPortOUT		; Turn on the Precharge contactor
+		; This code is designed to work with a number of different battery contactor
+		; arrangements.
+		; t0 thru t4 indicate the time order of switching during precharge.
+		; P21 thru P25 are the numbers of the BMU connectors that drive the contactor coils.
+		; The connector numbers increase as you go away from the BMU's 12 V input connector.
+		; These BMU connectors are named respectively PRE BAT CHG DIS NRM in the software and schematic.
+		;
+        ; This is the contactor arrangement for the first DCM system installed at Kingscliff TAFE:
+		;           + ___ -      - ___ +
+		;        +----o o----------o o-----+
+		;        | t4 DIS P24   t1 NRM P25 |
+		;        |  + ___ -      - ___ +   |
+		; Bat+ --+----o o----------o o-----+-- Load +
+		;        | t3 BAT P22   t0 CHG P23 |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;                          ___
+		; Bat- -------------------|___|------- Load -
+		;                      500A 50mV shunt
+		;
+		; This is the contactor arrangement for the first Pods system installed at Kingscliff TAFE:
+		;           + ___ -
+		; Bat+ --+----o o------------------+-- Load +
+		;        | t3 BAT P22              |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;           + ___ -        ___
+		; Bat- -------o o---------|___|------- Load -
+		;          t0 CHG P23  500A 50mV shunt
+		;
+		; Future DCM systems should have their contactors arranged like this:
+		;           + ___ -
+		;        +----o o-----+
+		;        | t4 DIS P24 |
+		;        |  + ___ -   |
+		; Bat+ --+----o o-----+------------+-- Load +
+		;        | t3 BAT P22              |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;           + ___ -
+		;        +----o o-----+
+		;        | t1 NRM P25 |
+		;        |  + ___ -   |    ___
+		; Bat- --+----o o-----+---|___|------- Load -
+		;          t0 CHG P23  500A 50mV shunt
+		;
+		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
+		bis.b	#ChgCont,&ContPortOUT 		; Turn on the lower charge-direction contactor
+		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
+		call	#DelayMs					; Wait for economiser to reduce coil current
+		bis.b	#NrmCont,&ContPortOUT ; Turn on the upper charge-direction contactor
+		mov		#160,R8						; 160 milliseconds
+		call	#DelayMs					; Wait for economiser to reduce coil current
+
+		bis.b	#PreCont,&ContPortOUT		; Turn on the Precharge contactor (probably Minitactor)
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
@@ -1204,21 +1264,13 @@ DoPrecharge:
 				mov		#1,Rtos						; Fall thru to here on timeout
 				call	#_errorLed					; We who are about to die beep at you
 				bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save resistor
+				bic.b	#ChgCont,&ContPortOUT 		; Turn off the lower charge-direction contactor
+				bic.b	#NrmCont,&ContPortOUT 		; Turn off the upper charge-direction contactor
 				_BEGIN
 					ClearWatchdog
 				_AGAIN								; Endless loop
 			_ELSE									; Come here from WHILE, when less than 5 V
-				; Stagger the turn-on of the main contactors so that the DC-DC converter can cope.
-				; The battery contactors are in two parallel sets (upper and lower) so they can
-				; carry 500 amps continuous between them, even if it is not shared very equally.
-				; Each set consists of two contactors in anti-series so one can break charge
-				; current while the other can break discharge current.
-				bis.b	#ChgCont,&ContPortOUT 		; Turn on the lower charge-direction contactor
-				mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
-				call	#DelayMs					; Wait for economiser to reduce coil current
-				bis.b	#NrmCont,&ContPortOUT ; Turn on the upper charge-direction contactor
-				mov		#160,R8						; 160 milliseconds
-				call	#DelayMs					; Wait for economiser to reduce coil current
+				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 				bis.b	#BatCont,&ContPortOUT ; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
