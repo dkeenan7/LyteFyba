@@ -53,8 +53,17 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
-#define REV61	1				// For CMU board rev 61 or later, and IMU and BMU. 0 for MX-5.
-#define	G2553	0				// MSP430 model. False for older devices that used the MSP430G2452.
+//#define KINGSCLIFF_DCM			// Defined if for the prototype Genevo DCM at Kingsclff TAFE
+								// which uses external thermistor temperature sensors on modified CMUs.
+								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
+								// Otherwise comment out.
+
+#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
+								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
+								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
+#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
+								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+								// You must also set IAR/Project/General Options/Target/Device correctly
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.
@@ -88,8 +97,9 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 VoltCal 	EQU	ramVoltCal
 TempCal		EQU	ramTempCal
 LinkCal		EQU	ramLinkCal
+#ifdef	KINGSCLIFF_DCM
 ThermCal	EQU	ramThermCal
-
+#endif
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -150,7 +160,9 @@ ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
 ram8MHzCalB DS		1				; 8 MHz DCO range calibration byte
 ramID		DS		1				; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 ramDataVers	DS		1				; Data version
+#ifdef	KINGSCLIFF_DCM
 ramThermCal	DS		1				; Temperature offset calibration for external thermistor
+#endif
 ramDataEnd
 
 ; Miscellaneous variables
@@ -266,7 +278,9 @@ newChip:
 				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
 				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
+#ifdef	KINGSCLIFF_DCM
 				mov.b	#$00,&ramThermCal
+#endif
 			_ENDOF
 			; default action if none of the above apply
 #if !G2553
@@ -312,7 +326,7 @@ newChip:
 			mov.b	#P2CA2|P2CA1,&CACTL2		; Feed CA3 to the comparator neg input
 			mov.b	#TxPlIn,&CAPD				; Disable the digital input buffer of P1.3
 #else
-	#if REV61
+	#if REV >= 61
 			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
 			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 	#else
@@ -323,7 +337,7 @@ newChip:
 			_ELSE
 				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
-	#endif // REV61
+	#endif // REV >= 61
 			mov.b	#0,&P2SEL				; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT				; Set Bypass and ErrLed off (RLY- and RLY+ if we're an IMU)
 			mov.b	#$FF,&P2DIR				; Set Bypass and ErrLed as outputs

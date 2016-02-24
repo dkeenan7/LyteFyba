@@ -156,7 +156,7 @@ cellV:
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
 #ifdef MONOLITH		// If we're assembling Monolith, not Monitor or TestICal
-	#if HELIDON			// and it's for the prototype at Helidon
+	#ifdef HELIDON		// and it's for the prototype at Helidon
 			cmp.b		#255,&ID
 			_IF			_EQ			; If we're an IMU (modified for reading negative HazV to -200 V)
 				; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
@@ -221,7 +221,7 @@ temp:
 			sub		R8,R10					; R10 has temperature in degrees Celsius
 			ret
 
-#if EXTTEMP
+#ifdef KINGSCLIFF_DCM
 extT:	; Temp of external thermistor. Called from 'H' command. Used in white monolith prototype.
 ; Uses Vishay NTCLE413E2103F102L NTC thermistor (R_25^C = 10k, K = 3435) from Digikey.
 ; CMU mods are R17 (bottom of divider) = 12k4. R4c (in parallel with thermistor) = 10k5.

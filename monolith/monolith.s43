@@ -17,12 +17,23 @@
 ;
 ; "Monolith" is the standard operating software for our cell-top
 ; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
-#define MONOLITH				// Used for some conditional assembly in otherwise common code
-#define	HELIDON 	1			// Is it the prototype monolith at Helidon
-								// which reads negative battery and array voltages up to 203.1 V
+#define MONOLITH				// For some conditional assembly in otherwise common code.
+								// Changes StatusFreq from 16 Hz to 2 Hz.
+								// Enables SoC meter PWM.
+								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
+								// 'f' (SoC) and 'g' (DoD).
 
-#define REV61		1			// For CMU board rev 61 or later, and IMU and BMU
-#define	G2553		0			// MSP430 model. False for older devices that used the MSP430G2452.
+#define	HELIDON					// Defined if for the prototype black monolith at Helidon
+								// which uses a modified IMU and reads negative battery and array
+								// voltages up to 203.1 V.
+								// Otherwise comment out with //.
+
+#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
+								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
+								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
+#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
+								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+								// You must also set IAR/Project/General Options/Target/Device correctly
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -39,7 +50,6 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
-ThermCal	EQU	infoThermCal
 
 
 			NAME	main		; Module name
@@ -436,7 +446,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-	#if REV61
+	#if REV >= 61
 			clr.b	&P1OUT						; All outputs low on port 1
 			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
 			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
@@ -454,7 +464,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ELSE
 				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
-	#endif // REV61
+	#endif // REV >= 61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			cmp.b	#255,&ID
@@ -1621,7 +1631,7 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV61
+#if REV >= 61
 			bis.b	#TxPl,&P1OUT		; Set Tx to idle
 			bic.b	#TxMi,&TxMiPortOUT
 			ActLedOff					; (inverted) activity LED off

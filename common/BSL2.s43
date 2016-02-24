@@ -40,7 +40,7 @@ BSL:		; Initialisation
 			; Use original TI frequency calibration values, in case our values not set up or wildly bad
 			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-#if REV61
+#if REV >= 61
 			mov.b	#TxPl,&P1OUT	; Set Txs to idle state, Vref output off
 			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
 	#if G2553
@@ -318,7 +318,7 @@ WriteByte:
 #endif
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
-#if REV61
+#if REV >= 61
 				and.b	#TxPl|TxMi,R11 ; (2) Ensure only Tx bits can be toggled below
 #else
 				; The activity LED has a lower bit number than TxPl so the below will
@@ -336,7 +336,7 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 				dec		R10				; (1) Decrement the bit counter
 			_UNTIL	_NC				; (2) Loop until -1
 
-#if REV61
+#if REV >= 61
 			mov.b	#TxPl,&P1OUT	; Send a stop bit
 			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
 #else

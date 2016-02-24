@@ -77,7 +77,7 @@ InitSP		EQU		$300			; Initial value of stack pointer
 Piezo		EQU		1<<0			; Piezo on P1.0
 TxMi		EQU		1<<1			; TA0/P1.1. Code requires TxMi bit somewhere to right of TxPl bit
 Rx			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
-#if REV61
+#if REV >= 61
 SocMeter	EQU		1<<3			; PWM output for SoC meter (monolith only)
 #else
 ActLed		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
@@ -146,7 +146,7 @@ info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte
 info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte
 infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS value above
-#if EXTTEMP
+#ifdef KINGSCLIFF_DCM
 infoThermCal	ds		1			; Temperature offset calibration for external thermistor
 #endif
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what

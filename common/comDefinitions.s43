@@ -249,7 +249,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		mov			#2,Rtos				; Print 2 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
-#if		EXTTEMP
+#ifdef	KINGSCLIFF_DCM
 ;
 ; External thermistor temperature measurement ( -- )
 ; Transmit cell temperature in degrees C
@@ -408,7 +408,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 				_ENDIF
 			_ENDIF
 
-#ifdef Monitor		// If we're assembling Monitor, not TestICal or Monolith
+#ifdef MONITOR		// If we're assembling Monitor, not TestICal or Monolith
 			cmp		#170,R9				; Check if touch current > 20 mA (NCOP14), with a safety margin
 			CtoAllBits	R8				; 	because our measurent is +-25%.
 			movBits_B	R8,#bBadInsulation,&monFlags	; Piezo beeper will be turned on as required
