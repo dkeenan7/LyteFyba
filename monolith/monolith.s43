@@ -15,8 +15,9 @@
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for solar power systems.
 ;
-; "Monolith" is the standard operating software for our cell-top
-; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
+; "Monolith" is the standard solar power system operating software for our Cell Management Unit (CMU)
+; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+
 #define MONOLITH				// For some conditional assembly in otherwise common code.
 								// Changes StatusFreq from 16 Hz to 2 Hz.
 								// Enables SoC meter PWM.

@@ -13,8 +13,8 @@
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader updater for our cell-top
-; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
+; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader updater for our
+; Cell Management Unit (CMU) and Battery Management Unit (BMU) based on an MSP430 microcontroller.
 ;
 ; TestICal should be the first program written to main-flash.
 ; This initial programming must be done using a flash programmer connected to the JTAG port.

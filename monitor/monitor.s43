@@ -13,8 +13,9 @@
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
-; "Monitor" is the standard operating software for our cell-top
-; Cell Monitoring Unit (CMU) based on an MSP430 microcontroller.
+; "Monitor" is the standard electric-vehicle operating software for our Cell Management Unit (CMU)
+; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+
 #define MONITOR					// For some conditional assembly in otherwise common
 								// insulation-monitoring code.
 

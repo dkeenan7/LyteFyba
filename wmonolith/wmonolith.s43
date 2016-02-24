@@ -15,8 +15,9 @@
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
 ; lithium battery monitoring system for solar power systems.
 ;
-; "WMonolith" is a special operating software for our Battery Monitoring Unit
-; (BMU) based on an MSP430 microcontroller.
+; "WMonolith" is special solar power system operating software for our Cell Management Unit (CMU)
+; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+
 #define MONOLITH				// For some conditional assembly in otherwise common code.
 								// Changes StatusFreq from 16 Hz to 2 Hz.
 								// Enables SoC meter PWM.
