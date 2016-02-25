@@ -24,10 +24,16 @@ ArrayV_BoltVPl EQU	1<<5			; Analog input on P1.5
 ShuntV_BoltVMi EQU	1<<6			; Analog input on P1.6
 BatV_StrapVPl EQU	1<<7			; Analog input on P1.7
 #if REV < 62
-Bypass		EQU		TouchV_Byp		; Aliases for code that's common to newer and older devices
+Bypass		EQU		TouchV_Byp		; Alias for code that's common to newer and older devices
 BypPortDIR	EQU		P1DIR			; Bypass MOSFET output on port 1
 BypPortSEL	EQU		P1SEL
 BypPortOUT	EQU		P1OUT
+#endif
+#if	REV >= 62
+TxMi		EQU		PreI_TxMi		; Alias for code that's common to newer and older devices
+TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
+TxMiPortSEL	EQU		P1SEL
+TxMiPortOUT	EQU		P1OUT
 #endif
 
 ; Port 2 bit masks
@@ -86,9 +92,11 @@ SocMeter	EQU		NrmCont			; PWM output for SoC meter (monolith only)
 SocPortDIR	EQU		P3DIR			; Soc meter PWM output is on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT
+#if	REV < 62
 TxMiPortDIR	EQU		P3DIR			; Transmit- to CMUs output is on port 3
 TxMiPortSEL	EQU		P3SEL
 TxMiPortOUT	EQU		P3OUT
+#endif
 
 ; ADC channel numbers
 TouchVChan	EQU		$0				; ADC channel number for touch voltage (BMU only)
