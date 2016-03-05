@@ -142,10 +142,11 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
+oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
+									;	comNoEraseEnd, as it will affect the first FLL interrupt
 comNoEraseEnd
 
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
-oldCCR0			DS		2			; Used by Frequency Locked Loop
 
 #if	ADCBUF
 			ALIGNRAM 1
@@ -238,6 +239,7 @@ InterpretInit:
 			_mLOOP	#2,R8
 
 #if	G2553
+	#if REV < 62
 			; Initialise the Timer to run the piezo
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
@@ -245,6 +247,7 @@ InterpretInit:
 			mov		#TASSEL_2 + ID_0 + MC_2, &TA0CTL
 			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode, interrupts
 			eint								; Enable interrupts generally
+	#endif
 #endif
 
 ;
@@ -320,7 +323,9 @@ newChip:
 			_ENDIF
 
 			; Initialise port 2
+#if REV < 62
 			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
+#endif
 			mov.b	#0,&P2OUT				; Set all outputs low.
 			mov.b	#RelayM_Byp|RelayP_Ir57k6|Piezo|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
 
@@ -372,11 +377,13 @@ newChip:
 			mov.b	#$FF,&P2DIR				; Set Bypass and ErrLed as outputs
 #endif // G2553
 
+#if REV < 62
 			; Reinitialise clocks using RAM calibration values. These should have sorted out any data
 			; version issues, new chip, etc.
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2	; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
 			mov.b	&ram8MHzCalB,&BCSCTL1
 			mov.b	&ram8MHzCalD,&DCOCTL
+#endif
 #if !G2553
 			; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider

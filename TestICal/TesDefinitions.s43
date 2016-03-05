@@ -405,9 +405,18 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 ;	CPU speed, since communications will be affected!
 
 			xCODE	'f',frequencyBurst,_frequencyBurst
+#if REV >= 62
+			bic.b	#TxPl+TxMi,&P1SEL		; Was UART
+			bic.b	#TxPl+TxMi,&P1SEL2		; Both bits different
+			bis.b	#TxPl,&P1DIR			; Set as output; no need to clear
+#endif
 			mov		#28,R11					; To give 5 seconds with 4 Mhz MCLK
 											; Must be even so things toggle back to what they were
 			call	#doBurst
+#if REV >= 62
+			bis.b	#TxPl,&P1SEL			; Back to UART
+			bis.b	#TxPl,&P1SEL2
+#endif
 			ret
 
 ;
@@ -435,6 +444,8 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
+			push	SR						; Interrupts like the
+			dint							;	FFL will spoil results
 			clr		R10
 #if G2553	// Toggle TxPl since it will result in a 10 cycle loop
 			bic.b	#TxMi,&TxMiPortDIR		; Set TxMi open circuit
@@ -456,6 +467,7 @@ burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
 #else
 			bis.b	#TxPl,&P1DIR			; Set TxPl back to being an output
 #endif
+			pop		SR
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
 			ret
