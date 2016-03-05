@@ -19,8 +19,12 @@ BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, TestNoInterp2
 			LOCAL	testNoInterp, WriteBrk, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
-
+			LOCAL	TA0FllIsr
+#if	REV >= 62
+MClock		EQU		3686400			; MCLK (CPU clock) frequency in hertz (DCO software-locked to watch xtal)
+#else
 MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
+#endif
 BaudRate	EQU		9600			; Serial comms rate in bits per second
 BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
@@ -36,10 +40,56 @@ jReadByte:	br		#ReadByte
 jWriteByte:	br		#WriteByte
 
 BSL:		; Initialisation
+#if REV >= 62
+			; XCAP = 11, Choose 12.5 pF
+			; LFXT1Sx = 00, Watch crystal (32768 kHz)
+			mov.b	#XCAP1 | XCAP0, &BCSCTL3
+			; SELM = 0, DCO for MCLK
+			; DIVM = 0, Divide by 1 for MCLK
+			; SELS = 0, DCO for SMCLK
+			; DIVS = 0, Divide by 1 for SMCLK
+			mov.b	#0, &BCSCTL2
+			; XT2OFF = 1, Turn off non-existent oscillator. Defaults to 1 on reset
+			; XTS = 0, Low frequency mode
+			; DIVAx = 10, for ACLK = XIN div by 4
+			; RSEL = 8, Range select guess for 3.6864 MHz
+			mov.b	#XT2OFF | DIVA1 | 8, &BCSCTL1
+			; DCO = 0, Frequency select guess for 3.6864 MHz
+			; MOD = 4, Modulation select guess for 3.6864 MHz
+			mov.b	#04,&DCOCTL	; Initial guess DCO step + modulation for 3.6864 MHz
+			; TASSSEL = 10, Use SMCLK for timer A source
+			; ID = 0, Divide by 1
+			; MC = 10, Continuous count mode
+			; TAIE = 0, No overflow interrupt
+			mov		#TASSEL1 | MC1, &TACTL
+			; CM = 01, Capture on rising edge
+			; CCIS = 01, Capture input = CCI0B
+			; SCS = 1, synchronous capture
+			; CAP = 1, Capture mode
+			mov		#CM0 | CCIS0 | SCS | CAP, &TACCTL0
+
+			; Initialise the UART
+			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
+;			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
+			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
+			mov.b	#(MClock/9600)&$FF,&UCA0BR0 		; Set for 9600 b/s
+			mov.b	#(MClock/9600)/256,&UCA0BR1
+			mov.b	#UCBRS_1,&UCA0MCTL
+			bis.b	#TxPl,&P1SEL				; Select the UART output function of P1.2
+			bis.b	#TxPl,&P1SEL2
+			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
+;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
+
+; Need to init timer A1 to generate 57.6 kHz
+
+
+			clr		&measureCount
+#else
 			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
 			; Use original TI frequency calibration values, in case our values not set up or wildly bad
 			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
+#endif
 #if REV >= 61
 			mov.b	#TxPl,&P1OUT	; Set Txs to idle state, Vref output off
 			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
@@ -229,7 +279,7 @@ TestNoInterp2:
 				; since we are not calling the main program.
 				tst		&bsl2state
 				_IF		_NN				; If we're not programming (state not negative)
-					ErrLedToggle
+;					ErrLedToggle
 					tst.b	R8				; Test the character
 					_IF		_L				; If the character is a status byte (bit 7 set)
 						mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
@@ -244,10 +294,17 @@ TestNoInterp2:
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 )
 ; Reads a byte from serial input to R8. Trashes R9 R10 R11.
-; Also echoes the byte to serial output (either by falling through to WriteByte, or calling
-;	interpretByte)
 ;
 ReadByte:
+#if	REV >= 62
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+			_BEGIN						; Loop
+				bit.b	#UCA0RXIFG,&IFG2
+			_UNTIL	_NZ					; Until byte received
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+			mov.b	&UCA0RXBUF,R8		; Return the received byte
+			ret					; Return from ReadByte
+#else
 									; (Number of cycles)
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 			_BEGIN
@@ -282,22 +339,43 @@ ReadByte:
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
 			; But it's not needed, since we always send something before waiting for the next byte
 			pop		SR
-
 			ret					; Return from ReadByte
+#endif
 
 
 ; WriteBreak ( R9 R10 -- R9 R10 R11 ) (an alternative entry point into WriteByte)
 ; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
 ; Trashes R9 R10 R11.
 WriteBreak:
+#if	REV >= 62
+			_DOb		#0,R9
+				bis.b	#UCTXBRK,&UCA0CTL1
+				mov.b	#0,&UCA0TXBUF
+				_BEGIN
+					bit.b	#UCA0TXIFG,&IFG2
+				_UNTIL	_NZ
+			_LOOPb	R9
+			bic.b	#UCTXBRK,&UCA0CTL1
+			ret
+#else
 			push	SR
 			dint
 			jmp		WriteBrk
+#endif
 
 ; WriteByte ( R8 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output.
 ; Trashes R9 R10 R11. Preserves R8.
 WriteByte:
+#if	REV >= 62
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+			mov.b	R8,&UCA0TXBUF		; Send byte
+			_BEGIN						; Loop
+				bit.b	#UCA0TXIFG,&IFG2
+			_UNTIL	_NZ					; Until byte sent
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+			ret					; Return from WriteByte
+#else
 			clr		R11
 			mov		R8,R9			; Allow R8 to be preserved for password compare
 
@@ -349,6 +427,23 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 			pop		SR
 
 			ret
+#endif // REV >= 61
+
+
+#if	REV >= 62
+TA0FllIsr:
+			push	R8
+			mov		&TACCR0, R8		; Counter value at ACLK rising edge
+			sub		&oldCCR0, R8	; Count of clocks since previous rising edge
+			mov		&TACCR0, &oldCCR0 ; Save present count as old count
+			sub		#MClock/(32768/4),R8 ; Expect 450 count
+			sub.b	R8,&DCOCTL		; Fine adjust DCO frequency
+			sbc.b	&BCSCTL1		; Coarse adjust if necessary
+			xor.b	#Piezo,&PiezoPortOUT ; Toggle the piezo output
+			inc		&measureCount
+			pop		R8
+			reti
+#endif
 
 			; Any free last-segment space is between here and the UART interrupt vectors
 freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
@@ -366,8 +461,11 @@ freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
 
 				ORG		jBSL+$1F0		; $FFF0, Timer A0 Vectors
 				DW		jTA0RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+#if	REV >= 62
+				DW		TA0FllIsr		; Timer A CC0IFG (freq locked loop)
+#else
 				DW		jTA0TxIsr		; Timer A CC0IFG (transmit compare)
-
+#endif
 				ORG		jBSL+$1F8		; $FFF8, Timer A1 Vectors
 				DW		jTA1RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTA1TxIsr		; Timer A CC0IFG (transmit compare)

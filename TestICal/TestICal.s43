@@ -144,6 +144,9 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
 comNoEraseEnd
 
+measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
+oldCCR0			DS		2			; Used by Frequency Locked Loop
+
 #if	ADCBUF
 			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
