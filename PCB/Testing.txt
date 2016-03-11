@@ -35,7 +35,9 @@ of the step it failed.
    Wait for it to complete before moving to the next CMU. If there is an error,
    you may need to unplug the USB connector, wait a few seconds and replug it.
 4) Use the netbook's taskbar (bottom of screen) to choose the icon that looks like
-   a computer with a "VT" on its screen (TeraTerm). Clip the oscilloscope probe alligator 
+   a computer with a "VT" on its screen (TeraTerm). 
+   Reset all the CMUs by typing leftAlt+B. 
+   Clip the oscilloscope probe alligator 
    clip to the negative bolt on the test jig. Press the oscilloscope probe tip
    against the southwest pin of the part marked (OP1) in the southeast corner of each CMU.
    Hold down the <Shift>+U keys to send auto-repeated U characters and observe
@@ -82,20 +84,25 @@ of the step it failed.
      the frequency. You may find it easier to use 2 or more 'f' commands so the reading
      is stable for longer. The reading should be between 199.5 and 200.5 kHz at 20 degC
      (200.5 to 201.5 kHz at 30 degC).
+     To adjust, use h'fr to read calibration constant in hex. Use $xxxx'fw to change it
+     where $xxxx is a change of 1 or 2 from the value read. Lower number gives lower 
+     frequency. A change of one is approximately a change of 0.5 kHz.
      Push the "Hz" button on the multimeter twice to go back to voltage measurement.
   k) Use u<enter> to update the calibration values.
-     The u is very important otherwise all the above work will be lost.
+     The u is very important otherwise all the above work will be lost. 
+     Be sure you see the 'u' echoed.
   l) Type the <ESC> key (upper left corner of keyboard).
      This cancels the previous <n>x command.
   m) Go back to the start of step 7 until all CMUs are done.
 
-8) Test break-to-reset with 1e then <Alt-b> (send break). All red LEDs should go off.
+8) Test break-to-reset with 1e then <leftAlt-b> (send break). All red LEDs should go off.
 9) Test for false break-to-reset with 1Q1e<Enter> then use TeraTerm's Send File command
    in binary mode and with no delays between characters, to send the file
-   "Documents/EV/celltopbmu/PCB/NullsTest.txt". All red LEDs should stay on.
+   "Documents/EV/LyteFyba/trunk/PCB/NullsTest.txt". All red LEDs should stay on.
 10) Test for excessive quiescent current by ensuring all LEDs are off and removing
    an alligator clip from each CMU in turn and inserting a multimeter on 300 mA range.
-   The quiescent current (after supercap has charged) should be between 1.7 and 2.1 mA.
+   The quiescent current (after supercap has charged) should be between 1.4 and 2.1 mA.
    (was less than 1.0 mA for pre-rev 61 CMUs). Disconnect comms from the last CMU as
    the Novus device may be pumping up the supply.
-11) First disconnect the CMU board from the test jig, then turn off the power supply.
+11) Load Monitor or monolith or wmonolith.
+12) First disconnect the CMU board from the test jig, then turn off the power supply.
