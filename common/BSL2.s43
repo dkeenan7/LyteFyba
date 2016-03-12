@@ -32,7 +32,6 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
-;			ORG		$FE00			; Start of the last 512 byte flash segment
 ; Fixed entry points to BSL2
 jBSL: 		br		#BSL
 jBSLErase:	br		#BSLErase
@@ -40,6 +39,7 @@ jReadByte:	br		#ReadByte
 jWriteByte:	br		#WriteByte
 
 BSL:		; Initialisation
+			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
 #if REV >= 62
 			clr		&oldCCR0		; Clear this before interrupts are enabled
 			; XCAP = 11, Choose 12.5 pF
@@ -69,15 +69,26 @@ BSL:		; Initialisation
 			; CAP = 1, Capture mode
 			; CCIE = 1, enable interrupts
 			mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
+			; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
+			; NOTE: if this is a BMU, we will use TA1 for comms and override this
+			mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
+			; Output mode 3 = set/reset: set on EQU1, reset on EQU0
+			mov		#OUTMOD_3, &TA1CCTL1
+			mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
+			mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
+			bis.b	#RelayP_Ir57k6,&P2SEL		; Set port 2 bit 1 as TA1
+			bis.b	#RelayP_Ir57k6,&P2DIR		; and as an output
 
 			; Initialise the UART
 			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
 ;			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
+			; Above not needed since UCA0CTL0 defaults to 0
 			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
-			mov.b	#(MClock/9600)&$FF,&UCA0BR0 		; Set for 9600 b/s
-			mov.b	#(MClock/9600)/256,&UCA0BR1
-			bis.b	#TxPl,&P1SEL				; Select the UART output function of P1.2
-			bis.b	#TxPl,&P1SEL2
+			mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 		; Set for 9600 b/s
+			mov.b	#(MClock/9600)/16/256,&UCA0BR1
+			mov.b	#UCOS16, &UCA0MCTL			; 16x oversampling mode
+			bis.b	#TxMi|TxPl|Rx,&P1SEL		; Select the UART and
+			bis.b	#TxMi|TxPl|Rx,&P1SEL2		;	comparator functions
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 ;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
 
@@ -108,7 +119,6 @@ BSL:		; Initialisation
 			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
 			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs
 #endif
-			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
 
 			; On reset the Bypass pin is set as a crystal oscillator pin XIN
 			; and the ErrLed pin is set as a crystal oscillator pin XOUT.
@@ -128,7 +138,7 @@ BSL:		; Initialisation
 			; Send a 27 ms break
 			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
 			clr		R9				; Bit values (all zeros so it's a break)
-			call	#WriteBreak-jBSL+$FE00 ; WriteByte without init part and w/o needing R11 clear
+			call	#WriteBreak-jBSL+BSL2_START ; WriteByte without init part and w/o needing R11 clear
 									; Address adjusted for BSL's relocation
 			_ENDIF
 #endif
@@ -177,10 +187,10 @@ mainLoop2:
 			; to tell if the interpretByte call is for initialisation
 
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-FSMloop2:	call	#ReadByte-jBSL+$FE00	; Address adjusted for BSL's relocation
+FSMloop2:	call	#ReadByte-jBSL+BSL2_START	; Address adjusted for BSL's relocation
 processByte2
 			; Pass byte in R8 on to main program, if allowed
-			call	#TestNoInterp2-jBSL+$FE00	; Adjust for relocation
+			call	#TestNoInterp2-jBSL+BSL2_START	; Adjust for relocation
 
 			; Password-checking finite-state-machine (FSM)
 			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
@@ -264,7 +274,7 @@ TestNoInterp2:
 				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
 					bit.b	#bDontEcho,&interpFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
-					call	#WriteByte-jBSL+$FE00	; Echo. Call address adjusted for relocation
+					call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
 					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
@@ -286,14 +296,14 @@ TestNoInterp2:
 				; since we are not calling the main program.
 				tst		&bsl2state
 				_IF		_NN				; If we're not programming (state not negative)
-;					ErrLedToggle
+					ErrLedToggle
 					tst.b	R8				; Test the character
 					_IF		_L				; If the character is a status byte (bit 7 set)
 						mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
 				_ENDIF
-				call	#WriteByte-jBSL+$FE00	; Echo. Call address adjusted for relocation
+				call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
 				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
 			ret						; Return to BSL2 init or main loop
@@ -455,7 +465,8 @@ TA0FllIsr:
 #endif
 
 			; Any free last-segment space is between here and the UART interrupt vectors
-freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
+;freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
+freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BSL
 
 ; The end of the bootstrap loader (BSL2)
 ; -----------------------------------------------------------------------------
@@ -463,24 +474,23 @@ freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
 ;-------------------------------------------------------------------------------
 ; Interrupt Vectors at the end of the last flash segment
 ;-------------------------------------------------------------------------------
-
-				ORG		jBSL+$1EC		; $FFEC, UART Vectors
+				ORG		jBSL+($FFEC-BSL2_START)		; $FFEC, UART Vectors
 				DW		jUCA0TxIsr		; UART transmit
 				DW		jUCA0RxIsr		; UART receive
 
-				ORG		jBSL+$1F0		; $FFF0, Timer A0 Vectors
+										; $FFF0, Timer A0 Vectors
 				DW		jTA0RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
 #if	REV >= 62
 				DW		TA0FllIsr		; Timer A CC0IFG (freq locked loop)
 #else
 				DW		jTA0TxIsr		; Timer A CC0IFG (transmit compare)
 #endif
-				ORG		jBSL+$1F8		; $FFF8, Timer A1 Vectors
+				DW		$FFFF, $FFFF	; FFF4, FFF6
+										; $FFF8, Timer A1 Vectors
 				DW		jTA1RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
 				DW		jTA1TxIsr		; Timer A CC0IFG (transmit compare)
 
-
-				ORG		jBSL+$1FC		; $FFFC, Unused NMI vector location
+										; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
 BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.

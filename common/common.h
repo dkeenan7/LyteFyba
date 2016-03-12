@@ -171,7 +171,11 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 									// Turning it off doesn't work because BSL will still clear and
 									// restart the watchdog timer on every call to ReadByte.
+#if REV < 62
 #define		BSL2_START	$FE00		// Start of BSL2 image in flash memory. Ends at $FFFD
+#else
+#define		BSL2_START	$FC00		// Start BSL2 1 kiB before the end.
+#endif
 
 ; The address BSL2 downloads to is usually the same as PROG_START,
 ; but when making a transition between different download sizes, the version of TestICal that does the

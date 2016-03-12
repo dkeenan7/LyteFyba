@@ -524,7 +524,8 @@ PizTiovIsr:
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00.
 				BSL2MACRO	jBSLb, jBSLEraseb, jReadByteb, jWriteByteb
-				ORG		jBSLb+$1FE			; The copy of the reset vector
+;				ORG		jBSLb+$1FE			; The copy of the reset vector
+				ORG		$FFFE-(jBSL-jBSLb)	; The copy of the reset vector
 				DW		jBSL				; Points to BSL2 in last main-flash segment, $FE00
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
@@ -535,7 +536,8 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDDE
+;				ORG		$FDDE
+				ORG		BSL2_START-$22		; FDDE/FBCE
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
@@ -556,7 +558,8 @@ jTA0RxTiovIsr	br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Pi
 jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
 				nop
 
-				ORG		$FDFE
+;				ORG		$FDFE
+				ORG		BSL2_START-2
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
@@ -565,7 +568,7 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ;---------------------------------------------------------------------------------
 ; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
 ; Updated by TestICal 'b' command, or by JTAGing.
-				ORG			$FE00		; Start of last main-flash segment
+				ORG			BSL2_START		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
 				BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector
