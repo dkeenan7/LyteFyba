@@ -305,21 +305,14 @@ newChip:
 
 #if G2553
 			; Initialise port 1
-			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			; BSL settings of P1SEL are OK. No interrupt comms in TestICal. Analog settings done later.
 			mov.b	#TxPl,&P1OUT			; Set TxPl high (idle), all other outputs low.
 
 #if	REV >= 62 // Rev 62 CMU or REV 4 BMU or later
 			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
-				mov.b	#VrefP|PreI_TxMi|TxPl,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
-				bis.b	#PreI_TxMi,&TxMiPortSEL		; Select the comparator output function of P1.3
-				; Use the Analog Comparator to get an inverted version of TxPlIn (P1.0/CA0)
-				; (which is the UART TxPl looped back) to appear on TxMi (P1.3/CAOUT).
-				mov.b	#CAON|CAREF_2,&CACTL1	; Half-supply to the comparator pos input and turn it on
-				mov.b	#0,&CACTL2				; Feed CA0 to the comparator neg input
-				mov.b	#TouchV_TxPlIn,&CAPD	; Disable the digital input buffer of P1.0
-			_ELSE							; Else
+			_IF		_EQ
 				mov.b	#VrefP|TxPl,&P1DIR		; Set VrefP, Tx bits as outputs
+			; else already set up by BSL2
 			_ENDIF
 
 			; Initialise port 2
@@ -397,7 +390,12 @@ newChip:
 			cmp.b	#255,&ID					; If we're not a BMU (BMS Master Unit)
 			_IF		_NE
 				; Enable analog inputs and Vref+ out, but not TouchV
+#if REV >= 62
+				; Don't set P1.5 as analog input; it's not BoltVPl
+				mov.b		#(1<<VRefPChan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
+#else
 				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
+#endif
 			_ELSE
 				; Enable analog inputs and Vref+ out
 				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan)|(1<<TouchVChan),&ADC10AE0

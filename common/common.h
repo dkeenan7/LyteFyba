@@ -33,6 +33,7 @@ BypPortOUT	EQU		P1OUT
 TxMi		EQU		PreI_TxMi		; Alias for code that's common to newer and older devices
 TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
 TxMiPortSEL	EQU		P1SEL
+TxMiPortSEL2 EQU	P1SEL2
 TxMiPortOUT	EQU		P1OUT
 #endif
 
@@ -95,6 +96,7 @@ SocPortOUT	EQU		P3OUT
 #if	REV < 62
 TxMiPortDIR	EQU		P3DIR			; Transmit- to CMUs output is on port 3
 TxMiPortSEL	EQU		P3SEL
+TxMiPortSEL2 EQU	P3SEL2
 TxMiPortOUT	EQU		P3OUT
 #endif
 
@@ -139,6 +141,7 @@ SocPortSEL	EQU		P1SEL
 SocPortOUT	EQU		P1OUT
 TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
 TxMiPortSEL	EQU		P1SEL
+TxMiPortSEL2 EQU	P1SEL2
 TxMiPortOUT	EQU		P1OUT
 
 ; Port 2 bit masks

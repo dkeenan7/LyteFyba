@@ -69,6 +69,7 @@ BSL:		; Initialisation
 			; CAP = 1, Capture mode
 			; CCIE = 1, enable interrupts
 			mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
+
 			; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
 			; NOTE: if this is a BMU, we will use TA1 for comms and override this
 			mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
@@ -76,7 +77,7 @@ BSL:		; Initialisation
 			mov		#OUTMOD_3, &TA1CCTL1
 			mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
 			mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
-			bis.b	#RelayP_Ir57k6,&P2SEL		; Set port 2 bit 1 as TA1
+			bis.b	#RelayP_Ir57k6,&P2SEL		; Set P2.1 as TA1.1
 			bis.b	#RelayP_Ir57k6,&P2DIR		; and as an output
 
 			; Initialise the UART
@@ -85,12 +86,20 @@ BSL:		; Initialisation
 			; Above not needed since UCA0CTL0 defaults to 0
 			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
 			mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 		; Set for 9600 b/s
-			mov.b	#(MClock/9600)/16/256,&UCA0BR1
+			mov.b	#(MClock/9600/16)/256,&UCA0BR1
 			mov.b	#UCOS16, &UCA0MCTL			; 16x oversampling mode
 			bis.b	#TxMi|TxPl|Rx,&P1SEL		; Select the UART and
 			bis.b	#TxMi|TxPl|Rx,&P1SEL2		;	comparator functions
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 ;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
+			mov.b	#VrefP|PreI_TxMi|TxPl,&P1DIR ; Set VrefP, Tx bits as outputs
+			bis.b	#PreI_TxMi,&TxMiPortSEL		; Select the comparator output function of P1.3
+			bis.b	#PreI_TxMi,&TxMiPortSEL2	; Need both SEL bits
+			; Use the Analog Comparator to get an inverted version of TxPlIn (P1.5/CA5)
+			; (which is the UART TxPl looped back) to appear on TxMi (P1.3/CAOUT).
+			mov.b	#CAON|CAREF_2,&CACTL1	; Half-supply to the comparator pos input and turn it on
+			mov.b	#5<<3,&CACTL2			; Feed CA5 to the comparator neg input
+			mov.b	#1<<5,&CAPD				; Disable the digital input buffer of P1.5 (TxPlIn)
 
 ; Need to init timer A1 to generate 57.6 kHz
 
@@ -128,21 +137,20 @@ BSL:		; Initialisation
 ;			mov.b	#0,&P2OUT		; Set Bypass and ErrLed off
 ;			mov.b	#$FF,&P2DIR 	; Set Bypass and ErrLed as outputs
 
-			; We really only want to do this for use with monolith, where we need to
+			; We really only want to do the following for use with monolith, where we need to
 			; prevent breaks from eternally circulating around the loop.
 			; So we give the monolith's IMU the ID 255 and then we're safe also doing this in an EV
 			; because there cannot be any CMU after #255 anyway.
-#if FIXME
+
 			cmp.b	#255,&infoID
 			_IF		_NE				; If we're not an IMU
-			; Send a 27 ms break
-			mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
-			clr		R9				; Bit values (all zeros so it's a break)
-			call	#WriteBreak-jBSL+BSL2_START ; WriteByte without init part and w/o needing R11 clear
-									; Address adjusted for BSL's relocation
+				; Send a 27 ms break
+				#if	REV < 62
+					mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
+					clr		R9				; Bit values (all zeros so it's a break)
+				#endif
+				call	#WriteBreak-jBSL+BSL2_START	; Address adjusted for BSL's relocation
 			_ENDIF
-#endif
-			; End of the initialisation that used to be in BSL1 in info-flash.
 
 			ClearWatchdog			; Clear and restart Watchdog Timer (32k)
 
@@ -360,19 +368,22 @@ ReadByte:
 #endif
 
 
-; WriteBreak ( R9 R10 -- R9 R10 R11 ) (an alternative entry point into WriteByte)
+; WriteBreak ( R9 R10 -- R9 R10 R11 )
 ; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
 ; Trashes R9 R10 R11.
 WriteBreak:
 #if	REV >= 62
-			_DOb		#0,R9
-				bis.b	#UCTXBRK,&UCA0CTL1
-				mov.b	#0,&UCA0TXBUF
-				_BEGIN
-					bit.b	#UCA0TXIFG,&IFG2
-				_UNTIL	_NZ
-			_LOOPb	R9
-			bic.b	#UCTXBRK,&UCA0CTL1
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+			mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
+			mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
+			; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
+			mov.b	#0,&UCA0TXBUF		; Send all zero data bits
+			_BEGIN						; Wait until finished sending
+				bit.b	#UCBUSY,&UCA0STAT
+			_UNTIL	_Z
+			mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 ; Restore to 9600 b/s
+			mov.b	#(MClock/9600/16)/256,&UCA0BR1
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 			ret
 #else
 			push	SR
