@@ -51,7 +51,7 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
-#ifdef 		EXTTEMP
+#ifdef 		KINGSCLIFF_DCM
 ThermCal	EQU	infoThermCal
 #endif
 
@@ -80,11 +80,11 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; Stress calculations
 ; The stress set-point for charger back-off is 7.
 ; This set-point of 7 should be implemented in the SCU's PI controller.
-; So 8 is the lowest dis-stress. Alarm is given at stress 11. Battery contactor dropout at 15.
+; So 8 is the lowest dis-stress. Alarm is given at stress 12. Battery contactor dropout at 15.
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
-// OV setpoint is 3.408 to 3.448 V. Bypass at 3.368. Alarm at 3.556. Drop out source contactors at 3.608
+// OV setpoint is 3.408 to 3.448 V. Bypass at 3.368. Alarm at 3.608. Drop out battery cont at 3.728
 OV_ZERO		EQU		3128		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ; These were an attempt to float at the 75% step
@@ -92,16 +92,16 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 20 mV below 3.460 V, to a maximum of 15 at <= 3.16 V
-// UV setpoint is 3.32 to 3.30 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
-UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
+// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
+// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
+UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62degC
-// OT setpoint is 46 to 48 degC. Alarm at 54 degC. Dropout source contactors at 56 degC.
+// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62 degC
+// OT setpoint is 46 to 48 degC. Alarm at 56 degC. Dropout bat contactors at 62 degC.
 OT_ZERO		EQU		32			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
-// UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
-// UT setpoint is 10 to 8 degC. Alarm at 2 degC. Source contactor dropout at 0 degC.
+// UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6 degC
+// UT setpoint is 10 to 8 degC. Alarm at 0 degC. Bat contactor dropout at -6 degC.
 UT_ZERO		EQU		24			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-2			; Degrees C difference between one UT stress level and the next
 // AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
@@ -136,8 +136,10 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 									;	3408 mV. Stress 6/7 threshold
 ; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
 
-MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
+MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
 MinContStress EQU	12			; Minimum stress to drop out source or load contactors (BMU only)
+								; There are no separate source or load contactors in wmonolith --
+								;  only battery contactors that drop out at stress 15.
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -205,7 +207,9 @@ passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
 
-chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
+shutdownTimer	DS		1			; To allow time for charging to start, when restarting
+									;   after a low voltage shutdown.
+ShutdownTime	EQU		60*StatusFreq ; Shut down approximately one minute after smoothed stress of 15.
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
@@ -535,7 +539,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialise the charger controller
 ;
 			; Already cleared by loop above
-;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
+;			clr.b	&shutdownTimer				; Initialise shutdown timer
 			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
 				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
@@ -818,7 +822,7 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
 
-#ifdef EXTTEMP
+#ifdef KINGSCLIFF_DCM
 #if REV >= 61
 			; Do temperature measurement using external thermistor
 			call	#extT					; Get temperature in degrees Celsius in R10
@@ -1167,8 +1171,14 @@ ControlContactors:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(BatCont|ChgCont|DisCont|NrmCont),ContPortOUT	; Drop out all battery contactors,
-																	; and we die
+			inc.b	&shutdownTimer
+			cmp.b	#ShutdownTime,&shutdownTimer
+			_IF		_HS						; And enough time has passed
+				bic.b	#(BatCont|ChgCont|DisCont|NrmCont),ContPortOUT	; Drop out all battery
+																		; contactors, and we die
+			_ENDIF
+		_ELSE							; Else
+			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
 

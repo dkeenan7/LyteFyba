@@ -459,17 +459,20 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 
 
 #if	REV >= 62
+; Frequency locked loop interrupt service routine.
+; Timer A0 is clocked at the DCO frequency. Its CCR0 captures the timer value on every rising edge of
+; ACLK = watch_xtal / 4 = 8192 Hz, and generates this interrupt.?s
 TA0FllIsr:
 			tst		&oldCCR0
 			_IF		_NZ
 				push	R8
-				mov		&TACCR0, R8		; Counter value at ACLK rising edge
-				sub		&oldCCR0, R8	; Count of clocks since previous rising edge
-				sub		#MClock/(32768/4),R8 ; Expect 450 count
-				sub.b	R8,&DCOCTL		; Fine adjust DCO frequency
+				mov		&TACCR0, R8		; Captured timer value at ACLK rising edge
+				sub		&oldCCR0, R8	; Count of DCO clocks since previous ACLK rising edge
+				sub		#MClock/(32768/4),R8 ; Expect 450 count. Calculate the error.
+				sub.b	R8,&DCOCTL		; Fine adjust DCO frequency by the error amount
 				pop		R8
 			_ENDIF
-			mov		&TACCR0, &oldCCR0 ; Save present count as old count
+			mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
 			xor.b	#Piezo,&PiezoPortOUT ; Toggle the piezo output
 			inc		&measureCount	; Inc counter used to initiate measurement
 			reti
