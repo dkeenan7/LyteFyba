@@ -32,7 +32,6 @@ private:
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnSend();
 	afx_msg void OnImageAll1();
-	afx_msg void OnImageBSL2();
 	afx_msg void OnImageProgram4k();
 	afx_msg void OnImageProgram8k();
 	afx_msg void OnImageBadSum();
@@ -59,6 +58,7 @@ public:
 	unsigned int	m_len_to_send;			// Number of bytes to send (including checksum)
 		// The checksum replaces the last byte of the image that would otherwise have been sent
 	int m_start_off;						// Offset from the start of the image to start sending from
+	UINT16			m_uResetVec;			// Last two bytes of the image, which should be the reset vector
 
 
 };
@@ -66,9 +66,8 @@ public:
 // Menu indexes
 #define MENU_IDX_PROGRAM_4K 1
 #define MENU_IDX_PROGRAM_8K 2
-#define MENU_IDX_BSL2 3
-#define MENU_IDX_ALL 4
-#define MENU_IDX_BAD 5
+#define MENU_IDX_ALL 3
+#define MENU_IDX_BAD 4
 
 // Passwords
 #define PASSWORD_BSL2 2

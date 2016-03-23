@@ -20,7 +20,7 @@ BEGIN_MESSAGE_MAP(CCMUSendApp, CWinApp)
 	ON_COMMAND(ID_IMAGE_ALL1,		&CCMUSendApp::OnImageAll1)
 	ON_COMMAND(ID_IMAGE_PROGRAM_4K,	&CCMUSendApp::OnImageProgram4k)
 	ON_COMMAND(ID_IMAGE_PROGRAM_8K,	&CCMUSendApp::OnImageProgram8k)
-	ON_COMMAND(ID_IMAGE_BSL2,		&CCMUSendApp::OnImageBSL2)
+//	ON_COMMAND(ID_IMAGE_BSL2,		&CCMUSendApp::OnImageBSL2)
 	ON_COMMAND(ID_IMAGE_BADSUM,		&CCMUSendApp::OnImageBadSum)
 END_MESSAGE_MAP()
 
@@ -165,16 +165,23 @@ void CCMUSendApp::UpdateTitle()
 void CCMUSendApp::Adjust_start_and_len() {
 	// Calculate start offset and length to send based on the image selection. In the length to send, don't include
 	//	reset vector (never sent) but do include the checksum (not sent from the image)
+	unsigned uBSL2_len = 0;
 	switch (m_image_sel) {
 		case ID_IMAGE_PROGRAM_4K:				// Main program (TestICal or Monitor)
 		case ID_IMAGE_PROGRAM_8K:				//	either 4 KiB or 8 KiB
-			m_start_off = 0;					// Start at the beginning of the image
-			m_len_to_send = m_total_len - 512;	// Remove space for BSL2 (one flash segment = 512 bytes)
+			if (m_uResetVec == 0xFC00)
+				uBSL2_len = 1024;				// Now using 1K BSL2
+			else if (m_uResetVec == 0xFE00)
+				uBSL2_len = 512;
+			m_start_off = 0;					// Start at the beginning of the image u
+			m_len_to_send = m_total_len - uBSL2_len; // Remove space for BSL2 (1 or 2 flash segments)
 			break;
+#if 0				// Never want this now?
 		case ID_IMAGE_BSL2:						// BSL2 only
-			m_start_off = m_total_len - 512;	// Start 512 bytes from the end
-			m_len_to_send = 512-2;				// Send only the 512 bytes of BSL2, less reset vector
+			m_start_off = m_total_len - uBSL2_len;	// Start 512 bytes from the end
+			m_len_to_send = uBSL2_len-2;				// Send only the 512 bytes of BSL2, less reset vector
 			break;
+#endif
 		case ID_IMAGE_ALL1:						// All (both the above, via BSL1)
 			m_start_off = 0;
 			m_len_to_send = m_total_len - 2;	// Remove only reset vector
@@ -228,12 +235,14 @@ void CCMUSendApp::OnImageProgram8k()	{
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
+#if 0
 void CCMUSendApp::OnImageBSL2()		{
 	theApp.m_password_sel = PASSWORD_BSL2;
 	theApp.m_image_sel = ID_IMAGE_BSL2;
 	theApp.m_bBadSum = false;
 	UpdateMenu();
 }
+#endif
 void CCMUSendApp::OnImageBadSum()	{ 
 	theApp.m_password_sel = PASSWORD_PROG_8K;
 	theApp.m_image_sel = ID_IMAGE_PROGRAM_8K;

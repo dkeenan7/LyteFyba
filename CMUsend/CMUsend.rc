@@ -80,7 +80,7 @@ BEGIN
     BEGIN
         MENUITEM "Program (&8KiB)",				ID_IMAGE_PROGRAM_8K
         MENUITEM "&Program (4KiB)",				ID_IMAGE_PROGRAM_4K
-        MENUITEM "&BSL2 (via TestICal)",        ID_IMAGE_BSL2
+//        MENUITEM "&BSL2 (via TestICal)",        ID_IMAGE_BSL2
         MENUITEM "&All (via old BSL1)",         ID_IMAGE_ALL1
         MENUITEM "Program 8k w/bad &checksum",  ID_IMAGE_BADSUM
     END

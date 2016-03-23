@@ -354,6 +354,8 @@ void CCMUSendDoc::ReadFile()
 	if (theApp.m_total_len)
 		theApp.m_bFileValid = true;		// Enables the ID_SEND green arrow
 
+	// Read the reset vector; needed to determine correct length
+	theApp.m_uResetVec = *(UINT16*)(m_fileBuf + theApp.m_total_len - 2);
 	theApp.Adjust_start_and_len();
 
 }
