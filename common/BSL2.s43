@@ -231,14 +231,14 @@ BSLErase:
 			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-			mov		#PROG_START_FOR_BSL+$200,R12	; Start of program image in main flash + $200.
-												; The +$200 saves a 2-word compare at the end
+			mov		#PROG_START_FOR_BSL,R12	; Start of program image in main flash
 			; Erase
-			mov		R12,R11			; R12 contains start of program image in main flash + $200
+			mov		R12,R11			; R12 contains start of program image in main flash
 eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
-			rra		-$200(R11)		; Dummy write: erase segment
+			rra		@R11			; Dummy write: erase segment
 			add		#$200,R11		; Increment to next segment
-			jn		eraseLoop		; Stop when we wrap around to $0000
+			cmp		#BSL2_START,R11
+			jlo		eraseLoop		; Stop when we get to the start of the BSL
 
 			mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled; only write-block that can't be)
 			clr.b	Rcksum			; Initialise the checksum to 0
@@ -250,10 +250,11 @@ eraseLoop	mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
 
 			; Program (flash write) byte in R8
 			;
-progByte2	mov.b	R8,-$200(R12)	; Program it (takes 90 microseconds)
+progByte2	mov.b	R8,0(R12)		; Program it (takes 90 microseconds)
 			xor.b	R8,Rcksum		; Include in check-XOR
 			inc		R12
-			jnz		FSMloop2		; Repeat until R12 wraps to zero
+			cmp		#BSL2_START,R12
+			jlo		FSMloop2		; Repeat until we get to the start of the BSL
 
 			mov		#FWKEY,&FCTL1	; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
