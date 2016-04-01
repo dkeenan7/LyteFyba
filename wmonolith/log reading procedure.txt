@@ -1,0 +1,61 @@
+Here is a procedure for extracting the logged worst-stress information from the LyteFyba BMS, using a computer and appropriate cables. The latest version of this file can be found in LyteFyba/trunk/wmonolith/log reading procedure.txt.
+
+Send suggestions for improvement to Dave Keenan, d dot keenan at bigpond dot net dot au.
+
+It would be useful to have a second person read these instructions out to you while you follow them.
+
+1. If the battery system is not already running, release the red Stop button and push the green Go button to turn on the battery contactors to provide power to the BMU. If for some reason the battery contactors will not stay on, disconnect all battery loads and charge sources by turning off all fuse switches and circuit breakers (i.e. perform the shutdown procedure then release the red button), then use an alligator-clip lead to bypass the positive battery contactor to provide power to the BMU. An alternative to the alligator-clip lead is to have a second person hold the green button in for the duration of the log reading. 
+
+2. Start up the Windows laptop or netbook. Plug the brown USB-to-RS232 cable into one of the netbook's USB ports. Connect the black null-modem cable between the DE-9 connector on the USB-to-RS232 cable and the DE-9 connector on the BMU that is furthest from the row of LEDS.
+
+3. If TeraTerm is already running, exit it. Launch TeraTerm on the netbook. Ignore any "Cannot open COMx" message (where "x" stands for any number). If you see "COMx:9600baud" in the window's title bar, go to step 4. Otherwise, if you see "[disconnected]", choose the menu item "File/New connection/Serial/Port: COMx: Prolific USB-to-Serial ...". Note that Alt+n is the keyboard shortcut for File/New connection. 
+
+If you need to revisit the above later, you will first need to choose "File/Disconnect", otherwise you will create a second TeraTerm connection window, which we don't want. Alt+i is the keyboard shortcut for File/Disconnect.
+
+4. Type "vv<enter>", by which I mean, type two lowercase v characters then hit the enter key. Don't type the quotes or the angle-brackets or the letters e n t e r. The characters that you type will not be visible, but you should get a response that gives you the present battery voltage in tenths of a volt from the BMU (device ID 255), and the present individual cell voltages in millivolts (IDs 16 down to 1).
+
+If so, go to step 5. If not, go back and check the previous steps. If it still doesn't give any response, check that the settings in the menu item "Setup/Serial Port" are "COMx: , 9600, 8 bit, none, 1 bit, none, 0, 0. If none of this allows you to get a response to the enter key, there may be a communications problem somewhere along the chain of CMUs. Fixing that is beyond the scope of this procedure.
+
+5. Type "kk<enter>", i.e. two lowercase k characters followed by the enter key. This tells the BMU and CMUs not to require commands to end in a checksum and not to add checksums (that look like random charracters) to the end of their responses. This makes it easier for a human to type commands that will be accepted and to read the responses. When we are finished reading the logs we will type "k<enter>" (i.e. a single lowercase k character followed by the enter key) to turn checksums back on. 
+
+You can think of "kk" as standing for "Kill checKsums" and "k" as just "checKsums (please)". Note that commands are case-sensitive, i.e. uppercase letters have a completely different meaning from lowercase.
+
+6. Type "v<enter>" to see the voltages again. Type "t<enter>" to see the present temperatures. If you get responses to these, go to step 7. Otherwise, if you get a response when you type two v's followed by <enter>, but not when you type a single "v" followed by <enter>, then go back to step 5.
+
+7. Type "0q<enter>" (zero, lowercase-q, enter) to see the logged worst-stress. You should get one line per BMU and CMU. You should get 8 columns. From left to right they are: 
+the device id, 
+the worst stress level, 
+the number of the following column that was the reason for the worst stress,
+1 the highest voltage (in millivolts for CMUs, tenths of a volt for the BMU),
+2 the lowest voltage (in millivolts for CMUs, tenths of a volt for the BMU),
+3 the highest temperature (in degrees Celsius),
+4 the lowest temperature (in degrees Celsius),
+5 the highest absolute link voltage (not yet implemented, values are meaningless). 
+
+If you see values far greater than 15 in the stress-level column, or values outside of 0 to 5 in the reason column, or completely unreasonable voltages or temperatures. Then the log has probably never been reset, and so the results are meaningless. We will reset it below, so it will have meaningful values in future.
+
+If some rows are missing, or some characters seem to be missing from some rows, this may be due to the BMU receiving too much information at once from all the CMUs. To avoid this, you can obtain the result for each device separately by typing "1s0q<enter>", "2s0q<enter>", "3s0q<enter>", ... up to "16s0q<enter>", and then "255s0q<enter>" for the BMU.  The lowercase "s" stands for "select", and the number before the "s" is the id of the device you are selecting.
+
+8. You may wish to type other commands here (all of them followed by the enter key), such as "f" for the state of charge, or "g" for the depth of discharge (both in tenths of a percent). If you know that the cells are fully charged, you can manually synchronise the SoC meter at 100% by typing the "%" command.
+
+You can use "0R" to read the reset-log summary, and "1s16R", "2s16R", "3s16R", ... "16s16R", "255s16R" to read the full reset-log for each device. 
+
+These commands are listed in LyteFyba/trunk/common/definitions.txt.
+
+9. Choose the TeraTerm menu item "File/Log...". Then choose to "Save in" your Documents folder. Change the default filename "teraterm.log" to something more meaningful like "KingscliffPods30Mar16.txt". Ensure that the only options checked are "Plain text" and "Include screen buffer". Then click Save. 
+
+10. A window titled "TeraTerm: Log" will appear in the background. Click on its name in the task-bar at the bottom of the screen, to bring it to the front. Click its "Close" button.
+
+11. Click in the main TeraTerm window again. To clear the worst-stress logs, of all devices, type "{<enter>", i.e. type a left-curly-bracket character followed by the enter key. Don't type the angle-brackets. The left-curly-bracket was chosen because it is difficult to type accidentally. It can be thought of as the mouth of a frowny emoticon, as in: "Are you sure you want to do this :-{ "
+
+Type another "0q<enter>" command to confirm that the worst-stress logs have been reset.
+
+12. Type "^<enter>" (shift-6 enter) to clear the reset log. Then "0R<enter>" to check that it's cleared.
+
+13. Type "k<enter>" (i.e. a single lowercase k character followed by the enter key) to turn checksums back on. To check that this has worked, you should get no response to "v<enter>" (one v), but you should get a response to "vv<enter>" (two v's) because the second "v" acts as the checksum.
+
+14. You can now exit TeraTerm and disconnect the null-modem cable from the BMU. You may wish to copy the saved log-file to a USB stick and/or email it to someone, after which you can turn off the netbook.
+
+15. Disconnect any alligator-clip leads used to bypass the contactors, or release the green button. Restart the battery system as required.
+
+The end.

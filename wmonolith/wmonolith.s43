@@ -35,6 +35,17 @@
 #define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
 								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
 								// You must also set IAR/Project/General Options/Target/Device correctly
+ShutdownTime	EQU		60*StatusFreq ; Shut down after approx 60 seconds of stress 15.
+BatCapacity		EQU		4000	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
+HiTempCellRes	EQU		360		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
+				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
+				; Alternatively cell resistance can be measured as the change in battery voltage
+				; divided by the step change in current that caused it, divided by the number of cells.
+				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+				; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+				; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -209,20 +220,11 @@ passWordState	DS		1			; State machine for password recogniser
 
 shutdownTimer	DS		1			; To allow time for charging to start, when restarting
 									;   after a low voltage shutdown.
-ShutdownTime	EQU		60*StatusFreq ; Shut down approximately one minute after smoothed stress of 15.
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
 piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
-BatCapacity		EQU		4000		; Battery capacity in tenths of an amp-hour
-HiTempCellRes	EQU		360			; Cell internal resistance at high temp in micro-ohms
-				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
-				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
-				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
-				; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
-				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
-				; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
@@ -1176,6 +1178,14 @@ ControlContactors:
 			_IF		_HS						; And enough time has passed
 				bic.b	#(BatCont|ChgCont|DisCont|NrmCont),ContPortOUT	; Drop out all battery
 																		; contactors, and we die
+				; We need an endless loop here in case the BMU doesn't lose power.
+				; It may still be powered up by the inverter capacitors, or some charge source.
+				; This will require the red button to be pushed to remove power from the BMU
+				; to reset it. After which, releasing the red may be sufficient to restart,
+				; or you may also have to push the green.
+				_BEGIN
+					ClearWatchdog
+				_AGAIN								; Endless loop
 			_ENDIF
 		_ELSE							; Else
 			clr.b	&shutdownTimer			; Clear the shutdown timer
@@ -1302,7 +1312,7 @@ DoPrecharge:
 		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
 #endif // G2553
 		ret
-#endif		// if G2553
+
 
 PiController:
 ;
