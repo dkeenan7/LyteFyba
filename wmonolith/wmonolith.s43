@@ -32,12 +32,12 @@
 #define REV			61			// 60 for CMUs in Mexy (electric MX-5).
 								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
 								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
+#define	G2553		0			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
 								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
 								// You must also set IAR/Project/General Options/Target/Device correctly
-ShutdownTime	EQU		60*StatusFreq ; Shut down after approx 60 seconds of stress 15.
-BatCapacity		EQU		4000	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
-HiTempCellRes	EQU		360		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
+ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 60 seconds of stress 15.
+BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
+HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
 				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
 				; Alternatively cell resistance can be measured as the change in battery voltage
 				; divided by the step change in current that caused it, divided by the number of cells.
@@ -1312,6 +1312,7 @@ DoPrecharge:
 		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
 #endif // G2553
 		ret
+#endif		// if G2553
 
 
 PiController:
