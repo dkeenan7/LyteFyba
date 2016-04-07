@@ -6,16 +6,14 @@ InitSP		EQU		$400			; Initial value of stack pointer
 
 ; Port 1 bit masks
 #if REV >= 62						; Rev 62 includes rev 62 CMU and rev 4 BMU.
-TouchV_TxPlIn EQU	1<<0			; TouchV analog input (BMU) on P1.0,
-									; Transmit+ loopback input to be inverted (as CAOUT on P1.3) (CMU)
+Piezo		EQU		1<<0			; Piezo on P1.0
 #else
 TouchV_Byp	EQU		1<<0			; TouchV analog input (BMU) and Bypass output (CMU) on P1.0
 #endif
 Rx			EQU		1<<1			; Receive from CMUs (UART input) on P1.1
 TxPl 		EQU		1<<2			; Transmit+ to CMUs (UART output) on P1.2
 #if	REV >= 62
-PreI_TxMi	EQU		1<<3			; Precharge contactor auxiliary contact input (BMU),
-									; Transmit- to CMUs (CAOUT inversion of UART output) (CMU) on P1.3.
+TouchV_TxPlIn EQU	1<<3			; TouchV analog input (BMU) on P1.0,
 #else
 TxPlIn		EQU		1<<3			; Transmit+ loopback input to be inverted (as CAOUT on P3.7) on P1.3
 #endif
@@ -30,11 +28,13 @@ BypPortSEL	EQU		P1SEL
 BypPortOUT	EQU		P1OUT
 #endif
 #if	REV >= 62
-TxMi		EQU		PreI_TxMi		; Alias for code that's common to newer and older devices
 TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
 TxMiPortSEL	EQU		P1SEL
 TxMiPortSEL2 EQU	P1SEL2
 TxMiPortOUT	EQU		P1OUT
+PiezoPortDIR EQU	P1DIR			; Piezo output is on port 1
+PiezoPortSEL EQU	P1SEL
+PiezoPortOUT EQU	P1OUT
 #endif
 
 ; Port 2 bit masks
@@ -46,7 +46,7 @@ RelayM		EQU		1<<0			; IMU relay for HazV- test on P2.0
 RelayP		EQU		1<<1			; IMU relay for HazV+ test on P2.1
 #endif
 #if	REV >= 62
-Piezo		EQU		1<<2			; Piezo (TA1.1 output?) on P2.2
+PreI		EQU		1<<2			; Precharge contactor auxiliary contact input (BMU)
 #else
 Spare0		EQU		1<<2			; Unused P2.2
 #endif
@@ -71,10 +71,11 @@ BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
 RelayM		EQU		RelayM_Byp
 RelayP		EQU		RelayP_Ir57k6
-#endif
+#else
 PiezoPortDIR EQU	P2DIR			; Piezo output is on port 2
 PiezoPortSEL EQU	P2SEL
 PiezoPortOUT EQU	P2OUT
+#endif
 
 ; Port 3 bit masks. BMU only. No change between rev <blank> and rev 4.
 RxChg		EQU		1<<0			; Receive from charger (TA0.2 input) on P3.0
@@ -177,7 +178,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 #if REV < 62
 #define		BSL2_START	$FE00		// Start of BSL2 image in flash memory. Ends at $FFFD
 #else
-#define		BSL2_START	$FC00		// Start BSL2 1 kiB before the end.
+#define		BSL2_START	$FC00		// Start BSL2 1 KiB before the end.
 #endif
 
 ; The address BSL2 downloads to is usually the same as PROG_START,

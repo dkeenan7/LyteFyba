@@ -412,16 +412,16 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 
 			xCODE	'f',frequencyBurst,_frequencyBurst
 #if REV >= 62
-			bic.b	#TxPl+TxMi,&P1SEL		; Was UART
-			bic.b	#TxPl+TxMi,&P1SEL2		; Both bits different
-			bis.b	#TxPl,&P1DIR			; Set as output; no need to clear
+			bic.b	#TxPl,&P1SEL			; Change from UART function to general IO
+			bic.b	#TxPl,&P1SEL2			; Both SEL bits must be cleared
+			bis.b	#TxPl,&P1DIR			; Set as output in case it isn't already
 #endif
 			mov		#28,R11					; To give 5 seconds with 4 Mhz MCLK
 											; Must be even so things toggle back to what they were
 			call	#doBurst
 #if REV >= 62
-			bis.b	#TxPl+TxMi,&P1SEL			; Back to UART or CAOUT
-			bis.b	#TxPl+TxMi,&P1SEL2
+			bis.b	#TxPl,&P1SEL			; Back to UART function
+			bis.b	#TxPl,&P1SEL2			; No need to change P1DIR
 #endif
 			ret
 
@@ -454,7 +454,9 @@ doBurst
 			dint							;	FFL will spoil results
 			clr		R10
 #if G2553	// Toggle TxPl since it will result in a 10 cycle loop
+	#if REV < 62
 			bic.b	#TxMi,&TxMiPortDIR		; Set TxMi open circuit
+	#endif
 burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit
 #else		// Toggle TxMi since it will result in a 10 cycle loop
 			bic.b	#TxPl,&P1DIR			; Set TxPl open circuit
@@ -469,7 +471,9 @@ burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
 #if G2553
+	#if REV < 62
 			bis.b	#TxMi,&TxMiPortDIR		; Set TxMi back to being an output
+	#endif
 #else
 			bis.b	#TxPl,&P1DIR			; Set TxPl back to being an output
 #endif

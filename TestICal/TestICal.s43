@@ -228,8 +228,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; The BSL will call this on any normal reset (not a watchdog timeout or key violation or SFR instruction fetch)
 ; and after successfully bootstrap-loading a new monitor or TestICal or other main-flash program.
-; This intialises everything including the RAM calibration values, but excluding the stack pointer.
-; The stack pointer is initialised by the BSL before this is called.
+; This intialises the RAM calibration values, and anything else that hasn't already been initialised
+; by the BSL before this is called.
 ;
 InterpretInit:
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
