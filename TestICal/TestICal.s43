@@ -58,11 +58,8 @@
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
 								// Otherwise comment out.
 
-#define REV			62			// 60 for CMUs in Mexy (electric MX-5).
-								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
-								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
-								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+//#define	REV			62			// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
+//#define	G2553		1			// MSP430 model.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 
 ; Init Command String
@@ -80,14 +77,12 @@
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
-#if G2553
 ; Timer registers for generating 4.2 kHz square wave for Piezo
 PizTAR		EQU			TA0R		; Charger/inverter timer register
 PizTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
 PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
-#endif
 
 ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 									; commands. Monitor uses the info-flash copy
@@ -97,9 +92,6 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 VoltCal 	EQU	ramVoltCal
 TempCal		EQU	ramTempCal
 LinkCal		EQU	ramLinkCal
-#ifdef	KINGSCLIFF_DCM
-ThermCal	EQU	ramThermCal
-#endif
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -164,9 +156,6 @@ ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
 ram8MHzCalB DS		1				; 8 MHz DCO range calibration byte
 ramID		DS		1				; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
 ramDataVers	DS		1				; Data version
-#ifdef	KINGSCLIFF_DCM
-ramThermCal	DS		1				; Temperature offset calibration for external thermistor
-#endif
 ramDataEnd
 
 ; Miscellaneous variables
@@ -238,18 +227,6 @@ InterpretInit:
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
-#if	G2553
-	#if REV < 62
-			; Initialise the Timer to run the piezo
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			mov		#TASSEL_2 + ID_0 + MC_2, &TA0CTL
-			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode, interrupts
-			eint								; Enable interrupts generally
-	#endif
-#endif
-
 ;
 ; Copy calibration data into RAM
 ;
@@ -284,18 +261,8 @@ newChip:
 				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
 				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
-#ifdef	KINGSCLIFF_DCM
-				mov.b	#$00,&ramThermCal
-#endif
 			_ENDOF
 			; default action if none of the above apply
-#if !G2553
-				; We could have an unprogrammed non G2553 chip; in that case infoDataVers is actually
-				; one of the 1 MHz frequency calibration values. We know that it will be >= $80 to
-				; disable XT2
-				tst.b	&oldInfoDataVers				; $10FF
-				jn		newChip
-#endif
 				; Data version number is higher or lower than can be handled by this version of TestICal
 				; so we should leave it alone and raise an error.
 				mov		#b'01010101,rERR			; 4 flashes
@@ -303,12 +270,10 @@ newChip:
 			_ENDCASE
 
 
-#if G2553
 			; Initialise port 1
 			; BSL settings of P1SEL are OK. No interrupt comms in TestICal. Analog settings done later.
 			mov.b	#TxPl,&P1OUT			; Set TxPl high (idle), all other outputs low.
 
-#if	REV >= 62 // Rev 62 CMU or REV 4 BMU or later
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_EQ
 				mov.b	#VrefP|TxPl,&P1DIR		; Set VrefP, Tx bits as outputs
@@ -316,9 +281,6 @@ newChip:
 			_ENDIF
 
 			; Initialise port 2
-#if REV < 62
-			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
-#endif
 			mov.b	#0,&P2OUT				; Set all outputs low.
 			mov.b	#RelayM_Byp|RelayP_Ir57k6|Piezo|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
 
@@ -326,90 +288,21 @@ newChip:
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT
 			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Tx, conts as outs
-#else // REV <blank> BMU
-			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
-				mov.b	#VrefP|TxPl|TxMi|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
-			_ELSE							; Else
-				mov.b	#VrefP|TxPl|TxMi,&P1DIR ; Set VrefP, Tx bits as outputs
-			_ENDIF
 
-			; Initialise port 2
-			mov.b	#0,&P2SEL				; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
-			mov.b	#0,&P2OUT				; Set all outputs low.
-			mov.b	#RelayM|RelayP|TxMiScu|Piezo|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
-
-			; Initialise port 3
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
-			mov.b	#0,&P3OUT
-			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Tx, conts as outs
-											; Also need TxMi because need comparator to invert output
-			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
-
-			; Use the Analog Comparator to get an inverted version of TxPlIn (P1.3/CA3)
-			; (which is the UART TxPl looped back) to appear on TxMi (P3.7/CAOUT).
-			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator pos input and turn it on
-			mov.b	#P2CA2|P2CA1,&CACTL2		; Feed CA3 to the comparator neg input
-			mov.b	#TxPlIn,&CAPD				; Disable the digital input buffer of P1.3
-#endif // REV >= 62
-#else // not G2553
-	#if REV >= 61
-			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
-			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-	#else
-			mov.b	#ActLed+TxPl,&P1OUT		; Turn off (inverted) ActLed and set TxPl. Short the piezo.
-			cmp.b	#0,&ID					; If we're not an IMU
-			_IF		_NE
-				mov.b	#ActLed+VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set ActLed, VrefP, Txs, Piezo as outputs
-			_ELSE
-				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-			_ENDIF
-	#endif // REV >= 61
-			mov.b	#0,&P2SEL				; Set Bypass and ErrLed to not be crystal osc pins
-			mov.b	#0,&P2OUT				; Set Bypass and ErrLed off (RLY- and RLY+ if we're an IMU)
-			mov.b	#$FF,&P2DIR				; Set Bypass and ErrLed as outputs
-#endif // G2553
-
-#if REV < 62
-			; Reinitialise clocks using RAM calibration values. These should have sorted out any data
-			; version issues, new chip, etc.
-			mov.b	#DIVM_1+DIVS_3,&BCSCTL2	; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8
-			mov.b	&ram8MHzCalB,&BCSCTL1
-			mov.b	&ram8MHzCalD,&DCOCTL
-#endif
-#if !G2553
-			; Prepare ACLK for piezo drive -- 3 kHz square wave
-			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
-#endif
 			clr		rERR					; Clear the error register
 
 ;
 ; Initialise the ADC10
 ;
-#if G2553
 			cmp.b	#255,&ID					; If we're not a BMU (BMS Master Unit)
 			_IF		_NE
 				; Enable analog inputs and Vref+ out, but not TouchV
-#if REV >= 62
 				; Don't set P1.5 as analog input; it's not BoltVPl
 				mov.b		#(1<<VRefPChan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
-#else
-				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
-#endif
 			_ELSE
 				; Enable analog inputs and Vref+ out
 				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan)|(1<<TouchVChan),&ADC10AE0
 			_ENDIF
-#else
-			cmp.b	#0,&ID					; If we're not an IMU (Insulation Monitoring Unit)
-			_IF		_NE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ELSE
-				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ENDIF
-#endif // G2553
 
 			; Initialise ADC10
 			; SREF_1    = +-refs are Vref+ and AVSS
@@ -506,12 +399,10 @@ ErrorFlash:
 PizTiovIsr:
 ; Timer capture/compare interrupt service routine
 ;-------------------------------------------------------------------------------
-#if G2553
 			clr		&PizTAIV				; Access TAIV to reset the sub interrupt flag
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
 			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
 			add		#119,&PizCCRp			; Advance the counter by half a period
-#endif
 			reti							; Return from interrupt
 
 
@@ -534,8 +425,7 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-;				ORG		$FDDE
-				ORG		BSL2_START-$22		; FDDE/FBCE
+				ORG		BSL2_START-$22	; FBDE for npw
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
@@ -556,8 +446,7 @@ jTA0RxTiovIsr	br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Pi
 jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
 				nop
 
-;				ORG		$FDFE
-				ORG		BSL2_START-2
+				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 

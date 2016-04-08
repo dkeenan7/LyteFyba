@@ -173,7 +173,6 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			call	#TxEndOfPacket
 
-			ActLedOn						; Set the (inverted) activity LED here to mimic old behaviour
 			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string

@@ -29,8 +29,8 @@
 								// voltages up to 203.1 V.
 								// Otherwise comment out with //.
 
-#define	REV			62			// 62 for CMU board rev 62, and rev 4 BMU.
-#define	G2553		1			// MSP430 model.
+//#define	REV			62			// 62 for CMU board rev 62, and rev 4 BMU.
+//#define	G2553		1			// MSP430 model.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 
 			LSTOUT-

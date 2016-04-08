@@ -527,7 +527,6 @@ _prettyPrint:
 			popBits_B #bHexOutput,&interpFlags ; Restore number base
 		_ENDIF							; End Else in modbus mode
 
-		ActLedOn					; Set the (inverted) activity LED here to mimic old behaviour
 		ret
 
 ; Transmit the end of a Modbus packet: LRC, CR, LF

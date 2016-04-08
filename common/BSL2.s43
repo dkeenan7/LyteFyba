@@ -20,11 +20,7 @@ BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 			LOCAL	testNoInterp, WriteBrk, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 			LOCAL	TA0FllIsr
-#if	REV >= 62
 MClock		EQU		3686400			; MCLK (CPU clock) frequency in hertz (DCO software-locked to watch xtal)
-#else
-MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
-#endif
 BaudRate	EQU		9600			; Serial comms rate in bits per second
 BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
 BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
@@ -40,7 +36,6 @@ jWriteByte:	br		#WriteByte
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
-#if REV >= 62
 			clr		&oldCCR0		; Clear this before interrupts are enabled
 			; XCAP = 11, Choose 12.5 pF
 			; LFXT1Sx = 00, Watch crystal (32768 kHz)
@@ -102,29 +97,8 @@ BSL:		; Initialisation
 			eint								; Enable general interrupts for FLL
 
 ;			clr		&measureCount
-#else // REV < 62
-			mov.b	#DIVM_1+DIVS_3,&BCSCTL2		; Set MCLK = DCOCLK/2, SMCLK = DCOCLK/8 (watchdog)
-			; Use original TI frequency calibration values, in case our values not set up or wildly bad
-			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
-			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-#endif
-#if REV >= 61
 			mov.b	#TxPl,&P1OUT			; Set Txs to idle state, Vref output off
-	#if REV >= 62
 			bis.b	#TxPl|VrefP,&P1DIR 		; Set TxPl and VrefP as outputs
-	#else // REV = 61
-			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
-		#if G2553
-			mov.b	#TxMi,&P3DIR 			; Set TxMi because need comparator to invert output
-											; This initialisation also done in Monitor, TestICal etc
-											;	but they may not be bootstrap-loaded properly
-			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
-		#endif // G2553
-	#endif // REV >= 62
-#else // REV < 61
-			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
-			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs
-#endif // REV >= 61
 
 			; We've been reset, so send a break to reset the next guy, unless we're a BMU,
 			; (or the IMU in the Helidon Monolith), in which case it would lead to
@@ -133,10 +107,6 @@ BSL:		; Initialisation
 			cmp.b	#255,&infoID
 			_IF		_NE				; If we're not a BMU
 				; Send a 27 ms break
-				#if	REV < 62
-					mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
-					clr		R9				; Bit values (all zeros so it's a break)
-				#endif
 				call	#WriteBreak-jBSL+BSL2_START	; Address adjusted for BSL's relocation
 			_ENDIF
 
@@ -199,11 +169,7 @@ processByte2
 
 			; Check for a continuing password match $07 $06 $05 $04
 			mov		&bsl2state,R9
-#if PROG_START_FOR_BSL == $E000		; Changed password for 8 KiB image
 			add.b	#2,R9			; Expected password character is equal to &bsl2state with 2 added
-#else								; Assume non 8 KiB image
-			bis.b	#4,R9			; Expected password character is equal to &bsl2state with bit 2 set
-#endif
 			cmp.b	R9,R8
 			jne		resetFSM2
 			tst		&bsl2state
@@ -272,7 +238,6 @@ TestNoInterp2:
 					bit.b	#bDontEcho,&interpFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
 					call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
 				; We are about to jump to jInterpretByte. In case the flash is corrupted by a
@@ -301,7 +266,6 @@ TestNoInterp2:
 					_ENDIF
 				_ENDIF
 				call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
 			ret						; Return to BSL2 init or main loop
 
@@ -310,144 +274,44 @@ TestNoInterp2:
 ; Reads a byte from serial input to R8. Trashes R9 R10 R11.
 ;
 ReadByte:
-#if	REV >= 62
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-			_BEGIN						; Loop
-				bit.b	#UCA0RXIFG,&IFG2
-			_UNTIL	_NZ					; Until byte received
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
-			mov.b	&UCA0RXBUF,R8		; Return the received byte
-			ret					; Return from ReadByte
-#else
-									; (Number of cycles)
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-			_BEGIN
-				bit.b	#Rx,&P1IN		; (4) Start bit?
-			_UNTIL	_Z					; (2) Loop until 0 (start bit)
-			; The loop above takes 6 cycles so on average we will have missed the start bit by
-									; (3) cycles
-			push	SR				; (3) cycles
-			dint					; (1) cycle
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and enable the Watchdog Timer
-
-			; Pad out the average delay between starting edge of start bit
-			; and sampling of first bit below to ~ 1.5 bittimes
-			mov.b	#(BitCyc1_5-21+1)/3,R11 ; (2) Loop count for waitMid delay loop
-			_BEGIN
-				dec		R11				; (1) Delay loop
-			_UNTIL	_Z					; (2) Note: Clearing R11 here may be assumed in WriteByte below
-
-			mov		#8,R10			; (1) Bit count
-			_BEGIN
-				bit.b	#Rx,&P1IN		; (4) Sampled bit to carry
-				rrc.b	R8				; (1) Store received bit
-
-				mov.b	#(BitCycles-10+1)/3,R11 ; (2) Pad RX bit loop out to one bit time
-				_BEGIN
-					dec		R11				; (1) Delay loop
-				_UNTIL	_Z					; (2) Note: Clearing R11 here is assumed in WriteByte below
-				dec		R10				; (1) All bits RXed?
-			_UNTIL	_Z					; (2) Sample next bit
-
-			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
-			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
-			; But it's not needed, since we always send something before waiting for the next byte
-			pop		SR
-			ret					; Return from ReadByte
-#endif
+		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+		_BEGIN						; Loop
+			bit.b	#UCA0RXIFG,&IFG2
+		_UNTIL	_NZ					; Until byte received
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+		mov.b	&UCA0RXBUF,R8		; Return the received byte
+		ret					; Return from ReadByte
 
 
 ; WriteBreak ( R9 R10 -- R9 R10 R11 )
 ; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
 ; Trashes R9 R10 R11.
 WriteBreak:
-#if	REV >= 62
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-			mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
-			mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
-			; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
-			mov.b	#0,&UCA0TXBUF		; Send all zero data bits
-			_BEGIN						; Wait until finished sending
-				bit.b	#UCBUSY,&UCA0STAT
-			_UNTIL	_Z
-			mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 ; Restore to 9600 b/s
-			mov.b	#(MClock/9600/16)/256,&UCA0BR1
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
-			ret
-#else
-			push	SR
-			dint
-			jmp		WriteBrk
-#endif
+		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+		mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
+		mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
+		; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
+		mov.b	#0,&UCA0TXBUF		; Send all zero data bits
+		_BEGIN						; Wait until finished sending
+			bit.b	#UCBUSY,&UCA0STAT
+		_UNTIL	_Z
+		mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 ; Restore to 9600 b/s
+		mov.b	#(MClock/9600/16)/256,&UCA0BR1
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+		ret
 
 ; WriteByte ( R8 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output.
 ; Trashes R9 R10 R11. Preserves R8.
 WriteByte:
-#if	REV >= 62
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-			mov.b	R8,&UCA0TXBUF		; Send byte
-			_BEGIN						; Loop
-				bit.b	#UCA0TXIFG,&IFG2
-			_UNTIL	_NZ					; Until byte sent
-			mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
-			ret					; Return from WriteByte
-#else
-			clr		R11
-			mov		R8,R9			; Allow R8 to be preserved for password compare
+		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+		mov.b	R8,&UCA0TXBUF		; Send byte
+		_BEGIN						; Loop
+			bit.b	#UCA0TXIFG,&IFG2
+		_UNTIL	_NZ					; Until byte sent
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+		ret					; Return from WriteByte
 
-			mov.b	#8,R10			; Loop counter, 1 start + 8 data (decrements to -1)
-			rla		R9				; Add the start bit
-			; Stop bit was bis#1<<9,R9, but it's done after the loop now
-			; to allow sending a break
-			push	SR
-			dint
-
-			_BEGIN					; (Number of cycles)
-				rra		R9				; (1) Next bit to C.
-#if	G2553
-				subc.b	#TxMi,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
-				inv.b	R11				; (1)
-#else
-				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
-#endif
-										; Note: R11 must be guaranteed clear in advance
-				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
-#if REV >= 61
-				and.b	#TxPl|TxMi,R11 ; (2) Ensure only Tx bits can be toggled below
-#else
-				; The activity LED has a lower bit number than TxPl so the below will
-				; turn off the (inverted) activity LED when a zero bit or start bit is sent,
-				; and turn it on when a one bit or stop bit is sent.
-				and.b	#TxPl|ActLed|TxMi,R11 ; (2) Ensure only Tx and ActLed bits can be toggled below
-#endif
-				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
-
-WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
-				_BEGIN
-					dec		R11				; (1) Note: Clearing of R11 here is assumed by subc.b above
-				_UNTIL	_Z					; (2)
-
-				dec		R10				; (1) Decrement the bit counter
-			_UNTIL	_NC				; (2) Loop until -1
-
-#if REV >= 61
-			mov.b	#TxPl,&P1OUT	; Send a stop bit
-			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
-#else
-			mov.b	#TxPl,&P1OUT	; Send a stop bit and leave the (inverted) ActLed on
-			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
-#endif
-			; To ensure the stop bit has sufficient duration we rely in the fact that
-			; calls to WriteByte must be at least 2 byte-times apart
-			; to allow any receiving CMU's BSL time to both read and echo the byte.
-			pop		SR
-
-			ret
-#endif // REV >= 61
-
-
-#if	REV >= 62
 ; Frequency locked loop interrupt service routine.
 ; Timer A0 is clocked at the DCO frequency. Its CCR0 captures the timer value on every rising edge of
 ; ACLK = watch_xtal / 8 = 4096 Hz, and generates this interrupt.
@@ -465,7 +329,6 @@ TA0FllIsr:
 			mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
 			inc		&measureCount	; Inc counter used to initiate measurement
 			reti
-#endif
 
 			; Any free last-segment space is between here and the UART interrupt vectors
 ;freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
@@ -483,11 +346,7 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 
 										; $FFF0, Timer A0 Vectors
 				DW		jTA0RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
-#if	REV >= 62
 				DW		TA0FllIsr		; Timer A CC0IFG (freq locked loop)
-#else
-				DW		jTA0TxIsr		; Timer A CC0IFG (transmit compare)
-#endif
 				DW		$FFFF, $FFFF	; FFF4, FFF6
 										; $FFF8, Timer A1 Vectors
 				DW		jTA1RxTiovIsr	; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)

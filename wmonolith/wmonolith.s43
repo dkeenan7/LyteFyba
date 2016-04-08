@@ -29,11 +29,8 @@
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
 								// Otherwise comment out with //.
 
-#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
-								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
-								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
-								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+//#define REV			62			// 62 for CMU board rev 62, and rev 4 BMU.
+//#define	G2553		1			// MSP430 model.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
@@ -62,9 +59,6 @@ DELAY_IF_NEEDED MACRO
 VoltCal 	EQU	infoVoltCal
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
-#ifdef 		KINGSCLIFF_DCM
-ThermCal	EQU	infoThermCal
-#endif
 
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
@@ -77,14 +71,6 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
-
-; Couldn't fit both masterless charging and insulation monitoring in 4k.
-#define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
-#if G2553
-#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
-#else
-#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
-#endif
 
 ; Constants
 
@@ -166,11 +152,9 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-#if G2553							; Used by BMU only (and hence G2553 only)
 SourceCont	EQU		ChgCont			; Source contactor MOSFET and orange LED
 LoadCont	EQU 	DisCont			; Load contactor MOSFET and cyan/white LED
 ContPortOUT	EQU		P3OUT
-#endif
 
 ;
 ; RAM allocation
@@ -184,7 +168,11 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
 									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
 socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
+									;	comNoEraseEnd, as it will affect the first FLL interrupt
 comNoEraseEnd
+
+measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 
 #if	ADCBUF
 				ALIGNRAM 1
@@ -260,7 +248,6 @@ txBuf			DS		TxSz		; Transmit queue buffer
 txWr			DS		1			; Transmit queue write index
 txRd			DS		1			; Transmit queue read index
 
-#if G2553
 	; System control unit comms variables
 				ALIGNRAM 1
 scuTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
@@ -302,7 +289,6 @@ chgRxRd			DS		1			; Receive queue read index
 chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
-#endif
 
 ; Command Character Interpreter variables
 
@@ -381,7 +367,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
 
-#if G2553
 			cmp.b	#255,&ID					; Is this a BMU?
 			_IF		_EQ
 				mov		#ScuTxByte,&TxBytePtr		; By default, TxByte goes to the SCU port for a BMU
@@ -396,12 +381,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 1
 			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
 			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
-			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
-				mov.b	#VrefP|TxPl|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
-			_ELSE								; Else
-				mov.b	#VrefP|TxPl,&P1DIR			; Set VrefP, Tx bits as outputs
-			_ENDIF
+			mov.b	#VrefP|TxPl,&P1DIR			; Set VrefP, Tx bits as outputs
 			mov.b	#Rx|TxPl,&P1SEL				; Select UART functions for Rx and TxPl pins
 			mov.b	#Rx|TxPl,&P1SEL2
 
@@ -415,19 +395,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Txs, conts as out
+			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set TxChg, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
-			bis.b	#TxMi,&P3SEL				; Select the comparator output function of P3.7
 
 ;
 ;	Initialise timer and interrupt comms
 ;
-			; Use the Analog Comparator to get an inverted version of TxPlIn (P1.3/CA3)
-			; (which is the UART TxPl looped back) to appear on TxMi (P3.7/CAOUT).
-			mov.b	#CAON|CAREF_2,&CACTL1		; Half-supply to the comparator pos input and turn it on
-			mov.b	#P2CA2|P2CA1,&CACTL2		; Feed CA3 to the comparator neg input
-			mov.b	#TxPlIn,&CAPD				; Disable the digital input buffer of P1.3
-
 			; Initialise the UART
 			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
 			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
@@ -463,73 +436,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 ;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
-#else // G2452
-;
-;	Initialise io ports
-;
-	#if REV >= 61
-			clr.b	&P1OUT						; All outputs low on port 1
-			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
-			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
-			bis.b	#Piezo,&PiezoPortDIR
-			cmp.b	#255,&ID
-			_IF		_EQ							; If we're a BMU
-				bis.b	#SocMeter,&SocPortDIR		; Set up output for SoC meter PWM
-				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
-			_ENDIF
-	#else
-			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
-			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
-				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
-			_ELSE
-				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-			_ENDIF
-	#endif // REV >= 61
-			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
-			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
-			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed (RLY- and RLY+) as outputs
-;
-;	Initialise timer and interrupt comms
-;
-			mov.b	#Rx+TxMi,&P1SEL				; Select timer functions CCI1A and TA0 (not I/O port)
-
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
-
-			; Set up differential timer outputs for transmit data.
-			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
-			; when TA0 appears on P1.1.
-			; We use the clock inverter in the USI (Universal Serial Interface)
-			; to invert TA0 and put it out as SCLK, in SPI master mode.
-			; We don't use the shift register of the USI because there is
-			; no way to get differential outputs from that without external hardware.
-			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
-			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
-			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
-
-			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
-			; We want to set the CCIFG so that TxByte won't think there's an uncompleted stop bit
-			; and wait for it to complete.
-			mov		&TAR,&CCRt					; Make an output event
-			add		#4,&CCRt					;	happen in a dozen or so instructions
-			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
-			mov.w	#OUTMOD_0 + OUT, &CCTLt		; TA0=1 Space; seems necessary to "wake up" SCLK divider
-			mov.w	#OUTMOD_5, &CCTLt			; When the compare happens, set TA0=0 Idle or Mark
-
-			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
-			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
-												;	idle bit)
-			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
-;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&CCTLr	; Falling edge, Input A, Sync, Capture
-
-; Prepare ACLK for piezo drive -- 3 kHz square wave
-			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
-#endif // End else G2452
 
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
@@ -605,12 +511,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Do precharge and get the main contactor on, so we stay powered up
 ; even when the human lets go of the green button.
-#if G2553
 			cmp.b	#255,&ID
 			_IF		_EQ							; If we're a BMU
 				call	#DoPrecharge
 			_ENDIF
-#endif
 
 ; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
@@ -622,7 +526,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-#if		G2553			// Only 2553s even have Scu ports to check
 				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
 				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
 				cmp.b	#255,&ID
@@ -635,7 +538,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 					call	#AccMaster				; Call the "master" accept function, char or not
 				_ENDIF
-#endif
 
 				; Check for a command or status character from the CMU port
 				; For both CMUs and the BMU, read from CMU Rx
@@ -824,30 +726,6 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
 
-#ifdef KINGSCLIFF_DCM
-#if REV >= 61
-			; Do temperature measurement using external thermistor
-			call	#extT					; Get temperature in degrees Celsius in R10
-
-			cmp.b	#255,&ID
-			_IF		_NE						; If we're not a BMU
-				push	R10						; Save measurement for undertemperature stress calc
-				; Calculate stress due to overtemperature
-				push	R10						; Measurement for overtemperature stress calc
-				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
-				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
-				push	#3						; Type of measurement
-				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to OT
-
-				; Calculate stress due to undertemperature
-												; Measurement saved on stack earlier
-				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
-				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
-				push	#4						; Type of measurement
-				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
-			_ENDIF
-#endif
-#endif
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#linkV					; Get link voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not a BMU
@@ -995,11 +873,9 @@ DoMeasurement:
 					cmp.b	#255,&ID				; If we're a CMU
 					_IF		_NE
 						call	#TxByte					; Send the status byte. Wait buffer not full
-#if G2553
 					_ELSE							; Else we're in charger control mode
 						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 						call	#ControlContactors		; Control contactors
-#endif
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -1131,23 +1007,19 @@ DoStatus:
 			cmp.b	#255,&ID
 			_IF		_NE						; If we're a CMU
 				call	#TxByte						; Send the status byte. Wait buffer not full
-#if G2553
 			_ELSE								; Else we're in charger control mode
 				mov.b	R8,&globalStatus			; '255sp' (or modbus equiv) reads global status
 				call	#ControlContactors			; Control contactors (was call #ControlCharger)
-#endif
 			_ENDIF
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
 
-#if G2553
 ControlContactors:
 ;
 ; Status byte is in R8. Use it to control contactors
 ;
-#if	G2553
 		push 	R9
 		push	R10
 
@@ -1211,13 +1083,11 @@ ControlContactors:
 
 		pop		R10
 		pop		R9
-#endif // G2553
 		ret
 ; End of ControlContactors
 
 
 DoPrecharge:
-#if G2553
 		; This code is designed to work with a number of different battery contactor
 		; arrangements.
 		; t0 thru t4 indicate the time order of switching during precharge.
@@ -1310,9 +1180,7 @@ DoPrecharge:
 				call	#DelayMs					; Wait for relay bounce and voltage settling
 			_ENDIF
 		bic.b	#PreCont,&ContPortOUT		; Turn off the Precharge contactor to save power
-#endif // G2553
 		ret
-#endif		// if G2553
 
 
 PiController:
@@ -1388,8 +1256,9 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 DoPassword:
 ;
 ; Check for a password character in R8
-; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
-; 0 = waiting for ^D and erase if received. We should not receive any negative value
+; After decrementing passWordState below, 3 = waiting for 1st pwd byte, 2 = waiting for 2nd pwd byte, 
+; 1 = waiting for 3rd pwd byte, 0 = waiting for last pwd byte and erase if received. 
+; We should not receive any negative value
 ; Trashes R9
 ;
 			dec.b	&passWordState
@@ -1397,12 +1266,8 @@ DoPassword:
 										; process as an ordinary command
 
 			; Check for a continuing password match
-			mov.b	&passWordState,R9	; Password is $07 $06 $05 $04
-#if PROG_START_FOR_BSL <= $E000			; Changed password between 4 KiB and 8 KiB images
+			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02
 			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
-#else									; Assume 4 KiB image
-			bis.b	#4,R9				; Expected password char is equal to &passWordState with bit 2 set
-#endif
 			cmp.b	R9,R8				; Check for a match
 			jne		resetFSM			; If mismatch, jump and reset FSM
 			tst.b	&passWordState		; Are we now at state 0?
@@ -1412,37 +1277,21 @@ DoPassword:
 			;	without using interrupts.
 			; May be important: it could be bad to have receive interrupts sending stress bytes after
 			;	this last password byte goes out; it could be interpreted as a byte to flash program!
-#if G2553
 			bic.b	#UCA0RXIE | UCA0TXIE,&IE2	; Disable UART interrupts
 			clr		&ScuCCTLr			; Clear at least the CCIE RX interrupt enable bit
 			clr		&ChgCCTLr			; Clear at least the CCIE RX interrupt enable bit
-#else
-			clr		&CCTLr				; Clear at least the CCIE RX interrupt enable bit
-#endif
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
 			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV >= 61
 			bis.b	#TxPl,&P1OUT		; Set Tx to idle
-			bic.b	#TxMi,&TxMiPortOUT
-			ActLedOff					; (inverted) activity LED off
-#else
-			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-#endif
 
-#if G2553
 			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
 			mov.b	#0,Rtos				; Set Error Led and Piezo off
 			call	#_errorLed
 			bic.b	#Rx|TxPl,&P1SEL		; Restore CMU comms pins to GPIO function
 			bic.b	#Rx|TxPl,&P1SEL2
-#else
-			clr.b	&P2OUT				; Set bypass and error LED off (relays off if BMU)
-			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
-			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
-#endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
@@ -1463,41 +1312,22 @@ spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ;---------------------------------------------------------------------------------
 ; Interrupt and entry-point jump table at the end of the second-last main-flash segment
 ;---------------------------------------------------------------------------------
-				ORG		$FDDE
+				ORG		BSL2_START-$22	; FBDE for now
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
 
-#if G2553
 jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
-#else
-jUCA0TxIsr		reti					; UART transmit not used
-				nop
-jUCA0RxIsr		reti					; UART receive not used
-				nop
-#endif
 
-#if G2553
 jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
 jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
-#else
-jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
-				nop
-jTA1TxIsr		reti					; TA1 CC0 not used
-				nop
-#endif
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-#if G2553
 jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
 jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
-#else
-jTA0RxTiovIsr	br		#RxTiovIsr		; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA0TxIsr		br		#TxIsr			; Timer A0 CC0IFG (transmit compare)
-#endif
-				ORG		$FDFE
+				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
@@ -1505,7 +1335,7 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ; Bootstrap loader, in the last main-flash segment
 ;---------------------------------------------------------------------------------
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
-				ORG		$FE00			; Start of last main-flash segment
+				ORG		BSL2_START		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
 BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector

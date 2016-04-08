@@ -33,7 +33,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 A to F are hexadecimal digits
   a ADCScaled or r(A)wVoltage (TestICal only)
   b update Bootstrap loader (BSL2)
-c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
+c   Charging, '1c' to include undertemp and exclude undervolt as stress.
   c Calibrate
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
@@ -56,11 +56,9 @@ l l LinkVoltage
   M Measure Vcc
 n n emit(n)um. Precede with a number or calculation, and a field width
 N N Number of cells
-o   charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
   o change Octave of piezo alarm
   O stOre wOrd (poke wOrd)
 p   status (local to each CMU, but global when BMU)
-  p ParallelPullDown (when testing with CMUs paralleled on power supply)
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
   q pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
@@ -114,7 +112,6 @@ Y Y relaY+ (on IMU only)
   U Unliven contactor (1U .. 5U)
 
   a ADCScaled or r(A)wVoltage (TestICal only)
-  p ParallelPullDown (when testing with CMUs paralleled on power supply)
 i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
@@ -126,8 +123,7 @@ r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each CMU)
 
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
-c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
-o   charger C(o)ntrol. Precede with voltage and current limits in tenths of a volt/amp. '0o' to disable.
+c   Charging, '1c' to include undertemp and exclude undervolt as stress.
 
 T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)

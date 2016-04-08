@@ -4,7 +4,6 @@
 ; sending)
 ;
 
-#if		G2553							; The master "task" is only possible in a BMU running a G2553
 AccMaster
 		cmp.b	#$0D,R8				; Carriage return?
 		_IF		_EQ
@@ -128,4 +127,3 @@ EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sen
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
 		ALIGN	1
 
-#endif		// If G2553
