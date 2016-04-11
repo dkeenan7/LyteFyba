@@ -258,10 +258,17 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ; update Bootstrap loader ( -- )
 ;
 			xCODE	'b',updateBSL2,_updateBSL2
-			dint
+
+			; Avoid an infinite loop if there is a 'b' command in the INIT_CMD_STRING.
+			call	#compareBSL2			; Compare the payload copy with the existing BSL2
+			_IF		_EQ						; If it's already the same
+				ret								; Return without doing anything
+			_ENDIF							; Endif
+
 ; Prepare to flash-program
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+			dint
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 
