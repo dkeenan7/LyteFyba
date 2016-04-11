@@ -2,7 +2,6 @@
 ; and we don't want it using &ramID as this only exists in TestICal.
 
 ActLedOff	MACRO
-#if !G2553			// Activity LEDs are done in hardware on newer devices
 	#if	REV >= 61
 			tst.b	&infoID
 			_IF		_NZ
@@ -14,11 +13,9 @@ ActLedOff	MACRO
 	#else
 			bis.b	#ActLed,&P1OUT
 	#endif
-#endif
 			ENDM
 
 ActLedOn	MACRO
-#if !G2553			// Activity LEDs are done in hardware on newer devices
 	#if	REV >= 61
 			; No provision for oscillating to light both LEDs yet.
 			; Error LED has priority.
@@ -29,7 +26,6 @@ ActLedOn	MACRO
 	#else
 			bic.b	#ActLed,&P1OUT
 	#endif
-#endif
 			ENDM
 
 ErrLedOff	MACRO

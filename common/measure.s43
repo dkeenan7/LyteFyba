@@ -155,44 +155,7 @@ cellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
-#ifdef MONOLITH		// If we're assembling Monolith, not Monitor or TestICal
-	#ifdef HELIDON		// and it's for the prototype at Helidon
-			cmp.b		#255,&ID
-			_IF			_EQ			; If we're an IMU (modified for reading negative HazV to -200 V)
-				; Voltage divider ratio is such that 204.6 V in gives 1.5 V out
-				; but bottom of divider is connected to Vref+ instead of GND,
-				; so there's a 1.5 V offset. Hence fullscale is -203.1 V.
-				; To calibrate such an IMU using TestICal, apply a voltage -V
-				; where V is between 100 and 190 V.
-				; Type 255x<cr> so you don't screw up any CMUs in the comms chain.
-				; Type 32768'vwv<cr> to obtain a reading R.
-				; Calculate K = 32768 * V * 20 / (4062 - R).
-				; Type the value of K followed by 'vwu<cr>.
-				; Type <esc> to talk to CMUs again.
-				call		#measure				; 12.2 fixed-point result in R8
-				mov			#4062<<2,R9				; 4062 = 1023*4(full scale) - 1.5*20(Vref offset)
-				sub			R8,R9
-				_IF			_NC						; Not carry means borrow, for a subtraction
-					clr			R9					; Clamp negative values to zero
-				_ENDIF
-
-				mov.w		&VoltCal,R8				; Get voltage calibration word as multiplier in R8
-													; Multiplicand is already in R9
-				call		#UMStar					; Gives unsigned product in R10 (hi) and R9 (lo)
-				ClearWatchdog
-				rra			R10						; Shift product hi word right one bit
-				inc			R10						; Add one for correct rounding
-				rra			R10						; Shift product hi word right another bit
-				ret									; Result in tenths of volt (without a minus sign)
-			_ELSE
-				jmp		measAndScale				; Tail-call measAndScale and return
-			_ENDIF
-	#else
 			jmp		measAndScale				; Tail-call measAndScale and return
-	#endif
-#else
-			jmp		measAndScale				; Tail-call measAndScale and return
-#endif
 
 CapV:		; When used by wmonolith to check precharge
 ArrayV:
@@ -220,33 +183,6 @@ temp:
 			sxt		R8
 			sub		R8,R10					; R10 has temperature in degrees Celsius
 			ret
-
-#ifdef KINGSCLIFF_DCM
-extT:	; Temp of external thermistor. Called from 'H' command. Used in white monolith prototype.
-; Uses Vishay NTCLE413E2103F102L NTC thermistor (R_25^C = 10k, K = 3435) from Digikey.
-; CMU mods are R17 (bottom of divider) = 12k4. R4c (in parallel with thermistor) = 10k5.
-; R4b (in series with thermistor) = 11k3. R4a is removed.
-; Vcc (2.5 V) from reg is fed into R4b via connected R4a pad. Thermistor is connected across R4c.
-; This resistor network is designed to make the thermistor input have a similar V/T relationship to
-; the MSP430's internal temperature sensor, within 1^C from 0^C to 55^C,
-; within 2^C between -4^C and 57^C, within 3^C between -9^C and 61^C, ignoring component tolerances.
-; Output: R10 = temperature in degrees Celsius
-; Trashes: R8, R9, R11
-			mov		#BoltVPlChan<<12,R8
-			call	#measAndScale
-			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
-			; But the measurement M is 4096* V/1.5 = 2731*V.
-			; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
-			; To divide by 9.694 counts/°C, multiply by 65536/9.694 = 6760, and keep the top half
-			mov		R10,R8
-			mov		#6760,R9
-			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
-			sub		#273,R10				; M/9.694 - 273
-			mov.b	&ThermCal,R8
-			sxt		R8
-			sub		R8,R10					; R10 has temperature in degrees Celsius
-			ret
-#endif
 
 
 linkV:

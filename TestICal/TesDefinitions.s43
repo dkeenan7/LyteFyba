@@ -5,7 +5,6 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and TestICal
 
-#if (PROG_START < $F800)						; Comment out if short of space
 ;
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
 ; "channel" has channel number shifted left 12 bits.
@@ -18,7 +17,6 @@
 		call		#measAndScale			; Measure and use voltage scale calibration
 		mov			R10,Rtos
 		ret
-#endif
 
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
@@ -28,9 +26,6 @@ calAddressTable
 		DB		'l' , ramLinkCal  & $7F | $00
 		DB		'f' , ram8MHzCalD & $7F	| $80
 		DB		'i' , ramID       & $7F | $00
-#ifdef KINGSCLIFF_DCM
-		DB		'H' , ramThermCal & $7F | $00
-#endif
 		; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -118,20 +113,6 @@ nonCal			mov		#$80,R10
 realCal
 				mov.b	R10,&ramLinkCal				; Save the link calibration value
 			_ENDOF
-#ifdef	KINGSCLIFF_DCM
-			_OFb	#'H',Rtos					; 'H': tHermistor (or Hotness)
-				; A resistor network gives it a similar slope to the internal temp sensor,
-				; as described in the comments for the extT routine in measure.s43.
-				mov		#BoltVPlChan<<12,R8			; ADC channel for external thermistor
-				call	#measAndScale
-				mov		R10,R8
-				mov		#6760,R9
-				call	#UMStar
-				sub		#273,R10
-				sub		Rsec,R10					; Subtract 273 and the calibration temperature
-				mov.b	R10,&ramThermCal			; Save temperature offset calibration value
-			_ENDOF
-#endif
 ;
 ; Default case
 				jmp		emitQmark					; Unknown calibration type character
@@ -201,24 +182,6 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				jmp		emitQmark
 			_ENDIF							; Endif unrecognised
 			ret
-
-#if 0	// Old code for setIDs which required special treatment in ReadByte or interpretByte
-;
-; setIDs ( -- )
-;
-			xCODE	'i',setIDs,_setIDs
-; We read the ID as a single character from the serial port, and echo the next ID downstream.
-
-			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
-											; Not echoed because of special treatment in interpretByte
-waitingIDAddr								; This address will be on the stack in interpretByte
-			mov		R8,R12					; Save our ID
-			inc		R8
-			call	#WriteByte				; Send downstream CMU's ID
-			ActLedOff						; Clear (inverted) activity LED set by WriteByte
-			mov.b	R12,&ramID				; Save our ID to RAM
-			ret
-#endif
 
 ;
 ; setIDs ( first-ID -- )
@@ -360,7 +323,6 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 		ret
 #endif
 
-#if 1 && (PROG_START < $F800)		// Commented out if need to save space
 ;
 ; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
 ;
@@ -369,9 +331,7 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 			mov.w	@Rtos,Rsec
 			mov		#5,Rtos
 			br		#_prettyPrint
-#endif
 
-#if (PROG_START < $F800)		// Commented out if need to save space
 ;
 ; stOreWord - store a word (a la Store) ( n addr -- )
 ;
@@ -400,8 +360,6 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 			mov		Rtos,R8		; Save the jump address in a trashable non-stack reg
 			DROP				; Drop stack in case the code at addr uses stack arguments
 			br		R8			; Tail-call the code at addr and return
-#endif
-
 
 ;
 ; f command ( -- )
@@ -411,18 +369,9 @@ failCompareB mov	#b'01010100,rERR		; 3 flashes
 ;	CPU speed, since communications will be affected!
 
 			xCODE	'f',frequencyBurst,_frequencyBurst
-#if REV >= 62
-			bic.b	#TxPl,&P1SEL			; Change from UART function to general IO
-			bic.b	#TxPl,&P1SEL2			; Both SEL bits must be cleared
-			bis.b	#TxPl,&P1DIR			; Set as output in case it isn't already
-#endif
 			mov		#28,R11					; To give 5 seconds with 4 Mhz MCLK
 											; Must be even so things toggle back to what they were
 			call	#doBurst
-#if REV >= 62
-			bis.b	#TxPl,&P1SEL			; Back to UART function
-			bis.b	#TxPl,&P1SEL2			; No need to change P1DIR
-#endif
 			ret
 
 ;
@@ -453,15 +402,9 @@ doBurst
 			push	SR						; Interrupts like the
 			dint							;	FFL will spoil results
 			clr		R10
-#if G2553	// Toggle TxPl since it will result in a 10 cycle loop
-	#if REV < 62
-			bic.b	#TxMi,&TxMiPortDIR		; Set TxMi open circuit
-	#endif
-burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit
-#else		// Toggle TxMi since it will result in a 10 cycle loop
+			// Toggle TxMi since it will result in a 10 cycle loop
 			bic.b	#TxPl,&P1DIR			; Set TxPl open circuit
 burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
-#endif
 			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
 			; Leaving one of them as a high output caused problems due to C4 (100n) on the next board.
 			; We used to toggle TxMi, but the BMU has it on P3.7.
@@ -470,13 +413,7 @@ burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
-#if G2553
-	#if REV < 62
-			bis.b	#TxMi,&TxMiPortDIR		; Set TxMi back to being an output
-	#endif
-#else
 			bis.b	#TxPl,&P1DIR			; Set TxPl back to being an output
-#endif
 			pop		SR
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
