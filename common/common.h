@@ -5,77 +5,31 @@
 InitSP		EQU		$400			; Initial value of stack pointer
 
 ; Port 1 bit masks
-#if REV >= 62						; Rev 62 includes rev 62 CMU and rev 4 BMU.
-Piezo		EQU		1<<0			; Piezo on P1.0
-#else
 TouchV_Byp	EQU		1<<0			; TouchV analog input (BMU) and Bypass output (CMU) on P1.0
-#endif
 Rx			EQU		1<<1			; Receive from CMUs (UART input) on P1.1
 TxPl 		EQU		1<<2			; Transmit+ to CMUs (UART output) on P1.2
-#if	REV >= 62
-TouchV_TxPlIn EQU	1<<3			; TouchV analog input (BMU) on P1.0,
-#else
 TxPlIn		EQU		1<<3			; Transmit+ loopback input to be inverted (as CAOUT on P3.7) on P1.3
-#endif
 VrefP		EQU		1<<4			; Analog reference output on P1.4
 ArrayV_BoltVPl EQU	1<<5			; Analog input on P1.5
 ShuntV_BoltVMi EQU	1<<6			; Analog input on P1.6
 BatV_StrapVPl EQU	1<<7			; Analog input on P1.7
-#if REV < 62
 Bypass		EQU		TouchV_Byp		; Alias for code that's common to newer and older devices
 BypPortDIR	EQU		P1DIR			; Bypass MOSFET output on port 1
 BypPortSEL	EQU		P1SEL
 BypPortOUT	EQU		P1OUT
-#endif
-#if	REV >= 62
-TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
-TxMiPortSEL	EQU		P1SEL
-TxMiPortSEL2 EQU	P1SEL2
-TxMiPortOUT	EQU		P1OUT
-PiezoPortDIR EQU	P1DIR			; Piezo output is on port 1
-PiezoPortSEL EQU	P1SEL
-PiezoPortOUT EQU	P1OUT
-#endif
 
 ; Port 2 bit masks
-#if	REV >= 62
-RelayM_Byp	EQU		1<<0			; IMU relay for HazV- test (BMU) on P2.0
-RelayP_Ir57k6 EQU	1<<1			; IMU relay for HazV+ test (BMU), 57.6 kHz IR carrier (CMU) on P2.1
-#else
 RelayM		EQU		1<<0			; IMU relay for HazV- test on P2.0
 RelayP		EQU		1<<1			; IMU relay for HazV+ test on P2.1
-#endif
-#if	REV >= 62
-PreI		EQU		1<<2			; Precharge contactor auxiliary contact input (BMU)
-#else
 Spare0		EQU		1<<2			; Unused P2.2
-#endif
 TxMiScu		EQU		1<<3			; Transmit- to SCU (TA1.0 output) on P2.3
 RxScu		EQU		1<<4			; Receive from SCU (TA1.2 input) on P2.4
-#if	REV >= 62
-ErrLed		EQU		1<<5			; Error LED (red) on P2.5
-#else
 Spare1		EQU		1<<5			; Unused P2.5
-#endif
-#if	REV >= 62
-Xin			EQU		1<<6			; Watch crystal in on P2.6
-Xout		EQU		1<<7			; Watch crystal out on P2.7
-#else
 Piezo		EQU		1<<6			; Piezo (TA0.1 output) on P2.6
 ErrLed		EQU		1<<7			; Error LED (red) on P2.7
-#endif
-#if REV >= 62
-Bypass		EQU		RelayM_Byp		; Aliases for code that's common to newer and older devices
-BypPortDIR	EQU		P2DIR			; Bypass MOSFET output on port 2
-BypPortSEL	EQU		P2SEL
-BypPortOUT	EQU		P2OUT
-RelayM		EQU		RelayM_Byp
-RelayP		EQU		RelayP_Ir57k6
-#else
 PiezoPortDIR EQU	P2DIR			; Piezo output is on port 2
 PiezoPortSEL EQU	P2SEL
 PiezoPortOUT EQU	P2OUT
-#endif
 
 ; Port 3 bit masks. BMU only. No change between rev <blank> and rev 4.
 RxChg		EQU		1<<0			; Receive from charger (TA0.2 input) on P3.0
@@ -85,21 +39,15 @@ ChgCont		EQU		1<<3			; Charge sources contactor output  P3.3
 TxMiChg		EQU		1<<4			; Transmit- to charger (TA0.0 output) on P3.4
 DisCont		EQU		1<<5			; Discharge or discretionary loads contactor output on P3.5
 NrmCont		EQU		1<<6			; Normal loads contactor output on P3.6
-#if	REV >= 62
-BatI		EQU		1<<7			; Battery contactor auxiliary contact input
-#else
 TxMi		EQU		1<<7			; Transmit- to CMUs (CAOUT inversion of UART output) on P3.7
-#endif
 SocMeter	EQU		NrmCont			; PWM output for SoC meter (monolith only)
 SocPortDIR	EQU		P3DIR			; Soc meter PWM output is on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT
-#if	REV < 62
 TxMiPortDIR	EQU		P3DIR			; Transmit- to CMUs output is on port 3
 TxMiPortSEL	EQU		P3SEL
 TxMiPortSEL2 EQU	P3SEL2
 TxMiPortOUT	EQU		P3OUT
-#endif
 
 ; ADC channel numbers
 TouchVChan	EQU		$0				; ADC channel number for touch voltage (BMU only)
@@ -127,11 +75,7 @@ InitSP		EQU		$300			; Initial value of stack pointer
 Piezo		EQU		1<<0			; Piezo on P1.0
 TxMi		EQU		1<<1			; TA0/P1.1. Code requires TxMi bit somewhere to right of TxPl bit
 Rx			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
-#if REV >= 61
 SocMeter	EQU		1<<3			; PWM output for SoC meter (monolith only)
-#else
-ActLed		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
-#endif
 VrefP		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TxPl		EQU		1<<5			; SCLK/P1.5. Can be made inverse of TA0 by hardware.
 PiezoPortDIR EQU	P1DIR			; Piezo output is on port 1
@@ -175,11 +119,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 									// Turning it off doesn't work because BSL will still clear and
 									// restart the watchdog timer on every call to ReadByte.
-#if REV < 62
 #define		BSL2_START	$FE00		// Start of BSL2 image in flash memory. Ends at $FFFD
-#else
-#define		BSL2_START	$FC00		// Start BSL2 1 KiB before the end.
-#endif
 
 ; The address BSL2 downloads to is usually the same as PROG_START,
 ; but when making a transition between different download sizes, the version of TestICal that does the

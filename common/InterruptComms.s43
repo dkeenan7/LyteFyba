@@ -1,3 +1,9 @@
+;
+; Branch: Rev61
+; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
+; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
+; Charge Management system, Kingscliff off-grid solar power system.
+;
 ;*******************************************************************************
 ;	MSP430F20xx Software UART - Timer_A
 ;
@@ -413,7 +419,6 @@ PwmSubIsr:	; Compare match for PWM
 #if CCRp = SocCCRp							// Specialise this sub-ISR to SoC meter PWM versus piezo
 	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
 	#ifdef MONOLITH
-		#if REV >= 61
 			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
 			bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 			_IF		_Z						; (2) If now set,
@@ -424,7 +429,6 @@ PwmSubIsr:	; Compare match for PWM
 			_ENDIF
 			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
 			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-		#endif // REV >= 61
 	#endif // MONOLITH
 #else										// Else this is piezo PWM
 	#if	G2553
