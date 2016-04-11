@@ -1,4 +1,10 @@
 			COL		154				; Wide listings
+;
+; Branch: Rev61
+; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
+; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
+; Charge Management system, Kingscliff off-grid solar power system.
+;
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
 ;
@@ -19,11 +25,7 @@
 #define MONITOR					// For some conditional assembly in otherwise common
 								// insulation-monitoring code.
 
-#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
-								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
-								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		0			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
-								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+#define	G2553		0			// MSP430 model. True for BMUs, false for CMUs and IMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -396,18 +398,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-	#if REV >= 61
 			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
 			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-	#else
-			mov.b	#ActLed+TxPl,&P1OUT		; Turn off (inverted) ActLed and set TxPl. Short the piezo.
-			cmp.b	#0,&ID					; If we're not an IMU
-			_IF		_NE
-				mov.b	#ActLed+VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
-			_ELSE
-				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-			_ENDIF
-	#endif // REV >= 61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed as outputs
@@ -985,13 +977,9 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV >= 61
 			bis.b	#TxPl,&P1OUT		; Set Tx to idle
 			bic.b	#TxMi,&TxMiPortOUT
 			ActLedOff					; (inverted) activity LED off
-#else
-			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-#endif
 
 #if G2553
 			bic.b	#Bypass,&BypPortOUT	; Set Bypass off

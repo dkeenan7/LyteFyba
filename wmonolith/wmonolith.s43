@@ -1,4 +1,10 @@
 			COL		154				; Wide listings
+;
+; Branch: Rev61
+; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
+; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
+; Charge Management system, Kingscliff off-grid solar power system.
+;
 ; 29/Sep/2015: split off from monolith.s43
 
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
@@ -29,11 +35,7 @@
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
 								// Otherwise comment out with //.
 
-#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
-								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
-								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
-								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
+#define	G2553		0			// MSP430 model. True for BMUs, false for CMUs and IMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
@@ -467,7 +469,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-	#if REV >= 61
 			clr.b	&P1OUT						; All outputs low on port 1
 			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
 			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
@@ -477,15 +478,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 				bis.b	#SocMeter,&SocPortDIR		; Set up output for SoC meter PWM
 				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
 			_ENDIF
-	#else
-			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
-			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
-				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
-			_ELSE
-				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-			_ENDIF
-	#endif // REV >= 61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed (RLY- and RLY+) as outputs
@@ -825,7 +817,6 @@ DoMeasurement:
 			_ENDIF
 
 #ifdef KINGSCLIFF_DCM
-#if REV >= 61
 			; Do temperature measurement using external thermistor
 			call	#extT					; Get temperature in degrees Celsius in R10
 
@@ -846,7 +837,6 @@ DoMeasurement:
 				push	#4						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
-#endif
 #endif
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#linkV					; Get link voltage in mV in R10
@@ -1424,13 +1414,9 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV >= 61
 			bis.b	#TxPl,&P1OUT		; Set Tx to idle
 			bic.b	#TxMi,&TxMiPortOUT
 			ActLedOff					; (inverted) activity LED off
-#else
-			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-#endif
 
 #if G2553
 			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
