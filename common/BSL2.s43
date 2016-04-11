@@ -29,10 +29,10 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
 ; Fixed entry points to BSL2
-jBSL: 		br		#BSL
-jBSLErase:	br		#BSLErase
-jReadByte:	br		#ReadByte
-jWriteByte:	br		#WriteByte
+jBSL: 		br		#BSL-jBSL+BSL2_START
+jBSLErase:	br		#BSLErase-jBSL+BSL2_START
+jReadByte:	br		#ReadByte-jBSL+BSL2_START
+jWriteByte:	br		#WriteByte-jBSL+BSL2_START
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
