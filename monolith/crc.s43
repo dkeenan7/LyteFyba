@@ -1,0 +1,109 @@
+;  CRC-16-CCITT routines for talking to PIP-4048 inverter/charger
+;  Assumes global variable txCrc
+
+;-------------------------------------------------------------------------------
+; TxByteCrc	; Transmit the character in R8 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R9.
+;-------------------------------------------------------------------------------
+
+TxByteCrc:	call	#UpdateCrc
+			br		#TxByte
+			;ret
+
+
+;-------------------------------------------------------------------------------
+; TxStringCrc ; Transmit counted string pointed to by R10 while accumulating checksum.
+			; Warning: A zero length string will be treated as 256 bytes long.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8 thru R11.
+;-------------------------------------------------------------------------------
+
+TxStringCrc: _DOb	@R10+,R11
+				mov.b	@R10+,R8
+				call	#TxByteCrc
+			_LOOPb	R11
+			ret
+
+
+UpdateCrc:
+; Pass char to include into CRC in R8
+; Destroys R9, preserves R8
+#define Rda		R9		// Variable da assigned R9
+			; da=((INT8U)(crc>>8))>>4;
+			push	R10				; Callers often need this preserved
+			mov		&txCrc,Rda
+			swpb	Rda
+			rra4	Rda
+			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
+
+			; crc<<=4;
+			rla4	&txCrc
+
+			; crc^=crc_ta[da^(*ptr>>4)];
+			mov.b	R8, R10
+			rra4	R10				; R10 := *ptr >> 4
+			and.b	#$0F,R10
+			xor.b	R10,R9			; R9 := da ^ (*ptr>>4)
+			rla.b	R9				; Double for word index
+			xor		CrcTable(R9), &txCrc
+
+			; da=((INT8U)(crc>>8))>>4;
+			mov		&txCrc,Rda
+			swpb	Rda
+			rra4	Rda
+			and.b	#$0F, Rda		; Clean off top byte and effects of arithmetic shift
+
+			; crc<<=4;
+			rla4	&txCrc
+
+			; crc^=crc_ta[da^(*ptr&0x0f)];
+			; Could have used R8 below, but prefer to preserve R8
+			mov.b	R8,R10
+			and.b	#$0F,R10		; R10 := *ptr & 0xF
+			xor.b	R10,R9			; R9 := da ^ (*ptr&0x0f)
+			rla.b	R9				; Double for word index
+			xor		CrcTable(R9), &txCrc
+
+			pop		R10
+			ret
+
+
+; 	INT16U crc_ta[16]=
+;	{
+;		0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
+;		0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef
+;	};
+CrcTable	DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
+			DW		$8108,$9129,$a14a,$b16b,$c18c,$d1ad,$e1ce,$f1ef
+
+
+TxCrc:
+; Send the two CRC bytes, MSB first, and clear the CRC
+; Trashes R8-R9
+			mov.b	&txCrc+1,R8		; Get MSB of CRC
+			_COND					; Begin short circuit OR
+				cmp.b	#'(',R8
+			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+				cmp.b	#$0D,R8
+			_OR_ELSE	_EQ			; or CR
+				cmp.b	#$0A,R8
+			_OR_IFS		_EQ			; or LF,
+				inc.b	R8				; ... then modify by incrementing that byte
+			_ENDIF
+			call	#TxByte			; Send MSB of CRC first
+
+			mov.b	&txCrc,R8		; Get LSB of CRC
+			_COND					; Begin short circuit OR
+				cmp.b	#'(',R8
+			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+				cmp.b	#$0D,R8
+			_OR_ELSE	_EQ			; or CR
+				cmp.b	#$0A,R8
+			_OR_IFS		_EQ			; or LF,
+				inc.b	R8				; ... then modify by incrementing that byte
+			_ENDIF
+			call	#TxByte			; Send LSB of CRC
+
+			clr		&txCrc			; Clear the CRC
+			ret
