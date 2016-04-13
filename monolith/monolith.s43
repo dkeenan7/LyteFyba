@@ -2,8 +2,9 @@
 ;
 ; Branch: Rev61
 ; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
-; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
-; Charge Management system, Kingscliff off-grid solar power system.
+; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system (CMUs only),
+; Kingscliff Demand Charge Management system, Kingscliff off-grid solar power system.
+; The Helidon BMU is really a modified IMU and so its code is in the Rev58 branch.
 ;
 ; 14/Dec/2014: split off from monitor.s43
 
@@ -29,11 +30,6 @@
 								// Enables SoC meter PWM.
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
-
-#define	HELIDON					// Defined if for the prototype black monolith at Helidon
-								// which uses a modified IMU and reads negative battery and array
-								// voltages up to 203.1 V.
-								// Otherwise comment out with //.
 
 #define	G2553		0			// MSP430 model. True for BMUs, false for CMUs and IMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly

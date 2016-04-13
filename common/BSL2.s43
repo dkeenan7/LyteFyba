@@ -1,8 +1,9 @@
 ;
 ; Branch: Rev61
 ; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
-; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
-; Charge Management system, Kingscliff off-grid solar power system.
+; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system (CMUs only),
+; Kingscliff Demand Charge Management system, Kingscliff off-grid solar power system.
+; The Helidon BMU is really a modified IMU and so its code is in the Rev58 branch.
 ;
 ; ----------------------------------------------------------------------------
 ; The bootstrap loader (BSL2)
@@ -55,9 +56,8 @@ BSL:		; Initialisation
 			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
 		#endif // G2553
 
-			; We've been reset, so send a break to reset the next guy, unless we're a BMU,
-			; (or the IMU in the Helidon Monolith), in which case it would lead to
-			; endlessly circulating breaks. We give these devices the ID 255.
+			; We've been reset, so send a break to reset the next guy, unless we're a BMU (ID = 255),
+			; in which case it would lead to endlessly circulating breaks.
 
 			cmp.b	#255,&infoID
 			_IF		_NE				; If we're not a BMU
