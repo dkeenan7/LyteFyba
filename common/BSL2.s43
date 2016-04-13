@@ -291,8 +291,7 @@ WriteByte:
 
 			_BEGIN					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
-				subc.b	#TxMi,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
-				inv.b	R11				; (1)
+				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
 #if REV >= 61
