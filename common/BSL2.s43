@@ -40,13 +40,8 @@ BSL:		; Initialisation
 			; Use original TI frequency calibration values, in case our values not set up or wildly bad
 			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
-#if REV >= 61
-			mov.b	#TxPl,&P1OUT			; Set Txs to idle state, Vref output off
-			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
-#else // REV < 61
 			mov.b	#TxMi,&P1OUT	; Set Txs to break state, (inverted) ActLed on, Vref output off
 			bis.b	#TxPl|TxMi|ActLed|VrefP,&P1DIR ; Set Txs, activity LED and VrefP as outputs
-#endif // REV >= 61
 
 			; We've been reset, so send a break to reset the next guy, unless we're a BMU,
 			; (or the IMU in the Helidon Monolith), in which case it would lead to
@@ -294,14 +289,10 @@ WriteByte:
 				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
-#if REV >= 61
-				and.b	#TxPl|TxMi,R11 ; (2) Ensure only Tx bits can be toggled below
-#else
 				; The activity LED has a lower bit number than TxPl so the below will
 				; turn off the (inverted) activity LED when a zero bit or start bit is sent,
 				; and turn it on when a one bit or stop bit is sent.
 				and.b	#TxPl|ActLed|TxMi,R11 ; (2) Ensure only Tx and ActLed bits can be toggled below
-#endif
 				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
@@ -312,13 +303,9 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 				dec		R10				; (1) Decrement the bit counter
 			_UNTIL	_NC				; (2) Loop until -1
 
-#if REV >= 61
-			mov.b	#TxPl,&P1OUT	; Send a stop bit
-			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
-#else
 			mov.b	#TxPl,&P1OUT	; Send a stop bit and leave the (inverted) ActLed on
 			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
-#endif
+
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
 			; to allow any receiving CMU's BSL time to both read and echo the byte.

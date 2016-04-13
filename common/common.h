@@ -6,30 +6,28 @@ InitSP		EQU		$300			; Initial value of stack pointer
 Piezo		EQU		1<<0			; Piezo on P1.0
 TxMi		EQU		1<<1			; TA0/P1.1. Code requires TxMi bit somewhere to right of TxPl bit
 Rx			EQU		1<<2			; Receive data on P1.2 (bit number >3 costs 2 words)
-#if REV < 61
 ActLed		EQU		1<<3			; Actvity LED (blue) inverted on P1.3
-#endif
 VrefP		EQU		1<<4			; Analog reference output. Sometimes changed to low digital output
 TxPl		EQU		1<<5			; SCLK/P1.5. Can be made inverse of TA0 by hardware.
-PiezoPortDIR EQU	P1DIR			; Piezo output is on port 1
-PiezoPortSEL EQU	P1SEL
-PiezoPortOUT EQU	P1OUT
-SocPortDIR	EQU		P1DIR			; Soc meter PWM output is on port 1
-SocPortSEL	EQU		P1SEL
-SocPortOUT	EQU		P1OUT
-TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
-TxMiPortSEL	EQU		P1SEL
-TxMiPortSEL2 EQU	P1SEL2
-TxMiPortOUT	EQU		P1OUT
+;PiezoPortDIR EQU	P1DIR			; Piezo output is on port 1
+;PiezoPortSEL EQU	P1SEL
+;PiezoPortOUT EQU	P1OUT
+;SocPortDIR	EQU		P1DIR			; Soc meter PWM output is on port 1
+;SocPortSEL	EQU		P1SEL
+;SocPortOUT	EQU		P1OUT
+;TxMiPortDIR	EQU		P1DIR			; Transmit- to CMUs output is on port 1
+;TxMiPortSEL	EQU		P1SEL
+;TxMiPortSEL2 EQU	P1SEL2
+;TxMiPortOUT	EQU		P1OUT
 
 ; Port 2 bit masks
 Bypass		EQU		1<<6			; Bypass transistor on P2.6
 RelayM		EQU		1<<6			; IMU relay for HazV- test on P2.6
 ErrLed		EQU		1<<7			; Error LED (red) on P2.7
 RelayP		EQU		1<<7			; IMU relay for HazV+ test on P2.7
-BypPortDIR	EQU		P2DIR			; Bypass MOSFET output is on port 2
-BypPortSEL	EQU		P2SEL
-BypPortOUT	EQU		P2OUT
+;BypPortDIR	EQU		P2DIR			; Bypass MOSFET output is on port 2
+;BypPortSEL	EQU		P2SEL
+;BypPortOUT	EQU		P2OUT
 
 ; ADC channel numbers
 TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
@@ -62,7 +60,6 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	The password may need changing too, in both BSL2 and Monitor.
 
 			ORG		$1010			; Stay away from manufacturer supplied data
-	#define		CAL_IN_SEG_A	0
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash

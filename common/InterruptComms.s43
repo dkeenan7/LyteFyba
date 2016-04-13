@@ -1,8 +1,9 @@
 ;
-; Branch: Rev61
-; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
-; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system, Kingscliff Demand
-; Charge Management system, Kingscliff off-grid solar power system.
+; Branch: rev58
+; For the MSP430G2452 microcontroller only.
+; As used in the CMUs and IMUs in Mexy the electric MX-5,
+; and in the modified IMU of the Helidon Monolith.
+; Helidon CMUs are in the rev61 branch.
 ;
 ;*******************************************************************************
 ;	MSP430F20xx Software UART - Timer_A
@@ -246,26 +247,6 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 			ENDM
 
 TxIsr:		TxIsrTimerMacro	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
-
-;-------------------------------------------------------------------------------
-RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
-;-------------------------------------------------------------------------------
-		push		R9
-		; Put received data into the queue if there's space, otherwise it's lost
-		mov.b	&rxWr,R9				; Get the write index
-		mov.b	&UCA0RXBUF,rxBuf(R9)	; Tentatively write the character to the receive queue
-										;  there's always at least one free space,
-										;  but don't increment the write index yet.
-		inc.b	R9						; Increment a copy of the write index
-		and.b	#RxSz-1,R9				;  modulo the queue size
-		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-		_IF		_NE						; If queue not full
-			mov.b	R9,&rxWr				; Update write index so char is properly in queue
-			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
-		_ENDIF							; Endif queue not full
-		pop		R9						; Restore R9
-		reti							; Return from interrupt
-		ENDM
 
 ;-------------------------------------------------------------------------------
 RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz

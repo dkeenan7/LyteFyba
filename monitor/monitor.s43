@@ -1,8 +1,8 @@
 			COL		154				; Wide listings
 ;
-; Branch: Mexy
-; CMUs and IMUs use MSP430G2452 microcontroller.
-; As used in Mexy the electric MX-5.
+; Branch: rev58
+; For the MSP430G2452 microcontroller only.
+; As used for the CMUs and IMUs in Mexy the electric MX-5.
 ;
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
@@ -19,12 +19,10 @@
 ; lithium battery monitoring system for high voltage electric vehicles.
 ;
 ; "Monitor" is the standard electric-vehicle operating software for our Cell Management Unit (CMU)
-; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+; and Insulation/current Monitoring Unit (IMU) based on an MSP430 microcontroller.
 
-#define MONITOR					// For some conditional assembly in otherwise common
-								// insulation-monitoring code.
-
-#define REV			58			// 58 for CMUs in Mexy (electric MX-5), 61 for IMUs in Mexy.
+#define MONITOR						// For some conditional assembly in otherwise common
+									// insulation-monitoring code.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -272,10 +270,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-	#if REV >= 61
-			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
-			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-	#else
 			mov.b	#ActLed+TxPl,&P1OUT		; Turn off (inverted) ActLed and set TxPl. Short the piezo.
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
@@ -283,7 +277,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ELSE
 				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
-	#endif // REV >= 61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			mov.b	#$FF,&P2DIR					; Set Bypass and ErrLed as outputs
@@ -854,14 +847,7 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV >= 61
-			bis.b	#TxPl,&P1OUT		; Set Tx to idle
-			bic.b	#TxMi,&TxMiPortOUT
-			ActLedOff					; (inverted) activity LED off
-#else
 			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-#endif
-
 			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also

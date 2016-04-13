@@ -408,7 +408,7 @@ doBurst
 			clr		R10
 			// Toggle TxMi since it will result in a 10 cycle loop
 			bic.b	#TxPl,&P1DIR			; Set TxPl open circuit
-burstLp		xor.b	#TxMi,&TxMiPortOUT 		; (4) Toggle the TxMi bit
+burstLp		xor.b	#TxMi,&P1OUT 			; (4) Toggle the TxMi bit
 			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
 			; Leaving one of them as a high output caused problems due to C4 (100n) on the next board.
 			; We used to toggle TxMi, but the BMU has it on P3.7.

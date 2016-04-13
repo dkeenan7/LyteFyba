@@ -2,67 +2,31 @@
 ; and we don't want it using &ramID as this only exists in TestICal.
 
 ActLedOff	MACRO
-	#if	REV >= 61
-			tst.b	&infoID
-			_IF		_NZ
-				bit.b	#ErrLed,&P2OUT		; Activity and error LEDs share an output.
-				_IF		_Z					; If the error LED is off
-					bic.b	#ErrLed,&P2DIR		; make output high-Z so activity LED goes off
-				_ENDIF							; without turning error LED on.
-			_ENDIF
-	#else
 			bis.b	#ActLed,&P1OUT
-	#endif
 			ENDM
 
 ActLedOn	MACRO
-	#if	REV >= 61
-			; No provision for oscillating to light both LEDs yet.
-			; Error LED has priority.
-			tst.b	&infoID
-			_IF		_NZ
-				bis.b	#ErrLed,&P2DIR		; Make it a proper output again
-			_ENDIF
-	#else
 			bic.b	#ActLed,&P1OUT
-	#endif
 			ENDM
 
 ErrLedOff	MACRO
 			tst.b	&infoID
 			_IF		_NZ
-#if	REV >= 61
-				bic.b	#ErrLed,&P2DIR		; Make output high-Z so activity LED will not come on
-				bic.b	#ErrLed,&P2OUT		; Turn off the error LED (so ActLedOff/On can tell)
-#else
 				bic.b	#ErrLed,&P2OUT		; Turn off the error LED
-#endif
 			_ENDIF
 			ENDM
 
 ErrLedOn	MACRO
 			tst.b	&infoID
 			_IF		_NZ
-#if	REV >= 61
-				; No provision for oscillating to light both LEDs yet.
-				; Error LED has priority.
-				bis.b	#ErrLed,&P2DIR		; Make it a proper output
 				bis.b	#ErrLed,&P2OUT		; Turn on the error LED
-#else
-				bis.b	#ErrLed,&P2OUT		; Turn on the error LED
-#endif
 			_ENDIF
 			ENDM
 
 ErrLedToggle	MACRO
 			tst.b	&infoID
 			_IF		_NZ
-#if	REV >= 61
-				xor.b	#ErrLed,&P2DIR		; Toggle high-Z-ness so activity LED will not come on
-				xor.b	#ErrLed,&P2OUT		; Toggle the error LED (so ActLedOff/On can tell)
-#else
 				xor.b	#ErrLed,&P2OUT		; Toggle the error LED
-#endif
 			_ENDIF
 			ENDM
 

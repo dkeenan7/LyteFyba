@@ -1,4 +1,9 @@
 			COL		154				; Wide listings
+; Branch: rev58
+; For the MSP430G2452 microcontroller only.
+; Only for the modified IMU of the Helidon Monolith.
+; Helidon CMUs are in the rev61 branch.
+;
 ; 14/Dec/2014: split off from monitor.s43
 
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
@@ -24,17 +29,9 @@
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
 
-#define	HELIDON					// Defined if for the prototype black monolith at Helidon
+#define	HELIDON					// Defined for the prototype black monolith at Helidon
 								// which uses a modified IMU and reads negative battery and array
 								// voltages up to 203.1 V.
-								// Otherwise comment out with //.
-
-#define REV			61			// 60 for CMUs in Mexy (electric MX-5).
-								// 61 for CMU board rev 61 and all IMUs and rev <blank> BMU.
-								// 62 for CMU board rev 62 or later, and rev 4 BMU or later.
-#define	G2553		1			// MSP430 model. True for rev 62 and later CMUs, and all BMUs.
-								// False for rev 61 and earlier CMUs and all IMUs. They used MSP430G2452
-								// You must also set IAR/Project/General Options/Target/Device correctly
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -447,17 +444,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-	#if REV >= 61
-			clr.b	&P1OUT						; All outputs low on port 1
-			bic.b	#Piezo,&PiezoPortOUT		; Piezo output low on whichever port
-			mov.b	#VrefP|TxPl|TxMi,&P1DIR 	; Set VrefP, Tx bits and piezo as outputs
-			bis.b	#Piezo,&PiezoPortDIR
-			cmp.b	#255,&ID
-			_IF		_EQ
-				bis.b	#SocMeter,&SocPortDIR		; For IMU only, set up output for SoC meter PWM
-				mov.w	#CCIE,&TACCTL2				; TACCR2: compare only, enable interrupts (SoC PWM)
-			_ENDIF
-	#else
 			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
 			cmp.b	#255,&ID					; If we're not an IMU
 			_IF		_NE
@@ -465,7 +451,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ELSE
 				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
-	#endif // REV >= 61
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			cmp.b	#255,&ID
@@ -1632,25 +1617,10 @@ DoPassword:
 
 			dint
 			clr		&TACTL				; Disable the timer completely; may use less power
-#if REV >= 61
-			bis.b	#TxPl,&P1OUT		; Set Tx to idle
-			bic.b	#TxMi,&TxMiPortOUT
-			ActLedOff					; (inverted) activity LED off
-#else
 			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-#endif
-
-#if G2553
-			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
-			mov.b	#0,Rtos				; Set Error Led and Piezo off
-			call	#_errorLed
-			bic.b	#Rx|TxPl,&P1SEL		; Restore CMU comms pins to GPIO function
-			bic.b	#Rx|TxPl,&P1SEL2
-#else
 			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
 			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
 			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
-#endif
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
@@ -1676,35 +1646,20 @@ CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest u
 										;  interrupt vector
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
 
-#if G2553
-jUCA0TxIsr		br		#TxIsr			; UART transmit
-jUCA0RxIsr		br		#RxIsr			; UART receive
-#else
 jUCA0TxIsr		reti					; UART transmit not used
 				nop
 jUCA0RxIsr		reti					; UART receive not used
 				nop
-#endif
-
-#if G2553
-jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
-#else
 jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
 				nop
 jTA1TxIsr		reti					; TA1 CC0 not used
 				nop
-#endif
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-#if G2553
-jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
-#else
 jTA0RxTiovIsr	br		#RxTiovIsr		; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
 jTA0TxIsr		br		#TxIsr			; Timer A0 CC0IFG (transmit compare)
-#endif
+
 				ORG		$FDFE
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg

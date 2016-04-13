@@ -1,8 +1,10 @@
 			COL		154				; Wide listings
 ;
-; Branch: Mexy
-; CMUs and IMUs use MSP430G2452 microcontroller.
-; As used in Mexy, the electric MX-5.
+; Branch: rev58
+; For the MSP430G2452 microcontroller only.
+; As used for the CMUs and IMUs in Mexy the electric MX-5,
+; and for the modified IMU of the Helidon Monolith.
+; Helidon CMUs are in the rev61 branch.
 ;
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
@@ -58,8 +60,6 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
-
-#define REV			58			// 58 for CMUs, 61 for IMUs.
 
 ; Init Command String
 ; A string of commands that will be interpreted after all other initialisation is complete.
@@ -231,7 +231,7 @@ InterpretInit:
 			;_OFb	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
 			;_ENDOF
-			_OFb	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
+			_OFb	#DATAVERS,&infoDataVers		; Check at the present address ($1010)
 				; The RAM image has the same layout as current version data, so we use a block move
 				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
@@ -255,12 +255,12 @@ newChip:
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
 				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
-				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
+				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo
 				mov.b	#$FF,&ramID					; ID 255 (erased or BMU)
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
 			_ENDOF
 			; default action if none of the above apply
-				; We could have an unprogrammed non G2553 chip; in that case infoDataVers is actually
+				; We could have an unprogrammed chip; in that case infoDataVers is actually
 				; one of the 1 MHz frequency calibration values. We know that it will be >= $80 to
 				; disable XT2
 				tst.b	&oldInfoDataVers				; $10FF
@@ -272,10 +272,6 @@ newChip:
 			_ENDCASE
 
 
-	#if REV >= 61
-			mov.b	#TxPl,&P1OUT			; Set TxPl. Short the piezo.
-			mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
-	#else
 			mov.b	#ActLed+TxPl,&P1OUT		; Turn off (inverted) ActLed and set TxPl. Short the piezo.
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
@@ -283,7 +279,6 @@ newChip:
 			_ELSE
 				mov.b	#VrefP+TxPl+TxMi+Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
 			_ENDIF
-	#endif // REV >= 61
 			mov.b	#0,&P2SEL				; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT				; Set Bypass and ErrLed off (RLY- and RLY+ if we're an IMU)
 			mov.b	#$FF,&P2DIR				; Set Bypass and ErrLed as outputs
