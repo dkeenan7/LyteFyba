@@ -265,12 +265,12 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; TouchValue ( -- )
 ; Transmit the raw touch value (0 to 4095 mV).
 ; This is an uncalibrated measurement as it is the touch current times the opto's CTR (0.63 to 1.25)
-; times R17 (120R), scaled to 4096 counts for 1500 mV (ADC reference).
+; times R17 (120R), scaled to 4092 counts for 1500 mV (ADC reference).
 ;
 		xCODE		'T',touchValue,_touchValue
 		cmp.b	#0,&ID					; If we're an IMU
 		_IF		_EQ
-			call		#touchV				; Return touch value (0 to 4095) in R10
+			call		#touchV				; Return touch value (0 to 4092) in R10
 			mov			#'T',Rthd			; Type is touch value
 			mov			R10,Rsec			; Result
 			mov			#4,Rtos				; Print 4 digits
