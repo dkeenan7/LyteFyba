@@ -635,10 +635,10 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			cmp.b	#1,&ID
 			_IF		_EQ					; If my ID is 1
 				mov		#$13,R8				; Transmit an XOFF (ctrl-S)
-				call	#TxByteCk
+				call	#TxByte
 				call	#cmd0				; Do the command with default parameters
 				mov		#$11,R8				; Transmit an XON (ctrl-Q)
-				call	#TxByteCk
+				call	#TxByte
 			_ELSE						; Else (ID not 1)
 				bit.b	#bDontEcho,&interpFlags
 				_IF		_NZ					; If the dont-echo flag is set
