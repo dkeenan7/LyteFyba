@@ -470,8 +470,8 @@ DoMeasurement:
 			; Calculate stress due to undervoltage if required
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
-				cmp		#0,0(sp)				; Compare voltage
-				_IF		_NE						; And if voltage is not zero (not an unbolted CMU)
+				cmp		#100,0(sp)				; Compare voltage
+				_IF		_HS						; And if voltage is not less than 100 mV (unbolted CMU)
 					bit.b	#bCharging,&monFlags	; And we're not charging (including not regen)
 					_IF		_Z
 														; Measurement saved on stack earlier
