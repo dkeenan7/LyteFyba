@@ -425,3 +425,16 @@ bitDelay	dec		R11
 		mov			#4,Rtos				; Print 4 digits
 		br			#_prettyPrint		; Tail-call pretty-print and return
 
+
+; Turn off echoing of command characters. Used with the ID setting command when used in an INITCMDSTRING.
+		xCODE	'[',ExOff,_ExOff
+		bit.b	#bDontInterpret,&interpFlags
+		_IF		_Z				; If the dont-interpret flag is clear
+			bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
+		_ENDIF
+		ret
+
+; Turn on echoing of command characters. Used with the ID setting command when used in an INITCMDSTRING.
+		xCODE	']',ExOn,_ExOn
+		bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
+		ret
