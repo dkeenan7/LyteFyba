@@ -97,8 +97,8 @@ BSL:		; Initialisation
 			eint								; Enable general interrupts for FLL
 
 ;			clr		&measureCount
-			mov.b	#TxPl,&P1OUT			; Set Txs to idle state, Vref output off
-			bis.b	#TxPl|VrefP,&P1DIR 		; Set TxPl and VrefP as outputs
+			mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
+			bis.b	#Piezo|TxPl|VrefP,&P1DIR 	; Set Piezo, TxPl and VrefP as outputs
 
 			; We've been reset, so send a break to reset the next guy, unless we're a BMU,
 			; (or the IMU in the Helidon Monolith), in which case it would lead to
