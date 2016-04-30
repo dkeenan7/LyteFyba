@@ -87,7 +87,6 @@ BSL:		; Initialisation
 			bis.b	#TxPl|Rx,&P1SEL2
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 ;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
-			mov.b	#VrefP|TxPl,&P1DIR 			; Set VrefP, Tx bits as outputs
 
 ; Need to init timer A1 to generate 57.6 kHz
 
