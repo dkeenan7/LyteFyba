@@ -574,17 +574,10 @@ TxEndOfModbusPacket:
 ; Quiet (bool -- )
 ; Stop the piezo coming on with the error LED
 		xCODE	'Q',quiet,_quiet
-#if G2553
 		allBitsIfZ	Rtos,Rtos		; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 		movBits_B	Rtos,#OUTMOD_4|CCIE,&PizCCTLp ; Move only these bits from Rtos to &BCSCTL3.
 									; If Rtos is zero, the zeroes will select output mode 0 (direct
 									; control) and output value zero, so no DC on Piezzo. Trashes Rtos
-#else	// G2452
-		allBitsIfZ	Rtos,Rtos		; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#LFXT1S_2,&BCSCTL3 ; Move only #LFXT1S_2 bit from Rtos to &BCSCTL3. Trashes Rtos
-		; Select either VLOCLK (~12 kHz) or LFXT1 (unused crystal oscillator) as source for ACLK divider
-;		pop		Rtos				; Remove operand
-#endif
 		ret
 
 ; Query the reset-log ( maxResetsToShow -- )
@@ -791,26 +784,25 @@ DepthOfDischarge:
 			ret
 #endif
 
-#if		G2553
 ; Convert a contactor number or letter to a bitmask for the output port.
-; This is a helper for the Contactor on and off (Joy and Misery) commands.
+; This is a helper for the Contactor on and off (Liven and Unliven) commands.
 ; GetContactorBitmask ( n -- m )
 GetContactorBitmask:
 			_CASE
 			_OFb	#1,Rtos				; Precharge
-				mov.b	#PreCont,Rtos
+				mov.b	#PreCtor,Rtos
 			_ENDOF
 			_OFb	#2,Rtos				; Battery
-				mov.b	#BatCont,Rtos
+				mov.b	#BatCtor,Rtos
 			_ENDOF
 			_OFb	#3,Rtos				; Charge sources
-				mov.b	#ChgCont,Rtos
+				mov.b	#ChgCtor,Rtos
 			_ENDOF
 			_OFb	#4,Rtos				; Discharge / Discretionary loads
-				mov.b	#DisCont,Rtos
+				mov.b	#DisCtor,Rtos
 			_ENDOF
 			_OFb	#5,Rtos				; Normal loads
-				mov.b	#NrmCont,Rtos
+				mov.b	#NrmCtor,Rtos
 			_ENDOF
 			_ENDCASE
 			ret
@@ -832,7 +824,6 @@ GetContactorBitmask:
 			call	#GetContactorBitmask
 			bic.b	Rtos,&P3OUT
 			ret
-#endif // G2553
 
 
 ; Modbus ( -- ) ; A colon begins a Modbus/ASCII packet. Packet ends with <cr><lf>.

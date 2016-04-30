@@ -29,9 +29,6 @@
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
 								// Otherwise comment out with //.
 
-//#define REV			62			// 62 for CMU board rev 62, and rev 4 BMU.
-//#define	G2553		1			// MSP430 model.
-								// You must also set IAR/Project/General Options/Target/Device correctly
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
 HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900

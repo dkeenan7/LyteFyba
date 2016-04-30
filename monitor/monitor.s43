@@ -19,9 +19,6 @@
 #define MONITOR					// For some conditional assembly in otherwise common
 								// insulation-monitoring code.
 
-//#define	REV			62			// 62 for CMU board rev 62, and rev 4 BMU.
-//#define	G2553		1			// MSP430 model.
-								// You must also set IAR/Project/General Options/Target/Device correctly
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language

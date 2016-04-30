@@ -2,7 +2,7 @@
 ; The bootstrap loader (BSL2)
 ; ----------------------------------------------------------------------------
 ; This file is included by monitor.s43 and TestICal.s43 and other main-flash programs.
-; This code will be assembled into the last main-flash segment which starts at $FE00.
+; This code will be assembled into the last main-flash segment which starts at $FC00.
 ; It is called directly on reset.
 ; It contains the reset and interrupt vectors which point to fixed locations at the end of the
 ; second-last main-flash segment.

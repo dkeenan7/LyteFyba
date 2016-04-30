@@ -64,7 +64,6 @@
 ; #define INIT_CMD_STRING 'ub'			// Move old cal data to new location and update BSL
 ; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
 ;										// Note that an update command 'u' is required to make it stick.
-; #define INIT_CMD_STRING '[2i]u$FC00j'	// Set ID to 2, write it to flash and reset. So new chip not BMU.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
@@ -267,6 +266,8 @@ newChip:
 				_ELSES
 					mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
 				_ENDIF
+				mov.b	#$00,&P3REN					; Disable all pullup/pulldown resistors
+													; Leaving them on causes problems for outputs
 
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
 			_ENDOF
@@ -287,8 +288,11 @@ newChip:
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
-			mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power,
-											;   for any pin which may remain a floating input in a CMU.
+			cmp.b	#255,&ID
+			_IF		_NE
+				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
+												;   any pin which may remain a floating input in a CMU.
+			_ENDIF
 			mov.b	#0,&P3OUT				; Set all outputs low (and inputs pulled down)
 			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set Tx, Ctors as outputs
 
