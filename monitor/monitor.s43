@@ -331,7 +331,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Txs, conts as out
+			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set Txs, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
 
 ;

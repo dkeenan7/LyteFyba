@@ -283,14 +283,14 @@ newChip:
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT				; Set all outputs low.
-			mov.b	#RelayM_Byp|RelayP_Ir57k6|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed outs
+			mov.b	#RelayM_Byp|RelayP_57k6|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed outs
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power,
 											;   for any pin which may remain a floating input in a CMU.
 			mov.b	#0,&P3OUT				; Set all outputs low (and inputs pulled down)
-			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set Tx, Conts as outputs
+			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set Tx, Ctors as outputs
 
 			clr		rERR					; Clear the error register
 

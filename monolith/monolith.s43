@@ -144,9 +144,9 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-SourceCont	EQU		ChgCont			; Source contactor MOSFET and orange LED
-LoadCont	EQU 	DisCont			; Load contactor MOSFET and cyan/white LED
-ContPortOUT	EQU		P3OUT
+SourceCtor	EQU		ChgCtor			; Source contactor MOSFET and orange LED
+LoadCtor	EQU 	DisCtor			; Load contactor MOSFET and cyan/white LED
+CtorPortOUT	EQU		P3OUT
 
 ;
 ; RAM allocation
@@ -378,7 +378,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont,&P3DIR ; Set TxChg, conts as out
+			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set TxChg, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
 
 ;
@@ -1146,7 +1146,7 @@ ControlCharger:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
+			bic.b	#(SourceCtor | LoadCtor),CtorPortOUT ; Drop out both source and load contactors
 											; and hence also the battery contactor
 		_ENDIF							; Endif
 
@@ -1159,14 +1159,14 @@ ControlCharger:
 		_AND_IF	_Z						; And if we're not charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
+			bic.b	#LoadCtor,&P2OUT		; Drop out the load contactor (magenta LED)
 		_ENDIFS
 
 		; If stress <= 7
 		;	turn on discharging/loads contactors
 		cmp.b	#8,R9
 		_IF	_L							; If incoming stress is normal
-			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
+			bis.b	#LoadCtor,&P2OUT		; Turn on the load contactor (magenta LED)
 		_ENDIF
 
 		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
@@ -1180,7 +1180,7 @@ ControlCharger:
 		_AND_IF	_NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
+			bic.b	#SourceCtor,&CtorPortOUT ; Drop out the source contactor (yellow LED)
 		_ELSES							; Else
 			push	R8
 			push	R9
@@ -1189,7 +1189,7 @@ ControlCharger:
 			pop		R8
 			cmp		#145*10,R10
 			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
-				bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
+				bic.b	#SourceCtor,&CtorPortOUT ; Drop out the source contactor (yellow LED)
 			_ENDIF
 		_ENDIF
 
@@ -1203,7 +1203,7 @@ ControlCharger:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
+			bis.b	#SourceCtor,&CtorPortOUT ; Turn on the source contactor (yellow LED)
 		_ENDIFS
 
 		; If all considered full (and no comms error), reset the coulomb counter
