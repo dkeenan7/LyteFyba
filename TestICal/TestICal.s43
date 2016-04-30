@@ -69,13 +69,6 @@
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 
-; Timer registers for generating 4.2 kHz square wave for Piezo
-PizTAR		EQU			TA0R		; Charger/inverter timer register
-PizTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
-PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
-PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
-PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
-
 ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 									; commands. Monitor uses the info-flash copy
 
@@ -284,7 +277,7 @@ newChip:
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT				; Set all outputs low.
-			mov.b	#RelayM_Byp|RelayP_57k6|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed outs
+			mov.b	#RelayM_Byp|RelayP_57k6|TxMiScu|ErrLed,&P2DIR ; Set Relays, Tx, ErrLed as outputs
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
@@ -402,16 +395,6 @@ ErrorFlash:
 			_UNTIL	_Z							; Until 16 bits sent
 			jmp		ErrorFlash					; Infinite loop
 
-;-------------------------------------------------------------------------------
-PizTiovIsr:
-; Timer capture/compare interrupt service routine
-;-------------------------------------------------------------------------------
-			clr		&PizTAIV				; Access TAIV to reset the sub interrupt flag
-			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
-			; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
-			add		#119,&PizCCRp			; Advance the counter by half a period
-			reti							; Return from interrupt
-
 
 ; ----------------------------------------------------------------------------
 ; Inactive copy of bootstrap loader (BSL2b)
@@ -449,7 +432,8 @@ jTA1TxIsr		reti					; TA1 CC0 not used
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-jTA0RxTiovIsr	br		#PizTiovIsr		; Combined TA0 CC1&2IFG & TAIFG (ovf) used for Piezo 4.2 kHz
+jTA0RxTiovIsr	reti					; Combined TA0 CC1&2IFG & TAIFG (ovf) not used
+				nop
 jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
 				nop
 

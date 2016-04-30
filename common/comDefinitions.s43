@@ -574,10 +574,9 @@ TxEndOfModbusPacket:
 ; Quiet (bool -- )
 ; Stop the piezo coming on with the error LED
 		xCODE	'Q',quiet,_quiet
-		allBitsIfZ	Rtos,Rtos		; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#OUTMOD_4|CCIE,&PizCCTLp ; Move only these bits from Rtos to &BCSCTL3.
-									; If Rtos is zero, the zeroes will select output mode 0 (direct
-									; control) and output value zero, so no DC on Piezzo. Trashes Rtos
+		allBitsIfNZ	Rtos,Rtos		; IF Rtos is zero THEN $0 to Rtos ELSE $FF to Rtos
+		movBits_B	Rtos,#Piezo,&P1SEL2 ; Move only #Piezo bit from Rtos to &P1SEL2. Trashes Rtos
+		; Setting the SEL2 bit will prevent the Piezo pin from having the ACLK out function
 		ret
 
 ; Query the reset-log ( maxResetsToShow -- )
