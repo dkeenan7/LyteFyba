@@ -376,18 +376,17 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;	Initialise io ports
 ;
 			; Initialise port 1
-			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
-			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
-			mov.b	#VrefP|TxPl,&P1DIR			; Set VrefP, Tx bits as outputs
+			; Default settings of P1OUT and P1DIR are OK. Analog settings done later.
+;			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
+;			mov.b	#VrefP|TxPl|Piezo,&P1DIR	; Set VrefP, Tx, Piezo bits as outputs
 			mov.b	#Rx|TxPl,&P1SEL				; Select UART functions for Rx and TxPl pins
 			mov.b	#Rx|TxPl,&P1SEL2
+												; Piezo SEL bit is only set by the errorLed function
 
 			; Initialise port 2
-			mov.b	#0,&P2SEL					; Set bits 6, 7 not as xtal pins. No timer comms in TestICal
 			mov.b	#0,&P2OUT					; Set all outputs low.
-			mov.b	#RelayM|RelayP|TxMiScu|Piezo|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
+			mov.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
 			mov.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
-												; Piezo SEL bit is only set by the errorLed function
 
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
