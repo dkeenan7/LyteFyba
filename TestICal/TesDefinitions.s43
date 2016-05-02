@@ -82,33 +82,34 @@ TranslateToCalAddr:
 			_OFb	#'t',Rtos			; 't': temperature
 ;
 ; Temperature offset calibration
-; M = 4096/1.5 * (.00355 T + typ0.986)
-;	= 9.694*T + typ2692
-; M/9.694	= T + typ277.7
+; M = 4092/1.5 * (.00355 T + typ0.986)
+;	= 9.684*T + typ2690
+; M/9.684	= T + typ277.7
 ; Per the MSP430F2012 datasheet, typ277.7 aims at 273, so the reading is proportional
 ; to the absolute temperature, with an offset of +- 100 mV.
-			; We use offsetByte = (M/9.694 - T) >> 1
-; So we use offsetByte = (M/9.694 - T) - 273
-; and T = M/9.694 - 273 - offsetByte
+			; We use offsetByte = (M/9.684 - T) >> 1
+; So we use offsetByte = (M/9.684 - T) - 273
+; and T = M/9.684 - 273 - offsetByte
 ;
 				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
 				call	#measAndScale
 
-; To divide by 9.694, multiply by 65536/9.694 = 6760
+; To divide by 9.684, multiply by 65536/9.684 = 6767
 				mov		R10,R8
-				mov		#6760,R9
+				mov		#6767,R9
 				call	#UMStar
-				sub		#273,R10
-				sub		Rsec,R10					; Subtract 273 and the calibration temperature
+;				sub		#273,R10
+				sub		#278,R10
+				sub		Rsec,R10					; Subtract 278 and the calibration temperature
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
 
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov		#LinkVChan<<12,R8
 				call	#measAndScale
-				sub		#2048,R10					; Zero volts for link voltage is a 2048 reading
+				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
 				;sub		Rsec,R10				; Subtract required reading (usually 0)
-				; Actually require 1.3653*Rsec to be subtracted. Too much code. So `lc will always
+				; Actually require 1.364Rsec to be subtracted. Too much code. So `lc will always
 				;	calibrate to zero millivolts (calibrate with no significant charge or discharge).
 				cmp		#$FF81,R10					; -$7F
 				jl		nonCal						; If <s -$7F, use the $80 non-calibrated value
