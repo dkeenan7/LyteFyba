@@ -356,8 +356,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
-			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
-			mov.b	&info8MHzCalD,&DCOCTL
+			; Don't initialise other system clock registers. BSL2 and the FFL have set them.
 
 			cmp.b	#255,&ID					; Is this a BMU?
 			_IF		_EQ
