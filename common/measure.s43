@@ -208,14 +208,14 @@ temp:
 ; Trashes: R8, R9, R11
 			mov		#TempChan<<12,R8
 			call	#measAndScale
-			; Scale it back to degrees Celsius. Typically, T = (V-Voff)/.00355 where Voff = 0.986
-			; But the measurement M is 4096* V/1.5 = 2731*V.
-			; So T = (M/2731 - Koff1)*281.7 = M/9.694 - Koff2
-			; To divide by 9.694 counts/°C, multiply by 65536/9.694 = 6760, and keep the top half
+			; Scale it back to degrees Celsius. Typically, T = (V-0.986)/.00355
+			; But the measurement M is 4092* V/1.5 = 2728*V.
+			; So T = (M/2728 - 0.986)*281.7 = M/9.684 - 277.7
+			; To divide by 9.684 counts/°C, multiply by 65536/9.684 = 6767, and keep the top half
 			mov		R10,R8
-			mov		#6760,R9
-			call	#UMStar					; R10:R9 = meas*6760 so M/9.694 to R10
-			sub		#273,R10				; M/9.694 - 273
+			mov		#6767,R9
+			call	#UMStar					; R10:R9 = meas*6767 so M/9.684 to R10
+			sub		#278,R10				; M/9.684 - 277.7
 			mov.b	&TempCal,R8
 			sxt		R8
 			sub		R8,R10					; R10 has temperature in degrees Celsius
