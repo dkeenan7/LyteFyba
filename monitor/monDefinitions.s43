@@ -24,14 +24,12 @@
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
 
-#if PROG_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )
 			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
-#endif
 
 ; Comms error ( -- )						; Report temporary master's ID
 _commsError	; No command character since it never needs to be interpreted and 'c' is used for Charging
@@ -207,7 +205,6 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;		ret
 
-#if (PROG_START < $F000)
 ; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
 		xCODE	'>',max,_max
 			NO_ECHO_CMD	doMax0,doMax	; Use the no-echo wrapper macro
@@ -271,7 +268,6 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;		ret
-#endif
 
 ; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3323 3'VP
 ;

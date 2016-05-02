@@ -350,13 +350,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
 			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
-			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
-			mov.b	&info8MHzCalD,&DCOCTL
+
+			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
 ;
 ;	Initialise io ports
 ;
-			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
 			; Initialise port 1
 			; Default settings of P1OUT and P1DIR are OK. Analog settings done later.
@@ -401,8 +400,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; TAIE = interrupt enable (for timer overflow)
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
-
-			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode
 
 			mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
 			mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud

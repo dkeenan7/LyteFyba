@@ -24,11 +24,6 @@
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
 
-//#define KINGSCLIFF_DCM			// Defined if for the prototype Genevo DCM at Kingsclff TAFE
-								// which uses external thermistor temperature sensors on modified CMUs.
-								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
-								// Otherwise comment out with //.
-
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
 HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
@@ -416,8 +411,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; TAIE = interrupt enable (for timer overflow)
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
 			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
-
-			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode
 
 			mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
 			mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud

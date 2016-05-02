@@ -93,7 +93,6 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		_ENDIF						; Endif
 		ret
 
-#if (PROG_START < $F000)			// Commented out when need to save space
 ;
 ; ? GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
@@ -109,7 +108,6 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			xCODE	'!',ZtoreByte,_ZtoreByte
 			mov.b	Rsec,0(Rtos)
 			ret
-#endif
 
 ;
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
@@ -453,7 +451,6 @@ DelayMs:
 		ret
 
 
-#if PROG_START < $F800	// Commented out if need to save space
 ;
 ; Bypass or RelayMinus ( bool -- ) Turn on or off bypass resistors (or relay- if this is an IMU)
 ;
@@ -463,7 +460,6 @@ _relayM	EQU		_bypass				; An alias for use in IMU code
 		movBits_B	Rtos,#Bypass,&P2OUT ; Move only the #Bypass bit from Rtos to &P2OUT. Trashes Rtos.
 ;		pop		Rtos				; Remove operand
 		ret
-#endif	// PROG_START < $F800
 
 
 _prettyPrint3:
@@ -661,7 +657,6 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 			ENDM
 
 
-#if (PROG_START < $F000)		; Comment out if required to save space
 ; NumCells  ( n -- ) Gives the number of cells
 		xCODE	'N',NumCells,_NumCells
 			NO_ECHO_CMD	doNumCells0,doNumCells		; Use the no-echo wrapper macro
@@ -678,7 +673,6 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 
 			br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;			ret
-#endif
 
 
 ; Fuel Gauge commands

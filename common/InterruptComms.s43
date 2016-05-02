@@ -23,9 +23,9 @@
 ; while its capture/compare regs are used for the interrupt-driven software UART
 ;
 ;	Conditions for 9600 Baud SW UART
-DCOfreq		EQU		8000000				; DCO clock in Hz
-DCOckPerMck	EQU		2					; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
-DCOckPerSMck EQU	8					; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
+DCOfreq		EQU		3686400				; DCO clock in Hz
+DCOckPerMck	EQU		1					; DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
+DCOckPerSMck EQU	1					; DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
 #ifdef MONOLITH
 StatusFreq	EQU		2					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #else
@@ -45,21 +45,18 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 	; Charger/inverter comms and SoC meter PWM
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
-ChgCCTLt	EQU			TA0CCTL0	; Charger/inverter Transmit capture/compare control register
-ChgCCRt		EQU			TA0CCR0		; Charger/inverter Transmit compare register
-PizCCTLp	EQU			TA0CCTL1	; Piezo 4.2 kHz square wave capture/compare control register
-PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as piezo
-PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
+ChgCCTLt	EQU			TA0CCTL1	; Charger/inverter Transmit capture/compare control register
+ChgCCRt		EQU			TA0CCR1		; Charger/inverter Transmit compare register
 ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
 ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
 	; SCU comms and Piezo 4.2 kHz square wave
 ScuTAR		EQU			TA1R		; SCU timer register
 ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
-ScuCCTLt	EQU			TA1CCTL0	; SCU Transmit capture/compare control register
-ScuCCRt		EQU			TA1CCR0		; SCU Transmit compare register
-SocCCTLp	EQU			TA1CCTL1	; SoC meter PWM capture/compare control register (BMU only)
+ScuCCTLt	EQU			TA1CCTL1	; SCU Transmit capture/compare control register
+ScuCCRt		EQU			TA1CCR1		; SCU Transmit compare register
+SocCCTLp	EQU			TA1CCTL0	; SoC meter PWM capture/compare control register (BMU only)
 SocCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as SoC meter
-SocCCRp		EQU			TA1CCR1		; SoC meter PWM capture/compare register (BMU only)
+SocCCRp		EQU			TA1CCR0		; SoC meter PWM capture/compare register (BMU only)
 ScuCCTLr	EQU			TA1CCTL2	; SCU Receive capture/compare control register
 ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
 
@@ -301,7 +298,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		ENDM
 
 ;-------------------------------------------------------------------------------
-RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+RxTiovIsrTimerMacro	MACRO TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 				LOCAL	TiovSubIsr, RxSubIsr, PwmSubIsr, WakeExit
 ; Combined Receive (timer capture/compare 1) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
@@ -318,7 +315,7 @@ RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx,
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
 			cmp		#CCRp-CCR0,R9			; (1) Was it a PWM interrupt
 			jeq		PwmSubIsr
-			cmp		#CCRr-CCRt,R9			; (1) Was it a receive interrupt
+			cmp		#CCRr-CCR0,R9			; (1) Was it a receive interrupt
 			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
@@ -363,9 +360,8 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 			reti							; (5) Return from interrupt
 
 PwmSubIsr:	; Compare match for PWM
-#if CCRp = SocCCRp							// Specialise this sub-ISR to SoC meter PWM versus piezo
 	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
-	#ifdef MONOLITH
+#ifdef MONOLITH
 		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
 		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 		_IF		_Z						; (2) If now set,
@@ -376,12 +372,7 @@ PwmSubIsr:	; Compare match for PWM
 		_ENDIF
 		add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
 		; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-	#endif // MONOLITH
-#else										// Else this is piezo PWM
-		; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
-		; 238/2 = 119 us per half period. The timer runs at 1 MHz, so that's 119 counts
-		add		#119,&PizCCRp				; Advance the counter by half a period
-#endif
+#endif // MONOLITH
 		pop		R9						; (2) Restore R9
 		reti							; (5) Return from interrupt
 		ENDM
@@ -389,7 +380,7 @@ PwmSubIsr:	; Compare match for PWM
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCR0, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
-ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCR0, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, 0,		  0, 	   chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 
 
 ;
