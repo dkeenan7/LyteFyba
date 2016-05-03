@@ -1011,13 +1011,25 @@ ControlContactors:
 		push 	R9
 		push	R10
 
-		; Treat comms eror as stress 15 for contactor control (will be smoothed)
 		mov		R8,R9
-		and		#STRESS,R9				; Get stress into R9
-		bit		#COM_ERR,R8
-		_IF		_NZ						; If the comms error bit is set
-			mov		#15,R9					; Treat it as stress 15 for contactor control
-		_ENDIF
+		tst		&current
+		_IF		_NN						; If current is not negative (i.e. if charging)
+			and		#TYPE,R9				; Isolate the two stress-type bits
+			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
+		_ELSE							; Else discharging
+			and		#OV_UT,R9				; Isolate the single overvoltage/undertemp stress-type bit
+			cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+		_ENDIF							; Endif
+		_IF		_EQ						; If we can ignore this stress
+			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+		_ELSE							; Else can't ignore
+			mov		R8,R9
+			and		#STRESS,R9				; Get stress into R9
+			bit		#COM_ERR,R8
+			_IF		_NZ						; If the comms error bit is set
+				mov		#15,R9					; Treat it as stress 15 for contactor control
+			_ENDIF								;   (it will be smoothed)
+		_ENDIF							; Endif ignore stress
 
 		; Calculate smoothed stress for controlling contactors
 		rla2	R9						; Quadruple the incoming stress
@@ -1146,7 +1158,8 @@ DoPrecharge:
 			call	#BatV						; Trashes R8, R9, R11 result in R10
 			pop		R8							; Restore cap voltage to R8
 			sub		R8,R10						; R10 = BatV - CapV
-			cmp		#5*10,R10
+			abs		R10							; R10 = Abs(BatV - CapV), allow for CapV > BatV
+			cmp		#6*10,R10
 			_WHILE	_HS							; Wait for less than 5 V across contactor
 				dec		R12
 		_UNTIL	_Z
@@ -1158,7 +1171,7 @@ DoPrecharge:
 				_BEGIN
 					ClearWatchdog
 				_AGAIN								; Endless loop
-			_ELSE									; Come here from WHILE, when less than 5 V
+			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 				bis.b	#BatCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
