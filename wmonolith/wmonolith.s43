@@ -1141,14 +1141,20 @@ ControlContactors:
 		push	R10
 
 		mov		R8,R9
-		tst		&current
-		_IF		_NN						; If current is not negative (i.e. if charging)
+		cmp		#10,&current			; Current is in tenths of an amp
+		_IF		_GE						; If 1 amp or more of charge current (positive)
 			and		#TYPE,R9				; Isolate the two stress-type bits
 			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
-		_ELSE							; Else discharging
-			and		#OV_UT,R9				; Isolate the single overvoltage/undertemp stress-type bit
-			cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
-		_ENDIF							; Endif
+		_ELSE							; Else not charging
+			cmp		#-9,&current			; Current is in tenths of an amp
+			_IF		_L						; If 1 amp or more of discharge current (negative)
+				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
+				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+			_ELSE							; Else current between -1 amp and 1 amp
+				clrz							; Ensure stress will not be ignored, by clearing EQ flag
+			_ENDIF							; Endif 1 amp discharge
+		_ENDIF							; Endif 1 amp charge
+
 		_IF		_EQ						; If we can ignore this stress
 			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
 		_ELSE							; Else can't ignore
