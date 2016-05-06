@@ -67,3 +67,31 @@ umm1		dec		R11			; (1) Decrement loop counter
 oflo		mov	#-1,R9			; (1)
 			mov	#-1,R10         ; (1)
 			ret					; (3)
+
+#ifdef	MONOLITH
+; Maybe not the right place for this
+; Bump the "real time clock" by 1 second
+bumpRtc
+			inc		&rtcSec		; Bump the seconds
+			cmp		#60,&rtcSec	; Is it now 60 seconds?
+			_IF		_EQ
+				clr		&rtcSec		; Clear seconds
+				inc		&rtcMin		; Bump minutes
+				cmp		#60,&rtcMin	; Now 60?
+				_IF		_EQ
+					clr		&rtcMin		; Clear minutes
+					inc		&rtcHour	; Bump hour
+					cmp		#24,rtcHour	; Now 24?
+					_IF		_EQ
+						clr		&rtcHour
+						inc		&rtcDay		; Bump day of week
+						cmp		#7,&rtcDay	; Now 7?
+						_IF		_EQ
+							clr		&rtcDay		; Clear day of week
+							; Allow to wrap around
+						_ENDIF
+					_ENDIF
+				_ENDIF
+			_ENDIF
+			ret
+#endif

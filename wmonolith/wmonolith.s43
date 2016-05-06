@@ -165,6 +165,8 @@ oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 comNoEraseEnd
 
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
+oldMeasureCount DS		2			; Value of the above at last measure
+oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
 
 #if	ADCBUF
 				ALIGNRAM 1
@@ -312,6 +314,12 @@ ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
 TIBEnd
 
+; "Real time clock"
+rtcDay			DS		1			; Day of week 0 = Sunday, 6 = Saturday
+rtcHour			DS		1			; Hour (0=midnight, 12 = noon, 23 = 11 pm)
+rtcMin			DS		1			; Minute (0-59)
+rtcSec			DS		1			; Second (0-59)
+
 TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte, except for BMUs
 									;	which initialise it to ScuTxByte
 
@@ -352,11 +360,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; There is a similar simple formula for rounding towards negative infinity (floored division).
 			#define LOG2(x) (4 * (x-8) / (x+8) + 3)
 
-			; Initialise clocks. SMCLK is only used by comms timer and watchdog timer.
-			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
-			; DIVM_1 => MCLK = DCOCLK/2
-			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
-			; Don't initialise other system clock registers. BSL2 and the FFL have set them.
+			; Don't initialise system clock registers. BSL2 and the FFL have set them.
 
 			cmp.b	#255,&ID					; Is this a BMU?
 			_IF		_EQ
@@ -403,27 +407,24 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 			bis.b	#UCA0RXIE, &IE2				; Enable UART RX interrupts
 
-			; Initialise the Timers
-			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
-			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
-			; MC: 2 = continuous mode 1 = up mode
-			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
+			; Initialise the Timers if we are a BMU
+			cmp.b	#255,&ID					; If we're a BMU
+			_IF		_EQ
+				; TA0CTL and TA1CTL are set up correctly by the BSL
+				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
+				mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
+				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
+				mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
+	;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
+				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
-			mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
-			mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
-			mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
-			mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
-;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
-
-			mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
-			mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
-			mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
-			mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
-;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+				mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
+				mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
+				mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
+				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
+	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
+				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+			_ENDIF
 
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
@@ -540,9 +541,24 @@ main:										; For IAR Embedded Workbench IDE debugger
 						call	#DoStatus					; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
-					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
-					_IF		_Z							; If so, do measurement and set/clear of bypass
-						bis.b	#bNotMeasureTime,&monFlags	; Reset the time-to-measure flag
+					; Update "real time clock" if needed
+					mov		&measureCount,R8			; Counter that is incremented 4096 times per sec
+					and		#$F000,R8					; Keep only upper 4 bits
+					cmp		&oldRtcMeasCnt,R8			; Compare with last saved
+					_IF		_NE							; If these differ
+						mov		R8,&oldRtcMeasCnt			; then save this different value
+						call	bumpRtc						; and update the "real time clock" 1 sec
+					_ENDIF
+
+					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
+					;	incrementing &measureCount. We want to know if this count has advanced more than
+					;	4096/StatusFreq since the last measure (when &measureCount was saved as
+					;	&oldMeasureCount)
+					mov		&oldMeasureCount,R8
+					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
+					sub		&measureCount,R8			; Subtract where it is now
+					_IF		_NN							; If this is non negative, it is time to measure
+						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
 						call	#DoMeasurement			; May transmit status
 					_ELSE
 						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU

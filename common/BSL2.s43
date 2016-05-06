@@ -57,7 +57,7 @@ BSL:		; Initialisation
 			; ID = 0, Divide by 1
 			; MC = 10, Continuous count mode
 			; TAIE = 0, No overflow interrupt
-			mov		#TASSEL1 | MC1, &TACTL
+			mov		#TASSEL1 | ID_0 | MC_2, &TA0CTL
 			; CM = 01, Capture on rising edge
 			; CCIS = 01, Capture input = CCI0B
 			; SCS = 1, synchronous capture
@@ -65,15 +65,22 @@ BSL:		; Initialisation
 			; CCIE = 1, enable interrupts
 			mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
 
-			; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
-			; NOTE: if this is a BMU, we will use TA1 for comms and override this
-			mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
-			; Output mode 3 = set/reset: set on EQU1, reset on EQU0
-			mov		#OUTMOD_3, &TA1CCTL1
-			mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
-			mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
-			bis.b	#RelayP_57k6,&P2SEL			; Set P2.1 as TA1.1
-			bis.b	#RelayP_57k6,&P2DIR			; and as an output
+			; If this is a BMU, we will use TA1 for comms, so don't set up TA1's CCRs here
+			cmp.b	#255,&infoID
+			_IF		_NE				; If we're not a BMU
+				; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
+				; TASSSEL = 10, Use SMCLK for timer A source
+				; ID = 0, Divide by 1
+				; MC = 01, Up mode, the counter counts to TACCR0
+				; TAIE = 0, No overflow interrupt
+				mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
+				; Output mode 3 = set/reset: set on EQU1, reset on EQU0
+				mov		#OUTMOD_3, &TA1CCTL1
+				mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
+				mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
+				bis.b	#RelayP_57k6,&P2SEL			; Set P2.1 as TA1.1
+				bis.b	#RelayP_57k6,&P2DIR			; and as an output
+			_ENDIF
 
 			; Initialise the UART
 			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers

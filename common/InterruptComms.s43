@@ -31,9 +31,8 @@ StatusFreq	EQU		2					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #else
 StatusFreq	EQU		16					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #endif
-SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/StatusFreq+(1<<15))/(1<<16)
-										; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
-MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
+SMckPerTAck	EQU		1					; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
+MckPerTAck	EQU		1
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
 BitTime96	EQU		(TAfreq+4800)/9600	; 104.17 us bit length in timer clock periods for 9600 baud
 BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods for 2400 baud
