@@ -373,13 +373,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise io ports
 ;
-			; Initialise port 1
-			; Default settings of P1OUT and P1DIR are OK. Analog settings done later.
-;			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
-;			mov.b	#VrefP|TxPl|Piezo,&P1DIR	; Set VrefP, Tx, Piezo bits as outputs
-			mov.b	#Rx|TxPl,&P1SEL				; Select UART functions for Rx and TxPl pins
-			mov.b	#Rx|TxPl,&P1SEL2
-												; Piezo SEL bit is only set by the errorLed function
+			; Port 1 already set up by BSL.
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
@@ -395,17 +389,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise timer and interrupt comms
 ;
-			; Initialise the UART
-			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
-			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
-			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
-			mov.b	#104,&UCA0BR0 				; Set 9600 baud
-			mov.b	#0,&UCA0BR1
-			mov.b	#UCBRS_1,&UCA0MCTL
-			bis.b	#TxPl,&P1SEL				; Select the UART output function of P1.2
-			bis.b	#TxPl,&P1SEL2
-			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
-			bis.b	#UCA0RXIE, &IE2				; Enable UART RX interrupts
+			; Don't initialise the UART. Everything is already set up from BSL, except for interrupts.
+			; But we don't want to enable them anyway before anything is in the circular buffer.
 
 			; Initialise the Timers if we are a BMU
 			cmp.b	#255,&ID					; If we're a BMU
