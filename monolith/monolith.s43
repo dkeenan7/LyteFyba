@@ -192,7 +192,7 @@ prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
-PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
+PipWait			EQU		10*StatusFreq ; Number of the above that will be required (10 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
 				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
@@ -317,7 +317,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_IF		_NE
 				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
 			_ELSE
-				mov.b	#VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set VrefP, Tx bits and piezo as outputs
+				mov.b	#SocMeter|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set SocMeter, VrefP, Txs and piezo out
 			_ENDIF
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
@@ -524,7 +524,7 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default)
+		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority
 ;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper
@@ -1142,10 +1142,11 @@ ControlCharger:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 7 && array voltge < 140 V
+		; If stress <= 5 && array voltge < 140 V
 		;	turn on charging/source contactors
+		; We need to let it go down to stress 5 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#8,R9
+			cmp.b	#6,R9
 		_AND_IF	_L						; And if incoming stress is normal
 			push	R8
 			call	#cellV

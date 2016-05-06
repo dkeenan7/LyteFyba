@@ -155,7 +155,32 @@ cellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4095
 			mov		#CellVChan<<12,R8
+#ifdef MONOLITH
+	#ifdef HELIDON
+			cmp.b	#255,&ID
+			_IF		_EQ
+				call	#measure
+				mov		#4062<<2,R9
+				sub	R8,R9
+				_IF		_NC
+					clr		R9
+				_ENDIF
+				mov.w	&VoltCal,R8
+				call	#UMStar
+				ClearWatchdog
+				rra		R10
+				inc		R10
+				rra		R10
+				ret
+			_ELSE
+				jmp		measAndScale				; Tail-call measAndScale and return
+			_ENDIF
+	#else
 			jmp		measAndScale				; Tail-call measAndScale and return
+	#endif
+#else
+			jmp		measAndScale				; Tail-call measAndScale and return
+#endif
 
 CapV:		; When used by wmonolith to check precharge
 ArrayV:

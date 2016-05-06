@@ -2,11 +2,25 @@
 ; and we don't want it using &ramID as this only exists in TestICal.
 
 ActLedOff	MACRO
-			bis.b	#ActLed,&P1OUT
+#ifdef MONOLITH
+			cmp.b	#255,&ID
+#else
+			cmp.b	#0,&ID
+#endif
+			_IF	_NE
+				bis.b	#ActLed,&P1OUT
+			_ENDIF
 			ENDM
 
 ActLedOn	MACRO
-			bic.b	#ActLed,&P1OUT
+#ifdef MONOLITH
+			cmp.b	#255,&ID
+#else
+			cmp.b	#0,&ID
+#endif
+			_IF	_NE
+				bic.b	#ActLed,&P1OUT
+			_ENDIF
 			ENDM
 
 ErrLedOff	MACRO

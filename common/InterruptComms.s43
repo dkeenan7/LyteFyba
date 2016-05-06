@@ -31,7 +31,11 @@
 DCOfreq		EQU		8000000				; DCO clock in Hz
 DCOckPerMck	EQU		2					; Number of DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
 DCOckPerSMck EQU	8					; Number of DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
+#ifdef MONOLITH
+StatusFreq	EQU		2					; Status frequency in hertz (allowed 2, 4, 8 or 16)
+#else
 StatusFreq	EQU		16					; Status frequency in hertz (allowed 2, 4, 8 or 16)
+#endif
 SMckPerTAck	EQU		(DCOfreq/DCOckPerSMck/StatusFreq+(1<<15))/(1<<16)
 										; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
 MckPerTAck	EQU		SMckPerTAck*DCOckPerSMck/DCOckPerMck
@@ -266,7 +270,7 @@ RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx,
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
 			cmp		#CCRp-CCR0,R9			; (1) Was it a PWM interrupt
 			jeq		PwmSubIsr
-			cmp		#CCRr-CCRt,R9			; (1) Was it a receive interrupt
+			cmp		#CCRr-CCR0,R9			; (1) Was it a receive interrupt
 			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
@@ -311,6 +315,19 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 			reti							; (5) Return from interrupt
 
 PwmSubIsr:	; Compare match for PWM
+	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
+	#ifdef MONOLITH
+			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
+			bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
+			_IF		_Z						; (2) If now set,
+				mov		&socPwmAdv,R9			; (3) then just get advance value to R9
+			_ELSE							; (2) But if now zero, need to calculate low time
+				mov		#1000,R9				; (2)
+				sub		&socPwmAdv,R9			; (3) = 1000 (PWM period) - pwmAdv
+			_ENDIF
+			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
+			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
+	#endif // MONOLITH
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
 			ENDM

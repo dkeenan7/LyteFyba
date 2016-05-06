@@ -685,7 +685,11 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 
 ; Get depth of discharge ( -- )
 		xCODE	'g',fuelDOD,_fuelDOD
+#ifdef MONOLITH
+		cmp.b	#255,&ID
+#else
 		cmp.b	#0,&ID
+#endif
 		_IF		_EQ					; BMUs and IMUs only
 			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
