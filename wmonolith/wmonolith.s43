@@ -379,16 +379,15 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
-			bis.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
+			bis.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays, Tx, ErrLed as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
-			bis.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
+			bis.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set TxChg, Ctors as out
-			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
+			mov.b	#PreCtor|BatCtor|ChgCtor|DisCtor|TxMiChg|NrmCtor,&P3DIR ; Set TxChg, Ctors as out
+			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins
 
 ;
 ;	Initialise timer and interrupt comms

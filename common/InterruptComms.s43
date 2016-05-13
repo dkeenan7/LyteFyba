@@ -44,9 +44,9 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 	; Charger/inverter comms and Frequency locked loop
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
-ChgCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as Chg Rx and Tx
-;FllCCTLp	EQU			TA1CCTL0	; FLL capture/compare control register. Handled by BSL
-;FllCCRp	EQU			TA1CCR0		; FLL capture/compare register. Handled by BSL
+ChgCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as Chg Rx and Tx
+;FllCCTLp	EQU			TA0CCTL0	; FLL capture/compare control register. Handled by BSL
+;FllCCRp	EQU			TA0CCR0		; FLL capture/compare register. Handled by BSL
 ChgCCTLt	EQU			TA0CCTL1	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA0CCR1		; Charger/inverter Transmit compare register
 ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive capture/compare control register
@@ -143,16 +143,17 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 			; Trashes R9.
 ;-------------------------------------------------------------------------------
 
-TxByteMacro	MACRO	TxByteNoWait
+TxByteMacro	MACRO	dest
 			_BEGIN
 
 				ClearWatchdog
 
-				call	#TxByteNoWait
 #if ALL_TO_ALL
-				// FIXME: the below should be to the two *other* ports. But ALL_TO_ALL no longer needed?
 				call	#ScuTxByteNoWait
 				call	#ChgTxByteNoWait
+				call	#TxByteNoWait
+#else
+				call	#dest
 #endif
 			_UNTIL	_NZ
 			ret
@@ -396,7 +397,8 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 	#if ALL_TO_ALL
 				_IF		_NZ
-					ret
+					ret			; Return if CMU  byte received, else *fall through*,
+								; so we can return NZ if other comms received
 				_ENDIF
 	#else
 		ret
@@ -404,7 +406,7 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
 	#if ALL_TO_ALL
 				_IF		_NZ
-					ret
+					ret			; Return if SCU byte received, else fall through again
 				_ENDIF
 	#else
 				ret
