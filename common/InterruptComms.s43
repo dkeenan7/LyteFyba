@@ -111,18 +111,19 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; Half of the +2 is in case the TAR increments just after we read it.
 					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
-					; and hence MckPerTAck = 32.
-					mov		#((23+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
-					add		&TAR,R9				; R9 := timer value + setup time
+					; and MckPerTAck = 32.
+					; If we get it wrong, the timer wraps around in just 16 ms anyway.
+					mov		#((27+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
+					add		&TAR,R9				; (4) R9 := timer value + setup time
 					_COND						; Start short circuit conditional
-						bit		#CCIFG,&CCTLt	; (5) Test transmit compare interrupt flag
+						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
 					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
-						cmp		&CCRt,R9		; (4) Test (TAR+setup) - CCRt
+						cmp		&CCRt,R9			; (4) Test (TAR+setup) - CCRt
 					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
-					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) Set out mode for start bit, enable compare ints
+					mov		#OUTMOD_1+CCIE,&CCTLt;(5) Set out mode for start bit, enable compare ints
 
 				_ENDIF 						; Endif transmit interrupts disabled
 
@@ -259,7 +260,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		ENDM
 
 ;-------------------------------------------------------------------------------
-TxRxIsrTimerMacro	MACRO TAIV, CCR0, CCRt, CCTLt, txData, bitCntTx, txBuf, txRd, txWr, TxSz, CCRr, CCTLr, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+TxRxIsrTimerMacro	MACRO TAIV, CCR0, CCRt, CCTLt, txData, bitCntTx, txBuf, txRd, txWr, TxSz, txBitTime, CCRr, CCTLr, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 				LOCAL	TiovSubIsr, RxSubIsr, TxSubIsr, WakeExit
 ; Combined Transmit (CCR1) & Receive (CCR2) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
@@ -370,8 +371,8 @@ TxSubIsr:	; Compare match for Tx
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 TxIsr:		TxIsrUartMacro		txBuf, txRd, txWr, TxSz
 RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
-ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgTxBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuTxBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 
 
 ;

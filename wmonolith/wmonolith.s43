@@ -194,7 +194,6 @@ masterUnblockTicks DS	1			; When the master is blocked, this field indicates wha
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
-statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
@@ -221,8 +220,6 @@ smoothStressX4	DS		1			; Moving average of stress used by BMU to control contact
 	; Cell monitoring units comms variables
 	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
-txBitTime		DS		2			; Determines transmit baud rate for timer-based comms (not UART).
-									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
@@ -531,7 +528,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 				; Check for a command or status character from the CMU port
 				; For both CMUs and the BMU, read from CMU Rx
-				call	#RxByteNoWait			; Check if received data
+				call	#RxByteNoWait			; Check if received CMU data
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
@@ -594,7 +591,7 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
-			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
+			inc.b	&ticks					; Used to time various infrequent tasks. Allowed to wrap.
 
 			clr		Rstrs					; Init present stress to zero
 			clr		Rmeas					; Init measurement causing zero stress to zero
@@ -782,7 +779,7 @@ DoMeasurement:
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
-				tst.b	&statusFreqCtr				; Every 136 seconds
+				tst.b	&ticks						; Every 128 seconds
 				_IF	_Z
 					bis.b	#bSendZ,&masterFlags		; Indicate to the master that a Z command is due
 				_ENDIF ; Every 136 seconds
@@ -863,7 +860,7 @@ DoMeasurement:
 // to the BMU, which would set a register that the SCU could interrogate to find out
 // where the comms break is. Otherwise we'll just eyeball the CMUs for out-of-sync blue LEDs.
 // The SCU will learn there is a comms break, from the status byte, via the 'p' command.
-						tst.b	&statusFreqCtr
+						tst.b	&ticks
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
