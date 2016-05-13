@@ -41,21 +41,24 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 ; Timer register definitions
 	; CMU comms uses UART
 	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
-	; Charger/inverter comms
+	; Charger/inverter comms and Frequency locked loop
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
+ChgCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as Chg Rx and Tx
+;FllCCTLp	EQU			TA1CCTL0	; FLL capture/compare control register. Handled by BSL
+;FllCCRp	EQU			TA1CCR0		; FLL capture/compare register. Handled by BSL
 ChgCCTLt	EQU			TA0CCTL1	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA0CCR1		; Charger/inverter Transmit compare register
-ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
+ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive capture/compare control register
 ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
-	; SCU comms and SoC meter PWM
+	; System Control Unit comms and SoC meter PWM
 ScuTAR		EQU			TA1R		; SCU timer register
 ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
+ScuCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as SCU Rx and Tx
+SocCCTLp	EQU			TA1CCTL0	; SoC meter PWM capture/compare control register
+SocCCRp		EQU			TA1CCR0		; SoC meter PWM capture/compare register
 ScuCCTLt	EQU			TA1CCTL1	; SCU Transmit capture/compare control register
 ScuCCRt		EQU			TA1CCR1		; SCU Transmit compare register
-SocCCTLp	EQU			TA1CCTL0	; SoC meter PWM capture/compare control register (BMU only)
-SocCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as SoC meter
-SocCCRp		EQU			TA1CCR0		; SoC meter PWM capture/compare register (BMU only)
 ScuCCTLr	EQU			TA1CCTL2	; SCU Receive capture/compare control register
 ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
 
@@ -187,7 +190,28 @@ WaitTxComplete:
 		ret
 
 ;-------------------------------------------------------------------------------
-TxIsrUartMacro	MACRO	TxSz, txBuf, txRd, txWr
+SocPwmIsr:
+; PWM (timerA1 capture/compare 0) interrupt service routine
+;-------------------------------------------------------------------------------
+	; These interrupts should only be enabled on BMUs
+#ifdef MONOLITH
+		push		R9					; (?) Save R9
+		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
+		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
+		_IF		_Z						; (2) If now set,
+			mov		&socPwmAdv,R9			; (3) then just get advance value to R9
+		_ELSE							; (2) But if now zero, need to calculate low time
+			mov		#1000,R9				; (2)
+			sub		&socPwmAdv,R9			; (3) = 1000 (PWM period) - pwmAdv
+		_ENDIF
+		add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
+		; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
+		pop		R9						; (2) Restore R9
+#endif // MONOLITH
+		reti							; (5) Return from interrupt
+
+;-------------------------------------------------------------------------------
+TxIsrUartMacro	MACRO	txBuf, txRd, txWr, TxSz
 ; Macro for Transmit (UART) interrupt service routines
 ;-------------------------------------------------------------------------------
 			; Must avoid the problem of the TX interrupt "sucking air"
@@ -215,23 +239,94 @@ TxIsrUartMacro	MACRO	TxSz, txBuf, txRd, txWr
 			ENDM
 
 ;-------------------------------------------------------------------------------
-TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txRd, txWr
-; Macro for Transmit (timer capture/compare 0) interrupt service routines
+RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 ;-------------------------------------------------------------------------------
+		push		R9
+		; Put received data into the queue if there's space, otherwise it's lost
+		mov.b	&rxWr,R9				; Get the write index
+		mov.b	&UCA0RXBUF,rxBuf(R9)	; Tentatively write the character to the receive queue
+										;  there's always at least one free space,
+										;  but don't increment the write index yet.
+		inc.b	R9						; Increment a copy of the write index
+		and.b	#RxSz-1,R9				;  modulo the queue size
+		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
+		_IF		_NE						; If queue not full
+			mov.b	R9,&rxWr				; Update write index so char is properly in queue
+			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
+		_ENDIF							; Endif queue not full
+		pop		R9						; Restore R9
+		reti							; Return from interrupt
+		ENDM
+
+;-------------------------------------------------------------------------------
+TxRxIsrTimerMacro	MACRO TAIV, CCR0, CCRt, CCTLt, txData, bitCntTx, txBuf, txRd, txWr, TxSz, CCRr, CCTLr, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+				LOCAL	TiovSubIsr, RxSubIsr, TxSubIsr, WakeExit
+; Combined Transmit (CCR1) & Receive (CCR2) & timer overflow interrupt service routine
+;-------------------------------------------------------------------------------
+			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
+			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
+			; it took a lot of effort to trace the problem to this instruction.
+			; It appears that despite only reading and not writing to its "destination" operand, the
+			; compare instruction is still treated as making _two_ accesses to TAIV, in the sense that
+			; it clears not only the interrupt flag being serviced but also any other TAIV interrupt
+			; that might be pending, causing it to never be serviced.
+
+											; (6) cycles for interrupt accepted
+			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
+			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
+			cmp		#CCRt-CCR0,R9			; (1) Was it a transmit interrupt
+			jeq		TxSubIsr
+			cmp		#CCRr-CCR0,R9			; (1) Was it a receive interrupt
+			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
+			; Otherwise fall thru to timer overflow interrupt service routine
+;
+;	Regular timer overflow interrupt: Used to cause the mainline code to measure voltages etc
+;
+TiovSubIsr: ; FIX ME or REPLACE ME with a pop R9; reti
+ 		;	bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
+		;	inc.b	&ticks					; Increment this counter; allowed to wrap
+			jmp		WakeExit				; Arrange to wake CPU, restore R9 and return from interrupt
+
+;
+;	Receive interrupt: Handle start-bit timer-capture or data-bit timer-compare
+;
+RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
+			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
+			_IF		_NZ						; (2) If start bit edge
+				bic		#CAP,&CCTLr				; (5) Switch to compare mode
+				add		#BitTime96/2,&CCRr		; (5) First databit 1.5 bits from edge
+			_ELSE							; (2) Else data bit sampled
+				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
+				rrc.b	&rxData					; (4) Store received bit
+				dec.b	&bitCntRx				; (4) All bits RXed?
+				_IF		_Z						; (2) If this is the last data bit
+					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
+					bis		#CAP,&CCTLr				; Set back to capture mode
+
+					; Put received data into the queue if there's space, otherwise it's lost
+					mov.b	&rxWr,R9				; Get the write index
+					mov.b	&rxData,rxBuf(R9)		; Tentatively write the character to the receive queue
+													;  there's always at least one free space,
+													;  but don't increment the write index yet.
+					inc.b	R9						; Increment a copy of the write index
+					and.b	#RxSz-1,R9				;  modulo the queue size
+					cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
+					_IF		_NE						; If queue not full
+						mov.b	R9,&rxWr				; Update write index so char is properly in queue
+WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
+					_ENDIF							; Endif queue not full
+				_ENDIF							; Endif last data bit
+			_ENDIF							; Endif data bit sampled
+			pop		R9						; (2) Restore R9
+			reti							; (5) Return from interrupt
+
+TxSubIsr:	; Compare match for Tx
 ; 1st interrupt BitCntTx is 10 (dec to 9), falling edge of start-bit just sent, need to set up for LSB
 ; 8th interrupt, BitCntTx is 3, just transitioned to data bit 6, need to set up for transition to MSB
 ; 9th interrupt, BitCntTx is 2, just transitioned to MSB, need to set up for transition to stop bit (1)
 ; 10th interrupt, BitCntTx is 1 (dec to 0), just transitioned to stop bit,
 ; need to set up for transition to next start bit if there is another byte in the tx queue
 ; or disable Tx interrupts if there are no more characters.
-
-; But perhaps we should instead setup for a transition to idle state (same as stop bit)
-; if there are no more characters.
-; Then we would have an 11th interrupt where stop bit is complete and we disable Tx interrupts.
-; But TxByteNoWait would still have to deal specially with the case where the queue becomes non-empty
-; before the stop bit has finished. The question is whether it would be less messy than it is now,
-; use less code, or not need to disable interrupts for so long. -- DK
-
 
 											; (6) cycles for interrupt accepted
 			add.w	&txBitTime,&CCRt		; (6) Set timer compare reg for when next transition is due
@@ -268,118 +363,15 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 
 				_ENDIF							; Endif TX queue is not empty
 			_ENDIF							; Endif Stop bit initiated
-			reti
-			ENDM
-
-	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
-TxIsr:		TxIsrUartMacro	TxSz, txBuf, txRd, txWr
-ScuTxIsr:	TxIsrTimerMacro	ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBitTime, ScuTxSz, scuTxBuf, scuTxRd, scuTxWr
-ChgTxIsr:	TxIsrTimerMacro	ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBitTime, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
-
-;-------------------------------------------------------------------------------
-RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
-;-------------------------------------------------------------------------------
-		push		R9
-		; Put received data into the queue if there's space, otherwise it's lost
-		mov.b	&rxWr,R9				; Get the write index
-		mov.b	&UCA0RXBUF,rxBuf(R9)	; Tentatively write the character to the receive queue
-										;  there's always at least one free space,
-										;  but don't increment the write index yet.
-		inc.b	R9						; Increment a copy of the write index
-		and.b	#RxSz-1,R9				;  modulo the queue size
-		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-		_IF		_NE						; If queue not full
-			mov.b	R9,&rxWr				; Update write index so char is properly in queue
-			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
-		_ENDIF							; Endif queue not full
-		pop		R9						; Restore R9
-		reti							; Return from interrupt
-		ENDM
-
-;-------------------------------------------------------------------------------
-RxTiovIsrTimerMacro	MACRO TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
-				LOCAL	TiovSubIsr, RxSubIsr, PwmSubIsr, WakeExit
-; Combined Receive (timer capture/compare 1) & timer overflow interrupt service routine
-;-------------------------------------------------------------------------------
-			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
-			; with the single instruction cmp #2,&TAIV. This caused rare dropped bits on receive and
-			; it took a lot of effort to trace the problem to this instruction.
-			; It appears that despite only reading and not writing to its "destination" operand, the
-			; compare instruction is still treated as making _two_ accesses to TAIV, in the sense that
-			; it clears not only the interrupt flag being serviced but also any other TAIV interrupt
-			; that might be pending, causing it to never be serviced.
-
-											; (6) cycles for interrupt accepted
-			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
-			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
-			cmp		#CCRp-CCR0,R9			; (1) Was it a PWM interrupt
-			jeq		PwmSubIsr
-			cmp		#CCRr-CCR0,R9			; (1) Was it a receive interrupt
-			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
-			; Otherwise fall thru to timer overflow interrupt service routine
-;
-;	Regular timer overflow interrupt: Cause the mainline code to measure voltages etc
-;
-TiovSubIsr:
- 			bic.b	#bNotMeasureTime,&monFlags ; Notify mainline that it's time to measure
-			inc.b	&ticks					; Increment this counter; allowed to wrap
-			jmp		WakeExit				; Arrange to wake CPU, restore R9 and return from interrupt
-
-;
-;	Receive interrupt: Handle start-bit timer-capture or data-bit timer-compare
-;
-RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
-			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
-			_IF		_NZ						; (2) If start bit edge
-				bic		#CAP,&CCTLr				; (5) Switch to compare mode
-				add		#BitTime96/2,&CCRr		; (5) First databit 1.5 bits from edge
-			_ELSE							; (2) Else data bit sampled
-				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
-				rrc.b	&rxData					; (4) Store received bit
-				dec.b	&bitCntRx				; (4) All bits RXed?
-				_IF		_Z						; (2) If this is the last data bit
-					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
-					bis		#CAP,&CCTLr				; Set back to capture mode
-
-					; Put received data into the queue if there's space, otherwise it's lost
-					mov.b	&rxWr,R9				; Get the write index
-					mov.b	&rxData,rxBuf(R9)		; Tentatively write the character to the receive queue
-													;  there's always at least one free space,
-													;  but don't increment the write index yet.
-					inc.b	R9						; Increment a copy of the write index
-					and.b	#RxSz-1,R9				;  modulo the queue size
-					cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-					_IF		_NE						; If queue not full
-						mov.b	R9,&rxWr				; Update write index so char is properly in queue
-WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
-					_ENDIF							; Endif queue not full
-				_ENDIF							; Endif last data bit
-			_ENDIF							; Endif data bit sampled
 			pop		R9						; (2) Restore R9
-			reti							; (5) Return from interrupt
-
-PwmSubIsr:	; Compare match for PWM
-	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
-#ifdef MONOLITH
-		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
-		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
-		_IF		_Z						; (2) If now set,
-			mov		&socPwmAdv,R9			; (3) then just get advance value to R9
-		_ELSE							; (2) But if now zero, need to calculate low time
-			mov		#1000,R9				; (2)
-			sub		&socPwmAdv,R9			; (3) = 1000 (PWM period) - pwmAdv
-		_ENDIF
-		add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
-		; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-#endif // MONOLITH
-		pop		R9						; (2) Restore R9
-		reti							; (5) Return from interrupt
+			reti
 		ENDM
 
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
-RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCR0, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
-ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, 0,		  0, 	   chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+TxIsr:		TxIsrUartMacro		txBuf, txRd, txWr, TxSz
+RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
+ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 
 
 ;

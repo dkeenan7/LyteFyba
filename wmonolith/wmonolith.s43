@@ -540,7 +540,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					cmp		&oldRtcMeasCnt,R8			; Compare with last saved
 					_IF		_NE							; If these differ
 						mov		R8,&oldRtcMeasCnt			; then save this different value
-						call	bumpRtc						; and update the "real time clock" 1 sec
+						call	#bumpRtc					; and update the "real time clock" 1 sec
 					_ENDIF
 
 					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
@@ -1336,13 +1336,14 @@ jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PR
 jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
 
-jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
+jTA1TxRxIsr		br		#ScuTxRxIsr		; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA1PwmIsr		br		#SocPwmIsr		; Timer A1 CCR0 (SoC PWM compare)
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
+jTA0TxRxIsr		br		#ChgTxRxIsr		; Combined TA0 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA0FllIsr		reti					; Timer A0 CCR0 (frequency locked loop capture).
+				nop						;   This is handled directly by the BSL.
 				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
