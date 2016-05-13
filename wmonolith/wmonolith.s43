@@ -397,12 +397,20 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;	Initialise timer and interrupt comms
 ;
 			; Don't initialise the UART. Everything is already set up from BSL, except for interrupts.
-			; But we don't want to enable them anyway before anything is in the circular buffer.
+			; But we don't want to enable TX ints before anything is in the circular buffer.
+			bis.b		#UCA0RXIE, &IE2
 
 			; Initialise the Timers if we are a BMU
 			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
-				; TA0CTL and TA1CTL are set up correctly by the BSL
+				; TA0CTL are set up correctly by the BSL
+				; Initialise timer TA1
+				; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+				; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+				; MC: 2 = continuous mode 1 = up mode
+				; TAIE = interrupt enable (for timer overflow)
+				mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
+
 				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
 				mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
