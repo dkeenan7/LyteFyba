@@ -41,14 +41,14 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 ; Timer register definitions
 	; CMU comms uses UART
 	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
-	; Charger/inverter comms and SoC meter PWM
+	; Charger/inverter comms
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 ChgCCTLt	EQU			TA0CCTL1	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA0CCR1		; Charger/inverter Transmit compare register
 ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
 ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
-	; SCU comms and Piezo 4.2 kHz square wave
+	; SCU comms and SoC meter PWM
 ScuTAR		EQU			TA1R		; SCU timer register
 ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
 ScuCCTLt	EQU			TA1CCTL1	; SCU Transmit capture/compare control register

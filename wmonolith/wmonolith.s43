@@ -162,11 +162,11 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
-comNoEraseEnd
-
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 oldMeasureCount DS		2			; Value of the above at last measure
 oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
+
+comNoEraseEnd	; End of unerased variables; start of erased variables
 
 #if	ADCBUF
 				ALIGNRAM 1
@@ -299,6 +299,8 @@ bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
+comEraseEnd		EQU		$			; End of the erased variables
+
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Type of measurement that caused worst stress
@@ -345,12 +347,15 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 InterpretInit:                              ; This is called by the BSL, on reset.
 InterpretByte:								; Should not be called -- but just in case
 main:										; For IAR Embedded Workbench IDE debugger
+			dint							; Disable interrupts while initialising; note that this will
+											;	temporarily stop the FLL.
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
-			mov.w	#InitSP,SP				; Initialize stackpointer
+			mov.w	#InitSP,SP				; Initialize stackpointer, likely not necessary
 
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
-			_DO		#worstStress-comNoEraseEnd,R8
+			; In other words: erase from comNoEraseEnd up to but not including comEraseEnd
+			_DO		#comEraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
@@ -377,8 +382,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
-			mov.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
-			mov.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
+			bis.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, Piezo, ErrLed as outputs
+												; Do not disturb bits 6, 7 (XIN, XOUT)
+			bis.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins, not piezo
+												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
@@ -480,6 +487,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
+			clr		&oldCCR0				; Clear this before interrupts are enabled
 			eint							; Enable interrupts now that all initialisation is complete
 
 
@@ -542,12 +550,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
 					sub		&measureCount,R8			; Subtract where it is now
-					_IF		_NN							; If this is non negative, it is time to measure
+					_IF		_NN							; If this is negative, it is time to measure
+				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
+				;		bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
+					_ELSE
 						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
 						call	#DoMeasurement			; May transmit status
-					_ELSE
-						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
 
