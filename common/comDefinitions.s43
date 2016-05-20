@@ -280,7 +280,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; times R17 (120R), scaled to 4092 counts for 1500 mV (ADC reference).
 ;
 		xCODE		'T',touchValue,_touchValue
-		cmp.b	#0,&ID					; If we're an IMU
+		cmp.b	#255,&ID					; If we're a BMU
 		_IF		_EQ
 			call		#touchV				; Return touch value (0 to 4092) in R10
 			mov			#'T',Rthd			; Type is touch value
@@ -421,6 +421,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 #endif // INSULATION_MONITORING
 
 
+
 DelayMs:
 ; Delay by the number of milliseconds given in R8.
 ; R8 is treated as unsigned. There will be no travelling-backwards-in-time allowed here!
@@ -442,8 +443,8 @@ DelayMs:
 ; RelayPlus ( bool -- ) Turn on or off relay+ on IMU
 ;
 		xCODE	'Y',relayP,_relayP
-		tst.b	&ID
-		_IF		_Z					; If we're an IMU (would operate the error LED on a CMU)
+		cmp.b	#255,&ID
+		_IF		_EQ					; If we're a BMU (57.6 kHz on a CMU)
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#RelayP,&P2OUT ; Move only the #RelayP bit from Rtos to &P2OUT. Trashs Rtos
 		_ENDIF
@@ -817,6 +818,27 @@ GetContactorBitmask:
 			call	#GetContactorBitmask
 			bic.b	Rtos,&P3OUT
 			ret
+
+;
+; Display inPut Port value (n --- )
+; n=0 for PreI input; n=1 for BatI input
+;
+
+		xCODE		'P',inPut,_inPut	; Pre and bat digital inputs
+		tst			Rtos				; 0 for pre input?
+		_IF			_Z
+			bit.b	#PreI,&PreIPortIN		; Is PreI input high?
+		_ELSE
+			bit.b	#BatI,&BatIPortIN		; Is BatI input high?
+		_ENDIF
+		_IF		_NZ
+			mov		#1,Rsec					; If so, set Rsec to 1
+		_ELSE
+			mov		#0,Rsec					; Else set Rsec to 0
+		_ENDIF
+		mov		'P',Rthd				; Type is inPut Port
+		mov		#1,Rtos					; One digit: 0 or 1
+		call	#_prettyPrint
 
 
 ; Modbus ( -- ) ; A colon begins a Modbus/ASCII packet. Packet ends with <cr><lf>.

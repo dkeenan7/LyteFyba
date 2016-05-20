@@ -425,17 +425,17 @@ jUCA0TxIsr		reti					; UART transmit not used
 jUCA0RxIsr		reti					; UART receive not used
 				nop
 
-jTA1RxTiovIsr	reti					; TA1 CC1&2 & TAI not used
+jTA1TxRxIsr		reti					; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
 				nop
-jTA1TxIsr		reti					; TA1 CC0 not used
+jTA1PwmIsr		reti					; Timer A1 CCR0 (SoC PWM compare)
 				nop
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-jTA0RxTiovIsr	reti					; Combined TA0 CC1&2IFG & TAIFG (ovf) not used
+jTA0TxRxIsr		reti					; Combined TA0 CCR1 & CCR2 (transmit & receive capture/compare)
 				nop
-jTA0TxIsr		reti					; Timer A0 CC0IFG (transmit compare) not used
-				nop
+jTA0FllIsr		reti					; Timer A0 CCR0 (frequency locked loop capture).
+				nop						;   This is handled directly by the BSL.
 
 				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)

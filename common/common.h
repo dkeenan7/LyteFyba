@@ -27,6 +27,7 @@ BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
 RelayM		EQU		RelayM_Byp
 RelayP		EQU		RelayP_57k6
+PreIPortIN	EQU		P2IN
 
 ; Port 3 bit masks. BMU only.
 RxChg		EQU		1<<0			; Receive from charger (TA0.2 input) on P3.0
@@ -41,9 +42,10 @@ SocMeter	EQU		NrmCtor			; PWM output for SoC meter (monolith only)
 SocPortDIR	EQU		P3DIR			; Soc meter PWM output is on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT
+BatIPortIN	EQU		P3IN			; BatI input is on port 3
 
 ; ADC channel numbers
-TouchVChan	EQU		$0				; ADC channel number for touch voltage (BMU only)
+TouchVChan	EQU		$3				; ADC channel number for touch voltage (BMU only)
 VRefPChan	EQU		$4				; Vref+ out
 ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
 ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
