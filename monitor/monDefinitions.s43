@@ -268,19 +268,3 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;		ret
-
-; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3323 3'VP
-;
-; Presently only implemented for over-voltage 'VP.
-; In future may also have under-voltage 'vP, over-temperature 'TP, under-temperature 'tP, link 'lP.
-		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
- 		_CASE
-			_OF #'V',Rtos				; Set overvoltage zero and step
-				mov		Rsec,&ovStep	; ovStep = Rsec
-				add		Rsec,Rthd		; ovZero = Rthd - 7 * Rsec
-				rla3	Rsec
-				sub		Rsec,Rthd
-				mov		Rthd,&ovZero
-			_ENDOF
-		_ENDCASE
-		ret

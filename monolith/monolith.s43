@@ -159,7 +159,8 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
-comNoEraseEnd
+
+comNoEraseEnd	; End of unerased variables; start of erased variables
 
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 oldMeasureCount DS		2			; Value of the above at last measure
@@ -294,6 +295,9 @@ bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
+comEraseEnd		EQU		$			; End of the erased variables
+
+
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Type of measurement that caused worst stress
@@ -344,7 +348,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
-			_DO		#worstStress-comNoEraseEnd,R8
+			_DO		#comEraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 

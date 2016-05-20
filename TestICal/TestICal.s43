@@ -112,7 +112,7 @@ SETLOCKA	MACRO
 
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 
-; This area is common to both Monitor and TestICal and is not erased on a reset
+; This area is common to all main programs and is not erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
@@ -121,7 +121,8 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
-comNoEraseEnd
+
+comNoEraseEnd	; End of unerased variables; start of erased variables
 
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 
@@ -157,6 +158,8 @@ bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
 bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+
+comEraseEnd		EQU		$			; End of the erased variables
 
 ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
@@ -208,7 +211,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 InterpretInit:
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
-			_DO		#TIB-comNoEraseEnd,R8
+			_DO		#comEraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
