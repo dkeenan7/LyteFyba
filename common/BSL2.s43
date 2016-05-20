@@ -218,8 +218,8 @@ TestNoInterp2:
 				; If we're not programming (bootstrap loading), toggle the error LED,
 				; and set the comms error bit and a bad check bit on any passing status bytes,
 				; since we are not calling the main program.
-				tst		&bsl2state
-				_IF		_NN				; If we're not programming (state not negative)
+				cmp		#1,&bsl2state
+				_IF		_GE				; If we're not programming (greater or equal to 1)
 					ErrLedToggle
 					tst.b	R8				; Test the character
 					_IF		_L				; If the character is a status byte (bit 7 set)
