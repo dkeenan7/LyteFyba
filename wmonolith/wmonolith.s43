@@ -152,24 +152,32 @@ CtorPortOUT	EQU		P3OUT
 ; RAM allocation
 ;
 				ORG		$200		; Start of RAM. Ends at InitSP-1
-; This area is common to both Monitor and TestICal and is not erased on a reset
+; This area is common to all main programs and used by the BSL and is not block erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
 									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
-socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 oldMeasureCount DS		2			; Value of the above at last measure
 oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
 
+interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
+bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
+bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
+bDontInterpret	EQU		1<<2		; Are we interpreting?
+bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
+bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
+bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+
+				ALIGNRAM 1
 comNoEraseEnd	; End of unerased variables; start of erased variables
 
 #if	ADCBUF
-				ALIGNRAM 1
 sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 #endif
 
@@ -281,24 +289,18 @@ chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 
-; Command Character Interpreter variables
 
 rxCksum			DS		1			; Received packet xor checksum
-interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
-bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
-bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
-bDontInterpret	EQU		1<<2		; Are we interpreting?
-bDontEcho		EQU		1<<3		; Are we echoing at character level?
-bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
-comEraseEnd		EQU		$			; End of the erased variables
+				ALIGNRAM 1
+eraseEnd		EQU		$			; End of the erased variables
 
-				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
+socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+									; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Type of measurement that caused worst stress
 worstOV			DS		2			; Worst over-voltage since the last resetWorstStress command
@@ -308,6 +310,7 @@ worstUT			DS		2			; Worst under-temperature since the last resetWorstStress comm
 worstAL			DS		2			; Worst absolute link voltage since the last resetWorstStress command
 ; The 5 variables above are also treated as an array indexed from worstStress, so order matters
 
+; Command Character Interpreter variables
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
@@ -351,8 +354,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
-			; In other words: erase from comNoEraseEnd up to but not including comEraseEnd
-			_DO		#comEraseEnd-comNoEraseEnd,R8
+			; In other words: erase from comNoEraseEnd up to but not including eraseEnd
+			_DO		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 

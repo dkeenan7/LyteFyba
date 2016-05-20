@@ -247,7 +247,7 @@ bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
-comEraseEnd		EQU		$			; End of the erased variables
+eraseEnd		EQU		$			; End of the erased variables
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
@@ -292,7 +292,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Clear all variables in RAM except resetBuffer and IMU/BMU's fuel-gauge dischg accumulator
 			; and worstStress (and ToIN/TIB)
-			_DO		#comEraseEnd-comNoEraseEnd,R8
+			_DO		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 

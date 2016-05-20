@@ -108,11 +108,10 @@ SETLOCKA	MACRO
 			ENDM
 
 
-				ORG		$200		; Start of RAM
-
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 
-; This area is common to all main programs and is not erased on a reset
+				ORG		$200		; Start of RAM. Ends at InitSP-1
+; This area is common to all main programs and used by the BSL and is not block erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
@@ -121,13 +120,23 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
+measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
+oldMeasureCount DS		2			; Value of the above at last measure
+oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
 
+interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
+bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
+bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
+bDontInterpret	EQU		1<<2		; Are we interpreting?
+bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
+bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
+bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+
+				ALIGNRAM 1
 comNoEraseEnd	; End of unerased variables; start of erased variables
 
-measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 
 #if	ADCBUF
-			ALIGNRAM 1
 sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 #endif
 
@@ -151,17 +160,10 @@ txCksum		DS		1				; Transmit checksum
 ; Command Character Interpreter variables
 
 rxCksum		DS		1				; Received packet xor checksum
-interpFlags	DS		1				; Interpreter flags, bitmask definitions follow
-bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
-bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
-bDontInterpret	EQU		1<<2		; Are we interpreting?
-bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
-bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
-comEraseEnd		EQU		$			; End of the erased variables
+			ALIGNRAM 1
+eraseEnd	EQU		$				; End of the erased variables
 
-ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
 TIB			DS		48				; Text Input Buffer (packet buffer)
 TIBEnd
@@ -211,7 +213,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 InterpretInit:
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
-			_DO		#comEraseEnd-comNoEraseEnd,R8
+			_DO		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
@@ -325,9 +327,7 @@ newChip:
 ; Initialise the command character interpreter
 ;
 ;			clr.b	&RXCksum					; Clear the receive checksum
-;			bic.b	#bHexOutput,&interpFlags		; Decimal output mode by default
-;			bic.b	#bChecksumming,&interpFlags	; Checksumming of packets, off by default
-;			bic.b	#bDontInterpret,&interpFlags	; Interpret
+			clr.b	&interpFlags
 			mov		#TIB,&ToIN				; Packet pointer
 
 			mov		#InitCmdString,Rip			; Interpret the init string as commands
