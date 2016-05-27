@@ -608,12 +608,12 @@ DoMeasurement:
 			_IF		_EQ						; If we're an IMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
-					cmp.w	#PipWait, uPipInitCtr
+					cmp.w	#PipWait, &uPipInitCtr
 					_IF		_EQ
 						call	#InitPip		; Send the PIP initialisation strings
 						bis.b	#bDonePipInit,&monFlags
 					_ELSE
-						inc		uPipInitCtr		; Wait till the PIP is ready to receive commands
+						inc		&uPipInitCtr	; Wait till the PIP is ready to receive commands
 					_ENDIF
 				_ENDIF
 			_ENDIF
