@@ -164,14 +164,24 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
 
-comNoEraseEnd	; End of unerased variables; start of erased variables
-
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 oldMeasureCount DS		2			; Value of the above at last measure
 oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
 
-#if	ADCBUF
+; Command Character Interpreter variables
+
+interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
+bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
+bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
+bDontInterpret	EQU		1<<2		; Are we interpreting?
+bDontEcho		EQU		1<<3		; Are we echoing at character level?
+bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
+bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+
 				ALIGNRAM 1
+comNoEraseEnd	; End of unerased variables; start of erased variables
+
+#if	ADCBUF
 sampleBuf		DS		2*NumSamples ; ADC sample buffer; 4 or 16 samples
 #endif
 
@@ -197,7 +207,6 @@ masterUnblockTicks DS	1			; When the master is blocked, this field indicates wha
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
-statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
@@ -292,16 +301,8 @@ chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 
-; Command Character Interpreter variables
 
 rxCksum			DS		1			; Received packet xor checksum
-interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
-bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
-bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
-bDontInterpret	EQU		1<<2		; Are we interpreting?
-bDontEcho		EQU		1<<3		; Are we echoing at character level?
-bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -519,35 +520,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 				call	#DoPrecharge
 			_ENDIF
 
-; Do precharge and get the main contactor on, so we stay powered up
-; even when the human lets go of the green button.
-			cmp.b	#255,&ID
-			_IF		_EQ							; If we're a BMU
-				call	#DoPrecharge
-			_ENDIF
-
 ; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
-
-
+; This is now done in AccMaster, using the bSendInit masterFlag.
 			cmp.b	#255,&ID
 			_IF		_EQ
-				mov		#'\r',R8				; Clear any junk
-				call	#TxByte
-				mov		#'k',R8					; Transmit "k" with no checksum
-				call	#TxByte					;	to tell CMUs to send and expect checksums
-				mov		#'\r',R8
-				call	#TxByte
-
-				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
-				call	#TxStringCk
-				call	#TxEndOfPacket
-
-				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
-				call	#TxStringCk
-				call	#TxEndOfPacket
+				bis.b	#bSendInit,&masterFlags
 			_ENDIF
-
 
 ; Main loop
 			_BEGIN
@@ -612,7 +591,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialise the PIP4048MS inverter with various non-default settings
 ;
 InitPip:
-			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
+			mov.w		#BitTime24,&chgTxBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
 			_DO			#15,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
@@ -693,12 +672,12 @@ DoMeasurement:
 			_IF		_EQ						; If we're a BMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
-					cmp.w	#PipWait, uPipInitCtr
+					cmp.w	#PipWait, &uPipInitCtr
 					_IF		_EQ
 						call	#InitPip		; Send the PIP initialisation strings
 						bis.b	#bDonePipInit,&monFlags
 					_ELSE
-						inc		uPipInitCtr		; Wait till the PIP is ready to receive commands
+						inc		&uPipInitCtr	; Wait till the PIP is ready to receive commands
 					_ENDIF
 				_ENDIF
 			_ENDIF
@@ -985,6 +964,7 @@ DoMeasurement:
 						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 						call	#ControlContactors		; Control contactors
 					_ENDIF
+				_ENDIF								; End if too many ticks since last rx
 			_ENDIF							; End if sending status
 			ret
 ; End of DoMeasurement

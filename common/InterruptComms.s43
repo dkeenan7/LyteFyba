@@ -145,9 +145,7 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 
 TxByteMacro	MACRO	dest
 			_BEGIN
-
 				ClearWatchdog
-
 #if ALL_TO_ALL
 				call	#ScuTxByteNoWait
 				call	#ChgTxByteNoWait
@@ -166,8 +164,7 @@ TxByte:		; Alternative entry which does not accumulate checksum
 
 
 CmuTxByte:										; Alternative entry point that always goes to CMU port,
-												;	and doesn't update the Wunth checksum
-				TxByteMacro	TxByteNoWait
+			TxByteMacro	TxByteNoWait			;	and doesn't update the Wunth checksum
 
 ScuTxByteCk: xor.b	R8,&txCksum
 ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate checksum
