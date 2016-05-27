@@ -44,10 +44,10 @@ G   Get high word of fuel-gauge discharge accumulator (monoliths only)
 h h Hex output
 i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
-I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
+I I Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 j   Just local status (not the full stress)
+J J Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
   j JumpToSubroutine (call)
-J J Shunt current (was l)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
@@ -68,7 +68,7 @@ R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 
 s s select
 S S deSelect
 t t Temperature
-T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
+T T Touch value (uncalibrated) (only when ID=255, BMU)
   u UpdateInfoFlash
   U Unliven contactor (1U .. 5U)
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
@@ -114,17 +114,17 @@ i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimati
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   M Measure Vcc
+I I Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 l l LinkVoltage
 t t Temperature
-J J Shunt current
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each CMU)
 
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 c   Charging, '1c' to include undertemp and exclude undervolt as stress.
 
-T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
-I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
+T T Touch value (uncalibrated) (only when ID=255, BMU)
+J J Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
 
 <XOFF> Stop echoing
 <XON> Resume echoing

@@ -263,7 +263,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ;
 ; Minus terminal drop voltage (or shunt current) measurement ( -- )
 ; Display this drop in signed millivolts -1500 to 1500 or shunt current measurement (20x shunt V)
-		xCODE		'J',dropMi,_dropMi
+		xCODE		'I',dropMi,_dropMi
 		call		#linkV				; Return link/shunt voltage in millivolts in R10
 		mov			#'J',Rthd			; Type is Link voltage
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
@@ -321,7 +321,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; and the fact that the test resistors are 100k and the battery voltage is divided by 109.
 ; Expect approximately the following readings with the following leakage test resistors and 360 V battery
 ; 470k 8, 100k 36, 6.8k 501, 2.2k 1390, 0k 9216.
-		xCODE		'I',insulationTest,_insulationTest
+		xCODE		'J',insulationTest,_insulationTest
 		; Register definitions
 #define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
 #define Rmeas R14				// Max of touch measurements when any one relay is on.
@@ -435,7 +435,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 			CtoAllBits	R8				; 	because our measurent is +-25%.
 			movBits_B	R8,#bBadInsulation,&monFlags	; Piezo beeper will be turned on as required
 #endif
-			mov		#'I',Rthd			; Type is touch current
+			mov		#'J',Rthd			; Type is touch current
 			mov		R9,Rsec				; Result in tenths of a milliamp
 			mov		#4,Rtos				; Print 4 digits
 			call	#_prettyPrint		; Call pretty-print
