@@ -1,0 +1,129 @@
+;
+; This is a version of ACCEPT that doesn't interpret, but instead injects Z, G, i (etc) commands as
+; needed and in synch with the incoming stream (i.e. it waits for either a CR or a timeout before
+; sending)
+;
+
+AccMaster
+		cmp.b	#$0D,R8				; Carriage return?
+		_IF		_EQ
+			; No longer blocked, and if we unblocked via a timeout but didn't have anything to inject,
+			;	then forget about the timeout (CR no longer required for next injection)
+			bic.b	#bBlocked | bTimeout,&masterFlags
+		_ELSE
+			bit.b	#bBlocked,&masterFlags
+			_IF		_Z						; Presently not blocked. A non null non linefeed will block
+				_COND
+					tst.b	R8				; Not null? (Indicates no char received)
+				_AND_IF		_NZ
+					cmp.b	#$0A,R8			; And not linefeed?
+				_AND_IF	_NE
+					bis.b	#bBlocked,&masterFlags	; We're now blocked
+					mov.b	&ticks,R9				; Get the medium speed counter
+					add.b	#2*StatusFreq,R9		;	two second later. Check what can be tolerated!
+					mov.b	R9,&masterUnblockTicks	; Save that time
+				_ENDIFS
+			_ELSE						; Presently blocked. A carriage return will unblock
+				; Presently blocked. Check for timeout, with care for wrapping
+				cmp.b		&masterUnblockTicks,&ticks
+				_IF _NN						; If ticks minus masterUnblockTicks is not negative
+					bic.b	#bBlocked,&masterFlags ; then unblock anyway
+					bis.b	#bTimeout,&masterFlags ; remember we forced an unblock
+				_ENDIF
+			_ENDIF
+		_ENDIF
+
+		bit.b	#bBlocked,&masterFlags
+		; Warning: the below branch is ~15 words away from overflow. If necessary, branch around a ret
+		_IF		_Z						; Now not blocked. Can inject commands as needed
+			push	&TxBytePtr				; Save current destination for TxByte
+			mov		#CmuTxByte,&TxBytePtr	; Switch to CMU output
+			_COND
+				bit.b	#bTimeout,&masterFlags	; If we recently unblocked via a timeout,
+			_AND_IF	_NZ
+				bit.b	#bSendZ | bSendi | bSendInit, &masterFlags		; And we have anything to send,
+			_AND_IF	_NZ
+				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
+												; reset checksums (at receivers)
+				call	#TxByte
+				clr.b	&txCksum				; Explicitly clear our transmit checksum
+				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
+			_ENDIFS
+			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
+			_IF		_NZ
+				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
+				call	#TxStringCk
+				ClearWatchdog
+
+				mov		&discharge+2,Rsec
+				mov		#5,Rtos						; 5 digit field width
+				push.b	&interpFlags				; Save number base
+				bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
+				call	#_emitNum					; Transmit the number
+				popBits_B #bHexOutput,&interpFlags	; Restore number base
+				ClearWatchdog
+
+				mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
+				call	#TxByteCk
+				call	#TxEndOfPacket
+				bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
+			_ENDIF
+
+			bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
+			_IF		_NZ
+				; For the BMU in the Kingscliff DCM, the so-called link-voltage is really shunt current
+				; in half amps.
+				; This was multiplied by 5 and copied to the variable &current (so tenths of an amp)
+				; Tell the CMUs what the current is, by sending an 'i' command
+				mov		&current,R10			; Get the saved current, tenths of an amp
+				abs		R10						; Take the absolute value of the current in R10
+				mov		R10,Rsec
+				mov		#4,Rtos					; 4 digit field width
+				ClearWatchdog
+				call	#_emitNum				; Transmit the number
+				ClearWatchdog
+				cmp		#0,&current
+				_IF		_L						; If current is negative (discharge)
+					mov		#'-',R8					; Transmit a postfix minus sign
+					call	#TxByteCk
+				_ENDIF
+				mov		#'i',R8					; Transmit an "i" for current
+				call	#TxByteCk
+				call	#TxEndOfPacket
+				bic.b	#bSendi,&masterFlags	; Don't repeat until needed
+			_ENDIF							; End if 'i' command was due
+
+			bit.b	#bSendInit,&masterFlags
+			_IF		_NZ
+				; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+				; then retrieve the high word of the discharge accumulator from CMU 1
+				; The below can't be replaced by a single 9-byte string.
+				; They must go as separate packets because the 'k' must be sent without checksum
+				; and the 1sG is for a single CMU.
+				mov		#'\r',R8				; Clear any junk
+				call	#TxByte
+				mov		#'k',R8					; Transmit "k" with no checksum
+				call	#TxByte					;	to tell CMUs to send and expect checksums
+				mov		#'\r',R8
+				call	#TxByte
+
+				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
+				call	#TxStringCk
+				call	#TxEndOfPacket
+
+				mov		#SelectCMU1Get,R10		; Transmit "1sG" to select CMU 1 only, and get discharge
+				call	#TxStringCk
+				call	#TxEndOfPacket
+
+				bic.b	#bSendInit,&masterFlags	; Don't repeat
+			_ENDIF		; If init due
+			pop		&TxBytePtr				; Restore previous TxByte port
+		_ENDIF		; If unblocked
+
+		ret
+
+SelectCMU1		DB		2, '1s'			; Length-prefixed command string to select CMU 1
+EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
+SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
+		ALIGN	1
+

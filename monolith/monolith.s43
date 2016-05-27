@@ -24,11 +24,17 @@
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
 
-#define	HELIDON					// Defined if for the prototype black monolith at Helidon
-								// which uses a modified IMU and reads negative battery and array
-								// voltages up to 203.1 V.
-								// Otherwise comment out with //.
-
+ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
+BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
+HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
+				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
+				; Alternatively cell resistance can be measured as the change in battery voltage
+				; divided by the step change in current that caused it, divided by the number of cells.
+				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+				; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+				; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -59,20 +65,16 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
 
-; Couldn't fit both masterless charging and insulation monitoring in 4k.
-#define		MASTERLESS_CHARGING 1	// Can leave out the masterless charging code if not needed.
-#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
-
 ; Constants
 
 ; Stress calculations
 ; The stress set-point for charger back-off is 7.
-; This set-point of 7 is implemented in the IMU's PI controller.
-; So 8 is the lowest dis-stress. Alarm is given at stress 11. Contactor dropout at 12. Shutdown at 15.
+; This set-point of 7 should be implemented in the SCU's PI controller.
+; So 8 is the lowest dis-stress. Alarm is given at stress 12. Battery contactor dropout at 15.
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
-// OV setpoint is 3.408 to 3.448 V. Bypass at 3.368. Alarm at 3.556. Drop out source contactors at 3.608
+// OV setpoint is 3.408 to 3.448 V. Bypass at 3.368. Alarm at 3.608. Drop out battery cont at 3.728
 OV_ZERO		EQU		3128		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ; These were an attempt to float at the 75% step
@@ -80,16 +82,16 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 20 mV below 3.460 V, to a maximum of 15 at <= 3.16 V
-// UV setpoint is 3.32 to 3.12 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
-UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
+// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
+// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
+UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62degC
-// OT setpoint is 46 to 48 degC. Alarm at 54 degC. Dropout source contactors at 56 degC.
+// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62 degC
+// OT setpoint is 46 to 48 degC. Alarm at 56 degC. Dropout bat contactors at 62 degC.
 OT_ZERO		EQU		32			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
-// UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
-// UT setpoint is 10 to 8 degC. Alarm at 2 degC. Source contactor dropout at 0 degC.
+// UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6 degC
+// UT setpoint is 10 to 8 degC. Alarm at 0 degC. Bat contactor dropout at -6 degC.
 UT_ZERO		EQU		24			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-2			; Degrees C difference between one UT stress level and the next
 // AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
@@ -124,8 +126,10 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 									;	3408 mV. Stress 6/7 threshold
 ; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
 
-MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
-MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU or BMU only)
+MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
+MinContStress EQU	12			; Minimum stress to drop out source or load contactors (BMU only)
+								; There are no separate source or load contactors in monolith now --
+								;  only battery contactors that drop out at stress 15.
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -149,14 +153,14 @@ CtorPortOUT	EQU		P3OUT
 ; RAM allocation
 ;
 				ORG		$200		; Start of RAM. Ends at InitSP-1
-; This area is common to both Monitor and TestICal and is not erased on a reset
+; This area is common to all main programs and used by the BSL and is not block erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
 									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
-socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
 
@@ -176,10 +180,22 @@ bNotSendStatus	EQU		1<<0		; Zero if sending status bytes at all
 bNotMeasureTime EQU		1<<1		; Zero if time to measure
 bCharging		EQU		1<<2		; 1 if charging or regen. See 'c' command.
 bChargerControl	EQU		1<<3		; 1 in charger control mode (masterless operation). See 'o' command.
-bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
+bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (BMU only)
 bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 
+masterFlags		DS		1			; Master (command injector) flags; bitmask definitions follow
+bBlocked		EQU		1<<0		; 1 if blocked.
+bSendZ			EQU		1<<1		; 1 if Z command is due to be sent
+bSendi			EQU		1<<2		; 1 if 'i' command is due
+bSendInit		EQU		1<<3		; 1 if initialisation string should be sent
+bTimeout		EQU		1<<4		; 1 if unblocked via timeout; may or may not have to send a CR to
+									;	clear a stalled command if we have something to inject (may not
+									;	be ready now, hence we need this separate bit)
+masterUnblockTicks DS	1			; When the master is blocked, this field indicates what the tick
+									; counter will read when the timeout expires
+
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
+globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
@@ -187,7 +203,8 @@ passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
 
-chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
+shutdownTimer	DS		1			; To allow time for charging to start, when restarting
+									;   after a low voltage shutdown.
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
@@ -198,20 +215,15 @@ prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
-BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
-HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
-				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
-				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
-				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
-current			DS		2			; Current most recently reported by IMU, in tenths of an amp (signed)
+current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
-smoothStressX4	DS		1			; Moving average of stress used by IMU to control contactors
+smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
@@ -295,10 +307,11 @@ bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 
+				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
 
-
-				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
+socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+									; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Type of measurement that caused worst stress
 worstOV			DS		2			; Worst over-voltage since the last resetWorstStress command
@@ -308,6 +321,7 @@ worstUT			DS		2			; Worst under-temperature since the last resetWorstStress comm
 worstAL			DS		2			; Worst absolute link voltage since the last resetWorstStress command
 ; The 5 variables above are also treated as an array indexed from worstStress, so order matters
 
+; Command Character Interpreter variables
 				ALIGNRAM 1
 ToIN			DS		2			; Pointer to present character being stored in Text Input Buffer
 TIB				DS		48			; Text Input Buffer (packet buffer)
@@ -319,7 +333,8 @@ rtcHour			DS		1			; Hour (0=midnight, 12 = noon, 23 = 11 pm)
 rtcMin			DS		1			; Minute (0-59)
 rtcSec			DS		1			; Second (0-59)
 
-TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte
+TxBytePtr		DS		2			; Pointer to TxByte handler. Initially CmuTxByte, except for BMUs
+									;	which initialise it to ScuTxByte
 
 ; Must leave room for stack (about 36 bytes minimum)
 STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
@@ -335,6 +350,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/math.s43"		// Multiply and divide routines
 #include "crc.s43"					// CRC calculation routines
 #include "monoDefinitions.s43"		// Command character definitions
+#include "master.s43"				// AccMaster function for injecting commands
 
 ;-------------------------------------------------------------------------------
 ; InterpretInit
@@ -343,11 +359,14 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 InterpretInit:                              ; This is called by the BSL, on reset.
 InterpretByte:								; Should not be called -- but just in case
 main:										; For IAR Embedded Workbench IDE debugger
+			dint							; Disable interrupts while initialising; note that this will
+											;	temporarily stop the FLL.
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
-			mov.w	#InitSP,SP				; Initialize stackpointer
+			mov.w	#InitSP,SP				; Initialize stackpointer, likely not necessary
 
-			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
+			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
+			; In other words: erase from comNoEraseEnd up to but not including eraseEnd
 			_DO		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
@@ -360,36 +379,50 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Don't initialise system clock registers. BSL2 and the FFL have set them.
 
-			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
+			cmp.b	#255,&ID					; Is this a BMU?
+			_IF		_EQ
+				mov		#ScuTxByte,&TxBytePtr		; By default, TxByte goes to the SCU port for a BMU
+			_ELSE
+				mov		#CmuTxByte,&TxBytePtr		; In other cases, particularly CMUs, TxByte goes to
+													;	the CMU port
+			_ENDIF
 
 ;
 ;	Initialise io ports
 ;
+			; Port 1 already set up by BSL.
 
-			; Port 1 is already initialised by BSL.
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
-			mov.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays,Tx, ErrLed as outputs
-			mov.b	#RxScu|TxMiScu,&P2SEL		; Set bits 6, 7 not as xtal pins.
-												; Select timer functions for Rx and Tx pins
+			bis.b	#RelayM|RelayP|TxMiScu|ErrLed,&P2DIR ; Set Relays, Tx, ErrLed as outputs
+												; Do not disturb bits 6, 7 (XIN, XOUT)
+			bis.b	#RxScu|TxMiScu,&P2SEL		; Select timer functions for Rx and Tx pins
+												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
+
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set TxChg, conts as out
-			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
+			mov.b	#PreCtor|BatCtor|ChgCtor|DisCtor|TxMiChg|NrmCtor,&P3DIR ; Set TxChg, Ctors as out
+			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins
 
 ;
 ;	Initialise timer and interrupt comms
 ;
 			; Don't initialise the UART. Everything is already set up from BSL, except for interrupts.
-			; But we don't want to enable them anyway before anything is in the circular buffer.
+			; But we don't want to enable TX ints before anything is in the circular buffer.
+			bis.b		#UCA0RXIE, &IE2
 
 			; Initialise the Timers if we are a BMU
 			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
-				; TA0CTL and TA1CTL are set up correctly by the BSL
+				; TA0CTL are set up correctly by the BSL
+				; Initialise timer TA1
+				; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
+				; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
+				; MC: 2 = continuous mode 1 = up mode
+				; TAIE = interrupt enable (for timer overflow)
+				mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
 				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
 				mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
@@ -415,6 +448,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialise the charger controller
 ;
 			; Already cleared by loop above
+;			clr.b	&shutdownTimer				; Initialise shutdown timer
+			cmp.b	#255,&ID					; If we're a BMU
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 			cmp.b	#255,&ID					; If we're an IMU (Insulation/current Monitoring Unit)
 			_IF		_EQ
@@ -433,7 +468,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#255,&ID					; If we're not an IMU (Insulation Monitoring Unit)
+			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		_NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
@@ -455,11 +490,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			;	Already cleared by loop above
 ;			clr.b	&RXCksum				; Clear received packet xor checksum
-			cmp.b	#255,&ID					; If we're not an IMU
+			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		_NE
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
 			_ELSE
-				mov.b	#bChecksumming | bDontEcho,&interpFlags ; IMU is in a comms loop so echo would be bad
+				mov.b	#bChecksumming | bDontEcho | bEchoResponses,&interpFlags ; Don't want to echo
+													; command packets, do want to see responses
 			_ENDIF
 ;			bic.b	#bHexOutput,&interpFlags	; Default numeric output to be in decimal, not hexadecimal
 ;			bic.b	#bDontInterpret,&interpFlags ; Do interpret
@@ -473,10 +509,26 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
+			clr		&oldCCR0				; Clear this before interrupts are enabled
 			eint							; Enable interrupts now that all initialisation is complete
 
-; If we're an IMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+; Do precharge and get the main contactor on, so we stay powered up
+; even when the human lets go of the green button.
+			cmp.b	#255,&ID
+			_IF		_EQ							; If we're a BMU
+				call	#DoPrecharge
+			_ENDIF
+
+; Do precharge and get the main contactor on, so we stay powered up
+; even when the human lets go of the green button.
+			cmp.b	#255,&ID
+			_IF		_EQ							; If we're a BMU
+				call	#DoPrecharge
+			_ENDIF
+
+; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
+
 
 			cmp.b	#255,&ID
 			_IF		_EQ
@@ -499,17 +551,29 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				call	#RxByteNoWait			; Check if received data
-				_IF		_NZ
-					call	#Reject2400Baud			; Eliminates $00, $80, $F8 and $78 (lowercase 'x')
+				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
+				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
+				cmp.b	#255,&ID
+				_IF		_EQ
+					call	#ScuRxByteNW			; Check if received SCU data
+					_IF		_NZ
+						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
+					_ELSE
+						clr		R8						; Indicate to AccMaster that no char is avail
+					_ENDIF
+					call	#AccMaster				; Call the "master" accept function, char or not
 				_ENDIF
+
+				; Check for a command or status character from the CMU port
+				; For both CMUs and the BMU, read from CMU Rx
+				call	#RxByteNoWait			; Check if received CMU data
 				_IF		_NZ
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
-						call	#ACCEPT					; Process command bytes (could take a long time)
-					_ELSE
+						call	#ACCEPT					; Process command bytes (could be slow)
+					_ELSE								; Else was status byte
 						call	#DoStatus				; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
@@ -519,7 +583,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					cmp		&oldRtcMeasCnt,R8			; Compare with last saved
 					_IF		_NE							; If these differ
 						mov		R8,&oldRtcMeasCnt			; then save this different value
-						call	bumpRtc						; and update the "real time clock" 1 sec
+						call	#bumpRtc					; and update the "real time clock" 1 sec
 					_ENDIF
 
 					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
@@ -529,12 +593,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
 					sub		&measureCount,R8			; Subtract where it is now
-					_IF		_NN							; If this is non negative, it is time to measure
+					_IF		_NN							; If this is nonnegative, it is not time to measure
+				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer before sleeping CPU
+				;		bis		#CPUOFF+GIE,SR				; Turn off CPU and ensure interrupts still enabled
+					_ELSE								; Else time to measure
 						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
 						call	#DoMeasurement			; May transmit status
-					_ELSE
-						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
 
@@ -543,9 +607,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_AGAIN
 ; End of main loop
 
-EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
-SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
-				ALIGN	1
 
 ;
 ; Initialise the PIP4048MS inverter with various non-default settings
@@ -607,32 +668,6 @@ PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be AC
 
 
 
-Reject2400Baud:
-; When receiving 2400 baud characters sent by an IMU (intended for the PIP inverter)
-; the only possible characters received at 9600 baud are $00, $78, $80, $F8.
-; $00 is a no-op, $80 and $F8 are status bytes.
-; $78 is a lowercase 'x', which forces us to use a different character 'W' for the exclusive command.
-			cmp.b	#1,&ID
-			_IF		_EQ						; If we're the first CMU
-				_COND
-					cmp.b	#$00,R8
-				_OR_ELSE	_EQ					; If char is a null, or else
-					cmp.b	#'x',R8
-				_OR_ELSE	_EQ					; If char is an 'x', or else
-					cmp.b	#$80,R8
-				_OR_ELSE	_EQ					; If char is $80, or else
-					cmp.b	#$F8,R8
-				_OR_IFS		_EQ					; If char is $F8
-					setz							; Set the Z flag so char  will be ignored
-				_ELSE							; Else
-					clrz							; Clear the Z flag so char  will be accepted
-				_ENDIF
-			_ELSE							; Else not the first CMU
-				clrz							; Clear the Z flag so char will be accepted
-			_ENDIF
-			ret
-; End of Reject2400Baud
-
 
 DoEcho:		_COND							; Begin short circuit conditional
 				cmp.b	#$11,R8
@@ -653,9 +688,9 @@ DoMeasurement:
 #define Rmeas R14				// Measurement causing worst stress
 #define Rtype R15				// Type of measurement causing worst stress
 
-			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
+			inc.b	&ticks					; Used to time various infrequent tasks. Allowed to wrap.
 			cmp.b	#255,&ID
-			_IF		_EQ						; If we're an IMU
+			_IF		_EQ						; If we're a BMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
 					cmp.w	#PipWait, uPipInitCtr
@@ -679,9 +714,10 @@ DoMeasurement:
 
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			cmp.b	#255,&ID				; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
-				; Estimate OCV by subtracting current times internal resistance from measured voltage
+				; Estimate OCV by subtracting current times internal resistance from measured voltage.
+				; Shunt must be wired so charge current is positive and discharge current is negative.
 				push	R10						; Save the cell voltage measurement
 
 				; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
@@ -735,19 +771,19 @@ DoMeasurement:
 				mov		R10,R9					; Use only the high word of the result, put into R9
 				pop		R10						; Restore the cell voltage measurement to R10
 				tst		&current
-				_IF		_NN						; If current is not negative (charge)
-					sub		R9,R10					; OCV is lower than measured
-				_ELSE							; Else charging
-					add		R9,R10					; OCV is higher than measured
+				_IF		_NN						; If current is not negative (i.e. if charging)
+					sub		R9,R10					; OCV is lower than measured, when charging
+				_ELSE							; Else discharging
+					add		R9,R10					; OCV is higher than measured, when discharging
 				_ENDIF							; Endif
-			_ENDIF	; not IMU
+			_ENDIF	; not BMU
 
 			; Set bypass as required
-			cmp.b	#255,&ID				; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
-				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
-				rla3		R9
-				add			&ovZero,R9
+				mov			&ovStep,R9			; Calculate the bypass threshold in R9
+				rla3		R9					; = ovZero + 6*ovStep
+				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep - ovStep
 				sub			&ovStep,R9
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
@@ -759,11 +795,11 @@ DoMeasurement:
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_FULL,&localStatus ; Move only All-Full bits from R8 to localStatus
 			_ELSE
-				bis.b		#ALL_FULL,&localStatus	; IMU must pretend it's in bypass so charge terminates
+				bis.b		#ALL_FULL,&localStatus	; BMU must pretend it's in bypass so charge terminates
 			_ENDIF
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		_NE						; If we're not a BMU
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
 				push	R10						; OCV for overvoltage stress calc
@@ -778,14 +814,14 @@ DoMeasurement:
 				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
 				push	#2						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
-			_ENDIF	; not an IMU
+			_ENDIF	; not a BMU
 
-			; Do temperature measurement
+			; Do temperature measurement using internal sensor
 			call	#temp					; Get temperature in degrees Celsius in R10
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		_NE						; If we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
@@ -802,9 +838,9 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UT
 			_ENDIF
 
-			; Calculate stress due to link voltage (current shunt measurement for an IMU)
+			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#linkV					; Get link voltage in mV in R10
-			cmp.b	#255,&ID				; If we're not an IMU
+			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
@@ -822,28 +858,17 @@ DoMeasurement:
 					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
 				_ENDIF
 #endif
-			_ELSE	; IMU
-				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
-				// Tell the CMUs what the current is, by sending an 'i' command
-				mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
-				call	#TxByte					; Trashes R9 but preserves R10
+			_ELSE	; BMU
+				; We have a 200 A 50 mV shunt for the Genevo DCM at Kingscliff,
+				; and the diffamp has a gain of 10, so the linkV result should be
+				; in units of 0.2 A. So -1500 to 1500 corresp to -300 A to 300 A.
 
-				rla		R10						; Convert to tenths of an amp
+												; Multiply by 2 to
+				rla		R10						;  convert to tenths of an amp
 				mov		R10,&current			; Save in RAM variable
-				abs		R10						; Take the absolute value of the current in R10
-				mov		R10,Rsec
-				mov		#4,Rtos					; 4 digit field width
-				ClearWatchdog
-				call	#_emitNum				; Transmit the number
-				ClearWatchdog
-				cmp		#0,&current
-				_IF		_L						; If current is negative
-					mov		#'-',R8					; Transmit a postfix minus sign
-					call	#TxByteCk
-				_ENDIF
-				mov		#'i',R8					; Transmit an "i" for current
-				call	#TxByteCk
-				call	#TxEndOfPacket
+				bis.b	#bSendi,&masterFlags	; Indicate that an 'i' command using &current is due
+				ClearWatchdog					; When testing, seem to need this
+
 
 				tst		&current
 				_IF		_NN						; If current is not negative
@@ -865,28 +890,14 @@ DoMeasurement:
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
-				tst.b	&statusFreqCtr				; Every 136 seconds
+				tst.b	&ticks						; Every 128 seconds
 				_IF	_Z
-					mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
-					call	#TxStringCk
-					ClearWatchdog
-
-					mov		&discharge+2,Rsec
-					mov		#5,Rtos						; 5 digit field width
-					push.b	&interpFlags				; Save number base
-					bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
-					call	#_emitNum					; Transmit the number
-					pop.b	&interpFlags				; Restore number base
-					ClearWatchdog
-
-					mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
-					call	#TxByteCk
-					call	#TxEndOfPacket
-				_ENDIF ; Every 136 seconds
-			_ENDIF ; IMU current measurement
+					bis.b	#bSendZ,&masterFlags		; Indicate to the master that a Z command is due
+				_ENDIF ; Every 128 seconds
+			_ENDIF ; BMU current measurement
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		_NE						; If we're not a BMU
 				; Clamp local present stress to a maximum value
 				mov		#15,R9					; Default clamp value is 15
 				cmp		#4,Rtype
@@ -939,9 +950,9 @@ DoMeasurement:
 				CtoAllBits	Rtos
 				bit.b		#bBadInsulation,&monFlags
 				CtoAllBits	R8
-				bis			R8,Rtos				; or if the last insulation test failed (IMU only)
+				bis			R8,Rtos				; or if the last insulation test failed (BMU only)
 				call		#_errorLed			; Use this function so it optionally turns on piezo as well
-			_ENDIF	; Not an IMU
+			_ENDIF	; Not a BMU
 
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
@@ -955,7 +966,7 @@ DoMeasurement:
 					cmp.b	#1,&ID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
-						tst.b	&statusFreqCtr
+						tst.b	&ticks
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
@@ -966,18 +977,17 @@ DoMeasurement:
 					bis.b	#$80,R8					; Set the high bit to say it's a status byte
 
 					; Send status or control a charger
-					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for IMU.
-					_IF		_Z							; If we're not in charge control mode
-						call	#TxByte						; Send the status byte. Wait buffer not full
-					_ELSE								; Else we're in charger control mode
-						call	#ControlCharger				; Control a charger
+					cmp.b	#255,&ID				; If we're a CMU
+					_IF		_NE
+						call	#TxByte					; Send the status byte. Wait buffer not full
+					_ELSE							; Else we're in charger control mode
+						call	#TxByte					; Send the status byte. Wait buffer not full
+						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
+						call	#ControlContactors		; Control contactors
 					_ENDIF
-				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
 			ret
 ; End of DoMeasurement
-SelectCMU1	DB	2, '1s'				; First byte is length of following string
-			ALIGN 1
 
 DoStress:
 ;
@@ -1021,9 +1031,9 @@ meas	EQU		8				; The measurement
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step, clears R11
-			cmp		R9,Rstrs				; Is this stress worse than present stress calculated so far?
-			_IF		_LO
-				mov		R9,Rstrs				; Yes, new present stress
+			cmp		R9,Rstrs
+			_IF		_LO						; If this stress worse than present stress calculated so far
+				mov		R9,Rstrs				; Make it the new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
 			_ENDIF
@@ -1048,9 +1058,9 @@ DoStatus:
 		and.b	#STRESS,R9				; Only stress bits in R9
 
 		clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
-		; This will eliminate any comms error next time through DoMeasures
+		; This will eliminate any comms error next time through DoMeasurement
 
-		; Check if DoMeasures may have just sent a status byte, due to a comms error
+		; Check if DoMeasurement may have just sent a status byte, due to a comms error
 		bit.b	#COM_ERR,&localStatus
 		_IF		_Z						; If no comms error
 
@@ -1093,7 +1103,7 @@ DoStatus:
 						and		#TYPE,R10
 						cmp		#ALL_FULL,R10
 					_AND_IF	_NE						; and if local is not in bypass
-						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
+						bic		#UV_AF,R8 				; Clear UV_AF (UV or all considered full) bit
 					_ENDIFS
 				_ENDIF							; End else incoming stress is not less than ours
 
@@ -1102,35 +1112,56 @@ DoStatus:
 				;	comms error, so just pass the incoming comms error bit through.
 
 				; Send status or control a charger
-				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
-				_IF		_Z							; If we're not in charge control mode
+				cmp.b	#255,&ID
+				_IF		_NE						; If we're a CMU
 					call	#TxByte						; Send the status byte. Wait buffer not full
 				_ELSE								; Else we're in charger control mode
-					call	#ControlCharger				; Control a charger
+					call	#TxByte						; Send the status byte. Wait buffer not full
+					mov.b	R8,&globalStatus			; '255sp' (or modbus equiv) reads global status
+					call	#ControlContactors			; Control contactors (was call #ControlCharger)
 				_ENDIF
-			_ELSE							; Else we're an IMU
-				; Process incoming status for IMU. Stress in R9, complete status in R8.
-				call	#ControlCharger			; Control PIP charging
-			_ENDIF							; End else IMU
+			_ELSE							; Else we're a BMU
+				; Process incoming status for BMU. Stress in R9, complete status in R8.
+				call	#ControlContactors		; Control PIP charging
+			_ENDIF							; End else BMU
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
 
-ControlCharger:
+ControlContactors:
 ;
-; Status byte is in R8. Use it to control contactors, and as input to a PI controller to control charging
+; Status byte is in R8. Use it to control contactors
 ;
 		push 	R9
 		push	R10
 
 		; Treat comms eror as stress 15 for contactor control (will be smoothed)
 		mov		R8,R9
-		and		#STRESS,R9				; Get stress into R9
-		bit		#COM_ERR,R8
-		_IF		_NZ						; If the comms error bit is set
-			mov		#15,R9					; Treat it as stress 15 for contactor control
-		_ENDIF
+		cmp		#10,&current			; Current is in tenths of an amp
+		_IF		_GE						; If 1 amp or more of charge current (positive)
+			and		#TYPE,R9				; Isolate the two stress-type bits
+			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
+		_ELSE							; Else not charging
+			cmp		#-9,&current			; Current is in tenths of an amp
+			_IF		_L						; If 1 amp or more of discharge current (negative)
+				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
+				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+			_ELSE							; Else current between -1 amp and 1 amp
+				clrz							; Ensure stress will not be ignored, by clearing EQ flag
+			_ENDIF							; Endif 1 amp discharge
+		_ENDIF							; Endif 1 amp charge
+
+		_IF		_EQ						; If we can ignore this stress
+			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+		_ELSE							; Else can't ignore
+			mov		R8,R9
+			and		#STRESS,R9				; Get stress into R9
+			bit		#COM_ERR,R8
+			_IF		_NZ						; If the comms error bit is set
+				mov		#15,R9					; Treat it as stress 15 for contactor control
+			_ENDIF								;   (it will be smoothed)
+		_ENDIF							; Endif ignore stress
 
 		; Calculate smoothed stress for controlling contactors
 		rla2	R9						; Quadruple the incoming stress
@@ -1146,10 +1177,25 @@ ControlCharger:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(SourceCtor | LoadCtor),CtorPortOUT ; Drop out both source and load contactors
-											; and hence also the battery contactor
+			inc.b	&shutdownTimer
+			cmp.b	#ShutdownTime,&shutdownTimer
+			_IF		_HS						; And enough time has passed
+				bic.b	#(BatCtor|ChgCtor|DisCtor|NrmCtor),CtorPortOUT	; Drop out all battery
+																		; contactors, and we die
+				; We need an endless loop here in case the BMU doesn't lose power.
+				; It may still be powered up by the inverter capacitors, or some charge source.
+				; This will require the red button to be pushed to remove power from the BMU
+				; to reset it. After which, releasing the red may be sufficient to restart,
+				; or you may also have to push the green.
+				_BEGIN
+					ClearWatchdog
+				_AGAIN								; Endless loop
+			_ENDIF
+		_ELSE							; Else
+			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
+#if 0	// We hope to avoid doing source contactors
 		; If not OV_UT && not charging && stress >= 12
 		;	turn off discharging/loads contactors
 		_COND							; Begin short circuit conditional
@@ -1205,6 +1251,7 @@ ControlCharger:
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
 			bis.b	#SourceCtor,&CtorPortOUT ; Turn on the source contactor (yellow LED)
 		_ENDIFS
+#endif
 
 		; If all considered full (and no comms error), reset the coulomb counter
 		_COND
@@ -1258,7 +1305,104 @@ ControlCharger:
 		pop		R10
 		pop		R9
 		ret
-; End of ControlCharger
+; End of ControlContactors
+
+
+DoPrecharge:
+		; This code is designed to work with a number of different battery contactor
+		; arrangements.
+		; t0 thru t4 indicate the time order of switching during precharge.
+		; P21 thru P25 are the numbers of the BMU connectors that drive the contactor coils.
+		; The connector numbers increase as you go away from the BMU's 12 V input connector.
+		; These BMU connectors are named respectively PRE BAT CHG DIS NRM in the software and schematic.
+		;
+        ; This is the contactor arrangement for the first DCM system installed at Kingscliff TAFE:
+		;           + ___ -      - ___ +
+		;        +----o o----------o o-----+
+		;        | t4 DIS P24   t1 NRM P25 |
+		;        |  + ___ -      - ___ +   |
+		; Bat+ --+----o o----------o o-----+-- Load +
+		;        | t3 BAT P22   t0 CHG P23 |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;                          ___
+		; Bat- -------------------|___|------- Load -
+		;                      500A 50mV shunt
+		;
+		; This is the contactor arrangement for the first Pods system installed at Kingscliff TAFE:
+		;           + ___ -
+		; Bat+ --+----o o------------------+-- Load +
+		;        | t3 BAT P22              |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;           + ___ -        ___
+		; Bat- -------o o---------|___|------- Load -
+		;          t0 CHG P23  500A 50mV shunt
+		;
+		; Future DCM systems should have their contactors arranged like this:
+		;           + ___ -
+		;        +----o o-----+
+		;        | t4 DIS P24 |
+		;        |  + ___ -   |
+		; Bat+ --+----o o-----+------------+-- Load +
+		;        | t3 BAT P22              |
+		;        |    ___          ___     |
+		;        +----o o---------|___|----+
+		;          t2 PRE P21    3R3 100W
+		;
+		;           + ___ -
+		;        +----o o-----+
+		;        | t1 NRM P25 |
+		;        |  + ___ -   |    ___
+		; Bat- --+----o o-----+---|___|------- Load -
+		;          t0 CHG P23  500A 50mV shunt
+		;
+		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
+		bis.b	#ChgCtor,&CtorPortOUT 		; Turn on the lower charge-direction contactor
+		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
+		call	#DelayMs					; Wait for economiser to reduce coil current
+		bis.b	#NrmCtor,&CtorPortOUT ; Turn on the upper charge-direction contactor
+		mov		#160,R8						; 160 milliseconds
+		call	#DelayMs					; Wait for economiser to reduce coil current
+
+		bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor (probably Minitactor)
+		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
+		_BEGIN
+			mov		#100,R8						; 100 milliseconds; placed at start
+			call	#DelayMs					;	of loop to allow ADC system to settle after reset
+			call	#CapV						; Trashes R8, R9, R11 result in R10
+			push	R10							; Save capacitor voltage measurement
+			call	#BatV						; Trashes R8, R9, R11 result in R10
+			pop		R8							; Restore cap voltage to R8
+			sub		R8,R10						; R10 = BatV - CapV
+			abs		R10							; R10 = Abs(BatV - CapV), allow for CapV > BatV
+			cmp		#6*10,R10
+			_WHILE	_HS							; Wait for less than 5 V across contactor
+				dec		R12
+		_UNTIL	_Z
+				mov		#1,Rtos						; Fall thru to here on timeout
+				call	#_errorLed					; We who are about to die beep at you
+				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
+				bic.b	#ChgCtor,&CtorPortOUT 		; Turn off the lower charge-direction contactor
+				bic.b	#NrmCtor,&CtorPortOUT 		; Turn off the upper charge-direction contactor
+				_BEGIN
+					ClearWatchdog
+				_AGAIN								; Endless loop
+			_ELSE									; Come here from WHILE, when less than 6 V
+				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
+				bis.b	#BatCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for economiser to reduce coil current
+				bis.b	#DisCtor,&CtorPortOUT ; Turn on the upper discharge-direction contactor
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for relay bounce and voltage settling
+			_ENDIF
+		bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
+		ret
 
 
 PiController:
@@ -1472,7 +1616,7 @@ UpdateSoC:
 MinAdvance	EQU			20					; To avoid timer compare wraparound
 			push		R8
 			push		R9
-			; Although we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
+			; Though we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
 			call		#DepthOfDischarge	; Get DoD as value 0-1000 (0 to 100.0%)
 			cmp			#MinAdvance,R9		; Compare with minimum value
 			_IF			_LO					; If lower,
@@ -1519,16 +1663,9 @@ DoPassword:
 			; Important: wait for the last password byte to be echoed before disabling interrupts!
 			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
 
-			dint
-			clr		&TACTL				; Disable the timer completely; may use less power
-			bis.b	#TxPl,&P1OUT		; Set Tx to idle
-
-
 			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
 			mov.b	#0,Rtos				; Set Error Led and Piezo off
 			call	#_errorLed
-			bic.b	#Rx|TxPl,&P1SEL		; Restore CMU comms pins to GPIO function
-			bic.b	#Rx|TxPl,&P1SEL2
 			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
@@ -1557,14 +1694,14 @@ jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PR
 jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
 
-jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
+jTA1TxRxIsr		br		#ScuTxRxIsr		; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA1PwmIsr		br		#SocPwmIsr		; Timer A1 CCR0 (SoC PWM compare)
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
-
+jTA0TxRxIsr		br		#ChgTxRxIsr		; Combined TA0 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA0FllIsr		reti					; Timer A0 CCR0 (frequency locked loop capture).
+				nop						;   This is handled directly by the BSL.
 				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
@@ -1577,6 +1714,6 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ; Instantiate the BSL2 macro with the standard external labels
 BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector
-				DW		jBSL			; Reset to BSL2 in case there is a crash
+				DW		BSL2			; Reset to BSL2 in case there is a crash
 
 				END

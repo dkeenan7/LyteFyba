@@ -338,7 +338,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
 #include "wmonoDefinitions.s43"		// Command character definitions
-#include "master.s43"				// AccMaster function for injecting commands
+#include "wmaster.s43"				// AccMaster function for injecting commands
 
 ;-------------------------------------------------------------------------------
 ; InterpretInit
