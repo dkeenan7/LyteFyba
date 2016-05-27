@@ -75,11 +75,12 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-			ORG		$1010			; Stay away from manufacturer supplied data
+			ORG		$100E			; For compatibility with existing calibration values
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
-infoVoltCal		ds		2			; Voltage scale calibration word
+infoBoltPlCal	ds		2			; Bolt/array voltage scale calibration word
+infoVoltCal		ds		2			; Cell/battery voltage scale calibration word
 infoTempCal		ds		1			; Temperature offset calibration for internal sensor
 infoLinkCal		ds		1			; Link voltage offset calibration data
 info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte

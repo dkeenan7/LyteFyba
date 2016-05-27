@@ -142,9 +142,10 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 
 ; RAM copies of various calibration settings
 ; Same order as stored in info-flash
-			ALIGNRAM 1				; So ramVoltCal is word-aligned
+			ALIGNRAM 1				; So ramBoltPlCal is word-aligned
 ramDataStart
-ramVoltCal	DS		2				; Voltage scale calibration word
+ramBoltPlCal DS		2				; Voltage scale calibration word for bolt/array
+ramVoltCal	DS		2				; Voltage scale calibration word for cell
 ramTempCal	DS		1				; Temperature offset calibration for internal sensor
 ramLinkCal	DS		1				; Link voltage offset calibration data
 ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
@@ -243,7 +244,8 @@ InterpretInit:
 				; A new chip. We want to preserve some of the existing DCO calibration data.
 				; Set the ID, voltage, temperature and link calibration.
 newChip:
-				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chips have manuf's ADC cal data
+				mov.w	#$8000,&ramVoltCal
+				mov.w	#$8000,&ramBoltPlCal
 				mov.b	#$00,&ramTempCal
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data

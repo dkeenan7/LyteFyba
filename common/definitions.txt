@@ -12,9 +12,9 @@ t l Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-    Characters not used so far:                           JW"#&()*+,./;=[]_|}~
-	Characters not used so far in TestICal:          kGJKPWZ"#&()*+,./;=[]_|}~<>{
-	Characters not used so far in Monitor etc: abjmuwzJLMOUW"#&()*+,./;=[]_|}~
+    Characters not used so far:                            oHW"#&()*+,./;=[]_|}~
+	Characters not used so far in TestICal:          koGHKPWZ"#&()*+,./;=[]_|}~<>{
+	Characters not used so far in Monitor etc: abjmouwzHLMOUW"#&()*+,./;=[]_|}~
 @ @ Capacity constants; B@ nom Bat voltage (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -27,9 +27,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 {   resetWorstStress :-{
-  [ stop echoing. Used with the 'i' command when used in an INITCMDSTRING
 \ \ exit or comment
-  ] resume echoing. Used with the 'i' command when used in an INITCMDSTRING
 ^ ^ reset the Reset log
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits
@@ -44,12 +42,12 @@ f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
 g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 G   Get high word of fuel-gauge discharge accumulator (monoliths only)
 h h Hex output
-H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
 i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
 j   Just local status (not the full stress)
   j JumpToSubroutine (call)
+J J Shunt current (was l)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l l LinkVoltage
@@ -58,7 +56,6 @@ l l LinkVoltage
   M Measure Vcc
 n n emit(n)um. Precede with a number or calculation, and a field width
 N N Number of cells
-  o change Octave of piezo alarm
   O stOre wOrd (poke wOrd)
 p   status (local to each CMU, but global when BMU)
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
@@ -77,7 +74,6 @@ T T Touch value (uncalibrated) (only when ID=0, insulation monitoring unit)
 v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   w WriteCalValue
-W W excle(W)sive  (single-CMU interaction mode) alternative for 'x' when 2400 baud must be blocked.
 x x e(x)clusive   (single-CMU interaction mode)
 X X e(X)clude     (single-CMU ignore mode)
 y y b(y)pass (Yellow) (relaY- on IMU)
@@ -120,7 +116,7 @@ V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
   M Measure Vcc
 l l LinkVoltage
 t t Temperature
-H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
+J J Shunt current
 r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p   Stress level (Pain) (local to each CMU)
 
@@ -174,7 +170,6 @@ G   Get high word of fuel-gauge discharge accumulator (monoliths only)
   r ReadCalValue (TestICal only. 'r' is RxState in monitor)
   w WriteCalValue
   c Calibrate
-  o change Octave of piezo alarm
   u UpdateInfoFlash
 
 In addition, the following character literals (character preceded by a single-quote)

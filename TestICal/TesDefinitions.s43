@@ -49,13 +49,9 @@ TranslateToCalAddr:
 		ret
 
 ;
-; Calibrate ( n ch --- )
-; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
 ;
-			xCODE	'c',calibrate,_calibrate
-			_CASE
-			_OFb	#'v',Rtos			; 'v': cell Voltage
-				mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
+voltCalWork:
 				call	#measure
 ; The calibration scale factor will be the expected value divided by the reading.
 ; The expected value is an unsigned 12 bit integer of millivolts and
@@ -71,7 +67,23 @@ TranslateToCalAddr:
 				add		R11,R9
 				adc		R10
 				call	#UMSlashMod					; Gives quotient in R9, remainder in R10
-				mov.w	R9,&ramVoltCal				; Save calibration value
+				; R9 has the value we want to store
+				ret
+
+
+;
+; Calibrate ( n ch --- )
+; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+;
+			xCODE	'c',calibrate,_calibrate
+			_CASE
+			_OFb	#'v',Rtos			; 'v': cell Voltage
+				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
+				call	voltCalWork
+				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
+				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
+				call	voltCalWork
+				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
 			_OFb	#'t',Rtos			; 't': temperature
