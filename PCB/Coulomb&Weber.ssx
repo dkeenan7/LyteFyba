@@ -6,7 +6,10 @@ DC-DC 1W||5
 DC-DC 2W||7
 DIODE||2
 Dual diode||3
+Dual Inverter||6
 FUSE IEC||2
+Inverter||2
+Inverter pwr||4
 IR RECEIVER||3
 LED2||2
 LM334D_N||3
