@@ -94,3 +94,13 @@ infoDataEnd							; Used when copying between ram and info-flash
 ; To allow moving old calibration data from the end of the A segment to the new D segment location
 oldInfoDataStart	EQU	$10F8
 oldInfoDataVers		EQU $10FF
+
+; Clock constants. Were in InterruptComms.h, but even TestICal needs these now
+DCOfreq		EQU		3686400				; DCO clock in Hz
+DCOckPerMck	EQU		1					; DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
+DCOckPerSMck EQU	1					; DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
+SMckPerTAck	EQU		1					; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
+MckPerTAck	EQU		1
+MClock		EQU		DCOfreq/DCOckPerMck	; MCLK (CPU clock) frequency in hertz
+										;	(DCO software-locked to watch xtal)
+BaudRate	EQU		9600			; Serial comms rate in bits per second

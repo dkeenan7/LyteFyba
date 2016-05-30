@@ -81,12 +81,12 @@ LinkCal		EQU	ramLinkCal
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
+#include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 DELAY_IF_NEEDED MACRO
-			_DO		#1390,R11				; Delay for approx ...
+			_DO		#(MClock*104/100000/3),R11 ; Delay for approx ...
 			_LOOP	R11						;	... 1.04 ms
 			ENDM							; Allows downstream CMU to echo a byte
 			LSTOUT+
-#include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 
 ; Error register. 0 means no error
 #define		rERR	r14					// Overlaps with Rcksum in the BSL, but that is OK
@@ -175,7 +175,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
-#include "BitBangComms.s43"					// TxByte etc
+#include "NonIntComms.s43"					// TxByte etc for non-interrupt TestICal
 #include "../common/ComComms.s43"			// Common comms functions, e.g. TxCksum
 #include "../common/measure.s43"			// ADC measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands

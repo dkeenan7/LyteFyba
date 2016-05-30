@@ -19,20 +19,14 @@
 
 #define		ALL_TO_ALL 0	// 1 to take input from any port and send output to all - for testing
 
-; Timer A overflow is used for the regular processing "tick" or status frequency
-; while its capture/compare regs are used for the interrupt-driven software UART
+; Timer A capture/compare regs are used for the interrupt-driven software UART
 ;
 ;	Conditions for 9600 Baud SW UART
-DCOfreq		EQU		3686400				; DCO clock in Hz
-DCOckPerMck	EQU		1					; DCO clocks per MCK (CPU, ADC) (allowed values 1,2,4,8)
-DCOckPerSMck EQU	1					; DCO clocks per SMCK (Timer) (allowed values 1,2,4,8)
 #ifdef MONOLITH
 StatusFreq	EQU		2					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #else
 StatusFreq	EQU		16					; Status frequency in hertz (allowed 2, 4, 8 or 16)
 #endif
-SMckPerTAck	EQU		1					; Number of SMCK clocks per timer clock (allowed 1,2,4,8)
-MckPerTAck	EQU		1
 TAfreq		EQU		DCOfreq/(DCOckPerSMck*SMckPerTAck)	; Timer frequency in Hertz
 BitTime96	EQU		(TAfreq+4800)/9600	; 104.17 us bit length in timer clock periods for 9600 baud
 BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods for 2400 baud

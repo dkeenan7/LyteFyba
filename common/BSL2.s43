@@ -15,15 +15,11 @@
 
 BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 			LOCAL	BSL, BSLErase, ReadByte, WriteByte
-			LOCAL	MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
+			LOCAL	MckPerFTGck, initBSL2, mainLoop2
 			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, TestNoInterp2
 			LOCAL	testNoInterp, WriteBrk, WriteBreak
 			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 			LOCAL	TA0FllIsr
-MClock		EQU		3686400			; MCLK (CPU clock) frequency in hertz (DCO software-locked to watch xtal)
-BaudRate	EQU		9600			; Serial comms rate in bits per second
-BitCycles	EQU		(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per bit
-BitCyc1_5	EQU		(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per 1.5 bits
 MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading

@@ -57,7 +57,20 @@ TxStringCk: _DOb	@R10+,R11
 			_LOOPb	R11
 			ret
 
-			EVEN
+#if defined(MONITOR) || defined(MONOLITH)	// Don't define in TestICal since it won't have
+											//	some required definitions (e.g. ChgTxByte)
+ChgTxString: _DOb	@R10+,R11
+ChgTxBytes:								; Alternative entry point with length in R11
+				mov.b	@R10+,R8
+				call	#ChgTxByte
+			_LOOPb	R11
+			ret
 
+ScuTxString: _DOb	@R10+,R11
+ScuTxBytes:								; Alternative entry point with length in R11
+				mov.b	@R10+,R8
+				call	#ScuTxByte
+			_LOOPb	R11
+			ret
 
-
+#endif

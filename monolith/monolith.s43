@@ -597,7 +597,7 @@ InitPip:
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
-				call		#TxString			; Send one command
+				call		#ChgTxString		; Send one command
 
 				; Base the following delay on the length of the preceding command (heuristic)
 				pop.b		R8					; Pop length byte
