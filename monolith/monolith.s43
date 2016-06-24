@@ -63,7 +63,7 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									// Buffered ADC is mainly useful for debugging.
 
 ; Couldn't fit both masterless charging and insulation monitoring in 4k.
-#define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
+#define		INSULATION_MONITORING 0	// Can leave out the insulation monitoring code if not needed.
 
 ; Constants
 
