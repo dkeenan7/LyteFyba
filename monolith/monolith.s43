@@ -192,7 +192,7 @@ prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
-PipWait			EQU		10*StatusFreq ; Number of the above that will be required (10 seconds)
+PipWait			EQU		17*StatusFreq ; Number of the above that will be required (17 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
 				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
@@ -364,6 +364,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
 			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&CCTLr	; Falling edge, Input A, Sync, Capture
+
+; Enable SoC PWM interrupts
+			mov.w	#CCIE,&SocCCTLp				; TACCR2: compare only, enable interrupts (SoC PWM)
 
 ; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
