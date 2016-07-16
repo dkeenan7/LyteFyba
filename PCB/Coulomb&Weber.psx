@@ -1,7 +1,6 @@
 1_NO||1
 1_NO_SMD||1
 4-2||2
-4-SOJ||4
 5W Resistor||2
 0805 HV||2
 2010||2
@@ -18,15 +17,10 @@ IFO transceiver no pads||0
 IFO transceiver normal||5
 IFO transceiver pegless||3
 IFO transceiver RA||3
-IR RECEIVER||3
 LED 0805||2
 LED 0805 (shine thru PCB)||2
-LED side view||2
-LED side view thru hole||2
-LEDT175||2
 LSOP-4||4
 PIEZO_SMD||2
-PTT175 with base||3
 S-PQFP-N16||17
 SIP DC-DC||7
 SIP DC-DC 1W||5
