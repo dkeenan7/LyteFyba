@@ -372,7 +372,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov		#CmuTxByte,&TxBytePtr		; By default, TxByte goes to the CMU port
 
 			; Initialise port 1
-			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			; Analog settings done later.
 			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		_NE
@@ -391,7 +391,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 												; Piezo SEL bit is only set by the errorLed function
 
 			; Initialise port 3
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
 			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Txs, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi

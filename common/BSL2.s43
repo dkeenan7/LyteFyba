@@ -36,10 +36,10 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
 ; Fixed entry points to BSL2
-jBSL: 		br		#BSL
-jBSLErase:	br		#BSLErase
-jReadByte:	br		#ReadByte
-jWriteByte:	br		#WriteByte
+jBSL: 		br		#BSL-jBSL+BSL2_START		; Addresses of branches or calls within the BSL must be
+jBSLErase:	br		#BSLErase-jBSL+BSL2_START	; adjusted so that, in both active and inactive copies,
+jReadByte:	br		#ReadByte-jBSL+BSL2_START	; they are correct for the active copy, since a 'b'
+jWriteByte:	br		#WriteByte-jBSL+BSL2_START	; command will copy the inactive to become the active.
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
@@ -48,12 +48,17 @@ BSL:		; Initialisation
 			mov.b	&CALBC1_8MHZ,&BCSCTL1	; Set DCO range for 8 MHz
 			mov.b	&CALDCO_8MHZ,&DCOCTL	; Set DCO step + modulation for 8.00 MHz
 			mov.b	#TxPl,&P1OUT			; Set Txs to idle state, Vref output off
-			bis.b	#TxPl|TxMi|VrefP,&P1DIR ; Set Txs and VrefP as outputs
+			bis.b	#TxPl|VrefP,&P1DIR 		; Set TxPl and VrefP as outputs
+			bis.b	#TxMi,&TxMiPortDIR 		; Set TxMi as output (CMU port1, BMU port3)
 		#if G2553
-			mov.b	#TxMi,&P3DIR 			; Set TxMi because need comparator to invert output
-											; This initialisation also done in Monitor, TestICal etc
-											;	but they may not be bootstrap-loaded properly
-			bis.b	#TxMi,&P3SEL			; Select the comparator output function of P3.7
+			; Use the Analog Comparator to get an inverted version of TxPlIn (P1.3/CA3)
+			; (which is the UART TxPl looped back) to appear on TxMi (P3.7/CAOUT).
+			; This initialisation also done in Monitor, TestICal etc
+			; but they may not be bootstrap-loaded properly.
+			bis.b	#TxMi,&TxMiPortSEL		; Select the comparator output function of P3.7
+			mov.b	#CAON|CAREF_2,&CACTL1	; Half-supply to the comparator pos input and turn it on
+			mov.b	#P2CA2|P2CA1,&CACTL2	; Feed CA3 to the comparator neg input
+			mov.b	#TxPlIn,&CAPD			; Disable the digital input buffer of P1.3
 		#endif // G2553
 
 			; We've been reset, so send a break to reset the next guy, unless we're a BMU (ID = 255),
@@ -106,8 +111,6 @@ mainLoop2:
 			_IF		_Z
 				call	#jInterpretInit
 			_ENDIF
-			; Used by TestICal or other main-flash code
-			; to tell if the interpretByte call is for initialisation
 
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
 FSMloop2:	call	#ReadByte-jBSL+BSL2_START	; Address adjusted for BSL's relocation
@@ -199,7 +202,6 @@ TestNoInterp2:
 					bit.b	#bDontEcho,&interpFlags
 				_OR_IFS		_Z					; Or If the dont-echo flag is clear
 					call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-					ActLedOff						; Turn off the activity LED set in writeByte
 				_ENDIF
 
 				; We are about to jump to jInterpretByte. In case the flash is corrupted by a
@@ -207,13 +209,11 @@ TestNoInterp2:
 				; InterpretByte should set it back to the longest interval, 32k cycles
 				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
 
-				; Tail-call InterpretByte in main flash. If you change this to a proper call, you also
-				; need to change InterpretByte in TestICal to look one level deeper on the stack
-				; when checking if this is an init call.
+				; Tail-call InterpretByte in main flash.
 				; It must preserve at least R8 and bsl2state.
 				; We get there via the PROG_START-independent vector "jInterpretByte".
 				br		#jInterpretByte	; Tail call jInterpretByte
-				; ret					; Effective ret to BSL2 init or main loop due to tail-call above
+				; ret					; Effective ret to BSL2 main loop due to tail-call above
 			_ELSE					; Else not interpreting
 				; If we're not programming (bootstrap loading), toggle the error LED,
 				; and set the comms error bit and a bad check bit on any passing status bytes,
@@ -228,7 +228,6 @@ TestNoInterp2:
 					_ENDIF
 				_ENDIF
 				call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-				ActLedOff				; Turn off the (inverted) activity LED set in writeByte
 			_ENDIF					; End if interpreting
 			ret						; Return to BSL2 init or main loop
 
@@ -298,15 +297,14 @@ WriteByte:
 
 			_BEGIN					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
-#if	G2553
-				subc.b	#TxMi,R11		; (1) Bits 11111(1)(0)0 if C; 11111(0)(1)1 if NC
-				inv.b	R11				; (1)
-#else
 				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
-#endif
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
-				and.b	#TxPl|TxMi,R11 ; (2) Ensure only Tx bits can be toggled below
+#if	G2553
+				and.b	#TxPl,R11 		; (2) Ensure only TxPl can be toggled below
+#else
+				and.b	#TxPl|TxMi,R11	; (2) Ensure only Tx bits can be toggled below
+#endif
 				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
@@ -317,11 +315,23 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 				dec		R10				; (1) Decrement the bit counter
 			_UNTIL	_NC				; (2) Loop until -1
 
-			mov.b	#TxPl,&P1OUT	; Send a stop bit
-			; Harmless side-effect of turning off the Vref+ pin if it is still a digital output.
+#if	G2553 // BMU
+			bis.b	#TxPl,&P1OUT	; Set TxPl high. TxMi is its inversion by the analog comparator.
+#else // CMU
+			; Send a stop bit
+			mov.b	#TxPl,R11		; We want TxPl high and TxMi low
+			xor.b	&P1OUT,R11		; Get one bits in R11 for bits that need to toggle
+			and.b	#TxPl|TxMi,R11	; Mask so we only change those we want to change
+			xor.b	R11,&P1OUT		; Toggle bits as required
+#endif
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
 			; to allow any receiving CMU's BSL time to both read and echo the byte.
+
+			; The Activity-LED-on is done in PrettyPrint now since the Activity LED drive is combined
+			; with the Error LED and ErrAct is not on port 1.
+			; In the BMU, the Activity LED is not on any port but driven by MOSFET off TxMi.
+
 			pop		SR
 			ret
 

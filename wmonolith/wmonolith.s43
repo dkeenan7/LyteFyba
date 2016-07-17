@@ -396,7 +396,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;	Initialise io ports
 ;
 			; Initialise port 1
-			; Default settings of P1SEL are OK. No UART comms in TestICal. Analog settings done later.
+			; Analog settings done later.
 			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		_NE
@@ -415,7 +415,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 												; Piezo SEL bit is only set by the errorLed function
 
 			; Initialise port 3
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
 			mov.b	#0,&P3OUT					; Set all outputs low.
 			mov.b	#PreCont|BatCont|ChgCont|TxMiChg|DisCont|NrmCont|TxMi,&P3DIR ; Set Txs, conts as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins except TxMi
@@ -1140,31 +1139,32 @@ ControlContactors:
 		push 	R9
 		push	R10
 
-		mov		R8,R9
-		cmp		#10,&current			; Current is in tenths of an amp
-		_IF		_GE						; If 1 amp or more of charge current (positive)
-			and		#TYPE,R9				; Isolate the two stress-type bits
-			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
-		_ELSE							; Else not charging
-			cmp		#-9,&current			; Current is in tenths of an amp
-			_IF		_L						; If 1 amp or more of discharge current (negative)
-				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
-				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
-			_ELSE							; Else current between -1 amp and 1 amp
-				clrz							; Ensure stress will not be ignored, by clearing EQ flag
-			_ENDIF							; Endif 1 amp discharge
-		_ENDIF							; Endif 1 amp charge
-
-		_IF		_EQ						; If we can ignore this stress
-			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
-		_ELSE							; Else can't ignore
+		bit		#COM_ERR,R8
+		_IF		_NZ						; If the comms error bit is set
+			mov		#15,R9					; Treat as stress 15 for contactr control (will be smoothed)
+		_ELSE							; Else check if stress can be ignored due to current direction
 			mov		R8,R9
-			and		#STRESS,R9				; Get stress into R9
-			bit		#COM_ERR,R8
-			_IF		_NZ						; If the comms error bit is set
-				mov		#15,R9					; Treat it as stress 15 for contactor control
-			_ENDIF								;   (it will be smoothed)
-		_ENDIF							; Endif ignore stress
+			cmp		#10,&current			; Current is in tenths of an amp
+			_IF		_GE						; If 1 amp or more of charge current (positive)
+				and		#TYPE,R9				; Isolate the two stress-type bits
+				cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
+			_ELSE							; Else not charging
+				cmp		#-9,&current			; Current is in tenths of an amp
+				_IF		_L						; If 1 amp or more of discharge current (negative)
+					and		#OV_UT,R9				; Isolate the overvolt/undertemp stress-type bit
+					cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+				_ELSE							; Else current between -1 amp and 1 amp
+					clrz							; Ensure stress will not be ignored; clear EQ flag
+				_ENDIF							; Endif 1 amp discharge
+			_ENDIF							; Endif 1 amp charge
+
+			_IF		_EQ						; If we can ignore this stress
+				mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+			_ELSE							; Else can't ignore
+				mov		R8,R9
+				and		#STRESS,R9				; Get stress into R9
+			_ENDIF							; End if ignore stress
+		_ENDIF							; End if comms error bit set
 
 		; Calculate smoothed stress for controlling contactors
 		rla2	R9						; Quadruple the incoming stress
