@@ -828,10 +828,9 @@ freespace	EQU		_CMDCHRTBL-$
 spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 
 ;---------------------------------------------------------------------------------
-; Interrupt and entry-point jump table at the end of the second-last main-flash segment
+; Interrupt and entry-point jump table at the end of the third-last main-flash segment
 ;---------------------------------------------------------------------------------
-;				ORG		$FDDE
-				ORG		BSL2_START-$22		; FDDE/FBCE
+				ORG		BSL2_START-$22	; FBDE for now
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
 										;  interrupt vector
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
@@ -839,16 +838,15 @@ jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PR
 jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
 
-jTA1RxTiovIsr	br		#ScuRxTiovIsr	; Combined TA1 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA1TxIsr		br		#ScuTxIsr		; Timer A1 CC0IFG (transmit compare)
+jTA1TxRxIsr		br		#ScuTxRxIsr		; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA1PwmIsr		br		#SocPwmIsr		; Timer A1 CCR0 (SoC PWM compare)
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
-jTA0RxTiovIsr	br		#ChgRxTiovIsr	; Combined TA0 CC1&2IFG (receive capture/compare) & TAIFG (ovf)
-jTA0TxIsr		br		#ChgTxIsr		; Timer A0 CC0IFG (transmit compare)
-
-;				ORG		$FDFE
-				ORG		BSL2_START-2
+jTA0TxRxIsr		br		#ChgTxRxIsr		; Combined TA0 CCR1 & CCR2 (transmit & receive capture/compare)
+jTA0FllIsr		reti					; Timer A0 CCR0 (frequency locked loop capture).
+				nop						;   This is handled directly by the BSL.
+				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
 ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 
@@ -858,8 +856,8 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		BSL2_START		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-				BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
+BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
 				ORG		$FFFE			; The reset vector
-				DW		jBSL			; Reset to BSL in case there is a crash
+				DW		BSL2			; Reset to BSL2 in case there is a crash
 
 				END

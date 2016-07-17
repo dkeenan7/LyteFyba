@@ -1664,7 +1664,7 @@ freespace	EQU		_CMDCHRTBL-$
 spaceaspercent EQU BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 
 ;---------------------------------------------------------------------------------
-; Interrupt and entry-point jump table at the end of the second-last main-flash segment
+; Interrupt and entry-point jump table at the end of the third-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		BSL2_START-$22	; FBDE for now
 CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used

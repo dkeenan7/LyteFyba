@@ -7,9 +7,9 @@
 ; It contains the reset and interrupt vectors which point to fixed locations at the end of the
 ; second-last main-flash segment.
 ; It is defined as a macro because TestICal needs to include it _twice_.
-; Once at $FE00-$FFFF as expected, for when TestICal is JTAG-loaded,
+; Once at $FC00-$FFFF as expected, for when TestICal is JTAG-loaded,
 ; and elsewhere in main-flash for when TestICal is bootstrap-loaded,
-; so that it can then be copied to $FE00-$FFFF by a 'b' command (updateBSL2).
+; so that it can then be copied to $FC00-$FFFF by a 'b' command (updateBSL2).
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
@@ -25,10 +25,10 @@ MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
 
 ; Fixed entry points to BSL2
-jBSL: 		br		#BSL
-jBSLErase:	br		#BSLErase
-jReadByte:	br		#ReadByte
-jWriteByte:	br		#WriteByte
+jBSL: 		br		#BSL-jBSL+BSL2_START		; Addresses of branches or calls within the BSL must be
+jBSLErase:	br		#BSLErase-jBSL+BSL2_START	; adjusted so that, in both active and inactive copies,
+jReadByte:	br		#ReadByte-jBSL+BSL2_START	; they are correct for the active copy, since a 'b'
+jWriteByte:	br		#WriteByte-jBSL+BSL2_START	; command will copy the inactive to become the active.
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
