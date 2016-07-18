@@ -918,9 +918,8 @@ DoMeasurement:
 				mov		R10,&current			; Save in RAM variable
 				abs		R10						; Take the absolute value of the current in R10
 				mov		R10,Rsec
-				mov		#4,Rtos					; 4 digit field width
 				ClearWatchdog
-				call	#_emitNum				; Transmit the number
+				call	#_emitNum4				; Transmit the number with 4 digit field width
 				ClearWatchdog
 				cmp		#0,&current
 				_IF		_L						; If current is negative
@@ -1698,7 +1697,7 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		$FE00			; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
+BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL2 in case there is a crash
 

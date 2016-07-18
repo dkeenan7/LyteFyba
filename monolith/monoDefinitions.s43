@@ -55,7 +55,7 @@
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 #endif
 
 ; Comms error ( -- )						; Report temporary master's ID
