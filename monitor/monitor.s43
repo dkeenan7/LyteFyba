@@ -856,7 +856,7 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		BSL2_START		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
+BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
 				ORG		$FFFE			; The reset vector
 				DW		BSL2			; Reset to BSL2 in case there is a crash
 

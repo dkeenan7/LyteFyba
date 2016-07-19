@@ -13,8 +13,8 @@
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
-BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
-			LOCAL	BSL, BSLErase, ReadByte, WriteByte
+BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
+			LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
 			LOCAL	MckPerFTGck, initBSL2, mainLoop2
 			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, TestNoInterp2
 			LOCAL	testNoInterp, WriteBrk, WriteBreak
@@ -29,6 +29,7 @@ jBSL: 		br		#BSL-jBSL+BSL2_START		; Addresses of branches or calls within the BS
 jBSLErase:	br		#BSLErase-jBSL+BSL2_START	; adjusted so that, in both active and inactive copies,
 jReadByte:	br		#ReadByte-jBSL+BSL2_START	; they are correct for the active copy, since a 'b'
 jWriteByte:	br		#WriteByte-jBSL+BSL2_START	; command will copy the inactive to become the active.
+jBslRevision: br	#BslRevision-jBSL+BSL2_START ; Return the BSL2 revision
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
@@ -331,6 +332,10 @@ TA0FllIsr:
 			mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
 			inc		&measureCount	; Inc counter used to initiate measurement
 			reti
+
+BslRevision:
+			mov		#BSL_REV,R8			; Return the SVN revision for this file
+			ret
 
 			; Any free last-segment space is between here and the UART interrupt vectors
 ;freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL

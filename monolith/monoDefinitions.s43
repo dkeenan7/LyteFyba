@@ -54,7 +54,7 @@
 			mov		#'r',Rthd				; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
-			jmp		_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 ; Comms error ( -- )						; Report temporary master's ID
 _commsError	; No command character since it never needs to be interpreted and 'c' is used for Charging
@@ -85,8 +85,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			call	#TxByteCk				; which stops rest of packet being interpreted
 
 			mov.b	&ID,Rsec				; Emit the ID
-			mov		#3,Rtos					; as 3 digits
-			call	#_emitNum
+			call	#_emitNum3				; as 3 digits
 
 			mov		#ColonQspace,R10
 			call	#TxStringCk
@@ -115,8 +114,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			; Now send the worst over-voltage
 			mov		&worstOV,Rsec			; Send worst over-voltage
-			mov		#4,Rtos					; as 4 digits
-			call	#_emitNum
+			call	#_emitNum4				; as 4 digits
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
 
@@ -124,8 +122,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			; Now send the worst under-voltage
 			mov		&worstUV,Rsec			; Send worst under-voltage
-			mov		#4,Rtos					; as 4 digits
-			call	#_emitNum
+			call	#_emitNum4				; as 4 digits
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
 
@@ -147,8 +144,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			; Now send the worst absolute link voltage
 			mov		&worstAL,Rsec			; Send worst absolute link voltage
-			mov		#4,Rtos					; as 4 digits
-			call	#_emitNum
+			call	#_emitNum4				; as 4 digits
 			mov		#' ',R8					; Transmit a space
 			call	#TxByteCk
 
@@ -212,8 +208,8 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		push	Rsec				; Save type
 
 		mov		Rthd,Rsec			; Put ID into Rsec
-		mov		#3,Rtos				; Use a 3 digit field width
-		call	#_emitNum			; Transmit the ID as text in the present number base
+;		mov		#3,Rtos				; Use a 3 digit field width
+		call	#_emitNum3			; Transmit the ID as text in the present number base
 
 		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
@@ -276,8 +272,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		push	Rsec				; Save type
 
 		mov		Rthd,Rsec			; Put ID into Rsec
-		mov		#3,Rtos				; Use a 3 digit field width
-		call	#_emitNum			; Transmit the ID as text in the present number base
+		call	#_emitNum3			; Transmit the ID as text in the present number base
 
 		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
