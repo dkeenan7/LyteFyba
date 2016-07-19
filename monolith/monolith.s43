@@ -158,7 +158,7 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
 									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
-socPwmAdv		DS		2			; Amount to add to TACCTL2 for next compare value for SoC meter
+socPwmAdv		DS		2			; Amount to add to TACCR2 for next compare value for SoC meter
 comNoEraseEnd
 
 #if	ADCBUF
@@ -229,7 +229,7 @@ TxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 rxBuf			DS		RxSz		; Receive queue buffer
 rxWr			DS		1			; Receive queue write index
 rxRd			DS		1			; Receive queue read index
-txBuf			DS		RxSz		; Transmit queue buffer
+txBuf			DS		TxSz		; Transmit queue buffer
 txWr			DS		1			; Transmit queue write index
 txRd			DS		1			; Transmit queue read index
 
