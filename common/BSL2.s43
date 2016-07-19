@@ -317,6 +317,7 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 			_UNTIL	_NC				; (2) Loop until -1
 
 #if	G2553 // BMU
+			; Send a stop bit
 			bis.b	#TxPl,&P1OUT	; Set TxPl high. TxMi is its inversion by the analog comparator.
 #else // CMU
 			; Send a stop bit
@@ -324,6 +325,11 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 			xor.b	&P1OUT,R11		; Get one bits in R11 for bits that need to toggle
 			and.b	#TxPl|TxMi,R11	; Mask so we only change those we want to change
 			xor.b	R11,&P1OUT		; Toggle bits as required
+
+			bit.b	#ErrLed,&P2OUT		; Activity and error LEDs share an output.
+			_IF		_Z					; If the error LED is off
+				bic.b	#ErrLed,&P2DIR		; make output high-Z so activity LED goes off
+			_ENDIF							; without turning error LED on.
 #endif
 			; To ensure the stop bit has sufficient duration we rely in the fact that
 			; calls to WriteByte must be at least 2 byte-times apart
