@@ -100,4 +100,6 @@ void CCMUSendView::OnPaint()
 				(theApp.m_password_sel == PASSWORD_PROG_8K) ? _T("Main prog 8 KiB") :
 					_T("None"));
 	dc.TextOutW(5, 45, buf, (int)_tcslen(buf));
+	// Add the full file name (including drive and path) so we know it's the right one:
+	dc.TextOutW(5, 65, theApp.m_szFileName, (int)_tcslen(theApp.m_szFileName));
 }
