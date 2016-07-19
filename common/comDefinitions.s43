@@ -5,7 +5,6 @@
 
 BmuModbusID			EQU	100				; Normally the highest valid ID of 247, but Geli use 100
 BroadcastModbusID	EQU	BmuModbusID - 1
-HW_REV				EQU	61				; Expected hardware revision number for this code
 
 ; EXIT ( -- ); Return from interpreting a sequence of command characters.
 ; Causes any characters following to be treated as comments only (Forth "\").
@@ -881,16 +880,16 @@ GetContactorBitmask:
 			push	Rsec				; Trashed by _emitNum
 			call	#_emitNum4
 			pop		Rsec
-			cmp		#BSL_REV,Rsec		; Is the BSL up to date?
-			_IF		_EQ
-				mov		#'y',R8				; Yes it is
-			_ELSE
-				mov		#'n',R8				; No, it's not
+			cmp		#BSL_REV,Rsec
+			_IF		_NE					; If the BSL is not up to date
+				mov		#'!',R8				; display a bang
+				call	#TxByteCk			; after the BSL rev number
 			_ENDIF
-			call	#TxByteCk			; Send this after the BSL revision number
 			mov		#' ',R8				; Space
 			call	#TxByteCk
 			mov		#'H',R8				; Expected hardware rev number
+			call	#TxByteCk
+			mov		#' ',R8				; Space
 			call	#TxByteCk
 			mov		#HW_REV,Rsec		; The expected hardware rev number for this code
 			call	#_emitNum3

@@ -1,5 +1,7 @@
 ; Common definitions for TestICal, monitor, monolith and BSL
 
+HW_REV		EQU	61					; Expected hardware revision number for this code
+
 #if	G2553							// If using the newer MSP430G2553 processor
 
 InitSP		EQU		$400			; Initial value of stack pointer

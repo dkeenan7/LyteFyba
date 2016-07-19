@@ -35,7 +35,7 @@
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
 								// Otherwise comment out with //.
 
-#define	G2553		1			// MSP430 model. True for BMUs, false for CMUs.
+#define	G2553		0			// MSP430 model. True for BMUs, false for CMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
