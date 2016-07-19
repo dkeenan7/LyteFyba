@@ -873,9 +873,10 @@ GetContactorBitmask:
 			call	#TxByteCk
 			mov		#' ',R8				; Space
 			call	#TxByteCk
-			mov		&jBslRevision,R8	; Check for BSLrevision branch in BSL
-			cmp		#$4030,R8			; Compare with branch opcode
-			_IF		_EQ
+			mov		&jBslRevision,R8	; Check for BslRevision entry point in BSL
+			bic		#$0008,R8			; Check for either a move immediate to R8 opcode
+			cmp		#$4030,R8			; or a branch (move immediate to PC) opcode
+			_IF		_EQ					; If it is one of the above
 				call	#jBslRevision		; Ask the BSL what its revision number is
 				mov		R8,Rsec				; Copy to Rsec
 			_ELSE						; Else not safe to call that entry point,
