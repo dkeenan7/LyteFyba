@@ -56,6 +56,7 @@ LinkCal		EQU	infoLinkCal
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
+ProductCode	EQU		'L'				; T for TestICal, R for monitoR, L for monoLith, W for Wmonolith
 
 ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
