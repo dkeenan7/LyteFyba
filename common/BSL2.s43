@@ -20,9 +20,6 @@
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
-#include	"../common/BSLrev.h"			// Can't include below; #invclude inside macro invocation
-											//	is not supported.
-
 BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
 			LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
 			LOCAL	MClock, BaudRate, BitCycles, BitCyc1_5, MckPerFTGck, initBSL2, mainLoop2
