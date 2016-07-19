@@ -856,7 +856,11 @@ GetContactorBitmask:
 			call	#_emitNum3			; Emit the ID in decimal
 			mov		#':',R8				; Colon separator
 			call	#TxByteCk
-			mov		#'#',R8				; Overall rev number
+			mov		#'#',R8				; Command this is a response to
+			call	#TxByteCk
+			mov		#' ',R8				; Space
+			call	#TxByteCk
+			mov		#ProductCode,R8		; T for TestICal, R for monitoR, L for monoLith, W for Wmonolith
 			call	#TxByteCk
 			mov		#' ',R8				; Space
 			call	#TxByteCk

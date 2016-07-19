@@ -92,6 +92,8 @@ PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as pie
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
 #endif
 
+ProductCode	EQU		'T'				; T for TestICal, R for monitoR, L for monoLith, W for Wmonolith
+
 ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 									; commands. Monitor uses the info-flash copy
 
