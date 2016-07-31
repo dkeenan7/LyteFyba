@@ -98,7 +98,6 @@ TranslateToCalAddr:
 				mov		R10,R8
 				mov		#6767,R9
 				call	#UMStar
-;				sub		#273,R10
 				sub		#278,R10
 				sub		Rsec,R10					; Subtract 278 and the calibration temperature
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
@@ -203,24 +202,6 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			_ENDIF							; Endif unrecognised
 			ret
 
-#if 0	// Old code for setIDs which required special treatment in ReadByte or interpretByte
-;
-; setIDs ( -- )
-;
-			xCODE	'i',setIDs,_setIDs
-; We read the ID as a single character from the serial port, and echo the next ID downstream.
-
-			call	#ReadByte				; Read the byte into R8, don't echo it, trashes R9 R10 R11
-											; Not echoed because of special treatment in interpretByte
-waitingIDAddr								; This address will be on the stack in interpretByte
-			mov		R8,R12					; Save our ID
-			inc		R8
-			call	#WriteByte				; Send downstream CMU's ID
-			ActLedOff						; Clear (inverted) activity LED set by WriteByte
-			mov.b	R12,&ramID				; Save our ID to RAM
-			ret
-#endif
-
 ;
 ; setIDs ( first-ID -- )
 ;
@@ -296,11 +277,17 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 ; update Bootstrap loader ( -- )
 ;
 			xCODE	'b',updateBSL2,_updateBSL2
-			push	SR
-			dint
+
+			; Avoid an infinite loop if there is a 'b' command in the INIT_CMD_STRING.
+			call	#compareBSL2			; Compare the payload copy with the existing BSL2
+			_IF		_EQ						; If it's already the same
+				ret								; Return without doing anything
+			_ENDIF							; Endif
+
 ; Prepare to flash-program
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+			dint
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 
@@ -325,16 +312,14 @@ waitingIDAddr								; This address will be on the stack in interpretByte
 			;
 			; Check that the flash programming worked
 			;
-			call	#compareBSL2			; Compare the payload copy with what's at $FE00
-			jnz		failCompareB
-
-			ClearWatchdog					; Clear and restart Watchdog Timer
-			pop		SR
-			ret
-
-failCompareB mov	#b'01010100,rERR		; 3 flashes
-			br		#ErrorFlash
-
+			call	#compareBSL2			; Compare the payload copy with what's at $FC00
+			_IF		_EQ						; If it was successful
+				br		#jBSL					; Start the new BSL. Effectively a software reset.
+			_ELSE							; Else
+				mov	#b'01010100,rERR			; 3 flashes
+				br		#ErrorFlash				; Infinite loop flashing error LED
+			_ENDIF							; Endif
+			; Can't ret because then TestICal may return to the wrong place in a changed BSL.
 
 #if (PROG_START < $F000)			// Commented out when need to save space
 ;
