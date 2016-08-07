@@ -1385,7 +1385,7 @@ DoPrecharge:
 		bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
 		ret
 
-
+#if 0
 PiController:
 ;
 ; A PI controller whose input and output are in R8
@@ -1429,8 +1429,9 @@ PiController:
 			rra2	Routput					; For effective reduction of Kp and Ki
 			ret
 ; End of PiController
+#endif
 
-
+#if 0
 SendChargerPackets:
 ;
 ; Send charger float and bulk command packets (in the right order)
@@ -1538,7 +1539,7 @@ FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
 ; End of SendChargerPackets
-
+#endif
 
 SendPipPacket:
 ;

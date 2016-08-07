@@ -13,15 +13,15 @@ BroadcastModbusID	EQU	BmuModbusID - 1
 		incd	SP			; Drop the return address (which is within the interpreter)
 		ret					; Return to whoever called the interpreter (_ENTER)
 
-; HEX ( flag -- ) ; Set the number base to hexadecimal
+; HEX ( flag -- ) ; Set the output number base to hexadecimal
 ;
 		xCODE	'h',HEX,_HEX
 		bis.b	#bHexOutput,&interpFlags
 _Space	ret					; When _Space is called, be a no-op (for separating literal numbers)
 
-; DECIMAL ( flag -- ) ; Set the number base to decimal
+; DECIMAL ( flag -- ) ; Set the output number base to decimal
 ;
-		xCODE	'd',DECIMAL,_DECIMAL
+		xCODE	'O'|'g'<<8,DECIMAL,_DECIMAL
 		bic.b	#bHexOutput,&interpFlags
 		ret
 

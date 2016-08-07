@@ -1,4 +1,4 @@
-			COL		154				; Wide listings
+			COL		154			; Wide listings
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
 ; _not_ information memory. This is to preserve calibration data.
 ;
@@ -423,8 +423,8 @@ spaceaspercent	EQU		BCD( (100*freespace)/(_CMDCHRTBL-PROG_START))
 ; Interrupt and entry-point jump table at the end of the third-last main-flash segment
 ;---------------------------------------------------------------------------------
 				ORG		BSL2_START-$22	; FBDE for now
-CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest used
-										;  interrupt vector
+CMDCHRTBLEND	EQU		$				; Command character table ends immediately below lowest
+										;  main-program entry point
 jInterpretByte	br		#InterpretByte	; A branch to InterpretByte, independent of PROG_START
 
 jUCA0TxIsr		reti					; UART transmit not used

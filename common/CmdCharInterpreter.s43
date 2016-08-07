@@ -9,7 +9,7 @@
 ; Bit 14 = hex literal (otherwise decimal)
 
 #define		Rip		R5		// Interpreter instruction pointer
-#define		Rlit	R6		// Holds partial literals
+#define		Rop		R6		// Holds partial operands (literals) or partial operators (multichar cmnds)
 #define		Rw		R8		// Working register - temporary - anyone can use
 
 ; Macros for 3-register interpreter data stack
@@ -104,14 +104,15 @@ MinusROT	MACRO
 ; Command-character-table Macros
 
 ; The command-character lookup table is in high memory.
-; It contains one word per command character from $21 to $7F.
+; It contains one word per command character from $21 to $FF.
 ; That word is the address of the code that implements the operation.
 
 _LO_CMDCHR	EQU	' '+1						; Lowest definable cmd-character is char after space, "!"
-_HI_CMDCHR	EQU	$7F							; Highest definable cmd-character has low 7 bits set, DEL
+_HI_CMDCHR	EQU	$FF							; Highest definable cmd-character. Og Oo Ow O? Wg Wo Ww W?
+; Characters from $80 to $FF may be obtained as the hash values of two-character commands.
 
-_CMDCHRTBL	EQU	CMDCHRTBLEND-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest used
-											; interrupt vector
+_CMDCHRTBL	EQU	CMDCHRTBLEND-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest
+											; main-program entry point
 
 ; The "x" at the start of the following macro names stands for "cross-compiling"
 ; to distinguish them from possible native versions on the MSP430 in other versions.
@@ -120,91 +121,209 @@ _CMDCHRTBL	EQU	CMDCHRTBLEND-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediate
 
 ; Assemble a command-character-table entry that has a machine-code definition.
 
-xCODE	MACRO	CMDCHR,CMDCHRNAM,_ADDRLBL
+xCODE	MACRO	CMDCHRS,CMDCHRNAM,_ADDRLBL
 						LSTOUT-
 		EVEN								; Force to word boundary
 _ADDRLBL:									; Define the machine-code address label
-CMDCHRNAM EQU	CMDCHR						; Define the command-character name
-		ORG		_CMDCHRTBL-(_LO_CMDCHR*2)+(CMDCHR)*2	; Point to correct command-character-table entry
+		IF		HIGH(CMDCHRS) == 0			; If it's a single character command
+						LSTOUT+
+CMDCHRNAM	EQU		LOW(CMDCHRS)				; Use the character directly as the index
+						LSTOUT-
+		ELSE								; Else it's a two character command
+			; Apply a simple hash function that minimises collisions for the first letter of
+			; English words, while reducing it to 4 bits.
+_char1		SET		LOW(CMDCHRS) & $1F			; Treat upper and lower case the same
+			IF		_char1 >= 'Q' & $1F			; If it's a 'Q' or greater
+_char1			SET		_char1-'Q'+'I'				; Map it to the letters beginning with 'I'
+			ENDIF								; Endif
+_char1		SET		_char1 & $F					; Take the low 4 bits
+			; Apply a simple hash function that minimises collisions for the second letter of
+			; English words, while reducing it to 3 bits.
+_char2		SET		HIGH(CMDCHRS) & $1F			; Treat upper and lower case the same
+			IF		_char2 == 'a' & $1F			; If it's an 'a' change it to a 'c'
+_char2			SET		'c'
+			ENDIF								; Endif
+_char2		SET		_char2 & 7					; Take the low 3 bits
+						LSTOUT+
+CMDCHRNAM	EQU		$80|_char1<<3|_char2		; Combine the hashed characters and set the high bit
+						LSTOUT-
+		ENDIF								; Endif single character command
+		ORG		_CMDCHRTBL-(_LO_CMDCHR*2)+(CMDCHRNAM)*2 ; Go to indexed command-char-table entry
 						LSTOUT+
 		DW		_ADDRLBL					; Assemble the address
 						LSTOUT-
-		ORG		_ADDRLBL					; Point back to where the machine code will be assembled
+		ORG		_ADDRLBL					; Go back to where the machine code will be assembled
 						LSTOUT+
 						ENDM
 
 ;-------------------------------------------------------------------------------
 ; The inner (command character) interpreter
 
-; Interpreter for 7 bit command characters
+; Interpreter for 8 bit command characters.
+; Partly inspired by the transputer instruction set with its PFIX and OPR instructions,
+; and partly inspired by Forth, but with a maximum of two letters per command. "Touth"?
+; This could be extended to more letters per command, without requiring spaces as separators,
+; by adopting the convention that a command word is terminated by a lower case character.
+; So valid words would be x, Xx, XXx, XXXx etc.
+;
+; But presently, if a character is not defined as a single-character command, and it cannot be
+; interpreted as a digit in the present input number base, then it will be treated as the first
+; character of a two-character command.
+; By convention, we reserve most of the uppercase letters (in particulr those that most commonly
+; begin English words) for beginning two-character commands.
+; The two characters of these commands are hashed to a single non-ASCII character in the range
+; $80 to $FF for the purpose of looking up the command-character table.
+;
+; The hash function keeps these 16 common first letters distinct: "PABCDEFGHIRSTMNO".
+; Possible collisions are:
+; P   @ X
+; A   Y			; Note: The uppercase letters A thru F will be treated as hex digits only when
+; B   Z			; following a dollar sign, and with nothing intervening except other hex digits.
+; C   [
+; D   \
+; E   ]
+; F   ^
+; G   _
+; H
+; I   Q
+; R   J
+; S   K
+; T   L
+; M   U
+; N   V
+; O   W
+;
+; The hash function keeps these 8 common second letters distinct: "hiralefo".
+; Possible collisions are:
+; h   <space> p x
+; i   q y
+; r   b j z
+; a   c k s {
+; l   d t |
+; e   m u }
+; f   n v ~
+; o   g w <del>
+;
+; The main source of letter frequencies I used was:
+; http://wordcraft.infopop.cc/eve/forums/a/tpc/f/932607094/m/3991045064
+; But the following was also of interest, although it only gives the frequency in a typical
+; _text_ (with many repeated words) whereas I need the frequency in a _vocabulary_ as above
+; (no words repeated): http://norvig.com/mayzner.html
+; In promoting 'f' over 'u' in the list of favoured second-letters I had in mind
+; the control flow words If and Of. -- Dave Keenan
+
 _ENTER
 _NEXT
-		ClearWatchdog		; Clear and restart Watchdog Timer before each
-							; command character is interpreted
+		ClearWatchdog		; Clear and restart Watchdog Timer before each command character is interpreted
 		mov.b	@Rip+,Rw	; Fetch the next character
+_RUN
+		; Treat all undefinable characters, including space, as literal-separator no-ops
+		_COND
+#if _HI_CMDCHR != $FF	; The following test is redundant when _HI_CMDCHR = $FF
+			cmp.b	#_HI_CMDCHR+1,Rw
+		_OR_ELSE	_HS		; If it's higher than the highest valid command character
+#endif
+			cmp.b	#_LO_CMDCHR,Rw
+		_OR_IFS		_LO		; Or if it's lower than the lowest valid command character
+			mov		#_Space,Rw	; Treat it as a literal-separator no-op
+			jmp		FncLIT
+		_ENDIF
 
-_RUN	cmp.b	#_LO_CMDCHR,Rw ; Treat all undefinable characters, including space,
-		jlo		NotDigit	; as literal-separator no-ops
-		cmp.b	#_HI_CMDCHR+1,Rw
-		jhs		NotDigit
+		; Check for operator-in-progress (2nd char of 2-char command)
+		bit		#1<<13,SR
+		_IF		_NZ
+			; Apply a simple hash function that minimises collisions for the second letter of
+			; English words, while reducing it to 3 bits.
+			and.b	#$1F,Rw		; Treat upper and lower case the same
+			cmp.b	#'a'&$1F,Rw
+			_IF		_EQ			; If it's an 'a' replace it with 'c'
+				mov.b	#'c',Rw
+			_ENDIF
+			and.b	#7,Rw		; Take the low 3 bits
+			; Combine these 3 bits with the 4 bits of the hashed first character and set the high bit.
+			rla3	Rop
+			bis.b	Rop,Rw
+			bis.b	#80,Rw
+			bic		#1<<13,SR	; Clear the operator-in-progress flag
+		_ENDIF
 
-		rla.b	Rw			; Multiply character code by 2
-FncOPCD mov _CMDCHRTBL-(_LO_CMDCHR*2)(Rw),Rw ; Use 2*charcode to index the command-character-table to get
-							;	the code address
+		; Look up the code address by using the command character as an index into the command table
+		rla.b	Rw			; Multiply the character code by 2 and use it to
+		mov _CMDCHRTBL-(_LO_CMDCHR*2)(Rw),Rw ; index the command-character-table to get the code address
 
-		cmp		#$FFFF,Rw	; Check for undefined characters, either $FFFF or $0000
-		jge		DoUNDEF		; Note: Will fail on processors with > 32K of flash and code below $8000
+		; Check for undefined commands
+		cmp		#$FFFF,Rw	; Both $FFFF or $0000 mean undefined. Note: This simple version of the test
+		jge		DoUNDEF		; will fail on processors with > 32K of flash and code below $8000
 
-FncLIT	tst		SR			; Check for an implied push-literal
-		jge		DoOPCD		; If there's an operand-in-progress
-							;	there's an implied LIT now
-		bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
-;		push	Rtos		;	Push the operand now, before doing the
-;		mov		Rlit,Rtos	;	operation
-		DPUSH	Rlit
+FncLIT ; Check for an implied push-literal
+		tst		SR
+		_IF		_L			; If there's an operand-in-progress
+			DPUSH	Rop			; Push the operand now, before doing the operation
+			bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
+		_ENDIF
 
-DoOPCD	call	Rw			; Call the machine-code implementation of the command character
+		call	Rw			; Call the machine-code implementation of the command character
 							; It must end with an RET
 		jmp		_NEXT
 
-
-DoUNDEF ; Attempt to interpret undefined command characters as hex/decimal digits,
-		; otherwise treat them as literal-separating no-ops.
+DoUNDEF ; Try to interpret undefined command characters as digits in the present input number base.
+		; Otherwise treat undefined characters as the first character of a two-character command.
         dec		Rip			; Decrement the instruction pointer to
 		mov.b	@Rip+,Rw	;  re-fetch the character
-        sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
-		jn		NotDigit	; Ignore undefined characters below '0'
-		cmp.b	#$0A,Rw
-		_IF		_GE
-			cmp.b	#$17,Rw
-			jge		NotDigit ; Ignore undefined characters above 'F'
-			cmp.b	#$11,Rw
-			jl		NotDigit ; Ignore undefined between '9' and 'A'
-			sub.b	#'A'-('9'+1),Rw	; $11-$16 -> $0A-$0F
-		_ENDIF
-
-FncPFX4 tst		SR			; Test the operand-in-progress flag
-		bis		#1<<15,SR	; Set the operand-in-progress flag
-		jn		DatMor4		; If there was no operand-in-progress
-
-DatFst4 mov		Rw,Rlit		;	Move 4-bit data to partial-operand register
-		jmp		_NEXT		; Else (operand-in-progress)
-
-DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
-		mov		Rlit,R9		;	Save 2*Rlit in R9
-		rla		Rlit		;	4*Rlit
-		rla		Rlit		;	8*Rlit
-		bit		#1<<14,SR	; Test the hex flag
-		_IF		_Z			; If decimal
-			add		R9,Rlit	;	10*Rlit
-		_ELSE				; Else hex
-			rla		Rlit	;	16*Rlit
-		_ENDIF				; Endif
-		add		Rw,Rlit		;	Add data into operand reg
-DatEnd4 jmp		_NEXT		; Endif
-
-NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
-		jmp		FncLIT
+		_COND
+			cmp.b	#'0',Rw
+		_AND_IF	_HS			; If the character is between '0'
+			cmp.b	#'9'+1,Rw
+		_AND_IF	_LO			; and '9'
+			sub.b	#'0',Rw		; Convert '0'-'9' to 0-9
+FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
+			_IF		_NN			; If there wasn't already an operand in progress
+				mov		Rw,Rop		; Move the 4 bits of data to the partial-operand register
+				bis		#1<<15,SR	; Set the operand-in-progress flag
+			_ELSE				; Else operand-in-progress
+				rla		Rop			; Multiply the partial operand by 16 or 10
+				mov		Rop,R9		; Save 2*Rop in R9
+				rla		Rop			; 4*Rop
+				rla		Rop			; 8*Rop
+				bit		#1<<14,SR	; Test the hex input flag
+				_IF		_Z			; If decimal
+					add		R9,Rop		; 10*Rop
+				_ELSE				; Else hex (due to a preceding '$')
+					rla		Rop			; 16*Rop
+				_ENDIF				; Endif decimal
+				add		Rw,Rop		; Add the 4 bits of data to the partial-operand register
+			_ENDIF				; Endif no operand in progress
+		_ELSES				; Else not '0' to '9'
+			_COND
+				bit		#1<<14,SR	; Test the hex input flag
+			_AND_IF	_NZ			; If we're in hexadecimal input mode (due to a preceding '$')
+				cmp.b	#'A',Rw
+			_AND_IF	_HS			; And the character is between 'A'
+				cmp.b	#'F'+1,Rw
+			_AND_IF	_LO			; and 'F'
+				sub.b	#'A'-$A,Rw	; Convert 'A'-'F' to $A-$F
+				jmp		FncPFX4		; Update the partial operand register
+			_ELSES				; Else treat it as the first character of a two-character command
+				; Check for an implied push-literal
+				tst		SR
+				_IF		_L			; If there's an operand-in-progress
+					DPUSH	Rop			; Push the operand now, to free up Rop for partial operator
+					bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
+				_ENDIF
+				; Apply a simple hash function that minimises collisions for the first letter of
+				; English words, while reducing it to 4 bits.
+				and.b	#$1F,Rw		; Treat upper and lower case the same
+				cmp.b	#'Q'&$1F,Rw
+				_IF		_HS			; If it's a 'Q' or greater
+					sub.b	#'Q'-'I',Rw	; Map it to the letters begining with 'I'
+				_ENDIF
+				and.b	#$F,Rw		; Take the low 4 bits
+				; Save the hashed first character in Rop
+				mov		Rw,Rop
+				bis		#1<<13,SR	; Set the operator-in-progress flag (1st char of 2-char command)
+			_ENDIF				; Endif hex mode and 'A' to 'F'
+		_ENDIF				; Endif '0' to '9'
+		jmp		_NEXT
 
 
 ;-------------------------------------------------------------------------------
