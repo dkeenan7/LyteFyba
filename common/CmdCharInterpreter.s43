@@ -114,12 +114,24 @@ _HI_CMDCHR	EQU	$FF							; Highest definable cmd-character. Og Oo Ow O? Wg Wo Ww
 _CMDCHRTBL	EQU	CMDCHRTBLEND-(2*(_HI_CMDCHR+1-_LO_CMDCHR))	; Table ends immediately below lowest
 											; main-program entry point
 
-; The "x" at the start of the following macro names stands for "cross-compiling"
-; to distinguish them from possible native versions on the MSP430 in other versions.
+; The "x" at the start of the following macro name stands for "cross-compiling"
+; to distinguish it from a possible native version on the MSP430 in future.
 ; The name "CODE" is from Forth.
 
-
 ; Assemble a command-character-table entry that has a machine-code definition.
+;
+; The first argument, CMDCHRS, is the command being defined.
+; It can be either a single character e.g. 'x', or two characters in the form 'X'|'x'<<8.
+; Unfortunately the assembler doesn't allow strings of more than 1 character to be treated as integers.
+; Nor does it allow indexing of a string at assembly time, so 'Xx' doesn't work.
+;
+; The second and third arguments are two labels which will be assigned the command character
+; and the code address respectively. In the case of a two-character command, the command character
+; assigned will be a single character in the range $80-$FF hashed from the command's two characters.
+;
+; If a character is defined as a single-character command, then no two-character commands beginning
+; with that character can be used. The convention is to reserve uppercase letters for beginning
+; two-character commands.
 
 xCODE	MACRO	CMDCHRS,CMDCHRNAM,_ADDRLBL
 						LSTOUT-
@@ -127,7 +139,7 @@ xCODE	MACRO	CMDCHRS,CMDCHRNAM,_ADDRLBL
 _ADDRLBL:									; Define the machine-code address label
 		IF		HIGH(CMDCHRS) == 0			; If it's a single character command
 						LSTOUT+
-CMDCHRNAM	EQU		LOW(CMDCHRS)				; Use the character directly as the index
+CMDCHRNAM	EQU		CMDCHRS						; Use the character directly as the index
 						LSTOUT-
 		ELSE								; Else it's a two character command
 			; Apply a simple hash function that minimises collisions for the first letter of
