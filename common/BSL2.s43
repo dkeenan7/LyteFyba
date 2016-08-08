@@ -116,7 +116,8 @@ BSL:		; Initialisation
 			ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
 
 			; Log the reason for the reset, as the contents of IFG1.
-			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
+			; $8 = RST pin (break), $4 = power on, $2 = osc fault, $1 = watchdog, $0 = other bad stuff
+			; or JTAG.
 			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset,
 			; namely a flash key violation or an instruction fetch in range $0 to $1FF
 			; (special function regs).

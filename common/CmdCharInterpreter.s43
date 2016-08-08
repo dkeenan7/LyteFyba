@@ -255,17 +255,17 @@ _RUN
 			; Combine these 3 bits with the 4 bits of the hashed first character and set the high bit.
 			rla3	Rop
 			bis.b	Rop,Rw
-			bis.b	#80,Rw
-			bic		#1<<13,SR	; Clear the operator-in-progress flag
+			bis.b	#$80,Rw
 		_ENDIF
 
 		; Look up the code address by using the command character as an index into the command table
-		rla.b	Rw			; Multiply the character code by 2 and use it to
+		rla		Rw			; Multiply the character code by 2 and use it to
 		mov _CMDCHRTBL-(_LO_CMDCHR*2)(Rw),Rw ; index the command-character-table to get the code address
 
 		; Check for undefined commands
 		cmp		#$FFFF,Rw	; Both $FFFF or $0000 mean undefined. Note: This simple version of the test
 		jge		DoUNDEF		; will fail on processors with > 32K of flash and code below $8000
+		bic		#1<<13,SR	; Clear the operator-in-progress flag
 
 FncLIT ; Check for an implied push-literal
 		tst		SR
@@ -278,7 +278,13 @@ FncLIT ; Check for an implied push-literal
 							; It must end with an RET
 		jmp		_NEXT
 
-DoUNDEF ; Try to interpret undefined command characters as digits in the present input number base.
+DoUNDEF
+		bit		#1<<13,SR
+		_IF		_NZ			; If this is the second character of a two-character command
+			bic		#1<<13,SR	; Clear the operator-in-progress flag
+			jmp		_NEXT
+		_ENDIF
+		; Try to interpret undefined command characters as digits in the present input number base.
 		; Otherwise treat undefined characters as the first character of a two-character command.
         dec		Rip			; Decrement the instruction pointer to
 		mov.b	@Rip+,Rw	;  re-fetch the character
@@ -353,7 +359,7 @@ ACCEPT:
 		_ENDOF
 
 		_OFb	#$0D,R8			; Carriage return = end of packet
-			cmp		#TIBEnd,R9
+			cmp		#TIBEnd-1,R9	; Leave space for 2 EXIT commands
 			_IF		_LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
 				bit.b	#bEchoResponses,&interpFlags
@@ -405,6 +411,7 @@ ACCEPT:
 				_END_PRIOR_IF			; End if checksumming
 							; We get here when not-checksumming or a modbus packet or a good checksum
 							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
+							mov.b	#EXIT,1(R9)		; In case a 2-byte command
 							bit.b	#bDontInterpret,&interpFlags
 							_IF		_Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
@@ -418,7 +425,7 @@ ACCEPT:
 		_ENDOF					; End of carriage return
 
 		_OFb	#$08,R8			; Backspace editing
-			cmp		#TIBEnd,R9
+			cmp		#TIBEnd-1,R9
 			_IF		_LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
 				cmp		#TIB,R9			; don't go back past start of packet
@@ -445,7 +452,7 @@ ACCEPT:
 		_ENDOF					; EndOf escape
 
 		; Default case, if not CR, BS, XON, XOFF or ESC
-			cmp		#TIBEnd,R9
+			cmp		#TIBEnd-1,R9
 			_IF		_LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer

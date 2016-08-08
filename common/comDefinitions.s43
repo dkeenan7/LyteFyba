@@ -119,7 +119,7 @@ _emitNum3:
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
 
-		xCODE	'n',emitNum,_emitNum
+		xCODE	'N'|'o' <<8,emitNum,_emitNum
 #if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
@@ -689,7 +689,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 
 
 ; NumCells  ( n -- ) Gives the number of cells
-		xCODE	'N',NumCells,_NumCells
+		xCODE	'N'|'c' <<8,NumCells,_NumCells
 			NO_ECHO_CMD	doNumCells0,doNumCells		; Use the no-echo wrapper macro
 doNumCells0:
 			mov		#0,Rtos
