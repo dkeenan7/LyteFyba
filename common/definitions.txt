@@ -3,174 +3,174 @@ Commands and hex digits are case-sensitive.
 
 In ASCII/alphabetical order:
 
-M T
-o '
-n c
-i a
-t l Name or description
+M  T
+o  '
+n  c
+i  a
+t  l  Name or description
 --------------------------------------------
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-    Characters not used so far:                            oHW"#&()*+,./;=[]_|}~
-	Characters not used so far in TestICal:          koGHKPWZ"#&()*+,./;=[]_|}~<>{
-	Characters not used so far in Monitor etc: abjmouwzHLMOUW"#&()*+,./;=[]_|}~
-@ @ Capacity constants; B@ nom Bat voltage (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
-$ $ dollarHex (set number input mode to hex for next literal)
-% % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
-' ' characterLiteral (tick)
-` ` execute (tock, inverse of tick)
-? ? get byte (peek byte)
-! ! store byte (poke byte)
-- - change-sign (postfix negate)
-: : begins a Modbus/ASCII packet
-<   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
->   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
-{   resetWorstStress :-{
-\ \ exit or comment
-^ ^ reset the Reset log
+      Initial characters not used so far:                            noHW"#&()*+,./;=[]_|}~
+	  Initial characters not used so far in TestICal:          knoGHKPWZ"#&()*+,./;=[]_|}~<>{
+	  Initial characters not used so far in Monitor etc: abjmnouwzHLMOUW"#&()*+,./;=[]_|}~
+@  @  Capacity constants: B@ nom Bat volts (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
+$  $  dollarHex (set number input mode to hex for next literal)
+%  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
+'  '  characterLiteral (tick)
+`  `  execute (tock, inverse of tick)
+?  ?  get byte (peek byte)
+!  !  store byte (poke byte)
+-  -  change-sign (postfix negate)
+:  :  begins a Modbus/ASCII packet
+<     minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
+>     maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
+{     resetWorstStress :-{
+\  \  exit or comment
+^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits
-  a ADCScaled or r(A)wVoltage (TestICal only)
-  b update Bootstrap loader (BSL2)
-c   Charging, '1c' to include undertemp and exclude undervolt as stress.
-  c Calibrate
-d d Decimal output
-e e Error. Turn on or off red LED and piezo beeper
-  f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
-f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
-g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
-G   Get high word of fuel-gauge discharge accumulator (monoliths only)
-h h Hex output
-i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
-  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
-I I Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
-j   Just local status (not the full stress)
-J J Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
-  j JumpToSubroutine (call)
-k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
-K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
-l l LinkVoltage
-  L Liven contactor (1L .. 5L)
-  m e(m)itCharacter
-  M Measure Vcc
-n n emit(n)um. Precede with a number or calculation, and a field width
-N N Number of cells
-  O stOre wOrd (poke wOrd)
-p   status (local to each CMU, but global when BMU)
-P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
-q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
-  q pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
-Q Q Quiet. Stop piezo beeper coming on with error LED
-r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
-  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
-R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
-s s select
-S S deSelect
-t t Temperature
-T T Touch value (uncalibrated) (only when ID=255, BMU)
-  u UpdateInfoFlash
-  U Unliven contactor (1U .. 5U)
-v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
-V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-  w WriteCalValue
-x x e(x)clusive   (single-CMU interaction mode)
-X X e(X)clude     (single-CMU ignore mode)
-y y b(y)pass (Yellow) (relaY- on IMU)
-Y Y relaY+ (on IMU only)
-  z send nulls (send (z)eros)
-Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
+   a  ADCScaled or r(A)wVoltage (TestICal only)
+   b  update Bootstrap loader (BSL2)
+c     Charging, '1c' to include undertemp and exclude undervolt as stress.
+   c  Calibrate
+d  d  Decimal output
+e  e  Error. Turn on or off red LED and piezo beeper
+   f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
+f     (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
+g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
+G     Get high word of fuel-gauge discharge accumulator (monoliths only)
+h  h  Hex output
+i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
+   i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
+I  I  Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+j     Just local status (not the full stress)
+J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
+   j  JumpToSubroutine (call)
+k     chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
+K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
+l  l  LinkVoltage
+   L  Liven contactor (1L .. 5L)
+   m  e(m)itCharacter
+   M  Measure Vcc
+Nc Nc Number of cells
+No No emit(n)um. Precede with a number or calculation, and a field width
+   O  stOre wOrd (poke wOrd)
+p     status (local to each CMU, but global when BMU)
+P     set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only OV.
+q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
+   q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+Q  Q  Quiet. Stop piezo beeper coming on with error LED
+r 	  RxState (monitor only. 'r' is ReadCalValue in TestICal)
+   r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
+R  R  query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
+s  s  select
+S  S  deSelect
+t  t  Temperature
+T  T  Touch value (uncalibrated) (only when ID=255, BMU)
+   u  UpdateInfoFlash
+   U  Unliven contactor (1U .. 5U)
+v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
+V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
+   w  WriteCalValue
+x  x  e(x)clusive   (single-CMU interaction mode)
+X  X  e(X)clude     (single-CMU ignore mode)
+y  y  b(y)pass (Yellow) (relaY- on IMU)
+Y  Y  relaY+ (on IMU only)
+   z  send nulls (send (z)eros)
+Z	  Ztore high word of fuel-gauge discharge accumulator (monolith only)
 
 In logical groupings:
 
-M T
-o '
-n c
-i a
-t l Name or description
+M  T
+o  '
+n  c
+i  a
+t  l  Name or description
 --------------------------------------------
-' ' characterLiteral (tick)
-` ` execute (tock, inverse of tick)
-  m e(m)itCharacter
-  z send nulls (send (z)eros)
+'  '  characterLiteral (tick)
+`  `  execute (tock, inverse of tick)
+   m  e(m)itCharacter
+   z  send nulls (send (z)eros)
 
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits
-$ $ dollarHex (set number input mode to hex for next literal)
-d d Decimal output
-h h Hex output
-- - change-sign (postfix negate)
-n n emit(n)um. Precede with a number or calculation, and a field width
+$  $  dollarHex (set number input mode to hex for next literal)
+d  d  Decimal output
+h  h  Hex output
+-  -  change-sign (postfix negate)
+No No emit(n)um. Precede with a number or calculation, and a field width
 
-e e Error. Turn on or off red LED and piezo beeper
-Q Q Quiet. Stop piezo beeper coming on with error LED
-y y b(y)pass (Yellow) (relaY- on IMU)
-Y Y relaY+ (on IMU only)
-  L Liven contactor (1L .. 5L)
-  U Unliven contactor (1U .. 5U)
+e  e  Error. Turn on or off red LED and piezo beeper
+Q  Q  Quiet. Stop piezo beeper coming on with error LED
+y  y  b(y)pass (Yellow) (relaY- on IMU)
+Y  Y  relaY+ (on IMU only)
+   L  Liven contactor (1L .. 5L)
+   U  Unliven contactor (1U .. 5U)
 
-  a ADCScaled or r(A)wVoltage (TestICal only)
-i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
-v v cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
-V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-  M Measure Vcc
-I I Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
-l l LinkVoltage
-t t Temperature
-r 	RxState (monitor only. 'r' is ReadCalValue in TestICal)
-p   Stress level (Pain) (local to each CMU)
+   a  ADCScaled or r(A)wVoltage (TestICal only)
+i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
+v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
+V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
+   M  Measure Vcc
+I  I  Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+l  l  LinkVoltage
+t  t  Temperature
+r     RxState (monitor only. 'r' is ReadCalValue in TestICal)
+p     Stress level (Pain) (local to each CMU)
 
-P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
-c   Charging, '1c' to include undertemp and exclude undervolt as stress.
+P     set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Presently only OV.
+c     Charging, '1c' to include undertemp and exclude undervolt as stress.
 
-T T Touch value (uncalibrated) (only when ID=255, BMU)
-J J Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
+T  T  Touch value (uncalibrated) (only when ID=255, BMU)
+J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
 
 <XOFF> Stop echoing
 <XON> Resume echoing
-  [ stop echoing. Used with the 'i' command when used in an INITCMDSTRING
-\ \ exit or comment
-  ] resume echoing. Used with the 'i' command when used in an INITCMDSTRING
-: : begins a Modbus/ASCII packet
-<   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
->   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
-N N Number of cells
+   [  stop echoing. Used with the 'i' command when used in an INITCMDSTRING
+\  \  exit or comment
+   ]  resume echoing. Used with the 'i' command when used in an INITCMDSTRING
+:  :  begins a Modbus/ASCII packet
+<     minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
+>    maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q' for worstStress
+Nc Nc Number of cells
 
-  i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
-s s select
-S S deSelect
-x x e(x)clusive   (single-CMU interaction mode)
-X X e(X)clude     (single-CMU ignore mode)
+   i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
+s  s  select
+S  S  deSelect
+x  x  e(x)clusive   (single-CMU interaction mode)
+X  X  e(X)clude     (single-CMU ignore mode)
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-\ \ exit or comment
-k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
-K   KillStatusSending, 1K to kill status sending, 0K to restore it
+\  \  exit or comment
+k     chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
+K     KillStatusSending, 1K to kill status sending, 0K to restore it
 
-q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
-{   resetWorstStress :-{
+q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
+{     resetWorstStress :-{
 
-R R query the Reset log. $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG
-^ ^ resetResetLog
+R  R  query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
+^  ^  resetResetLog
 
-f   (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
-g g fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
-% % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
-Z	Ztore high word of fuel-gauge discharge accumulator (monolith only)
-G   Get high word of fuel-gauge discharge accumulator (monoliths only)
-@ @ Capacity constants; B@ nom Bat voltage (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
+f     (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
+g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
+%  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
+Z	  Ztore high word of fuel-gauge discharge accumulator (monolith only)
+G     Get high word of fuel-gauge discharge accumulator (monoliths only)
+@  @  Capacity constants: B@ nom Bat volts (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
 
-  j JumpToSubroutine (call)
-? ? get byte (peek byte)
-! ! store byte (poke byte)
-  O st(O)re word (poke word)
-  q pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+   j  JumpToSubroutine (call)
+?  ?  get byte (peek byte)
+!  !  store byte (poke byte)
+   O  st(O)re word (poke word)
+   q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 
-  f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
+   f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
 
-  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
-  w WriteCalValue
-  c Calibrate
-  u UpdateInfoFlash
+   r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
+   w  WriteCalValue
+   c  Calibrate
+   u  UpdateInfoFlash
 
 In addition, the following character literals (character preceded by a single-quote)
 have the following meaning when used as an address parameter to a ReadCalValue, WriteCalValue
@@ -178,7 +178,6 @@ or Calibrate command in TestICal.
 
 'v cell (v)oltage
 't Temperature
-'H Hotness (Temperature via external thermistor)
 'l Link voltage
 'g fuel (g)auge
 'f Frequency (DCO 8 MHz)
