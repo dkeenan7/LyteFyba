@@ -66,8 +66,8 @@ and give the group the name "Rotatables"
 
 Rotation Procedure
 ==================
-Click in space to deselect all
-Context menu in space and choose Clear Copper
+Ensure all layers are visible, except the two documentation layers. Click in space to deselect all.
+Context menu in space and choose Clear Copper if possible.
 Select SG1. Use a horizontal piece of silkscreen "track" away from other tracks, as this
 will minimise interference from tracks and pour outlines that may otherwise be selected by
 mistake. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the
@@ -76,18 +76,26 @@ If the above doesn't work because it no longer rotates about the origin, then
 manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
 remember the new dx and dy figures from the bottom of the window to use in a + command from
 now on. Click in space to deselect all.
-Context menu in space and choose Pour Copper
+Context menu in space and choose Pour Copper. Design check.
 
 
 Replication Procedure and Preparing for Manufacture (Squiggle-joined CMUs for prismatic cells)
 ===================================================
 Copy or Save As the .pcb file to a suitable name
-Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
-Zoom out; leave room below; 
+Select only bottom silkscreen and bottom copper layers. Unroute (^U) the blue track connecting R1
+with the rest of the printed resistor. Select R1 and delete it. Add a new track from the end of the
+printed resistor to the now unconnected via. Ok the warning that his will create one net from Vdd
+and BypR; this is unavoidable. Design rule check should still pass. Add the *two* new tracks (one is
+small under the via) the rotatables group (select them, use contect menu "add to group" and choose
+the "Rotatables" group).
+Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. Repour
+all copper. Design check.
+Zoom out.
+Apply the above rotation procedure.  Clear all copper pours.
 Ensure all layers are visible, except the two documentation layers and Cutouts text.
-Apply the above rotation procedure.
-Frame select the whole CMU including the squiggle-join cutouts above.
-Deselect board outline by Ctrl-Shift-click. Keep the oval cutouts and squiggle-join cutouts.
+Frame select the whole CMU including the squiggle-join cutouts above, but not below.
+Deselect board outline by Ctrl-Shift-click. Deselect squiggle-join cutouts below if necessary. Keep the
+oval cutouts and squiggle-join cutouts. Zoom out; leave room below.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
