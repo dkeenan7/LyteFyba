@@ -43,7 +43,7 @@ To recreate the Rotatables group:
 * Delete any previous Rotatables group. Do this by double clicking on the old group name
 to highlight the elements, right click on one, and choose Group / Ungroup. The group name
 should disappear from the interaction bar.
-* Show all layers except Top and Bottom Documentation.
+* Show all layers except Top and Bottom Documentation, and Cutouts text.
 * Ensure only the copper-pour-area outlines are displayed, not their fills.
 Context menu in space and choose Clear Copper if necessary.
 * Make a rectangular selection from -65,7.5 to 60,-7.5. The 65 and 60 numbers are
@@ -58,7 +58,7 @@ connected sections of track).
 useful here.
 * From the top silkscreen, deselect all text except component designators.
 * Leave the plus and minus signs selected.
-* Deselect everything from the top and bottom documentation layers, if necessary.
+* Deselect everything from the top and bottom documentation layers, and Cutouts text, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
 * Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
 * Context menu on one of the selected objects and select "Group", uncheck "Tight" 
@@ -66,8 +66,8 @@ and give the group the name "Rotatables"
 
 Rotation Procedure
 ==================
-Ensure all layers are visible, except the two documentation layers. Click in space to deselect all.
-Context menu in space and choose Clear Copper if possible.
+Ensure all layers are visible, except the two documentation layers and Cutouts text.
+Click in space to deselect all. Context menu in space and choose Clear Copper if possible.
 Select SG1. Use a horizontal piece of silkscreen "track" away from other tracks, as this
 will minimise interference from tracks and pour outlines that may otherwise be selected by
 mistake. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the
@@ -100,7 +100,7 @@ Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
 Click in space to deselect all
-Delete the mounting hole and its keepout circle (a tight group) from the original.
+Delete the locating hole (north west corner) and its keepout circle (a tight group) from the original.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
 Now is a good time for a design rule check.
 Make all layers visible, except the two documentation layers.
