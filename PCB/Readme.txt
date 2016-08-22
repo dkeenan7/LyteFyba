@@ -56,7 +56,7 @@ connected sections of track).
 * Add the printed bypass resistor to the selection by Ctrl-ShiftClick (may need clicking twice).
 * Remove the board outline from the selection but keep the oval holes. Ctrl-Shift-Clicking is
 useful here.
-* From the top silkscreen, deselect all text except component designators.
+* From the top silkscreen, deselect any horizontal text except component designators.
 * Leave the plus and minus signs selected.
 * Deselect everything from the top and bottom documentation layers, and Cutouts text, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
@@ -103,7 +103,7 @@ Click in space to deselect all
 Delete the locating hole (north west corner) and its keepout circle (a tight group) from the original.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
 Now is a good time for a design rule check.
-Make all layers visible, except the two documentation layers.
+Make all layers visible, except the two documentation layers and Cutouts text.
 Zoom out; select the two CMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
 Zoom in near the top of the 4 CMUs
