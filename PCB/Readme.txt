@@ -150,3 +150,11 @@ plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plo
 For OSH Park use 3:3 metric for gerbers and 3:4 metric for the single (combined plated and non-plated) drill file.
 For OSH Park Ensure the drill file does not include the outline.
 
+Reasons for using lowercase letters after component designator numbers
+======================================================================
+1. In same package (enforced by DesignSpark)
+2. In series
+3. In parallel
+4. Same function and same value repeated in one PCB
+5. BMU part with same function as in CMU but different value
+6. (Obsolete) Alternative part locations (now indicated by e.g. R7 and R7alt)
