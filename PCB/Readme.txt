@@ -46,18 +46,17 @@ should disappear from the interaction bar.
 * Show all layers except Top and Bottom Documentation.
 * Ensure only the copper-pour-area outlines are displayed, not their fills.
 Context menu in space and choose Clear Copper if necessary.
-* Make a rectangular selection from -63.5,7.5 to 63.5,-7.5. The 63.5 numbers are
+* Make a rectangular selection from -65,7.5 to 60,-7.5. The 65 and 60 numbers are
 not critical, as long as everything is selected in the middle section. However the 7.5
 numbers are critical. Using the arrow keys allows better accuracy and will (mostly) snap to
 grid.
-* Add the thick red GND track north of the processor, and the thin red Vdd track
-south of R7, if necessary. [needs updating for present design]
-* Add R9 and its tracks and vias to the selection.
-* Add the printed bypass resistor to the selection by Ctrl-ShiftClick.
-* Add all copper pour outlines associated with bypass resistors to the selection (not the copper 
-interior, just the outlines). Ctrl-Shift-Clicking is useful here.
-* Remove the board outline from the selection but keep the oval holes. Ctrl-Shift-Clicking is useful here.
-* From the top and bottom silkscreens, deselect all text except component designators.
+* Add the thick red GND and Vdd tracks south of the processor, (use control-shift-click to add
+connected sections of track).
+* Add thee red sections of track near the crystal to the selection.
+* Add the printed bypass resistor to the selection by Ctrl-ShiftClick (may need clicking twice).
+* Remove the board outline from the selection but keep the oval holes. Ctrl-Shift-Clicking is
+useful here.
+* From the top silkscreen, deselect all text except component designators.
 * Leave the plus and minus signs selected.
 * Deselect everything from the top and bottom documentation layers, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
@@ -69,13 +68,14 @@ Rotation Procedure
 ==================
 Click in space to deselect all
 Context menu in space and choose Clear Copper
-Select SG1. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the rotation.
-Context menu on SG1 and choose Group / Select Group.
-Press R twice.
+Select SG1. Use a horizontal piece of silkscreen "track" away from other tracks, as this
+will minimise interference from tracks and pour outlines that may otherwise be selected by
+mistake. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the
+rotation. Context menu on SG1 and choose Group / Select Group. Press R twice.
 If the above doesn't work because it no longer rotates about the origin, then
 manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
-remember the new dx and dy figures from the bottom of the window to use in a + command from now on.
-Click in space to deselect all.
+remember the new dx and dy figures from the bottom of the window to use in a + command from
+now on. Click in space to deselect all.
 Context menu in space and choose Pour Copper
 
 
