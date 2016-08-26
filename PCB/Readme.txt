@@ -86,8 +86,8 @@ Select only bottom silkscreen and bottom copper layers. Unroute (^U) the blue tr
 with the rest of the printed resistor. Select R1 and delete it. Add a new track from the end of the
 printed resistor to the now unconnected via. Ok the warning that his will create one net from Vdd
 and BypR; this is unavoidable. Design rule check should still pass. Add the *two* new tracks (one is
-small under the via) the rotatables group (select them, use contect menu "add to group" and choose
-the "Rotatables" group).
+small under the via) to the rotatables group (select them, use contect menu "add to group" and
+choose the "Rotatables" group).
 Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. Repour
 all copper. Design check.
 Zoom out.
@@ -115,35 +115,39 @@ plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plo
 
 Isomerisation Procedure and Preparing for Manufacture (Octagonal CMUs for cylindrical cells)
 ===================================================
-Copy or Save As the .pcb file twice, to two suitable names e.g. CMUp and CMUn.
+Delete the IFO daughter boards at the north end of the PCBs. Do not save to the original file
+at this point.
+Save As the .pcb file twice, to two suitable names e.g. CMUp and CMUn.
 
 From CMUn:
-Delete fuse F2 and its associated text.
+Delete the pad for Strap- (near the large minus sign) and its associated strain relief hole.
+Delete fuse F2 and its two pieces of associated text.
 Delete the left-hand large minus sign.
 Turn the middle plus sign into a minus sign by deleting the vertical stroke.
-Delete the pad for Strap- and its associated strain relief hole.
-Delete the dangling Strap+ track from the large terminal pad.
+Delete the dangling GND track from the large terminal pad (northeast, not west).
 
 From CMUp:
 Delete fuse F1 and its associated text.
-Reconnect from the VDD track to the via and connect from D1 to the via, using Power Min track style.
-Delete the right-hand large plus sign.
-Delete the pad for Straq+ and its associated strain relief hole.
-Delete the GNE track from the large terminal pad.
-Change the net of the large terminal pad (subnet only) to Straq+.
-Complete the dangling Straq+ track so it's no longer dangling.
+Reconnect from the VDD track to the via at the north end of R1, and connect from the south end
+of D1 to the same via, using Power Min track style.
+Delete the right-hand large plus sign (two lines).
+Delete the pad for Strap+ and its associated strain relief hole.
+Delete the west GND track from the large terminal pad.
+Change the net of only the large terminal pad (check the Change Name of Subnet Only checkbox)
+to Strap+. Ok the warning.
+Complete the dangling Strap+ track so it's no longer dangling; use Power Nom style.
 
 On both CMUs:
-Add a small piece of dangling track to the bypR track (the printed resistor track) 
-close to where it connects to the 0R resistor.
-Delete the 0R.
-Drag the end of the dangling track (without first selecting anything) up to the centre 
-of the VDD via that used to be connected to the other side of the 0R.
-Don't worry about the fact that the whole printed resistor is now a dangling track. 
-This will give rise to one T-V error and one dangling track error per CMU. Ignore these errors. 
-In fact delete all DRC error notifications, so as not to confuse the manufacturer.
+Cut (Control-U, NOT delete) the blue track south of R1. The entire printed resistor will
+now have a magenta stripe temporarily. Delete R1. Add a new track from the dangling
+end of the printed resistor to the Vdd via just north of where R1 was. OK the warning.
+The printed resistor should turn blue again (losing its magenta stripe).
+Delete all DRC error notifications (start a Design Rule Check, and click the Delete Errors
+button), so as not to confuse the manufacturer.
+A Design Rule Check should pass now, apart from the two Single Pin Net errors associated with the
+phantom daughter board.
 
-Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm.
+Ensure that the copper pour on the top layer has its outline width set to the minimum track width e.g. 0.2 mm.
 Deselect all; Context menu in space and Pour copper.
 Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
 plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
