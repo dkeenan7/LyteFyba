@@ -78,24 +78,25 @@ Context menu in space and choose Pour Copper (with Remove isolated islands). Des
 Check for silkscreen on pads and fix any.
 
 
-Replication Procedure and Preparing for Manufacture (Squiggle-joined CMUs for prismatic cells)
-===================================================
+Replication Procedure (Squiggle-joined CMUs for prismatic cells)
+================================================================
 Copy or Save As the .pcb file to a suitable name
 Display only bottom silkscreen and bottom copper layers. 
 Unroute (^U) the blue track segment to the south of R1.
 with the rest of the printed resistor. Select R1 and delete it. Add a new track from the end of the
 printed resistor to the now unconnected via. Ok the warning that this will create one net from Vdd
 and BypR; this is unavoidable. Design rule check should still pass. 
-If necessary, add the *two* new track segments (one is small under the via) to the Rotatables group (select them, use context menu "add to group", choose the "Rotatables" group, uncheck "Tight Group").
+If necessary, add the *two* new track segments (one is small under the via) to the Rotatables group
+(select them, use context menu "add to group", choose the "Rotatables" group, uncheck "Tight Group").
 Display top copper as well.
 Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
 Pour all copper (with Remove isolated islands). Design check.
 Zoom out.
 Apply the above rotation procedure.  Clear all copper pours.
-Ensure all layers are visible, except the two documentation layers and Cutouts text.
+Ensure all layers are visible, except the two documentation layers and Cutouts text layer.
 Frame select the whole CMU including the squiggle-join cutouts above, but not below.
-Deselect board outline by Ctrl-Shift-click. Deselect squiggle-join cutouts below if necessary. Keep the
-oval cutouts and squiggle-join cutouts above. Zoom out; leave room below.
+Deselect board outline and squiggle-join cutout outlines above and below by Ctrl-Shift-clicks. 
+Keep the cell-terminal cutouts. Zoom out; leave room below.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
@@ -104,7 +105,7 @@ Apply the rotation procedure again, to the original CMU only, to return it to no
 Now is a good time for a design rule check. We expect only two errors 
 (Track to track errors: RX- and TY-, RX+ and TY+).
 Make all layers visible, except the two documentation layers and Cutouts text.
-Zoom out; select the two CMUs; deselect outline; copy paste; All No
+Zoom out; select the two CMUs; deselect board outline and squiggle cutout outlines; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
 Zoom in near the top of the 4 CMUs
 Select around the top squiggle join; delete
@@ -112,8 +113,8 @@ Delete dangling tracks at top and bottom.
 Deselect all; Context menu in space and Pour copper, if necessary.
 Save. Follow the procedure below to generate the manufacturing files.
 
-Isomerisation Procedure and Preparing for Manufacture (Octagonal CMUs for cylindrical cells)
-===================================================
+Isomerisation Procedure (Octagonal CMUs for cylindrical cells)
+==============================================================
 Delete the IFO daughter boards at the north end of the PCBs. Do not save to the original file
 at this point.
 Save As the .pcb file twice, to two suitable names e.g. CMUp and CMUn.
