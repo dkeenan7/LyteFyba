@@ -142,10 +142,7 @@ Cut (Control-U, NOT delete) the blue track south of R1. The entire printed resis
 now have a magenta stripe temporarily. Delete R1. Add a new track from the dangling
 end of the printed resistor to the Vdd via just north of where R1 was. OK the warning.
 The printed resistor should turn blue again (losing its magenta stripe).
-Delete all DRC error notifications (start a Design Rule Check, and click the Delete Errors
-button), so as not to confuse the manufacturer.
-A Design Rule Check should pass now, apart from the two Single Pin Net errors associated with the
-phantom daughter board.
+Perform a Design Rule Check; there should be no errors.
 
 Ensure that the copper pour on the top layer has its outline width set to the minimum track width e.g. 0.2 mm.
 Deselect all; Context menu in space and Pour copper.
