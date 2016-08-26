@@ -61,57 +61,56 @@ useful here.
 * Deselect everything from the top and bottom documentation layers, and Cutouts text, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
 * Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
-* Context menu on one of the selected objects and select "Group", uncheck "Tight" 
+* Context menu on one of the selected objects and select "Group", uncheck "Tight Group" 
 and give the group the name "Rotatables"
 
 Rotation Procedure
 ==================
 Ensure all layers are visible, except the two documentation layers and Cutouts text.
 Click in space to deselect all. Context menu in space and choose Clear Copper if possible.
-Select SG1. Use a horizontal piece of silkscreen "track" away from other tracks, as this
-will minimise interference from tracks and pour outlines that may otherwise be selected by
-mistake. This component has co-ordinates 0,0 , and is therefore ideal for use as the centre of the
-rotation. Context menu on SG1 and choose Group / Select Group. Press R twice.
+Select SG1, e.g. by clicking on one of its pads. 
+Context menu on SG1 and choose Group / Select Group. Press R twice.
 If the above doesn't work because it no longer rotates about the origin, then
 manually almost-overlap the blue blobs where the rotatables connect to the non-rotatables, then
 remember the new dx and dy figures from the bottom of the window to use in a + command from
 now on. Click in space to deselect all.
-Context menu in space and choose Pour Copper. Design check.
+Context menu in space and choose Pour Copper (with Remove isolated islands). Design check. 
+Check for silkscreen on pads and fix any.
 
 
 Replication Procedure and Preparing for Manufacture (Squiggle-joined CMUs for prismatic cells)
 ===================================================
 Copy or Save As the .pcb file to a suitable name
-Select only bottom silkscreen and bottom copper layers. Unroute (^U) the blue track connecting R1
+Display only bottom silkscreen and bottom copper layers. 
+Unroute (^U) the blue track segment to the south of R1.
 with the rest of the printed resistor. Select R1 and delete it. Add a new track from the end of the
-printed resistor to the now unconnected via. Ok the warning that his will create one net from Vdd
-and BypR; this is unavoidable. Design rule check should still pass. Add the *two* new tracks (one is
-small under the via) to the rotatables group (select them, use contect menu "add to group" and
-choose the "Rotatables" group).
-Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. Repour
-all copper. Design check.
+printed resistor to the now unconnected via. Ok the warning that this will create one net from Vdd
+and BypR; this is unavoidable. Design rule check should still pass. 
+If necessary, add the *two* new track segments (one is small under the via) to the Rotatables group (select them, use context menu "add to group", choose the "Rotatables" group, uncheck "Tight Group").
+Display top copper as well.
+Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
+Pour all copper (with Remove isolated islands). Design check.
 Zoom out.
 Apply the above rotation procedure.  Clear all copper pours.
 Ensure all layers are visible, except the two documentation layers and Cutouts text.
 Frame select the whole CMU including the squiggle-join cutouts above, but not below.
 Deselect board outline by Ctrl-Shift-click. Deselect squiggle-join cutouts below if necessary. Keep the
-oval cutouts and squiggle-join cutouts. Zoom out; leave room below.
+oval cutouts and squiggle-join cutouts above. Zoom out; leave room below.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
 Click in space to deselect all
-Delete the locating hole (north west corner) and its keepout circle (a tight group) from the original.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
-Now is a good time for a design rule check.
+Now is a good time for a design rule check. We expect only two errors 
+(Track to track errors: RX- and TY-, RX+ and TY+).
 Make all layers visible, except the two documentation layers and Cutouts text.
 Zoom out; select the two CMUs; deselect outline; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
 Zoom in near the top of the 4 CMUs
 Select around the top squiggle join; delete
-Remove dangling tracks at top and bottom.
+Delete dangling tracks at top and bottom.
 Deselect all; Context menu in space and Pour copper, if necessary.
-Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
-plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
+Save. Follow the procedure below to generate the manufacturing files.
 
 Isomerisation Procedure and Preparing for Manufacture (Octagonal CMUs for cylindrical cells)
 ===================================================
@@ -138,18 +137,33 @@ to Strap+. Ok the warning.
 Complete the dangling Strap+ track so it's no longer dangling; use Power Nom style.
 
 On both CMUs:
-Cut (Control-U, NOT delete) the blue track south of R1. The entire printed resistor will
+Cut (Control-U, NOT delete) the blue track segment south of R1. The entire printed resistor will
 now have a magenta stripe temporarily. Delete R1. Add a new track from the dangling
 end of the printed resistor to the Vdd via just north of where R1 was. OK the warning.
 The printed resistor should turn blue again (losing its magenta stripe).
 Perform a Design Rule Check; there should be no errors.
 
-Ensure that the copper pour on the top layer has its outline width set to the minimum track width e.g. 0.2 mm.
+Ensure that the only copper pour, on the top layer, has its outline width set to the minimum track 
+width e.g. 0.2 mm.
 Deselect all; Context menu in space and Pour copper.
-Save. Output manufacturing plots: Output / Manufacturing Plots; Select at least one
-plot (e.g. Cutouts Text), use Layers tab to turn on "Board outline" for this plot.
-For OSH Park use 3:3 metric for gerbers and 3:4 metric for the single (combined plated and non-plated) drill file.
-For OSH Park Ensure the drill file does not include the outline.
+Save. Follow the procedure below to generate the manufacturing files.
+
+Generate manufacturing files
+============================
+Choose Output / Manufacturing Plots; Select the Cutouts Text plot, 
+use Layers tab to turn on "Board outline" for this plot.
+For OSH Park and PCB Zone use 3:3 metric for gerbers and 3:4 metric for drill files 
+and ensure the outline is not included in any gerber or drill files
+except the gerber generated from the Cutouts text layer.
+To do this, check the Settings tab of the Drill Data plot and uncheck both Unplated Board outlines and 
+Plated Board Outlines.
+For OSH Park, generate a single (combined plated and non-plated) drill file. 
+OSH Park use the presence of copper under the drill to distinguish plated from non-plated.
+For PCB Zone, generate separate plated and non-plated drill files.
+To change this see the Output tab of the Drill Data plot and use the Device Setup button.
+
+Don't send any bottom silkscreen gerber to the manufacturer. 
+It only contains thru-hole part outlines that we didn't want in the top silkscreen.
 
 Reasons for using lowercase letters after component designator numbers
 ======================================================================
