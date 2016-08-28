@@ -115,38 +115,35 @@ Save. Follow the procedure below to generate the manufacturing files.
 
 Isomerisation Procedure (Octagonal CMUs for cylindrical cells)
 ==============================================================
-Delete the IFO daughter boards at the north end of the PCBs. Do not save to the original file
-at this point.
 Save As the .pcb file twice, to two suitable names e.g. CMUp and CMUn.
 
 From CMUn:
-Delete the pad for Strap- (near the large minus sign) and its associated strain relief hole.
-Delete fuse F2 and its two pieces of associated text.
-Delete the left-hand large minus sign.
+Delete the large minus sign north of F2.
+Delete the Strap- pad north of F2, and its associated strain relief hole.
+Delete fuse F2 and the "F2" text.
 Turn the middle plus sign into a minus sign by deleting the vertical stroke.
-Delete the dangling GND track from the large terminal pad (northeast, not west).
+Delete the dangling track going northeast from the large central terminal pad.
 
 From CMUp:
-Delete fuse F1 and its associated text.
-Reconnect from the VDD track to the via at the north end of R1, and connect from the south end
-of D1 to the same via, using Power Min track style.
-Delete the right-hand large plus sign (two lines).
-Delete the pad for Strap+ and its associated strain relief hole.
-Delete the west GND track from the large terminal pad.
-Change the net of only the large terminal pad (check the Change Name of Subnet Only checkbox)
-to Strap+. Ok the warning.
-Complete the dangling Strap+ track so it's no longer dangling; use Power Nom style.
+Delete the large plus sign north of D1 (two lines).
+Delete the Strap+ pad east of D1, and its associated strain relief hole.
+Delete fuse F1 and the "F1" text. This will also delete a segment of VDD track to its southwest.
+Reconnect from the VDD track to the via at the north end of R1, and from this via to the south end
+of D1, using Power Min track style.
+Delete the large GND track going west from the large central terminal pad.
+Change the net of the large central terminal pad (check the "Change Name of Subnet Only" checkbox)
+from GND to Strap+. OK the warning, provided it says it will only change a subnet.
+Complete the dangling Strap+ track going northeast from the central terminal pad, by joining it 
+to the Strap+ track going to D1, using Power Nom style.
 
 On both CMUs:
-Cut (Control-U, NOT delete) the blue track segment south of R1. The entire printed resistor will
-now have a magenta stripe temporarily. Delete R1. Add a new track from the dangling
-end of the printed resistor to the Vdd via just north of where R1 was. OK the warning.
-The printed resistor should turn blue again (losing its magenta stripe).
-Perform a Design Rule Check; there should be no errors.
-
-Ensure that the only copper pour, on the top layer, has its outline width set to the minimum track 
-width e.g. 0.2 mm.
+Cut (Control-U, NOT delete) the blue track segment south of R1. Delete R1. Add a new track from the dangling
+end of the printed resistor to the VDD via just north of where R1 was. OK the warning.
+Delete the IFO devices Q2 and D7 north of the PCB.
+Ensure that all copper pours (there's only one and it's in the top layer) have their outline width 
+set to the minimum track width e.g. 0.2 mm.
 Deselect all; Context menu in space and Pour copper.
+Perform a Design Rule Check; there should be no errors.
 Save. Follow the procedure below to generate the manufacturing files.
 
 Generate manufacturing files
