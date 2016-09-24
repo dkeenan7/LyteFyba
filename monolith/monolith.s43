@@ -146,8 +146,8 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-SourceCtor	EQU		ChgCtor			; Source contactor MOSFET and orange LED
-LoadCtor	EQU 	DisCtor			; Load contactor MOSFET and cyan/white LED
+SourceCtor	EQU		BatNegCtor			; Source contactor MOSFET and orange LED
+LoadCtor	EQU 	AcLfPvCtor			; Load contactor MOSFET and cyan/white LED
 CtorPortOUT	EQU		P3OUT
 
 ;
@@ -405,7 +405,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 3
 
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCtor|BatCtor|ChgCtor|DisCtor|TxMiChg|NrmCtor,&P3DIR ; Set TxChg, Ctors as out
+			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|TxMiChg|RtPvCtor,&P3DIR ; Set TxChg, Ctors as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins
 
 ;
@@ -1161,7 +1161,7 @@ ControlContactors:
 			inc.b	&shutdownTimer
 			cmp.b	#ShutdownTime,&shutdownTimer
 			_IF		_HS						; And enough time has passed
-				bic.b	#(BatCtor|ChgCtor|DisCtor|NrmCtor),CtorPortOUT	; Drop out all battery
+				bic.b	#(BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor),CtorPortOUT	; Drop out all battery
 																		; contactors, and we die
 				; We need an endless loop here in case the BMU doesn't lose power.
 				; It may still be powered up by the inverter capacitors, or some charge source.
@@ -1293,64 +1293,37 @@ DoPrecharge:
 		; This code is designed to work with a number of different battery contactor
 		; arrangements.
 		; t0 thru t4 indicate the time order of switching during precharge.
-		; P21 thru P25 are the numbers of the BMU connectors that drive the contactor coils.
+		; P22 thru P26 are the numbers of the BMU connectors that drive the contactor coils.
 		; The connector numbers increase as you go away from the BMU's 12 V input connector.
 		; These BMU connectors are named respectively PRE BAT CHG DIS NRM in the software and schematic.
 		;
-        ; This is the contactor arrangement for the first DCM system installed at Kingscliff TAFE:
-		;           + ___ -      - ___ +
-		;        +----o o----------o o-----+
-		;        | t4 DIS P24   t1 NRM P25 |
-		;        |  + ___ -      - ___ +   |
-		; Bat+ --+----o o----------o o-----+-- Load +
-		;        | t3 BAT P22   t0 CHG P23 |
-		;        |    ___          ___     |
-		;        +----o o---------|___|----+
-		;          t2 PRE P21    3R3 100W
-		;
-		;                          ___
-		; Bat- -------------------|___|------- Load -
-		;                      500A 50mV shunt
-		;
-		; This is the contactor arrangement for the first Pods system installed at Kingscliff TAFE:
+		; This is the contactor arrangement for monoliths
+		; (apart from #1 at Helidon which is handled by the rev61 branch)
 		;           + ___ -
 		; Bat+ --+----o o------------------+-- Load +
-		;        | t3 BAT P22              |
+		;        | t3 BAT+ P23             |
 		;        |    ___          ___     |
 		;        +----o o---------|___|----+
-		;          t2 PRE P21    3R3 100W
+		;          t2 PRE P22    3R3 100W
 		;
 		;           + ___ -        ___
 		; Bat- -------o o---------|___|------- Load -
-		;          t0 CHG P23  500A 50mV shunt
-		;
-		; Future DCM systems should have their contactors arranged like this:
-		;           + ___ -
-		;        +----o o-----+
-		;        | t4 DIS P24 |
-		;        |  + ___ -   |
-		; Bat+ --+----o o-----+------------+-- Load +
-		;        | t3 BAT P22              |
-		;        |    ___          ___     |
-		;        +----o o---------|___|----+
-		;          t2 PRE P21    3R3 100W
+		;          t0 BAT- P24  500A 50mV shunt
 		;
 		;           + ___ -
-		;        +----o o-----+
-		;        | t1 NRM P25 |
-		;        |  + ___ -   |    ___
-		; Bat- --+----o o-----+---|___|------- Load -
-		;          t0 CHG P23  500A 50mV shunt
+		;        -----o o------     AC In contactor, left PV+ and delayed left PV- contactors
+		;          t4 ACLPV P25
+		;
+		;           + ___ -
+		;        -----o o------     Right PV+ and delayed right PV- contactors
+		;          t1 RPV P26
 		;
 		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
-		bis.b	#ChgCtor,&CtorPortOUT 		; Turn on the lower charge-direction contactor
+		bis.b	#BatNegCtor,&CtorPortOUT 	; Turn on the battery negative contactor
 		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
 		call	#DelayMs					; Wait for economiser to reduce coil current
-		bis.b	#NrmCtor,&CtorPortOUT ; Turn on the upper charge-direction contactor
-		mov		#160,R8						; 160 milliseconds
-		call	#DelayMs					; Wait for economiser to reduce coil current
 
-		bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor (probably Minitactor)
+		bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
@@ -1362,25 +1335,27 @@ DoPrecharge:
 			sub		R8,R10						; R10 = BatV - CapV
 			abs		R10							; R10 = Abs(BatV - CapV), allow for CapV > BatV
 			cmp		#6*10,R10
-			_WHILE	_HS							; Wait for less than 5 V across contactor
+			_WHILE	_HS							; Wait for less than 6 V across contactor
 				dec		R12
 		_UNTIL	_Z
 				mov		#1,Rtos						; Fall thru to here on timeout
 				call	#_errorLed					; We who are about to die beep at you
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
-				bic.b	#ChgCtor,&CtorPortOUT 		; Turn off the lower charge-direction contactor
-				bic.b	#NrmCtor,&CtorPortOUT 		; Turn off the upper charge-direction contactor
+				bic.b	#BatNegCtor,&CtorPortOUT 	; Turn off the batttery negative contactor
 				_BEGIN
 					ClearWatchdog
 				_AGAIN								; Endless loop
 			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
-				bis.b	#BatCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
+				bis.b	#BatPosCtor,&CtorPortOUT	; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
-				bis.b	#DisCtor,&CtorPortOUT ; Turn on the upper discharge-direction contactor
+				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for relay bounce and voltage settling
+				bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for economiser to reduce coil current
 			_ENDIF
 		bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
 		ret

@@ -296,7 +296,7 @@ newChip:
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
 			mov.b	#0,&P3OUT				; Set all outputs low (and inputs pulled down)
-			mov.b	#PreCtor|BatCtor|ChgCtor|TxMiChg|DisCtor|NrmCtor,&P3DIR ; Set Tx, Ctors as outputs
+			mov.b	#PreCtor|BatPosCtor|BatNegCtor|TxMiChg|AcLfPvCtor|RtPvCtor,&P3DIR ; Set Tx, Ctors as outputs
 
 			clr		rERR					; Clear the error register
 

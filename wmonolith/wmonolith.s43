@@ -145,8 +145,8 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-SourceCtor	EQU		ChgCtor			; Source contactor MOSFET and orange LED
-LoadCtor	EQU 	DisCtor			; Load contactor MOSFET and cyan/white LED
+SourceCtor	EQU		BatNegCtor			; Source contactor MOSFET and orange LED
+LoadCtor	EQU 	AcLfPvCtor			; Load contactor MOSFET and cyan/white LED
 CtorPortOUT	EQU		P3OUT
 
 ;
@@ -390,7 +390,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Initialise port 3
 			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCtor|BatCtor|ChgCtor|DisCtor|TxMiChg|NrmCtor,&P3DIR ; Set TxChg, Ctors as out
+			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|TxMiChg|RtPvCtor,&P3DIR ; Set TxChg, Ctors as out
 			mov.b	#RxChg|TxMiChg,&P3SEL		; Select timer functions for Rx and Tx pins
 
 ;
@@ -1071,7 +1071,7 @@ ControlContactors:
 			inc.b	&shutdownTimer
 			cmp.b	#ShutdownTime,&shutdownTimer
 			_IF		_HS						; And enough time has passed
-				bic.b	#(BatCtor|ChgCtor|DisCtor|NrmCtor),CtorPortOUT	; Drop out all battery
+				bic.b	#(BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor),CtorPortOUT	; Drop out all battery
 																		; contactors, and we die
 				; We need an endless loop here in case the BMU doesn't lose power.
 				; It may still be powered up by the inverter capacitors, or some charge source.
@@ -1164,10 +1164,10 @@ DoPrecharge:
 		;          t0 CHG P23  500A 50mV shunt
 		;
 		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
-		bis.b	#ChgCtor,&CtorPortOUT 		; Turn on the lower charge-direction contactor
+		bis.b	#BatNegCtor,&CtorPortOUT 		; Turn on the lower charge-direction contactor
 		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
 		call	#DelayMs					; Wait for economiser to reduce coil current
-		bis.b	#NrmCtor,&CtorPortOUT ; Turn on the upper charge-direction contactor
+		bis.b	#RtPvCtor,&CtorPortOUT ; Turn on the upper charge-direction contactor
 		mov		#160,R8						; 160 milliseconds
 		call	#DelayMs					; Wait for economiser to reduce coil current
 
@@ -1189,17 +1189,17 @@ DoPrecharge:
 				mov		#1,Rtos						; Fall thru to here on timeout
 				call	#_errorLed					; We who are about to die beep at you
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
-				bic.b	#ChgCtor,&CtorPortOUT 		; Turn off the lower charge-direction contactor
-				bic.b	#NrmCtor,&CtorPortOUT 		; Turn off the upper charge-direction contactor
+				bic.b	#BatNegCtor,&CtorPortOUT 		; Turn off the lower charge-direction contactor
+				bic.b	#RtPvCtor,&CtorPortOUT 		; Turn off the upper charge-direction contactor
 				_BEGIN
 					ClearWatchdog
 				_AGAIN								; Endless loop
 			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
-				bis.b	#BatCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
+				bis.b	#BatPosCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
-				bis.b	#DisCtor,&CtorPortOUT ; Turn on the upper discharge-direction contactor
+				bis.b	#AcLfPvCtor,&CtorPortOUT ; Turn on the upper discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for relay bounce and voltage settling
 			_ENDIF

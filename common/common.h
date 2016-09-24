@@ -34,13 +34,13 @@ PreIPortIN	EQU		P2IN
 ; Port 3 bit masks. BMU only.
 RxChg		EQU		1<<0			; Receive from charger (TA0.2 input) on P3.0
 PreCtor		EQU		1<<1			; Precharge contactor output on P3.1
-BatCtor		EQU		1<<2			; Battery contactor output  P3.2
-ChgCtor		EQU		1<<3			; Charge sources contactor output  P3.3
-DisCtor		EQU		1<<4			; Discharge or discretionary loads contactor output on P3.4
+BatPosCtor	EQU		1<<2			; Battery positive contactor output  P3.2
+BatNegCtor	EQU		1<<3			; Battery negative contactor output  P3.3
+AcLfPvCtor	EQU		1<<4			; AC and left PV sources contactor output on P3.4
 TxMiChg		EQU		1<<5			; Transmit- to charger (TA0.1 output) on P3.5
-NrmCtor		EQU		1<<6			; Normal loads contactor output on P3.6
+RtPvCtor	EQU		1<<6			; Right PV source contactor output on P3.6
 BatI		EQU		1<<7			; Battery contactor auxiliary contact input on P3.7
-SocMeter	EQU		NrmCtor			; PWM output for SoC meter (monolith only)
+SocMeter	EQU		BatI			; PWM output for SoC meter (monolith only) Prob not used in future
 SocPortDIR	EQU		P3DIR			; Soc meter PWM output is on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT

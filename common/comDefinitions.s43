@@ -817,16 +817,16 @@ GetContactorBitmask:
 				mov.b	#PreCtor,Rtos
 			_ENDOF
 			_OFb	#2,Rtos				; Battery
-				mov.b	#BatCtor,Rtos
+				mov.b	#BatPosCtor,Rtos
 			_ENDOF
 			_OFb	#3,Rtos				; Charge sources
-				mov.b	#ChgCtor,Rtos
+				mov.b	#BatNegCtor,Rtos
 			_ENDOF
 			_OFb	#4,Rtos				; Discharge / Discretionary loads
-				mov.b	#DisCtor,Rtos
+				mov.b	#AcLfPvCtor,Rtos
 			_ENDOF
 			_OFb	#5,Rtos				; Normal loads
-				mov.b	#NrmCtor,Rtos
+				mov.b	#RtPvCtor,Rtos
 			_ENDOF
 			_ENDCASE
 			ret
