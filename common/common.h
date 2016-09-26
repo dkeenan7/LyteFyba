@@ -112,3 +112,10 @@ MckPerTAck	EQU		1
 MClock		EQU		DCOfreq/DCOckPerMck	; MCLK (CPU clock) frequency in hertz
 										;	(DCO software-locked to watch xtal)
 BaudRate	EQU		9600			; Serial comms rate in bits per second
+
+			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
+			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
+			; NOTE: It depends on the assembler rounding toward zero (truncated division).
+			; There is a similar simple formula for rounding towards neg infinity (floored division).
+			#define LOG2(x) (4 * (x-8) / (x+8) + 3)
+

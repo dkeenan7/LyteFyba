@@ -286,7 +286,9 @@ newChip:
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT				; Set all outputs low.
-			mov.b	#RelayM_Byp|RelayP_57k6|TxMiScu|ErrLed,&P2DIR ; Set Relays, Tx, ErrLed as outputs
+			bis.b	#RelayM|RelayP|ErrLed,&P2DIR ; Set Relays, ErrLed as outputs
+			bis.b	#TxMiChg,&ChgPortDIR 		; Set Tx as output
+												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
@@ -295,10 +297,11 @@ newChip:
 				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
-			mov.b	#0,&P3OUT				; Set all outputs low (and inputs pulled down)
-			mov.b	#PreCtor|BatPosCtor|BatNegCtor|TxMiChg|AcLfPvCtor|RtPvCtor,&P3DIR ; Set Tx, Ctors as outputs
+			mov.b	#0,&P3OUT					; Set all outputs low (and inputs pulled down)
+			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR ; Set outputs for contactors
+			bis.b	#TxMiScu,&ScuPortDIR		; Set Tx as output
 
-			clr		rERR					; Clear the error register
+			clr		rERR						; Clear the error register
 
 ;
 ; Initialise the ADC10
