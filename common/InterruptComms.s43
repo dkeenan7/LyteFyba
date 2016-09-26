@@ -35,6 +35,7 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 ; Timer register definitions
 	; CMU comms uses UART
 	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
+	; If you swap these, don't forget to swap the nterrupt vectors too.
 	; System Control Unit comms and Frequency locked loop
 ScuTAR		EQU			TA0R		; SCU timer register
 ScuTAIV		EQU			TA0IV		; SCU timer interrupt subvector

@@ -30,6 +30,9 @@ BypPortOUT	EQU		P2OUT
 RelayM		EQU		RelayM_Byp
 RelayP		EQU		RelayP_57k6
 PreIPortIN	EQU		P2IN
+ChgPortDIR	EQU		P2DIR			; Charger comms on port 2
+ChgPortSEL	EQU		P2SEL
+ChgPortOUT	EQU		P2OUT
 
 ; Port 3 bit masks. BMU only.
 RxScu		EQU		1<<0			; Receive from SCU (TA0.2 input) on P3.0
@@ -45,6 +48,9 @@ SocPortDIR	EQU		P3DIR			; Soc meter PWM output is on port 3
 SocPortSEL	EQU		P3SEL
 SocPortOUT	EQU		P3OUT
 BatIPortIN	EQU		P3IN			; BatI input is on port 3
+ScuPortDIR	EQU		P3DIR			; SCU comms on port 3
+ScuPortSEL	EQU		P3SEL
+ScuPortOUT	EQU		P3OUT
 
 ; ADC channel numbers
 TouchVChan	EQU		$3				; ADC channel number for touch voltage (BMU only)
