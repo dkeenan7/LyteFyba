@@ -17,9 +17,9 @@ BatV_StrapVPl EQU	1<<7			; Analog input on P1.7
 ; Port 2 bit masks
 RelayM_Byp	EQU		1<<0			; IMU relay for HazV- test (BMU) on P2.0
 RelayP_57k6 EQU		1<<1			; IMU relay for HazV+ test (BMU), 57.6 kHz IR carrier (CMU) on P2.1
-TxMiScu		EQU		1<<2			; Transmit- to SCU (TA1.1 output) on P2.2
+TxMiChg		EQU		1<<2			; Transmit- to charger (TA1.1 output) on P2.2
 PreI		EQU		1<<3			; Precharge contactor auxiliary contact input (BMU) on P2.3
-RxScu		EQU		1<<4			; Receive from SCU (TA1.2 input) on P2.4
+RxChg		EQU		1<<4			; Receive from charger (TA1.2 input) on P2.4
 ErrLed		EQU		1<<5			; Error LED (red) on P2.5
 Xin			EQU		1<<6			; Watch crystal in on P2.6
 Xout		EQU		1<<7			; Watch crystal out on P2.7
@@ -32,12 +32,12 @@ RelayP		EQU		RelayP_57k6
 PreIPortIN	EQU		P2IN
 
 ; Port 3 bit masks. BMU only.
-RxChg		EQU		1<<0			; Receive from charger (TA0.2 input) on P3.0
+RxScu		EQU		1<<0			; Receive from SCU (TA0.2 input) on P3.0
 PreCtor		EQU		1<<1			; Precharge contactor output on P3.1
 BatPosCtor	EQU		1<<2			; Battery positive contactor output  P3.2
 BatNegCtor	EQU		1<<3			; Battery negative contactor output  P3.3
 AcLfPvCtor	EQU		1<<4			; AC and left PV sources contactor output on P3.4
-TxMiChg		EQU		1<<5			; Transmit- to charger (TA0.1 output) on P3.5
+TxMiScu		EQU		1<<5			; Transmit- to SCU (TA0.1 output) on P3.5
 RtPvCtor	EQU		1<<6			; Right PV source contactor output on P3.6
 BatI		EQU		1<<7			; Battery contactor auxiliary contact input on P3.7
 SocMeter	EQU		BatI			; PWM output for SoC meter (monolith only) Prob not used in future

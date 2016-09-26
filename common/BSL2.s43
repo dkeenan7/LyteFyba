@@ -54,7 +54,7 @@ BSL:		; Initialisation
 			; ID = 0, Divide by 1
 			; MC = 10, Continuous count mode
 			; TAIE = 0, No overflow interrupt
-			mov		#TASSEL1 | ID_0 | MC_2, &TA0CTL
+			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA0CTL ; Used for FLL as well as comms
 			; CM = 01, Capture on rising edge
 			; CCIS = 01, Capture input = CCI0B
 			; SCS = 1, synchronous capture
