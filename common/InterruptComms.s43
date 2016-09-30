@@ -18,6 +18,7 @@
 ;*******************************************************************************
 
 #define		ALL_TO_ALL 0	// 1 to take input from any port and send output to all - for testing
+							// NOTE: does not work with TestiCal (no interrupt routines)
 
 ; Timer A capture/compare regs are used for the interrupt-driven software UART
 ;

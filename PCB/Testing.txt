@@ -1,5 +1,5 @@
-                      Testing Procedure for New CMUs (rev 61 or later)
-                      ================================================
+                      Testing Procedure for CMUs and BMU
+                      ==================================
 
 If a CMU fails any test, put a coloured sticker on it with the number and letter 
 of the step it failed.
@@ -60,6 +60,8 @@ of the step it failed.
      If not, <escape><enter> and re-do the x command.
   c) Use both probes of the Fluke 87 III multimeter to measure the voltage directly 
      at the CMU's + and - terminals pads.
+     If calibrating a BMU, ensure the same voltage is present on the HAZ BAT and HAZ
+     ARR inputs.
      Use the <nnnn>'vc command to calibrate the voltage based on the multimeter reading.
      Check that the calibration
      value is in the ranges -31500 to -32768 or 31500 to 32767. Check the voltage

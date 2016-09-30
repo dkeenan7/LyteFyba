@@ -285,9 +285,9 @@ newChip:
 			; BSL settings of Port1 are OK. No interrupt comms in TestICal. Analog settings done later.
 
 			; Initialise port 2
-			mov.b	#0,&P2OUT				; Set all outputs low.
-			bis.b	#RelayM|RelayP|ErrLed,&P2DIR ; Set Relays, ErrLed as outputs
-			bis.b	#TxMiChg,&ChgPortDIR 		; Set Tx as output
+			mov.b	#0,&P2OUT					; Set all outputs low.
+			bis.b	#ErrLed,&P2DIR				; Set ErrLed as output
+			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Tx as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.

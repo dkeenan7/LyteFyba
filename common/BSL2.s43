@@ -75,8 +75,8 @@ BSL:		; Initialisation
 				mov		#OUTMOD_3, &TA1CCTL1
 				mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
 				mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
-				bis.b	#RelayP_57k6,&P2SEL			; Set P2.1 as TA1.1
-				bis.b	#RelayP_57k6,&P2DIR			; and as an output
+				bis.b	#TxMiChg2_RlyP_57k6,&P2SEL	; Set P2.1 as TA1.1
+				bis.b	#TxMiChg2_RlyP_57k6,&P2DIR	; and as an output
 			_ENDIF
 
 			; Initialise the UART

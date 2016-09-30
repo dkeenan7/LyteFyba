@@ -15,20 +15,20 @@ ShuntV_BoltVMi EQU	1<<6			; Analog input on P1.6
 BatV_StrapVPl EQU	1<<7			; Analog input on P1.7
 
 ; Port 2 bit masks
-RelayM_Byp	EQU		1<<0			; IMU relay for HazV- test (BMU) on P2.0
-RelayP_57k6 EQU		1<<1			; IMU relay for HazV+ test (BMU), 57.6 kHz IR carrier (CMU) on P2.1
+ErrLed		EQU		1<<0			; Error LED (red) on P2.5
+TxMiChg2_RlyP_57k6 EQU 1<<1			; IM relay for HazV+ test (BMU), 57.6 kHz IR carrier (CMU) on P2.1
 TxMiChg		EQU		1<<2			; Transmit- to charger (TA1.1 output) on P2.2
 PreI		EQU		1<<3			; Precharge contactor auxiliary contact input (BMU) on P2.3
 RxChg		EQU		1<<4			; Receive from charger (TA1.2 input) on P2.4
-ErrLed		EQU		1<<5			; Error LED (red) on P2.5
+RxChg2_RlyM_Byp	EQU	1<<5			; IM relay for HazV- test (BMU), Bypass (CMU) on P2.5
 Xin			EQU		1<<6			; Watch crystal in on P2.6
 Xout		EQU		1<<7			; Watch crystal out on P2.7
-Bypass		EQU		RelayM_Byp		; Aliases for code that's common to newer and older devices
+Bypass		EQU		RxChg2_RlyM_Byp	; Aliases for code that's common to newer and older devices
 BypPortDIR	EQU		P2DIR			; Bypass MOSFET output on port 2
 BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
-RelayM		EQU		RelayM_Byp
-RelayP		EQU		RelayP_57k6
+RelayM		EQU		RxChg2_RlyM_Byp
+RelayP		EQU		TxMiChg2_RlyP_57k6
 PreIPortIN	EQU		P2IN
 ChgPortDIR	EQU		P2DIR			; Charger comms on port 2
 ChgPortSEL	EQU		P2SEL

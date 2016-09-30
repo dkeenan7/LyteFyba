@@ -79,10 +79,10 @@ voltCalWork:
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
-				call	voltCalWork
+				call	#voltCalWork
 				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
-				call	voltCalWork
+				call	#voltCalWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 

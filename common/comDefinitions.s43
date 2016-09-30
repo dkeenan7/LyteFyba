@@ -282,22 +282,27 @@ _emitNum3:
 ; Display link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
 		xCODE		'l',linkVolt,_linkVolt
 		call		#linkV				; Return neg term "link voltage" in millivolts in R10
-		abs			R10					; Absolute value: easier to compare, and sign is meaningless
-										;	unless you know whether pos or neg strap!
-		push		R10					; Remember this neg term value
-		mov			#CellVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
-		call		#measAndScale
-		push		R10					; Save strap voltage
-		mov			#BoltVPlChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
-		call		#measAndScale
-		sub			R10,0(SP)			; TOS has bolt/array - cell/battery
-		pop			R10					; R10 has pos term strap drop
-		abs			R10					; Absolute value
-		cmp			R10,0(SP)			; Compare pos and neg drops
-		_IF			_LO					; If 0(SP) < R10
-			mov			R10,0(SP)			; Replace it with R10
+		cmp.b	#255,&ID
+		_IF		_EQ						; If we're a BMU
+			mov			R10,Rsec			; Result to Rsec
+		_ELSE
+			abs			R10					; Absolute value: easier to compare, and sign is meaningless
+											;	unless you know whether pos or neg strap!
+			push		R10					; Remember this neg term value
+			mov			#CellVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
+			call		#measAndScale
+			push		R10					; Save strap voltage
+			mov			#BoltVPlChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
+			call		#measAndScale
+			sub			R10,0(SP)			; TOS has bolt/array - cell/battery
+			pop			R10					; R10 has pos term strap drop
+			abs			R10					; Absolute value
+			cmp			R10,0(SP)			; Compare pos and neg drops
+			_IF			_LO					; If 0(SP) < R10
+				mov			R10,0(SP)			; Replace it with R10
+			_ENDIF
+			pop			Rsec				; Worst result to Rsec
 		_ENDIF
-		pop			Rsec				; Worst result to Rsec
 		mov			#'l',Rthd			; Type is Link voltage
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
