@@ -105,7 +105,7 @@ MinusROT	MACRO
 
 ; The command-character lookup table is in high memory.
 ; It contains one word per command character from $21 to $FF.
-; That word is the address of the code that implements the operation.
+; That word is the address of the code that implements the command.
 
 _LO_CMDCHR	EQU	' '+1						; Lowest definable cmd-character is char after space, "!"
 _HI_CMDCHR	EQU	$FF							; Highest definable cmd-character. Og Oo Ow O? Wg Wo Ww W?
@@ -181,47 +181,49 @@ CMDCHRNAM	EQU		$80|_char1<<3|_char2		; Combine the hashed characters and set the
 ; But presently, if a character is not defined as a single-character command, and it cannot be
 ; interpreted as a digit in the present input number base, then it will be treated as the first
 ; character of a two-character command.
-; By convention, we reserve most of the uppercase letters (in particulr those that most commonly
+; By convention, we reserve most of the uppercase letters (in particular those that most commonly
 ; begin English words) for beginning two-character commands.
 ; The two characters of these commands are hashed to a single non-ASCII character in the range
 ; $80 to $FF for the purpose of looking up the command-character table.
 ;
 ; The hash function keeps these 16 common first letters distinct: "PABCDEFGHIRSTMNO".
 ; Possible collisions are:
-; P   @ X
-; A   Y			; Note: The uppercase letters A thru F will be treated as hex digits only when
-; B   Z			; following a dollar sign, and with nothing intervening except other hex digits.
-; C   [
-; D   \
-; E   ]
-; F   ^
-; G   _
-; H
-; I   Q
-; R   J
-; S   K
-; T   L
-; M   U
-; N   V
-; O   W
+;                   Should only be used as last or only letter (to allow for future expansion)
+; P   X @			p x `   0 8 <space>
+; A   Y				a y     ! 9
+; B   Z				b z     " :		Note: The uppercase letters A thru F will be treated
+; C   [				c {     # ;		as hex digits only when following a dollar sign,
+; D   \				d |     $ <		and with nothing intervening except other hex digits.
+; E   ]				e }     % =
+; F   ^				f ~     & >
+; G   _				g <del> ' ?
+; H					h       (
+; I   Q				i q     ) 1
+; R   J				r j     * 2
+; S   K				s k     + 3
+; T   L				t l     , 4
+; M   U				m u     - 5
+; N   V				n v     . 6
+; O   W				o w     / 7
 ;
 ; The hash function keeps these 8 common second letters distinct: "hiralefo".
 ; Possible collisions are:
-; h   <space> p x
-; i   q y
-; r   b j z
-; a   c k s {
-; l   d t |
-; e   m u }
-; f   n v ~
-; o   g w <del>
+;										Should not be used as last or only letter (allows expansion)
+; h   p x `		( 0 8 <space>			H P X @
+; i   q y		) 1 9					I Q Y
+; r   b j z		" * 2 :					B J R Z
+; a   c k s {	! # + 3 ;				A C K S [
+; l   d t |		$ , 4 <					D L T \
+; e   m u }		% - 5 =					E M U ]
+; f   n v ~		& . 6 >					F N V ^
+; o   g w <del>	' / 7 ?					G O W _
 ;
 ; The main source of letter frequencies I used was:
 ; http://wordcraft.infopop.cc/eve/forums/a/tpc/f/932607094/m/3991045064
 ; But the following was also of interest, although it only gives the frequency in a typical
 ; _text_ (with many repeated words) whereas I need the frequency in a _vocabulary_ as above
 ; (no words repeated): http://norvig.com/mayzner.html
-; In promoting 'f' over 'u' in the list of favoured second-letters I had in mind
+; In promoting 'f' over 'u' in the list of favoured second-letters, I had in mind
 ; the control flow words If and Of. -- Dave Keenan
 
 _ENTER

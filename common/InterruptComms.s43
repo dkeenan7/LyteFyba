@@ -136,7 +136,7 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 ;-------------------------------------------------------------------------------
 ; TxByteCk	; Transmit the character in R8 while accumulating checksum.
 			; If necessary, wait until the queue is not full.
-			; Trashes R9.
+			; Trashes R9. Preserves R8.
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	dest

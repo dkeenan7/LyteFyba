@@ -21,7 +21,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 
 ; DECIMAL ( flag -- ) ; Set the output number base to decimal
 ;
-		xCODE	'O'|'g'<<8,DECIMAL,_DECIMAL
+		xCODE	'd',DECIMAL,_DECIMAL
 		bic.b	#bHexOutput,&interpFlags
 		ret
 
@@ -38,6 +38,40 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		DPOPb	Rw			; Pop the top of the interpreter data stack into Rw
 		incd	SP			; Drop the return address (which is within the interpreter)
 		br		#_RUN		; Interpret the character in Rw
+
+; QUOTE ( "ccc<quote>" -- c-addr u )
+; Parse, from the command sequence, characters ccc delimited by " (double quote).
+; Return c-addr and u that describe a string consisting of the characters ccc.
+; c-addr points to the first character and u is the length of the string.
+; The caller must not alter the returned string.
+		xCODE	'"',QUOTE,_QUOTE	; Double-quote
+		DPUSH	Rip			; Push the address of the first character
+		DPUSH	#0			; Push a tentative zero length, Rtos := 0
+		_BEGIN
+			mov		@Rip+,Rw	; Read a character and increment the interpreter pointer
+			cmp		#'"',Rw		; Check if the character is a double quote
+		_WHILE	_NE				; While the character is not a double-quote
+			inc	Rtos				; Increment the length
+		_REPEAT
+		ret
+
+; TYPE (c-addr u -- )
+; If u is greater than zero, emit the character string specified by pointer c-addr and length u.
+		xCODE	'T'|'y' <<8,TYPE,_TYPE	; 'Ty' collides with 'Ti, 'Tq', 'Li', 'Lq', 'Ly'
+		_BEGIN
+			tst		Rtos
+		_WHILE	_NZ
+			mov.b	@Rsec+,R8
+			call	#TxByteCk
+		_REPEAT
+		DROP
+		DROP
+		ret
+
+; CR ( -- )
+; Emit an end-of-packet, i.e. a carriage return, preceded by a checksum if required.
+		xCODE	'C'|'r' <<8,CR,_CR	; 'Cr' collides with 'Cb, 'Cj', 'Cz'
+		br	#TxEndOfPacket			; Tail-call TxEndOfPacket and return
 
 ; changeSign ( n -- -n )
 ;
@@ -119,8 +153,8 @@ _emitNum3:
 ; emitNum  ( n count -- ) ; Emit an integer n as count digits in the current number base
 ; Trashes R8-R12
 
-		xCODE	'N'|'o' <<8,emitNum,_emitNum
-#if 1	// This version takes up 7 more words of flash but doesn't use any stack (apart from its return address)
+		xCODE	'N'|'o' <<8,emitNum,_emitNum	; 'No' collides with 'Ng', 'Nw', 'Vg', 'Vo', 'Vw'
+#if 1	// This version takes up 7 more words of flash but doesn't use any stack (except return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
 		_IF		_Z					; If decimal, treat as a signed number
@@ -315,11 +349,11 @@ _emitNum3:
 ; This is an uncalibrated measurement as it is the touch current times the opto's CTR (0.63 to 1.25)
 ; times R17 (120R), scaled to 4092 counts for 1500 mV (ADC reference).
 ;
-		xCODE		'T',touchValue,_touchValue
+		xCODE		'T'|'o' <<8,touchValue,_touchValue	; 'To' collides with 'Tg' 'Tw' 'Lg' 'Lo' 'Lw'
 		cmp.b	#255,&ID					; If we're a BMU
 		_IF		_EQ
 			call		#touchV				; Return touch value (0 to 4092) in R10
-			mov			#'T',Rthd			; Type is touch value
+			mov			#touchValue,Rthd	; Command characters
 			mov			R10,Rsec			; Result
 			mov			#4,Rtos				; Print 4 digits
 			call		#_prettyPrint		; Call pretty-print
@@ -518,14 +552,19 @@ _prettyPrint:
 			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 			call	#TxByteCk			; Stops rest of packet being interpreted
 			push	Rtos				; Save m -- the digit count
-			push	Rthd				; Save ch -- the command character
+			push	Rthd				; Save ch -- the command character(s)
 			bic.b	#bHexOutput,&interpFlags ; Set to decimal output
 			mov.b	&ID,Rsec
 			call	#_emitNum3			; Emit the ID in decimal
 			mov		#':',R8				; Colon separator
 			call	#TxByteCk
-			pop		R8					; Restore ch (type of measurement)
-			call	#TxByteCk			; Transmit ch
+			pop		R8					; Restore ch (command character(s)) to R8
+			call	#TxByteCk			; Transmit ch, preserves R8
+			swpb	R8					; Check if there's a second command character
+			tst.b	R8
+			_IF		_NZ					; If the second command character is not null
+				call	#TxByteCk			; Transmit the second command character
+			_ENDIF
 			mov		#' ',R8				; Transmit a space
 			call	#TxByteCk
 			pop		Rtos				; Restore m
@@ -694,8 +733,8 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 
 
 ; NumCells  ( n -- ) Gives the number of cells
-		xCODE	'N'|'c' <<8,NumCells,_NumCells
-			NO_ECHO_CMD	doNumCells0,doNumCells		; Use the no-echo wrapper macro
+		xCODE	'N'|'c' <<8,NumCells,_NumCells	; 'Nc' collides with 'Na' 'Nk' 'Ns' 'Va' 'Vc' 'Vk' 'Vs'
+			NO_ECHO_CMD	doNumCells0,doNumCells	; Use the no-echo wrapper macro
 doNumCells0:
 			mov		#0,Rtos
 doNumCells:	; Emit another NumCells command with its parameter incremented by one.
@@ -705,6 +744,8 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 			call	#_emitNum			; Transmit the number as text in the present number base
 
 			mov		#'N',R8				; Transmit an "N"
+			call	#TxByteCk
+			mov		#'c',R8				; Transmit a "c"
 			call	#TxByteCk
 
 			br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
@@ -1024,16 +1065,16 @@ CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
 
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
 		_CASE
-		_OFb	#$B,Rtos			; B: Battery total nominal voltage (0.1 V)
+		_OFb	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
-		_OFb	#$C,Rtos			; C: Charge power capability (W)
+		_OFb	#$C,Rtos			; $C: Charge power capability (W)
 			mov		#CAP_CHARGE,Rsec
 		_ENDOF
-		_OFb	#$D,Rtos			; D: Discharge power capability (W)
+		_OFb	#$D,Rtos			; $D: Discharge power capability (W)
 			mov		#CAP_DISCH,Rsec
 		_ENDOF
-		_OFb	#$E,Rtos			; E: Energy capacity (Wh)
+		_OFb	#$E,Rtos			; $E: Energy capacity (Wh)
 			mov		#CAP_ENERGY,Rsec
 		_ENDOF
 		_ENDCASE

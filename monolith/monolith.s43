@@ -143,7 +143,7 @@ OV_UT		EQU		1<<4			; Stress type is OverVoltage or UnderTemp (ignore on discharg
 ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered Full
 									;   (reset to 0% DoD) as well as OverVoltage (ignore on discharge)
 									; When both type bits are clear it means OverTemp (never ignore)
-TYPE		EQU		$30				; Stress type field mask. Bits 4-5
+S_TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
 SourceCtor	EQU		BatNegCtor			; Source contactor MOSFET and orange LED
@@ -896,7 +896,7 @@ DoMeasurement:
 
 				; Update local present stress type if not already set to "all considered full" above.
 				mov.b	&localStatus,R10
-				and		#TYPE,R10
+				and		#S_TYPE,R10
 				cmp		#ALL_FULL,R10
 				_IF		_NE						; If stress type is not already All considered Full
 					cmp		#2,Rtype
@@ -913,7 +913,7 @@ DoMeasurement:
 							clr		R8						; Clear both type bits
 						_ENDIF
 					_ENDIF
-					movBits_B R8,#TYPE,&localStatus ; Record type for later, preserving other status bits.
+					movBits_B R8,#S_TYPE,&localStatus ; Record type for later, presrve other status bits
 				_ENDIF
 
 				; Update worst stress for trip so far
@@ -1055,13 +1055,13 @@ DoStatus:
 				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
 					mov		R8,R9					; Make a copy of incoming status for tests below
 					mov.b	&localStatus,R10		; Get local status to R10
-					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
+					movBits_B	R10,#STRESS|S_TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
 					_COND
-						and		#TYPE,R9
+						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
 					_AND_IF	_NE						; If incoming was not all considered full
 						mov.b	&localStatus,R10
-						and		#TYPE,R10
+						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
 					_AND_IF	_EQ						; and if local is in bypass
 						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
@@ -1069,20 +1069,20 @@ DoStatus:
 				_ELSE							; Else incoming stress is not less than ours
 					_IF		_EQ						; If incoming stress is equal to ours
 						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
-						and		#TYPE,R10				; which won't go away when sources dropped, and
+						and		#S_TYPE,R10				; which won't go away when sources dropped, and
 						cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
 						_IF		_EQ						; If local is undervoltage
-							movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
+							movBits_B	R10,#S_TYPE,R8		; Replace incoming type with ours (trashes R10)
 						_ENDIF
 					_ENDIF
 					; Incoming stress not less than ours
 					mov		R8,R9					; Make a copy of incoming status for tests below
 					_COND
-						and		#TYPE,R9
+						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
 					_AND_IF	_EQ						; If incoming is all considered full
 						mov.b	&localStatus,R10
-						and		#TYPE,R10
+						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
 					_AND_IF	_NE						; and if local is not in bypass
 						bic		#UV_AF,R8 				; Clear UV_AF (UV or all considered full) bit
@@ -1122,7 +1122,7 @@ ControlContactors:
 		mov		R8,R9
 		cmp		#10,&current			; Current is in tenths of an amp
 		_IF		_GE						; If 1 amp or more of charge current (positive)
-			and		#TYPE,R9				; Isolate the two stress-type bits
+			and		#S_TYPE,R9				; Isolate the two stress-type bits
 			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
 		_ELSE							; Else not charging
 			cmp		#-9,&current			; Current is in tenths of an amp
@@ -1200,7 +1200,7 @@ ControlContactors:
 		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
 		;	turn off charging/source contactors
 		mov		R8,R10					; Make a copy of the status byte in R10
-		and		#TYPE,R10				; Extract the two stress type bits
+		and		#S_TYPE,R10				; Extract the two stress-type bits
 		_COND							; Begin short circuit conditional
 			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
 		_AND_IF	_NE						; If the stress is not due to UnderVoltage
@@ -1240,7 +1240,7 @@ ControlContactors:
 			bit		#COM_ERR,R8
 		_AND_IF	_Z
 			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#TYPE,R10				; Extract the stress type bits
+			and		#S_TYPE,R10				; Extract the stress type bits
 			cmp		#ALL_FULL,R10
 		_AND_IF	_EQ						; If all cells are considered full
 			; Set the discharge counter to the required DoD (usually 0).
@@ -1270,7 +1270,7 @@ ControlContactors:
 				_ELSE
 					; If stress is due to undervoltage, treat it as stress 0 for charging purposes
 					mov		R8,R9					; Make a copy of the status byte in R9
-					and		#TYPE,R9				; Extract the stress type bits
+					and		#S_TYPE,R9				; Extract the stress type bits
 					cmp		#UV_AF,R9
 					_IF		_EQ						; If stress type is UnderVoltage
 						clr		R8						; Treat as a stress of zero for charging

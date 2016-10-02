@@ -12,16 +12,17 @@ t  l  Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                            noHW"#&()*+,./;=[]_|}~
-	  Initial characters not used so far in TestICal:          knoGHKPWZ"#&()*+,./;=[]_|}~<>{
-	  Initial characters not used so far in Monitor etc: abjmnouwzHLMOUW"#&()*+,./;=[]_|}~
-@  @  Capacity constants: B@ nom Bat volts (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
+      Initial characters not used so far:                           noABDEFHW#&()*+,./;=[]_|}~
+	  Initial characters not used so far in TestICal:          knoABDEFGHKPWZ#&()*+,./;=[]_|}~<>{
+	  Initial characters not used so far in Monitor etc: abjmnouwzABDEFHLMOUW#&()*+,./;=[]_|}~
+@  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 '  '  characterLiteral (tick)
 `  `  execute (tock, inverse of tick)
 ?  ?  get byte (peek byte)
 !  !  store byte (poke byte)
+"  "  quote (begins and ends a literal string), returns pointer and length
 -  -  change-sign (postfix negate)
 :  :  begins a Modbus/ASCII packet
 <     minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
@@ -35,6 +36,7 @@ A to F are hexadecimal digits
    b  update Bootstrap loader (BSL2)
 c     Charging, '1c' to include undertemp and exclude undervolt as stress.
    c  Calibrate
+Cr Cr Carriage return (end of packet), preceded by checksum if required.
 d  d  Decimal output
 e  e  Error. Turn on or off red LED and piezo beeper
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
@@ -68,7 +70,8 @@ R  R  query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = 
 s  s  select
 S  S  deSelect
 t  t  Temperature
-T  T  Touch value (uncalibrated) (only when ID=255, BMU)
+To To Touch value (uncalibrated) (only when ID=255, BMU)
+Ty Ty Type, emit a string given pointer and length
    u  UpdateInfoFlash
    U  Unliven contactor (1U .. 5U)
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
@@ -92,6 +95,9 @@ t  l  Name or description
 '  '  characterLiteral (tick)
 `  `  execute (tock, inverse of tick)
    m  e(m)itCharacter
+"  "  quote (begins and ends a literal string), returns pointer and length
+Cr Cr Carriage return (end of packet), preceded by checksum if required.
+Ty Ty Type, emit a string given pointer and length
    z  send nulls (send (z)eros)
 
 1 to 9 are decimal and hexadecimal digits
@@ -123,7 +129,7 @@ p     Stress level (Pain) (local to each CMU)
 P     set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Presently only OV.
 c     Charging, '1c' to include undertemp and exclude undervolt as stress.
 
-T  T  Touch value (uncalibrated) (only when ID=255, BMU)
+To To Touch value (uncalibrated) (only when ID=255, BMU)
 J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
 
 <XOFF> Stop echoing
@@ -157,7 +163,7 @@ g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 Z	  Ztore high word of fuel-gauge discharge accumulator (monolith only)
 G     Get high word of fuel-gauge discharge accumulator (monoliths only)
-@  @  Capacity constants: B@ nom Bat volts (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
+@  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 
    j  JumpToSubroutine (call)
 ?  ?  get byte (peek byte)
