@@ -287,7 +287,7 @@ newChip:
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
 			bis.b	#ErrLed,&P2DIR				; Set ErrLed as output
-			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Tx as outputs
+			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Txs as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
