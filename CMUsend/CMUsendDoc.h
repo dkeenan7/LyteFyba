@@ -33,7 +33,7 @@ public:
 #endif
 
 protected:
-	unsigned char	m_fileBuf[8192];		// Binary file image
+	unsigned char	m_fileBuf[16384];		// Binary file image
 public:
 	unsigned int	m_first_addr;			// Lowest address read from the file
 
