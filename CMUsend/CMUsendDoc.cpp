@@ -295,69 +295,24 @@ static unsigned int readHexWord(CFile& f) {
 void CCMUSendDoc::ReadFile()
 {
 	theApp.UpdateTitle();
-	CFile f(theApp.m_szFileName, CFile::modeRead);
-	unsigned int len, typ, checksum;
-	unsigned int u;
-	if (_tcscmp(theApp.m_szShortName + _tcslen(theApp.m_szShortName)-4, _T(".hex")) == 0) {
-		theApp.m_bFileValid = false;
-		theApp.m_total_len = 0;
-		m_first_addr = (unsigned int) -1;
-
-		memset(m_fileBuf, '\xFF', 8192);
-
-		do {
-			if (!readColon(f))
-				break;
-			sum = 0;
-			len = readHexByte(f);
-			// m_total_len += len;		// No! This doesn't work when there are overlaps or gaps
-			add = readHexWord(f);
-			typ = readHexByte(f);
-			if (typ == 1)
-				break;
-			if (typ > 0) {
-				TCHAR msg[40];
-				_stprintf_s(msg, _T("Unexpected record type %X at address %X"), typ, add);
-				MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
-				f.Close();
-				return;
-			}
-			if (add < 0xE000)		/* Could be initialisation in RAM, for example */
-				continue;           /* Repeat the loop, looking for the colon on the next line */
-			if (m_first_addr == (unsigned int) -1)
-				/* Assume that the first address read is the start of the image */
-				m_first_addr = add;
-			unsigned char* p = m_fileBuf + add - m_first_addr;
-			for (u=0; u < len; ++u) {
-				*p++ = readHexByte(f);
-			}
-			checksum = readHexByte(f);
-			if (sum & 0xFF) {
-				TCHAR msg[40];
-				_stprintf_s(msg, _T("Bad checksum %X expected %X"), checksum, 0-(sum-checksum) & 0xFF);
-				MessageBox(theApp.m_pMainWnd->m_hWnd, msg, _T("Error"), MB_ICONSTOP);
-				f.Close();
-				return;
-			}
-			add += len;
-		} while (1);
-		theApp.m_total_len = 0xFFFF+1 - m_first_addr;		// Assume last byte will load at 0xFFFF (MSB of reset vector)
-	} else
-	{	// Not a hex file; assume binary
-		// Close it and open it again in binary mode
-		f.Close();
-		f.Open(theApp.m_szFileName, CFile::modeRead | CFile::typeBinary);
-		theApp.m_total_len = (unsigned int) f.GetLength();
-		f.Read(m_fileBuf, theApp.m_total_len);
+	CFile f(theApp.m_szFileName, CFile::modeRead | CFile::typeBinary);
+	// Now only support loading a binary file
+	theApp.m_total_len = (unsigned int) f.GetLength();
+	m_pFileBuf = new unsigned char[theApp.m_total_len];
+	if (m_pFileBuf == NULL)
+	{
+		theApp.m_pMainWnd->MessageBox(_T("Error allocating file buffer"), _T("File buffer error"),
+			MB_ICONSTOP);
+		return;
 	}
+	f.Read(m_pFileBuf, theApp.m_total_len);
 	f.Close();
 	if (theApp.m_total_len)
 		theApp.m_bFileValid = true;		// Enables the ID_SEND green arrow
 
 	// Read the reset vector; needed to determine correct length
-	theApp.m_uResetVec = *(UINT16*)(m_fileBuf + theApp.m_total_len - 2);
+	theApp.m_uResetVec = *(UINT16*)(m_pFileBuf + theApp.m_total_len - 2);
 	theApp.Adjust_start_and_len();
-
 }
 
 
@@ -454,12 +409,7 @@ void CCMUSendDoc::OnSend()
 
     /* Write the prefix (escape and the 4-character password) */
 	unsigned char pfx[5];
-	if (theApp.m_password_sel == PASSWORD_PROG_4K)
-		memcpy(pfx, "\x1B\x07\x06\x05\x04", 5);
-	else if (theApp.m_password_sel == PASSWORD_PROG_8K)
-		memcpy(pfx, "\x1B\x05\x04\x03\x02", 5);
-	else
-		memcpy(pfx, "\x1B\x03\x02\x01\x00", 5);
+	memcpy(pfx, "\x1B\x05\x04\x03\x02", 5);
     for (i=0; i < 5; ++i) {
         writeByte(pfx+i);
 		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
@@ -475,8 +425,8 @@ void CCMUSendDoc::OnSend()
     // Send the appropriate number of bytes of the binary image (excluding last byte, to be replaced with the checksum)
 	sum = 0;							// Checksum
     for (i=0, u = theApp.m_start_off; i < theApp.m_len_to_send-1; ++i, ++u) {
-        writeByte(m_fileBuf+u);         // Write one byte
-		sum ^= m_fileBuf[u];			// Update checksum
+        writeByte(m_pFileBuf+u);        // Write one byte
+		sum ^= m_pFileBuf[u];			// Update checksum
         Sleep(2+1);						// Time to transmit, echo, and flash write (~ 0.2 ms); the 0.2 can be
 										//	part of the +1, which is because each bit is more like 1.04 ms, and
 										//	in case the clock is slow
@@ -548,7 +498,7 @@ void CCMUSendDoc::OnFileSaveas()
 	if (GetSaveFileName(&ofn))
 	{
 		CFile f(ofn.lpstrFile, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary);
-		f.Write(m_fileBuf, theApp.m_total_len);
+		f.Write(m_pFileBuf, theApp.m_total_len);
 		f.Close();
 	}
 	

@@ -31,16 +31,13 @@ private:
 	afx_msg void OnAppAbout();
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnSend();
-	afx_msg void OnImageAll1();
-	afx_msg void OnImageProgram4k();
-	afx_msg void OnImageProgram8k();
-	afx_msg void OnImageBadSum();
 	afx_msg void OnFileOpen();
 
 public:
-			void UpdateTitle();
-			void UpdateMenu();
-			void Adjust_start_and_len();	// Adjust the start offset and length to send
+			void	UpdateTitle();
+			void	UpdateMenu();
+			void	Adjust_start_and_len();	// Adjust the start offset and length to send
+			CString GetRecentFile(int index) const;
 
 	CArray<SSerInfo,SSerInfo&>
 					m_asiPorts;				// CArray of available serial ports
@@ -50,8 +47,6 @@ public:
 	TCHAR	m_szShortName[100];
 	BOOL	m_bFileValid;
 	int		m_nProgress;
-	int m_password_sel;						// Uses PASSWORD_xx see below
-	int m_image_sel;						// Used menu IDs now
 	bool m_bBadSum;
 
 	unsigned int	m_total_len;			// Number of bytes read into the image

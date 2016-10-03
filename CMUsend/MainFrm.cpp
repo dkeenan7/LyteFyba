@@ -103,11 +103,11 @@ void CMainFrame::Dump(CDumpContext& dc) const
 
 CMainFrame* GetFrame() {return (CMainFrame*)theApp.m_pMainWnd;}
 
-#if 0
-void CMainFrame::GetMessageString(UINT nID, CString& rMessage) {
+void CMainFrame::GetMessageString(UINT nID, CString& rMessage) const {
 	if ((nID >= ID_FILE_MRU_FILE1) && (nID <= ID_FILE_MRU_FILE16))
-		rMessage = theApp.m_szFileName;
+		rMessage = theApp.GetRecentFile(nID - ID_FILE_MRU_FILE1);
 	else
 		CFrameWnd::GetMessageString(nID, rMessage);
 }
-#endif
+
+

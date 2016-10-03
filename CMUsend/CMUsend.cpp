@@ -17,21 +17,13 @@
 
 BEGIN_MESSAGE_MAP(CCMUSendApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT,		&CCMUSendApp::OnAppAbout)
-	ON_COMMAND(ID_IMAGE_ALL1,		&CCMUSendApp::OnImageAll1)
-	ON_COMMAND(ID_IMAGE_PROGRAM_4K,	&CCMUSendApp::OnImageProgram4k)
-	ON_COMMAND(ID_IMAGE_PROGRAM_8K,	&CCMUSendApp::OnImageProgram8k)
-//	ON_COMMAND(ID_IMAGE_BSL2,		&CCMUSendApp::OnImageBSL2)
-	ON_COMMAND(ID_IMAGE_BADSUM,		&CCMUSendApp::OnImageBadSum)
 END_MESSAGE_MAP()
 
 
 // CCMUSendApp construction
 
 CCMUSendApp::CCMUSendApp()
-	: m_password_sel(PASSWORD_PROG_8K)
-	, m_image_sel(ID_IMAGE_PROGRAM_8K)
-	, m_bBadSum(0)
-	, m_start_off(0)
+	: m_start_off(0)
 	, m_total_len(0)
 	, m_len_to_send(0)
 	, m_nPortIndex(0)
@@ -91,6 +83,8 @@ BOOL CCMUSendApp::InitInstance()
 		return FALSE;
 
 	// The one and only window has been initialized, so show and update it
+
+	m_pMainWnd->MoveWindow(100, 100, 600, 300);
 	m_pMainWnd->ShowWindow(SW_SHOW);
 	m_pMainWnd->UpdateWindow();
 	// call DragAcceptFiles only if there's a suffix
@@ -166,86 +160,23 @@ void CCMUSendApp::Adjust_start_and_len() {
 	// Calculate start offset and length to send based on the image selection. In the length to send, don't include
 	//	reset vector (never sent) but do include the checksum (not sent from the image)
 	unsigned uBSL2_len = 0;
-	switch (m_image_sel) {
-		case ID_IMAGE_PROGRAM_4K:				// Main program (TestICal or Monitor)
-		case ID_IMAGE_PROGRAM_8K:				//	either 4 KiB or 8 KiB
-			if (m_uResetVec == 0xFC00)
-				uBSL2_len = 1024;				// Now using 1K BSL2
-			else if (m_uResetVec == 0xFE00)
-				uBSL2_len = 512;
-			m_start_off = 0;					// Start at the beginning of the image u
-			m_len_to_send = m_total_len - uBSL2_len; // Remove space for BSL2 (1 or 2 flash segments)
-			break;
-#if 0				// Never want this now?
-		case ID_IMAGE_BSL2:						// BSL2 only
-			m_start_off = m_total_len - uBSL2_len;	// Start 512 bytes from the end
-			m_len_to_send = uBSL2_len-2;				// Send only the 512 bytes of BSL2, less reset vector
-			break;
-#endif
-		case ID_IMAGE_ALL1:						// All (both the above, via BSL1)
-			m_start_off = 0;
-			m_len_to_send = m_total_len - 2;	// Remove only reset vector
-			break;
-	}
+	if (m_uResetVec == 0xFC00)
+		uBSL2_len = 1024;				// Now using 1K BSL2
+	else if (m_uResetVec == 0xFE00)
+		uBSL2_len = 512;
+	m_start_off = 0;					// Start at the beginning of the image u
+	m_len_to_send = m_total_len - uBSL2_len; // Remove space for BSL2 (1 or 2 flash segments)
 
 	m_pMainWnd->InvalidateRect(NULL);
 	m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes
 }
 
 void CCMUSendApp::UpdateMenu() {
-	CMenu* mmenu = m_pMainWnd->GetMenu();		// Whole menu
-	CMenu* imenu = mmenu->GetSubMenu(2);		// Image menu
-	if (theApp.m_bBadSum) {
-		imenu->CheckMenuItem(ID_IMAGE_BADSUM,	MF_CHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_ALL1,		MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_4K, MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_8K, MF_UNCHECKED);
-		imenu->CheckMenuItem(ID_IMAGE_BSL2,		MF_UNCHECKED);
-	}
-	else {
-		imenu->CheckMenuItem(ID_IMAGE_BADSUM, MF_UNCHECKED);
-		if (theApp.m_image_sel == MENU_IDX_ALL) {
-			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | (((theApp.m_password_sel == MENU_IDX_PROGRAM_4K) || (theApp.m_password_sel == MENU_IDX_PROGRAM_8K)) ? MF_CHECKED : MF_UNCHECKED));
-		}
-		else {
-			imenu->CheckMenuItem(ID_IMAGE_ALL1,	MF_BYCOMMAND | MF_UNCHECKED);
-		}
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_4K,	MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_PROGRAM_4K) ? MF_CHECKED : MF_UNCHECKED));
-		imenu->CheckMenuItem(ID_IMAGE_PROGRAM_8K,	MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_PROGRAM_8K) ? MF_CHECKED : MF_UNCHECKED));
-		imenu->CheckMenuItem(ID_IMAGE_BSL2,			MF_BYCOMMAND | ((theApp.m_image_sel == ID_IMAGE_BSL2) ? MF_CHECKED : MF_UNCHECKED));
-	}
+	// Used to do a lot of checking and unchecking in the Image submenu here
 	Adjust_start_and_len();
 }
 
-void CCMUSendApp::OnImageAll1()	{
-	theApp.m_password_sel = PASSWORD_BSL2;		// ? Don't we use BSL1 for this now?
-	theApp.m_image_sel = MENU_IDX_ALL;
-	theApp.m_bBadSum = false;
-	UpdateMenu();
-}
-void CCMUSendApp::OnImageProgram4k()	{ 
-	theApp.m_password_sel = PASSWORD_PROG_4K;
-	theApp.m_image_sel = ID_IMAGE_PROGRAM_4K;
-	theApp.m_bBadSum = false;
-	UpdateMenu();
-}
-void CCMUSendApp::OnImageProgram8k()	{ 
-	theApp.m_password_sel = PASSWORD_PROG_8K;
-	theApp.m_image_sel = ID_IMAGE_PROGRAM_8K;
-	theApp.m_bBadSum = false;
-	UpdateMenu();
-}
-#if 0
-void CCMUSendApp::OnImageBSL2()		{
-	theApp.m_password_sel = PASSWORD_BSL2;
-	theApp.m_image_sel = ID_IMAGE_BSL2;
-	theApp.m_bBadSum = false;
-	UpdateMenu();
-}
-#endif
-void CCMUSendApp::OnImageBadSum()	{ 
-	theApp.m_password_sel = PASSWORD_PROG_8K;
-	theApp.m_image_sel = ID_IMAGE_PROGRAM_8K;
-	theApp.m_bBadSum = true;
-	UpdateMenu();
+CString CCMUSendApp::GetRecentFile(int index) const
+{
+	return (*m_pRecentFileList)[index];
 }

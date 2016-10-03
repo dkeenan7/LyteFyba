@@ -94,12 +94,6 @@ void CCMUSendView::OnPaint()
 		_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("starting at offset %d (%Xh)"), theApp.m_start_off, theApp.m_start_off);
 		dc.TextOut(5,25, buf, (int)_tcslen(buf));
 	}
-	_stprintf_s(buf, sizeof(buf)/sizeof(TCHAR), _T("Password sequence: %s"),
-		(theApp.m_password_sel == PASSWORD_BSL2) ? _T("BSL2") :
-			(theApp.m_password_sel == PASSWORD_PROG_4K) ? _T("Main prog 4 KiB") :
-				(theApp.m_password_sel == PASSWORD_PROG_8K) ? _T("Main prog 8 KiB") :
-					_T("None"));
-	dc.TextOutW(5, 45, buf, (int)_tcslen(buf));
 	// Add the full file name (including drive and path) so we know it's the right one:
 	dc.TextOutW(5, 65, theApp.m_szFileName, (int)_tcslen(theApp.m_szFileName));
 }

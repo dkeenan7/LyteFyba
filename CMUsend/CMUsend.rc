@@ -64,10 +64,8 @@ BEGIN
     POPUP "&File"
     BEGIN
         MENUITEM "&Open...\tCtrl+O",            ID_FILE_OPEN
-        MENUITEM "Save &as",                    ID_FILE_SAVEAS
         MENUITEM SEPARATOR
         MENUITEM "Set &Port",                   ID_SETSERIAL
-        MENUITEM "&Reload ports",               ID_RELOAD
         MENUITEM "&Send",                       ID_SEND
         MENUITEM SEPARATOR
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1
@@ -78,13 +76,6 @@ BEGIN
     BEGIN
         MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
-    END
-    POPUP "&Image"
-    BEGIN
-        MENUITEM "Program (&8KiB)",             ID_IMAGE_PROGRAM_8K
-        MENUITEM "&Program (4KiB)",             ID_IMAGE_PROGRAM_4K
-        MENUITEM "&All (via old BSL1)",         ID_IMAGE_ALL1
-        MENUITEM "Program 8k w/bad &checksum",  ID_IMAGE_BADSUM
     END
     POPUP "&Help"
     BEGIN
@@ -127,7 +118,7 @@ CAPTION "About CMUsend"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDR_MAINFRAME,IDC_STATIC,11,17,20,20
-    LTEXT           "CMUsend Version 1.4b",IDC_STATIC,40,10,119,8,SS_NOPREFIX
+    LTEXT           "CMUsend Version 1.4c",IDC_STATIC,40,10,119,8,SS_NOPREFIX
     LTEXT           "Free Software 2016",IDC_STATIC,40,25,119,8
     DEFPUSHBUTTON   "OK",IDOK,178,7,50,16,WS_GROUP
 END
@@ -315,6 +306,8 @@ END
 STRINGTABLE
 BEGIN
     ID_SEND                 "Send to BMUs"
+    ID_SETSERIAL            "Choose the serial port\n"
+
 END
 
 #endif    // English (United States) resources

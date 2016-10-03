@@ -22,7 +22,7 @@ public:
 // Overrides
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
-//	virtual void GetMessageString(UINT nID, CString& rMessage) const;
+	virtual void GetMessageString(UINT nID, CString& rMessage) const;
 
 // Implementation
 public:
