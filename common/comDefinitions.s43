@@ -1088,3 +1088,16 @@ CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
 		mov		#'@',Rthd			; Response type is @, CapATcity Constant
 		br		#_prettyPrint		; Pretty print and return
 
+Halt:
+		; We need an endless loop at various times, but want to check for the BSL password.
+		; It may still be powered up by the inverter capacitors, or some charge source.
+		; This will require the red button to be pushed to remove power from the BMU
+		; to reset it. After which, releasing the red may be sufficient to restart,
+		; or you may also have to push the green.
+		_BEGIN
+			ClearWatchdog
+			call	#RxByteNoWait			; Check for BSL password
+			_IF		_NZ						; Don't process none received as if they are nulls
+				call	#DoPassword			;	(bad between password chars)
+			_ENDIF
+		_AGAIN								; Endless loop

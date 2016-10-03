@@ -1075,9 +1075,7 @@ ControlContactors:
 				; This will require the red button to be pushed to remove power from the BMU
 				; to reset it. After which, releasing the red may be sufficient to restart,
 				; or you may also have to push the green.
-				_BEGIN
-					ClearWatchdog
-				_AGAIN								; Endless loop
+				br		#Halt
 			_ENDIF
 		_ELSE							; Else
 			clr.b	&shutdownTimer			; Clear the shutdown timer
@@ -1188,9 +1186,7 @@ DoPrecharge:
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
 				bic.b	#BatNegCtor,&CtorPortOUT 		; Turn off the lower charge-direction contactor
 				bic.b	#RtPvCtor,&CtorPortOUT 		; Turn off the upper charge-direction contactor
-				_BEGIN
-					ClearWatchdog
-				_AGAIN								; Endless loop
+				br		#Halt						; Endless loop, but check for BSL password
 			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 				bis.b	#BatPosCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
