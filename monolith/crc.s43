@@ -14,17 +14,27 @@ TxByteCrc:	call	#UpdateCrc
 
 ;-------------------------------------------------------------------------------
 ; TxStringCrc ; Transmit counted string pointed to by R10 while accumulating checksum.
-			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxStringCrc: _DOb	@R10+,R11
+TxStringCrc: mov	@R10+,R11
+			; Fall through to TxStringCrcS
+
+;-------------------------------------------------------------------------------
+; TxStringCrc ; Transmit string pointed to by R10 with length in R11 while accumulating checksum.
+			; If necessary, wait until the queue is not full.
+			; Trashes R8 thru R11.
+;-------------------------------------------------------------------------------
+
+TxStringCrcS: _BEGIN
+				tst		R11
+			_WHILE		_NZ
 				mov.b	@R10+,R8
 				call	#TxByteCrc
-			_LOOPb	R11
+				dec		R11
+			_REPEAT
 			ret
-
 
 UpdateCrc:
 ; Pass char to include into CRC in R8
