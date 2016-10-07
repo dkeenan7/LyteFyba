@@ -29,7 +29,9 @@ BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
 RelayM		EQU		RxChg2_RlyM_Byp
 RelayP		EQU		TxMiChg2_RlyP_57k6
-PreIPortIN	EQU		P2IN
+TxMiChg2	EQU		TxMiChg2_RlyP_57k6
+RxChg2		EQU		RxChg2_RlyM_Byp
+PreIPortIN	EQU		P2IN			; Precharge auxiliary contact input on port 2
 ChgPortDIR	EQU		P2DIR			; Charger comms on port 2
 ChgPortSEL	EQU		P2SEL
 ChgPortOUT	EQU		P2OUT

@@ -2,6 +2,13 @@
 ; Comms routines, since TestICal doesn't use InterruptComms.s43. Needed by common code.
 ;
 
+DELAY_IF_NEEDED MACRO
+			_DO		#(MClock*104/100000/3),R11 ; Delay for approx ...
+			_LOOP	R11						;	... 1.04 ms
+			ENDM							; Allows downstream CMU to echo a byte
+			LSTOUT+
+
+
 WaitTxComplete:	ret						; Empty routine: transmit is always complete
 TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
 TxByte:		call	#jWriteByte			; Call the BSL's non-interrupt bit-bashing transmit routine

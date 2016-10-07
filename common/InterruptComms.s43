@@ -20,6 +20,11 @@
 #define		ALL_TO_ALL 0	// 1 to take input from any port and send output to all - for testing
 							// NOTE: does not work with TestiCal (no interrupt routines)
 
+DELAY_IF_NEEDED MACRO
+			; No delay needed
+			ENDM
+			LSTOUT+
+
 ; Timer A capture/compare regs are used for the interrupt-driven software UART
 ;
 ;	Conditions for 9600 Baud SW UART
@@ -407,3 +412,72 @@ ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
 ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr
 				ret
 
+
+DoEcho:		_COND							; Begin short circuit conditional
+				cmp.b	#$11,R8
+			_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character OR Else
+				bit.b	#bDontEcho,&interpFlags
+			_OR_IFS		_Z					; Or If the dont-echo flag is clear
+				call	#TxByte					; Echo the character
+			_ENDIF
+			ret
+; End of DoEcho
+
+
+DoPassword:
+;
+; Check for a password character in R8
+; After decrementing passWordState below, 3 = waiting for 1st pwd byte, 2 = waiting for 2nd pwd byte,
+; 1 = waiting for 3rd pwd byte, 0 = waiting for last pwd byte and erase if received.
+; We should not receive any negative value.
+; Trashes R9
+;
+			dec.b	&passWordState
+			jn		resetFSM			; This should never happen! Just reset FSM and
+										; process as an ordinary command
+
+			; Check for a continuing password match
+			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02
+			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
+			cmp.b	R9,R8				; Check for a match
+			jne		resetFSM			; If mismatch, jump and reset FSM
+			tst.b	&passWordState		; Are we now at state 0?
+			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
+										;	Just exit this callback and wait for more
+			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
+			;	without using interrupts.
+			; May be important: it could be bad to have receive interrupts sending stress bytes after
+			;	this last password byte goes out; it could be interpreted as a byte to flash program!
+			bic.b	#UCA0RXIE | UCA0TXIE,&IE2	; Disable UART interrupts
+			clr		&ScuCCTLr			; Clear at least the CCIE RX interrupt enable bit
+			clr		&ChgCCTLr			; Clear at least the CCIE RX interrupt enable bit
+
+			; Important: wait for the last password byte to be echoed before disabling interrupts!
+			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
+
+			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
+			mov.b	#0,Rtos				; Set Error Led and Piezo off
+			call	#_errorLed
+			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
+			mov		#InitSP,SP			; Give the BSL maximum stack
+			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
+
+resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
+
+exitOnRx	ret
+; End of DoPassword
+
+
+Halt:
+		; We need an endless loop at various times, but want to check for the BSL password.
+		; It may still be powered up by the inverter capacitors, or some charge source.
+		; This will require the red button to be pushed to remove power from the BMU
+		; to reset it. After which, releasing the red may be sufficient to restart,
+		; or you may also have to push the green.
+		_BEGIN
+			ClearWatchdog
+			call	#RxByteNoWait			; Check for BSL password
+			_IF		_NZ						; Don't process none received as if they are nulls
+				call	#DoPassword			;	(bad between password chars)
+			_ENDIF
+		_AGAIN								; Endless loop
