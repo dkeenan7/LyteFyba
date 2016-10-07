@@ -369,12 +369,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
-			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
-			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
-			; NOTE: It depends on the assembler rounding toward zero (truncated division).
-			; There is a similar simple formula for rounding towards negative infinity (floored division).
-			#define LOG2(x) (4 * (x-8) / (x+8) + 3)
-
 			; Don't initialise system clock registers. BSL2 and the FFL have set them.
 
 			cmp.b	#255,&ID					; Is this a BMU?
@@ -447,9 +441,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Already cleared by loop above
 ;			clr.b	&shutdownTimer				; Initialise shutdown timer
-			cmp.b	#255,&ID					; If we're a BMU
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
-			cmp.b	#255,&ID					; If we're an IMU (Insulation/current Monitoring Unit)
+			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
 				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
 				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
@@ -823,7 +816,7 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; BMU
-				; We have a 200 A 50 mV shunt for the Genevo DCM at Kingscliff,
+				; We have a 200 A 50 mV shunt,
 				; and the diffamp has a gain of 10, so the linkV result should be
 				; in units of 0.2 A. So -1500 to 1500 corresp to -300 A to 300 A.
 

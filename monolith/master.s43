@@ -20,7 +20,8 @@ AccMaster
 				_AND_IF	_NE
 					bis.b	#bBlocked,&masterFlags	; We're now blocked
 					mov.b	&ticks,R9				; Get the medium speed counter
-					add.b	#2*StatusFreq,R9		;	two second later. Check what can be tolerated!
+					; FIXME: was 2 seconds below
+					add.b	#12*StatusFreq,R9		;	two seconds later. Check what can be tolerated!
 					mov.b	R9,&masterUnblockTicks	; Save that time
 				_ENDIFS
 			_ELSE						; Presently blocked. A carriage return will unblock
@@ -69,8 +70,11 @@ AccMaster
 				bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
 			_ENDIF
 
-			bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
-			_IF		_NZ
+			_COND
+				bit.b	#bSendi,&masterFlags
+			_AND_IF		_NZ					; If an 'i' command is due
+				bit.b	#bNotSendStatus,&monFlags
+			_AND_IF		_Z					; And we're allowing them
 				; For the BMU in the Kingscliff DCM, the so-called link-voltage is really shunt current
 				; in half amps.
 				; This was multiplied by 5 and copied to the variable &current (so tenths of an amp)
@@ -91,7 +95,7 @@ AccMaster
 				call	#TxByteCk
 				call	#TxEndOfPacket
 				bic.b	#bSendi,&masterFlags	; Don't repeat until needed
-			_ENDIF							; End if 'i' command was due
+			_ENDIFS							; End if 'i' command was due and allowed
 
 			bit.b	#bSendInit,&masterFlags
 			_IF		_NZ

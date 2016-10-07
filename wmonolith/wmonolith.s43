@@ -550,10 +550,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
 					sub		&measureCount,R8			; Subtract where it is now
-					_IF		_NN							; If this is negative, it is time to measure
-				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-				;		bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
-					_ELSE
+					_IF		_NN							; If this is nonnegative, it is not time to measure
+				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer before sleeping CPU
+				;		bis		#CPUOFF+GIE,SR				; Turn off CPU and ensure interrupts still enabled
+					_ELSE								; Else time to measure
 						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
 						call	#DoMeasurement			; May transmit status
 					_ENDIF

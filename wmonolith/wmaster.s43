@@ -34,7 +34,7 @@ AccMaster
 		_ENDIF
 
 		bit.b	#bBlocked,&masterFlags
-		; Warning: the below branch is ~15 words away from overflow. If necessary, branch around a ret
+		; Warning: the _IF _Z jump below is close to max offset. If necessary, use _IF _NZ ret _ENDIF
 		_IF		_Z						; Now not blocked. Can inject commands as needed
 			push	&TxBytePtr				; Save current destination for TxByte
 			mov		#CmuTxByte,&TxBytePtr	; Switch to CMU output

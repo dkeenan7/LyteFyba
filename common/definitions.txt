@@ -46,7 +46,8 @@ G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 h  h  Hex output
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
    i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
-I  I  Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+In In Display input port value
+Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 j     Just local status (not the full stress)
 J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
    j  JumpToSubroutine (call)
@@ -60,7 +61,8 @@ Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
    O  stOre wOrd (poke wOrd)
 p     status (local to each CMU, but global when BMU)
-P     set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only OV.
+//Pi    set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only OV.
+Pp    Send a command to a PIP (charger port)
 q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
    q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Q  Q  Quiet. Stop piezo beeper coming on with error LED
@@ -98,6 +100,7 @@ t  l  Name or description
 "  "  quote (begins and ends a literal string), returns pointer and length
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
 Ty Ty Type, emit a string given pointer and length
+Pp    Send a command to a PIP (charger port)
    z  send nulls (send (z)eros)
 
 1 to 9 are decimal and hexadecimal digits
@@ -114,19 +117,20 @@ y  y  b(y)pass (Yellow) (relaY- on IMU)
 Y  Y  relaY+ (on IMU only)
    L  Liven contactor (1L .. 5L)
    U  Unliven contactor (1U .. 5U)
+In In Display input port value
 
    a  ADCScaled or r(A)wVoltage (TestICal only)
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    M  Measure Vcc
-I  I  Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 l  l  LinkVoltage
 t  t  Temperature
 r     RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p     Stress level (Pain) (local to each CMU)
 
-P     set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Presently only OV.
+Pi    set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Presently only OV.
 c     Charging, '1c' to include undertemp and exclude undervolt as stress.
 
 To To Touch value (uncalibrated) (only when ID=255, BMU)

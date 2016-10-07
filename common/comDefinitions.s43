@@ -310,7 +310,7 @@ _emitNum3:
 ;
 ; Minus terminal drop voltage (or shunt current) measurement ( -- )
 ; Display this drop in signed millivolts -1500 to 1500 or shunt current measurement (20x shunt V)
-		xCODE		'I',dropMi,_dropMi
+		xCODE		'I'|'s' <<8,dropMi,_dropMi	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
 		call		#linkV				; Return link/shunt voltage in millivolts in R10
 		mov			#'I',Rthd			; Character of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
@@ -902,11 +902,11 @@ GetContactorBitmask:
 			ret
 
 ;
-; Display inPut Port value (n --- )
+; Display Input port value (n --- )
 ; n=0 for PreI input; n=1 for BatI input
+; Pre and bat digital inputs
 ;
-
-		xCODE		'P',inPut,_inPut	; Pre and bat digital inputs
+		xCODE		'I'|'n' <<8,inPut,_inPut ; 'In' collides with 'If', 'Iv', 'Qf', 'Qv', 'Qn'
 		tst			Rtos				; 0 for pre input?
 		_IF			_Z
 			bit.b	#PreI,&PreIPortIN		; Is PreI input high?
