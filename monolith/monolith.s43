@@ -531,6 +531,19 @@ main:										; For IAR Embedded Workbench IDE debugger
 						clr		R8						; Indicate to AccMaster that no char is avail
 					_ENDIF
 					call	#AccMaster				; Call the "master" accept function, char or not
+
+					; Connect charger out to SCU in
+					_BEGIN							; Start a loop
+						mov.b	&scuTxWr,R9				; Get the write index (not changed by TxIsr)
+						inc.b	R9						; Increment a copy of the write index
+						and.b	#ScuTxSz-1,R9			;	modulo the queue size
+						cmp.b	&scuTxRd,R9				; If wr+1 mod sz = rd then it's full
+					_WHILE		_NE					; While the SCU TX buffer is not full
+						call	#ChgRxByteNW			; Try to read a character from the charger (PIP)
+					_WHILE		_NZ					; While there is a character from the charger (PIP)
+						call	#ScuTxByte				; Transmit it to the SCU
+					_REPEAT
+					_ENDIF							; To balance the nasty second while
 				_ENDIF
 
 				; Check for a command or status character from the CMU port
