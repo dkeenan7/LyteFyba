@@ -235,8 +235,6 @@ smoothStressX4	DS		1			; Moving average of stress used by BMU to control contact
 	; Cell monitoring units comms variables
 	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
-txBitTime		DS		2			; Determines transmit baud rate for timer-based comms (not UART).
-									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
@@ -258,7 +256,8 @@ txRd			DS		1			; Transmit queue read index
 
 	; System control unit comms variables
 				ALIGNRAM 1
-scuTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+scuBitTime		DS		2			; Determines bit rate.
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 scuTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 scuRxData		DS		1			; Received char
 scuBitCntTx		DS		1			; Bit count 10 -> 1
@@ -279,7 +278,8 @@ scuTxRd			DS		1			; Transmit queue read index
 
 	; Charger/inverter comms variables
 				ALIGNRAM 1
-chgTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+chgBitTime		DS		2			; Determines bit rate.
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 chgTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 chgRxData		DS		1			; Received char
 chgBitCntTx		DS		1			; Bit count 10 -> 1
@@ -416,14 +416,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 				; TAIE = interrupt enable (for timer overflow)
 				mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
 				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
-				mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
+				mov.w	#BitTime96,&scuBitTime		; Set the SCU bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
 				mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
-				mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
+				mov.w	#BitTime24,&chgBitTime		; Set the charger bit time for 2400 baud
 				mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
@@ -594,10 +594,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialise the PIP4048MS inverter with various non-default settings
 ;
 InitPip:
-			mov.w		#BitTime24,&chgTxBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#16,R8				; Number of initialisation strings,
-											; including initial CR and final junk sweeper
+			_DO			#15,R8				; Number of initialisation strings,
+											; including initial CR
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
 				call		#ChgTxString		; Send one command
@@ -610,8 +609,6 @@ InitPip:
 				call		#DelayMs			; Allow time for PIP to Ack or Nak
 				pop			R8					; Restore loop counter
 			_LOOP		R8
-
-			mov.w		#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 			ret
 
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
@@ -643,9 +640,6 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar) (Param 2)
 			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps (Param 11)
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
-PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be ACKed.
-											; Consists of a harmless enable backlighting command
-											; followed by its $5368 CRC and a '(' comment delimiter
 			ALIGN		1
 
 
@@ -665,7 +659,7 @@ DoMeasurement:
 				_IF		_Z
 					cmp.w	#PipWait, &uPipInitCtr
 					_IF		_EQ
-						call	#InitPip		; Send the PIP initialisation strings
+;FIXME!						call	#InitPip		; Send the PIP initialisation strings
 						bis.b	#bDonePipInit,&monFlags
 					_ELSE
 						inc		&uPipInitCtr	; Wait till the PIP is ready to receive commands
@@ -1409,7 +1403,6 @@ SendChargerPackets:
 ; and when lowering it, float will have to be sent before bulk.
 PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAKed
 
-			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			;
 			; Although we have waited long enough to send the last 9600 bps character completely, it is
 			; possible that this 9600 bps character has triggered a 2400 bps byte, possibly right near
@@ -1492,10 +1485,6 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 
 			mov		#PipCmdDelay,R8		; Delay between commands so next one not NAKed
 			call	#DelayMs
-
-			mov		#PipJunkSweep,R10	; Send 'PExSh(' so the following 2400 baud junk, caused
-			call	#TxString			; by 9600 baud commands sent to CMUs, will be ACKed by the PIP.
-			mov.w	#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 
 			ret
 

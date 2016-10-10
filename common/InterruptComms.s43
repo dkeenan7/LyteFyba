@@ -259,7 +259,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		ENDM
 
 ;-------------------------------------------------------------------------------
-TxRxIsrTimerMacro	MACRO TAIV, CCR0, CCRt, CCTLt, txData, bitCntTx, txBuf, txRd, txWr, TxSz, txBitTime, CCRr, CCTLr, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+TxRxIsrTimerMacro	MACRO TAIV, CCR0, CCRt, CCTLt, txData, bitCntTx, txBuf, txRd, txWr, TxSz, bitTime, CCRr, CCTLr, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 				LOCAL	TiovSubIsr, RxSubIsr, TxSubIsr, WakeExit
 ; Combined Transmit (CCR1) & Receive (CCR2) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
@@ -290,11 +290,13 @@ TiovSubIsr: ; FIX ME or REPLACE ME with a pop R9; reti
 ;
 ;	Receive interrupt: Handle start-bit timer-capture or data-bit timer-compare
 ;
-RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
+RxSubIsr:	add		&bitTime,&CCRr			; (6) Time to next bit
 			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
 			_IF		_NZ						; (2) If start bit edge
 				bic		#CAP,&CCTLr				; (5) Switch to compare mode
-				add		#BitTime96/2,&CCRr		; (5) First databit 1.5 bits from edge
+				mov		&bitTime,R9				; (3)
+				rra		R9						; (1) Half bit time
+				add		R9,&CCRr				; (4) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
 				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
 				rrc.b	&rxData					; (4) Store received bit
@@ -329,7 +331,7 @@ TxSubIsr:	; Compare match for Tx
 ; or disable Tx interrupts if there are no more characters.
 
 											; (6) cycles for interrupt accepted
-			add.w	&txBitTime,&CCRt		; (6) Set timer compare reg for when next transition is due
+			add.w	&bitTime,&CCRt			; (6) Set timer compare reg for when next transition is due
 			dec.b	&bitCntTx				; (4) Decrement bit counter
 			_IF		_NZ						; (2) If not Stop bit initiated
 
@@ -370,8 +372,8 @@ TxSubIsr:	; Compare match for Tx
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 TxIsr:		TxIsrUartMacro		txBuf, txRd, txWr, TxSz
 RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgTxBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
-ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuTxBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
+ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 
 
 ;

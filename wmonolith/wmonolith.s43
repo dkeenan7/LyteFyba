@@ -246,7 +246,8 @@ txRd			DS		1			; Transmit queue read index
 
 	; System control unit comms variables
 				ALIGNRAM 1
-scuTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+scuBitTime		DS		2			; Determines bit rate.
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 scuTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 scuRxData		DS		1			; Received char
 scuBitCntTx		DS		1			; Bit count 10 -> 1
@@ -267,7 +268,8 @@ scuTxRd			DS		1			; Transmit queue read index
 
 	; Charger/inverter comms variables
 				ALIGNRAM 1
-chgTxBitTime	DS		2			; Determines transmit baud rate. 104 for 9600 baud, 417 for 2400 baud
+chgBitTime		DS		2			; Determines bit rate.
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 chgTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 chgRxData		DS		1			; Received char
 chgBitCntTx		DS		1			; Bit count 10 -> 1
@@ -404,14 +406,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
 
 				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
-				mov.w	#BitTime96,&scuTxBitTime	; Set the bit time for 9600 baud
+				mov.w	#BitTime96,&scuBitTime		; Set the SCU bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
 				mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
-				mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
+				mov.w	#BitTime96,&chgBitTime		; Set the charger bit time for 9600 baud
 				mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
