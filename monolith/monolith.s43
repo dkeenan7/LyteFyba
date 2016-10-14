@@ -1077,11 +1077,11 @@ DoStatus:
 				; Send status or control a charger
 				cmp.b	#255,&ID
 				_IF		_NE						; If we're a CMU
-					call	#TxByte						; Send the status byte. Wait buffer not full
-				_ELSE								; Else we're in charger control mode
-					call	#TxByte						; Send the status byte. Wait buffer not full
-					mov.b	R8,&globalStatus			; '255sp' (or modbus equiv) reads global status
-					call	#ControlContactors			; Control contactors (was call #ControlCharger)
+					call	#TxByte					; Send the status byte. Wait buffer not full
+				_ELSE							; Else we're in charger control mode
+					call	#TxByte					; Send the status byte. Wait buffer not full
+					mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
+					call	#ControlContactors		; Control contactors (was call #ControlCharger)
 				_ENDIF
 			_ELSE							; Else we're a BMU
 				; Process incoming status for BMU. Stress in R9, complete status in R8.

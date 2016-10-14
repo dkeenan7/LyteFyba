@@ -70,6 +70,7 @@ oflo		mov	#-1,R9			; (1)
 
 #ifdef	MONOLITH
 ; Not the right place for these
+; Update the RTC if necessary. Call at least every 15 seconds.
 ; Trashes R8, R9
 UpdateRtc:
 			mov		&measureCount,R9			; Counter that is incremented 4096 times per sec
@@ -85,7 +86,7 @@ UpdateRtc:
 			; RTC by. Shift as 8 then 4. The and instruction above guarantees that the other 12 bits
 			; of R8 were zero.
 			swpb	R8							; Move top byte to lower byte
-			rra4	R8							; Move top nibble to lower nibble
+			rra4	R8							; Move second lowest nibble to lowest nibble
 			; Fall through to BumpRtc
 
 ; Do not insert code here
