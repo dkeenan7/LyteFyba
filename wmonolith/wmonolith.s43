@@ -536,14 +536,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 						call	#DoStatus					; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
-					; Update "real time clock" if needed
-					mov		&measureCount,R8			; Counter that is incremented 4096 times per sec
-					and		#$F000,R8					; Keep only upper 4 bits
-					cmp		&oldRtcMeasCnt,R8			; Compare with last saved
-					_IF		_NE							; If these differ
-						mov		R8,&oldRtcMeasCnt			; then save this different value
-						call	#bumpRtc					; and update the "real time clock" 1 sec
-					_ENDIF
+					call	#UpdateRtc					; Update "real time clock" if needed
 
 					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
 					;	incrementing &measureCount. We want to know if this count has advanced more than

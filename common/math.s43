@@ -69,13 +69,33 @@ oflo		mov	#-1,R9			; (1)
 			ret					; (3)
 
 #ifdef	MONOLITH
-; Maybe not the right place for this
-; Bump the "real time clock" by 1 second
-bumpRtc
-			inc		&rtcSec		; Bump the seconds
-			cmp		#60,&rtcSec	; Is it now 60 seconds?
-			_IF		_EQ
-				clr		&rtcSec		; Clear seconds
+; Not the right place for these
+; Trashes R8, R9
+UpdateRtc:
+			mov		&measureCount,R9			; Counter that is incremented 4096 times per sec
+			and		#$F000,R9					; Keep only upper 4 bits
+			mov		&oldRtcMeasCnt,R8			; Get last saved
+			sub		R9,R8						; R8 = new - old
+			_IF		_Z							; If no difference
+				ret									; then nothing to do; return
+			_ENDIF
+			mov		R9,&oldRtcMeasCnt			; then save this different count
+			; R8 has the difference between old and new counts in the upper nibble.
+			; Need to shift R8 right logical 12 bits, to get the mumber of seconds to advance the
+			; RTC by. Shift as 8 then 4. The and instruction above guarantees that the other 12 bits
+			; of R8 were zero.
+			swpb	R8							; Move top byte to lower byte
+			rra4	R8							; Move top nibble to lower nibble
+			; Fall through to BumpRtc
+
+; Do not insert code here
+; Bump the "real time clock" by R8 seconds. Callable as a function, but not currently used that way.
+; Changes no registers
+BumpRtc
+			add		R8,&rtcSec		; Add to the seconds
+			cmp		#60,&rtcSec		; Is it now >=60 seconds?
+			_IF		_GE
+				sub		#60,&rtcSec	; Wrap seconds
 				inc		&rtcMin		; Bump minutes
 				cmp		#60,&rtcMin	; Now 60?
 				_IF		_EQ
