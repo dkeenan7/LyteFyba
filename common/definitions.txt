@@ -56,7 +56,8 @@ K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l  l  LinkVoltage
    L  Liven contactor (1L .. 5L)
    m  e(m)itCharacter
-   M  Measure Vcc
+Ms Ms Milliseconds delay
+   Mv Measure half Vcc
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
    O  stOre wOrd (poke wOrd)
@@ -123,7 +124,7 @@ In In Display input port value
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-   M  Measure Vcc
+   Mv Measure half Vcc
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 l  l  LinkVoltage
 t  t  Temperature
@@ -174,6 +175,7 @@ G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 !  !  store byte (poke byte)
    O  st(O)re word (poke word)
    q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+Ms Ms Milliseconds delay
 
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
 

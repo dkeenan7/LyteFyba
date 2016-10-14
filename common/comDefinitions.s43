@@ -496,8 +496,11 @@ _emitNum3:
 
 #endif // INSULATION_MONITORING
 
+		xCODE		'M'|'s' <<8,msDelay,_msDelay ; 'Ms' collides with 'Ma' 'Mc' 'Mk' 'Us' 'Ua' 'Uc' 'Uk'
+		mov			Rtos,R8				; Argument to R8
+		; Fall through
 
-
+; Do not put code here
 DelayMs:
 ; Delay by the number of milliseconds given in R8.
 ; R8 is treated as unsigned. There will be no travelling-backwards-in-time allowed here!
@@ -535,7 +538,7 @@ DelayMs:
 		xCODE	'y',bypass,_bypass
 _relayM	EQU		_bypass				; An alias for use in IMU code
 		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-		movBits_B	Rtos,#Bypass,&P2OUT ; Move only the #Bypass bit from Rtos to &P2OUT. Trashes Rtos.
+		movBits_B	Rtos,#Bypass,&BypPortOUT ; Move only Bypass bit from Rtos to &P2OUT. Trashes Rtos.
 ;		pop		Rtos				; Remove operand
 		ret
 
@@ -641,7 +644,10 @@ TxEndOfModbusPacket:
 			bic.b	#Piezo,&P1SEL			; Short out the piezo
 		_ELSE
 			ErrLedOn						; Turn on the error LED
-			bis.b	#Piezo,&P1SEL			; Make the piezo squeal
+			bit.b	#bQuiet,&interpFlags
+			_IF		_Z						; If not in quiet mode
+				bis.b	#Piezo,&P1SEL			; Make the piezo squeal
+			_ENDIF
 		_ENDIF
 
 ;		pop		Rtos				; Remove operand
@@ -651,9 +657,17 @@ TxEndOfModbusPacket:
 ; Quiet (bool -- )
 ; Stop the piezo coming on with the error LED
 		xCODE	'Q',quiet,_quiet
-		allBitsIfNZ	Rtos,Rtos		; IF Rtos is zero THEN $0 to Rtos ELSE $FF to Rtos
-		movBits_B	Rtos,#Piezo,&P1SEL2 ; Move only #Piezo bit from Rtos to &P1SEL2. Trashes Rtos
-		; Setting the SEL2 bit will prevent the Piezo pin from having the ACLK out function
+		tst		Rtos
+		_IF		_NZ
+			bis.b	#bQuiet,&interpFlags
+			bic.b	#Piezo,P1SEL			; Make it an ordinary output (short piezo to GND)
+		_ELSE
+			bic.b	#bQuiet,&interpFlags
+			bit.b	#ErrLed,&P2OUT
+			_IF		_NZ						; If error LED is on
+				bis.b	#Piezo,P1SEL			; Give piezo output ACLK function (make it squeal)
+			_ENDIF
+		_ENDIF
 		ret
 
 ; Query the reset-log ( maxResetsToShow -- )

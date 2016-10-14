@@ -128,6 +128,7 @@ bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
 bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+bQuiet			EQU		1<<6		; True to silence piezo
 
 				ALIGNRAM 1
 comNoEraseEnd	; End of unerased variables; start of erased variables
@@ -284,6 +285,10 @@ newChip:
 			bis.b	#ErrLed,&P2DIR				; Set ErrLed as output
 			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Txs as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
+			cmp.b	#255,&ID
+			_IF		_NE							; If we're not a BMU
+				bis.b	#Bypass,&BypPortDIR 		; Set Bypass as output
+			_ENDIF
 
 			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
 			; Default settings of P3SEL are OK. No timer comms in TestICal.

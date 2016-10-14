@@ -147,12 +147,14 @@ realCal
 			bis		#$200,Rsec
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
+				push.b	&interpFlags
 				_IF		_NN						; If high bit set
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit clear so
 					mov		#5,Rtos					; Display 5 digits
 					mov.w	@Rsec,Rsec				; Get word sized cal value
+					bis.b	#bHexOutput,&interpFlags ; Display words in hex
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
 emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CMUs
@@ -161,7 +163,9 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				jmp		_EMIT					; Tail-call EMIT and return
 			_ENDIF							; Endif unrecognised
 			mov.b		#' ',Rthd			; Trailing char (space)
-			br	 	#_prettyPrint			; Tail-call prettyPrint and return
+			call	 	#_prettyPrint
+			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
+			ret
 
 ;
 ; Write calibration value ( n ch --- )
@@ -420,9 +424,9 @@ bitDelay	dec		R11
 ;
 ; Measure Vcc ( M -- )	; Emit the Vcc voltage
 ;
-		xCODE	'M',MeasVcc,_MeasVcc
+		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
 		mov		#0xB<<12,R8				; FIXME: I need a pretty definition
-		call	#measAndScale			; Gives us 0-4092 for 0-1.25
+		call	#measAndScale			; Gives us 0-4092 for 0-1.25 V (half supply)
 		mov			#'M',Rthd			; Type is Vcc Measurement
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits

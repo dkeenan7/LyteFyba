@@ -7,8 +7,7 @@ of the step it failed.
 
 0) Prepare the power supply with between 3.42 V and 3.48 V with its current
    limit set to about 3 A.
-   Have a multimeter (not the Fluke 87 III, e.g the Tenma analog) on 10 A range 
-   monitoring supply current.
+   Use the ammeter on the power supply to monitor supply current.
    Use the Fluke 87 III multimeter to monitor supply voltage by plugging its leads
    into the white connector on the test jig.
    Set oscilloscope to 1 V/div, 100 us/div, normal trigger, trigger at about 1.7 V.
@@ -16,10 +15,10 @@ of the step it failed.
    choose the TestICal project and connect the Launch Pad programming device to the
    right hand USB port.
    Launch TeraTerm and connect the Novus RS485 device to the left hand USB port.
-1) Place the board to be tested with its beepers down and with the
-   "Cell Management Unit" text reading the right way 'round.
+1) Place the board to be tested with its beepers up and with the
+   "Lyte Fyba" text reading the right way 'round.
    Connect the communications plugs (in and out) to the pairs of holes at the
-   north (TX) and south (RX) ends. Use rubber bands on comms headers.
+   north (TX) and south (RX) ends.
    Connect power to all Cell Monitoring Units (CMUs) with the alligator clips.
    Wait for the current to fall to less than 0.020 A. No LEDs should be lit.
 2) Unplug the red probe of the Fluke 87 III from the white socket, and for each CMU,
@@ -44,58 +43,42 @@ of the step it failed.
    approximate square waves with some rounded corners.
    The first CMU will be closer to 50/50 hi/lo as it is not being driven by a previous CMU.
    Apart from that, they should all look the same.
+   The blue and yellow-green LEDs should all be lit.
 5) Type <Ctrl-s>1i<Enter><Ctrl-q> to set the IDs. You will see ---i where --- is 
-   one more than the ID of the last CMU.
-   Type 0'lwu (zero tick lowercase-LWU) to turn on link voltage measurement for all CMUs, 
-   and to save the IDs.
-6) Type v<Enter> to check that the last ID is correct (first_ID + number_in_string - 1),
-   and that all blue LEDs are working.
+   one more than the number in the string.
+   Type u <Enter> to save the IDs.
+   Type v<enter> to check that the last ID is correct (the number of CMUs in the string).``
+6) Type 1Q1e<Enter>. All the red LEDs should all come on. Type 0e<Enter> to turn them
+    off.
 
 <page break>
 
 7) For each CMU:
   a) Type <n>x<enter> where <n> is the number of the CMU, to address the CMU on its own.
      Don't worry if <n> doesn't show.
-  b) Use the v command to verify that only the current CMU's blue light comes on.
+  b) Use 1e <enter> to simulate an error. Only the red LED for the current CMU should light.
      If not, <escape><enter> and re-do the x command.
-  c) Use both probes of the Fluke 87 III multimeter to measure the voltage directly 
+  c) Type 0Q<Enter>. The beeper should sound. Type 1Q0e<Enter> to turn off the beeper and
+    red LED. 
+  d) Use both probes of the Fluke 87 III multimeter to measure the voltage directly 
      at the CMU's + and - terminals pads.
      If calibrating a BMU, ensure the same voltage is present on the HAZ BAT and HAZ
      ARR inputs.
-     Use the <nnnn>'vc command to calibrate the voltage based on the multimeter reading.
-     Check that the calibration
-     value is in the ranges -31500 to -32768 or 31500 to 32767. Check the voltage
-     reading with v command.
-  d) Use the <nn>'tc command to calibrate the temperature based on a reading of the
-     microcontroller (U1) with the non-contact thermometer. Check with t command.
-  e) Skip this for now: Use the l command to read link voltage; it should read 1500 +- 100.
-     You may need 0p.
-  f) Skip this for now: Short the LI (Link In) pin to ground and run another l command.
-     Then remove pin. It should read -500 +- 100.
-  g) Use 1y to turn on bypass. Supply current should go to 0.55-0.7 A, yellow LED should
-     light.
-  h) Use 0y1e <enter> to simulate an error. The red LED should light, beeper should sound.
-  i) Push the "Hz" button on the Fluke 87 III multimeter and put its lead on the active 
-     beeper pin to measure the beeper frequency. Use the 'o' for 'octave' command, repeated 
-     as necessary, to choose the loudest frequency.
-     This can usually be done by placing the beeper frequency in one of two ranges:
-     For the 17 mm beeper (PS1740P02E): 1.15 to 1.4 kHz or 2.8 to 4.6 kHz.
-     For the 13 mm beeper (PKM13EPYH4000): 1.3 to 1.7 kHz or 3.4 to 5.2 kHz.
-     Use 0e to turn the beeper off.
-  j) Move the multimeter lead to the left hole of P3 (TX-). Use the 'f' command and read
-     the frequency. You may find it easier to use 2 or more 'f' commands so the reading
-     is stable for longer. The reading should be between 199.5 and 200.5 kHz at 20 degC
-     (200.5 to 201.5 kHz at 30 degC).
-     To adjust, use h'fr to read calibration constant in hex. Use $xxxx'fw to change it
-     where $xxxx is a change of 1 or 2 from the value read. Lower number gives lower 
-     frequency. A change of one is approximately a change of 0.5 kHz.
-     Push the "Hz" button on the multimeter twice to go back to voltage measurement.
-  k) Use u<enter> to update the calibration values.
+     Use the v<nnnn>'vc command to calibrate the voltage based on the multimeter reading.
+     Check that the first two characters after the '$' are 80 or 7F.
+     Check the voltage reading by typing vv<Enter> (ignore the first response).
+  e) Use the t<nn>'tc command to calibrate the temperature based on a reading of the
+     microcontroller (U1) with the non-contact thermometer. Check with tt command.
+  f) Type l'lc<Enter> (ell tick ell cee) to calibrate the bolt- input. The calibration value should be
+    less than 10 or greater than 245.
+  g) Use 1y to turn on bypass. Supply current should go to 0.4 to 0.7 amps. An amber LED
+     should light. Turn it off with 0y<Enter>.
+  h) Use u<enter> to turn off bypass and update the calibration values.
      The u is very important otherwise all the above work will be lost. 
      Be sure you see the 'u' echoed.
-  l) Type the <ESC> key (upper left corner of keyboard).
+  i) Type the <ESC> key (upper left corner of keyboard).
      This cancels the previous <n>x command.
-  m) Go back to the start of step 7 until all CMUs are done.
+  j) Go back to the start of step 7 until all CMUs are done.
 
 8) Test break-to-reset with 1e then <leftAlt-b> (send break). All red LEDs should go off.
 9) Test for false break-to-reset with 1Q1e<Enter> then use TeraTerm's Send File command
