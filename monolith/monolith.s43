@@ -99,7 +99,7 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #else
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
 // OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
-OV_ZERO		EQU		3400		; Threshold in mV between OV stress levels -1 and 0
+OV_ZERO		EQU		3300		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		10			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 40 mV below 2.500 V, to a maximum of 15 at <= 1.90 V
 // UV setpoint is 2.18 to 2.22 V. Alarm at 2.06 V.

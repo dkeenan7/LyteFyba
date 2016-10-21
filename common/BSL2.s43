@@ -356,7 +356,7 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 
 										; $FFF0, Timer A0 Vectors
 				DW		jTA0TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
-				DW		TA0FllIsr		; Timer A CC0IFG (freq locked loop). In BSL, not main program.
+				DW		TA0FllIsr-jBSL+BSL2_START; Timer A CC0IFG (freq locked loop). In BSL, not main prg
 				DW		$FFFF, $FFFF	; FFF4, FFF6
 										; $FFF8, Timer A1 Vectors
 				DW		jTA1TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
