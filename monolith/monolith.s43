@@ -219,7 +219,7 @@ piPrevOutput	DS		2			; State of PI controller
 piPrevError		DS		2			; State of PI controller
 prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
-lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
+;lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
@@ -228,9 +228,15 @@ ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a 
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
+CHG_BULK_MIN	EQU		538			; 53.8 Lower limit for bulk charge voltage
+CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
+CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
+CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
+
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
 smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
+lastChgChanged	DS		1			; True (non zero) if lastBulk or lastFloat changed
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
@@ -460,6 +466,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			mov.w	#OV_ZERO,&ovZero
 			mov.w	#OV_STEP,&ovStep
+			mov.w	#CHG_BULK_STD,&prevBulk
+			mov.w	#CHG_FLT_STD,&prevFloat
 
 ;
 ; Initialise the ADC10
@@ -1126,7 +1134,7 @@ ControlContactors:
 			_ENDIF								;   (it will be smoothed)
 		_ENDIF							; Endif ignore stress
 
-		; Calculate smoothed stress for controlling contactors
+		; Calculate smoothed stress for controlling contactors and charge voltages
 		rla2	R9						; Quadruple the incoming stress
 		mov.b	&smoothStressX4,R10		; Get the previous smoothed stress times 4 into R10
 		add		R10,R9
@@ -1139,7 +1147,7 @@ ControlContactors:
 		rra2	R9						; Divide by 4 to get smoothed stress
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
-		_IF		_NEVER	; !!!!! Temporary for testing. Usually _IF _GE
+		_IF		_GE
 			inc.b	&shutdownTimer
 			cmp.b	#ShutdownTime,&shutdownTimer
 			_IF		_HS						; And enough time has passed
@@ -1385,6 +1393,43 @@ PiController:
 			rra2	Routput					; For effective reduction of Kp and Ki
 			ret
 ; End of PiController
+#else
+PiController:
+;
+; A PI controller whose input and output are in R8
+; Input range is 0 to 15 (stress levels). Setpoint is 7.
+; Output stored in prevBulk and prevFloat variables.
+;
+
+			clr.b	&lastChgChanged
+			cmp		#11,R8
+			_IF	_GE
+				cmp		#CHG_BULK_MIN,&prevBulk
+				_IF		_GE
+					dec		&prevBulk
+					mov.b	#1,&lastChgChanged
+				_ENDIF
+				cmp		#CHG_FLT_MIN,&prevFloat
+				_IF		_GE
+					dec		&prevFloat
+					mov.b	#1,&lastChgChanged
+				_ENDIF
+			_ELSE
+				cmp		#7+1,R8
+				_IF		_L
+					cmp		#CHG_BULK_STD,&prevBulk
+					_IF		_L
+						inc		&prevBulk
+						mov.b	#1,&lastChgChanged
+					_ENDIF
+					cmp		#CHG_FLT_STD,&prevFloat
+					_IF		_L
+						inc		&prevFloat
+						mov.b	#1,&lastChgChanged
+					_ENDIF
+				_ENDIF
+			_ENDIF
+			ret
 #endif
 
 #if 0
@@ -1486,11 +1531,23 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 
 			ret
 
+; End of SendChargerPackets
+#else
+SendChargerPackets:
+			tst.b	&lastChgChanged
+			_IF		_NZ					; If last bulk or float value changed
+				mov		#BulkCmd,R10		; Send a Bulk voltage packet
+				mov		&prevBulk,R8
+				call	#SendPipPacket		; Trashes R8 thru R11
+				mov		#FloatCmd,R10		; Send a Bulk voltage packet
+				mov		&prevFloat,R8
+				call	#SendPipPacket		; Trashes R8 thru R11
+			_ENDIF
+			ret
+#endif
 FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
-; End of SendChargerPackets
-#endif
 
 SendPipPacket:
 ;
