@@ -237,6 +237,7 @@ current			DS		2			; Current most recently reported by BMU, in tenths of an amp (
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
 smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
 lastChgChanged	DS		1			; True (non zero) if lastBulk or lastFloat changed
+chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
@@ -1239,7 +1240,7 @@ ControlContactors:
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Considered Full and no comms error
 
-#if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
+#if 1	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
 ;		_IF		_NZ						; If we've been told to start charging
 			ClearWatchdog
@@ -1267,7 +1268,6 @@ ControlContactors:
 				_ENDIF
 				call	#PiController			; Call PI controller with R8 as input and output
 				call	#SendChargerPackets		; Send packets to charger to set voltage
-				clr.b	&chargerTxTimer 		; Clear timer
 			_ENDIF ; Every fourth tick
 ;		_ENDIF ; bCharging
 #endif
@@ -1396,38 +1396,47 @@ PiController:
 #else
 PiController:
 ;
-; A PI controller whose input and output are in R8
-; Input range is 0 to 15 (stress levels). Setpoint is 7.
+; A simple stress controller whose input is in R8 (smoothed
+; stress, zero if due to undervoltage).
+; Input range is 0 to 15 (stress levels). "Setpoint" is 7.
 ; Output stored in prevBulk and prevFloat variables.
 ;
 
-			clr.b	&lastChgChanged
+			clr.b	&lastChgChanged				; Will set later only if bulk or float voltages change
 			cmp		#11,R8
-			_IF	_GE
+			_IF	_GE								; If the stress high enough to act
 				cmp		#CHG_BULK_MIN,&prevBulk
-				_IF		_GE
-					dec		&prevBulk
-					mov.b	#1,&lastChgChanged
+				_IF		_GE							; If the bulk voltage isn't at minimum yet
+					dec		&prevBulk					; then decrease the bulk voltage by 0.1 V
+					mov.b	#1,&lastChgChanged			; Remember this change
 				_ENDIF
-				cmp		#CHG_FLT_MIN,&prevFloat
+				cmp		#CHG_FLT_MIN,&prevFloat		; Same for float voltage
 				_IF		_GE
 					dec		&prevFloat
 					mov.b	#1,&lastChgChanged
 				_ENDIF
 			_ELSE
-				cmp		#7+1,R8
-				_IF		_L
-					cmp		#CHG_BULK_STD,&prevBulk
+				; We can't send changes to increase the bulk or float voltages very quickly, because
+				; if we're solar charging, every increase will reset the SCC and charge current will
+				; go to zero and slowly ramp back
+				_COND
+					mov.b	&chargerTxTimer,R9
+					and		#$7F,R9					; Look at lower 7 bits
+				_AND_IF	_Z						; Will be zero every 128 ticks
+												;	= every 32 seconds
+					cmp		#7+1,R8				; If all cells are calm
+				_AND_IF		_L
+					cmp		#CHG_BULK_STD,&prevBulk	; If we have not yet reached the standard bulk voltage
 					_IF		_L
-						inc		&prevBulk
+						inc		&prevBulk				; then slowly work back towards the std voltage
 						mov.b	#1,&lastChgChanged
 					_ENDIF
-					cmp		#CHG_FLT_STD,&prevFloat
+					cmp		#CHG_FLT_STD,&prevFloat		; Same for float voltage
 					_IF		_L
 						inc		&prevFloat
 						mov.b	#1,&lastChgChanged
 					_ENDIF
-				_ENDIF
+				_ENDIFS
 			_ENDIF
 			ret
 #endif
@@ -1535,11 +1544,11 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 #else
 SendChargerPackets:
 			tst.b	&lastChgChanged
-			_IF		_NZ					; If last bulk or float value changed
-				mov		#BulkCmd,R10		; Send a Bulk voltage packet
+			_IF		_NZ					; Only if the last bulk or float value changed
+				mov		#BulkCmd,R10		; Send a bulk voltage packet
 				mov		&prevBulk,R8
 				call	#SendPipPacket		; Trashes R8 thru R11
-				mov		#FloatCmd,R10		; Send a Bulk voltage packet
+				mov		#FloatCmd,R10		; Send a float voltage packet
 				mov		&prevFloat,R8
 				call	#SendPipPacket		; Trashes R8 thru R11
 			_ENDIF
