@@ -507,14 +507,17 @@ DoMeasurement:
 			; Calculate stress due to undervoltage if required
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
-				bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
-				_IF		_Z
-													; Measurement saved on stack earlier
-					push	#UV_STEP				; For every UV_STEP (millivolts)
-					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-					push	#2						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
-				_ELSE
+				cmp		#100,0(sp)				; Compare voltage
+				_IF		_HS						; And if voltage is not less than 100 mV (unbolted CMU)
+					bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
+					_IF		_Z
+														; Measurement saved on stack earlier
+						push	#UV_STEP				; For every UV_STEP (millivolts)
+						push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+						push	#2						; Type of measurement
+						call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to UV
+					_ELSE
+				_END_PRIOR_IF
 			_END_PRIOR_IF
 					pop		R10						; Drop unused voltage measurement off stack
 				_ENDIF

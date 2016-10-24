@@ -66,8 +66,9 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 
 ; Stress calculations
 ; The stress set-point for charger back-off is 7.
-; This set-point of 7 should be implemented in the SCU's PI controller.
-; So 8 is the lowest dis-stress. Alarm is given at stress 12. Battery contactor dropout at 15.
+; So 8 is the lowest dis-stress. Charger backs off at 11. Alarm is given at stress 12.
+; Source contactor drops out at 12 if enabled.
+; Battery contactor dropout at 15.
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
@@ -99,8 +100,8 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #else
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
 // OV setpoint is 3.57 to 3.58 V. Alarm at 3.61 V.
-OV_ZERO		EQU		3300		; Threshold in mV between OV stress levels -1 and 0
-OV_STEP		EQU		10			; mV difference between one OV stress level and the next
+OV_ZERO		EQU		3285		; Threshold in mV between OV stress levels -1 and 0
+OV_STEP		EQU		5			; mV difference between one OV stress level and the next
 // UV = Under Voltage: One stress unit for each 40 mV below 2.500 V, to a maximum of 15 at <= 1.90 V
 // UV setpoint is 2.18 to 2.22 V. Alarm at 2.06 V.
 UV_ZERO		EQU		3200		; Threshold in mV between UV stress levels -1 and 0
@@ -215,8 +216,8 @@ shutdownTimer	DS		1			; To allow time for charging to start, when restarting
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
-piPrevOutput	DS		2			; State of PI controller
-piPrevError		DS		2			; State of PI controller
+;piPrevOutput	DS		2			; State of PI controller
+;piPrevError	DS		2			; State of PI controller
 prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 ;lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
@@ -224,8 +225,8 @@ uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive c
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
-ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
-ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
+;ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
+;ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
 CHG_BULK_MIN	EQU		538			; 53.8 Lower limit for bulk charge voltage
@@ -456,8 +457,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
-				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
-				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
+;				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
+;				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
 				bis.b	#bChargerControl,&monFlags	; Set by o command
 				bis.b	#bCharging,&monFlags		; Set by c command
 			_ENDIF
@@ -666,7 +667,7 @@ DoMeasurement:
 				_IF		_Z
 					cmp.w	#PipWait, &uPipInitCtr
 					_IF		_EQ
-;FIXME!						call	#InitPip		; Send the PIP initialisation strings
+						call	#InitPip		; Send the PIP initialisation strings
 						bis.b	#bDonePipInit,&monFlags
 					_ELSE
 						inc		&uPipInitCtr	; Wait till the PIP is ready to receive commands
@@ -951,8 +952,8 @@ DoMeasurement:
 					cmp.b	#255,&ID				; If we're a CMU
 					_IF		_NE
 						call	#TxByte					; Send the status byte. Wait buffer not full
-					_ELSE							; Else we're in charger control mode
-						call	#TxByte					; Send the status byte. Wait buffer not full
+					_ELSE							; Else we're a BMU, in charger control mode
+						call	#ScuTxByte				; Send status to the SCU. Wait buffer not full
 						mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 						call	#ControlContactors		; Control contactors
 					_ENDIF
@@ -1083,17 +1084,12 @@ DoStatus:
 				; Since we received a valid status byte, there is no local
 				;	comms error, so just pass the incoming comms error bit through.
 
-				; Send status or control a charger
-				cmp.b	#255,&ID
-				_IF		_NE						; If we're a CMU
-					call	#TxByte					; Send the status byte. Wait buffer not full
-				_ELSE							; Else we're in charger control mode
-					call	#TxByte					; Send the status byte. Wait buffer not full
-					mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
-					call	#ControlContactors		; Control contactors (was call #ControlCharger)
-				_ENDIF
+				; Send status
+				call	#TxByte					; Send the status byte. Wait buffer not full
 			_ELSE							; Else we're a BMU
 				; Process incoming status for BMU. Stress in R9, complete status in R8.
+				call	#ScuTxByte				; Send status byte to the SCU. Wait buffer not full
+				mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 				call	#ControlContactors		; Control PIP charging
 			_ENDIF							; End else BMU
 		_ENDIF							; End if no comms error
@@ -1165,7 +1161,7 @@ ControlContactors:
 			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
-#if 0	// We hope to avoid doing source contactors
+#if 1	// We hope to avoid doing source contactors
 		; If not OV_UT && not charging && stress >= 12
 		;	turn off discharging/loads contactors
 		_COND							; Begin short circuit conditional
@@ -1240,9 +1236,9 @@ ControlContactors:
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Considered Full and no comms error
 
-#if 1	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
-;		bit.b	#bCharging,&monFlags	; Set by '1c' command
-;		_IF		_NZ						; If we've been told to start charging
+#if 1
+		bit.b	#bCharging,&monFlags	; Set by sign of current in 'i' command
+		_IF		_NZ						; If we've been told to start charging
 			ClearWatchdog
 			inc.b	&chargerTxTimer			; Increment charger transmit timer
 			mov.b	&chargerTxTimer,R9		; Get charger transmit timer
@@ -1251,7 +1247,7 @@ ControlContactors:
 				bit		#COM_ERR,R8
 				_IF		_NZ						; If the comms error bit is set
 					and		#STRESS,R8
-					cmp		#8,R8					; Treat it as a minimum of stress 8 for PI control
+					cmp		#8,R8					; Treat it as a minimum of stress 8 for chg control
 					_IF		_LO
 						mov		#8,R8
 					_ENDIF
@@ -1266,10 +1262,10 @@ ControlContactors:
 						and		#STRESS,R8				; Use the given stress value (0-15)
 					_ENDIF
 				_ENDIF
-				call	#PiController			; Call PI controller with R8 as input and output
+				call	#ChgController			; Call charger controller with R8 as input
 				call	#SendChargerPackets		; Send packets to charger to set voltage
 			_ENDIF ; Every fourth tick
-;		_ENDIF ; bCharging
+		_ENDIF ; bCharging
 #endif
 		pop		R10
 		pop		R9
@@ -1306,6 +1302,8 @@ DoPrecharge:
 		;        -----o o------     Right PV+ and delayed right PV- contactors
 		;          t1 RPV P26
 		;
+ mov	#500,R8
+ call	#DelayMs	; Give power supply time to stabilise before first big load
 		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 		bis.b	#BatNegCtor,&CtorPortOUT 	; Turn on the battery negative contactor
 		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
@@ -1393,12 +1391,12 @@ PiController:
 			rra2	Routput					; For effective reduction of Kp and Ki
 			ret
 ; End of PiController
-#else
-PiController:
+#endif
+
+
+ChgController:
 ;
-; A simple stress controller whose input is in R8 (smoothed
-; stress, zero if due to undervoltage).
-; Input range is 0 to 15 (stress levels). "Setpoint" is 7.
+; A simple stress controller. R8 has smoothed stress, zero if due to undervoltage.
 ; Output stored in prevBulk and prevFloat variables.
 ;
 
@@ -1439,9 +1437,8 @@ PiController:
 				_ENDIFS
 			_ENDIF
 			ret
-#endif
 
-#if 0
+#if 0			// This is the version that goes with the PI controller
 SendChargerPackets:
 ;
 ; Send charger float and bulk command packets (in the right order)
@@ -1541,22 +1538,30 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 			ret
 
 ; End of SendChargerPackets
-#else
+#endif
+
+
 SendChargerPackets:
 			tst.b	&lastChgChanged
 			_IF		_NZ					; Only if the last bulk or float value changed
+				push	&TxBytePtr			; Save the present Tx pointer
+				mov		#ChgTxByte,&TxBytePtr ; Point the Tx pointer at the charge ports
 				mov		#BulkCmd,R10		; Send a bulk voltage packet
 				mov		&prevBulk,R8
 				call	#SendPipPacket		; Trashes R8 thru R11
+				mov		#500,R8
+				call	#DelayMs			; Allow time for this to be processed and Ack'd
 				mov		#FloatCmd,R10		; Send a float voltage packet
 				mov		&prevFloat,R8
 				call	#SendPipPacket		; Trashes R8 thru R11
+				pop		&TxBytePtr
 			_ENDIF
 			ret
-#endif
+
 FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
+
 
 SendPipPacket:
 ;
