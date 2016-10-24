@@ -53,6 +53,7 @@ BatIPortIN	EQU		P3IN			; BatI input is on port 3
 ScuPortDIR	EQU		P3DIR			; SCU comms on port 3
 ScuPortSEL	EQU		P3SEL
 ScuPortOUT	EQU		P3OUT
+CtorPortOUT	EQU		P3OUT
 
 ; ADC channel numbers
 TouchVChan	EQU		$3				; ADC channel number for touch voltage (BMU only)

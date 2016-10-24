@@ -143,10 +143,6 @@ ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered
 S_TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
-SourceCtor	EQU		BatNegCtor			; Source contactor MOSFET and orange LED
-LoadCtor	EQU 	AcLfPvCtor			; Load contactor MOSFET and cyan/white LED
-CtorPortOUT	EQU		P3OUT
-
 ;
 ; RAM allocation
 ;
@@ -1161,26 +1157,6 @@ ControlContactors:
 			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
-#if 1	// We hope to avoid doing source contactors
-		; If not OV_UT && not charging && stress >= 12
-		;	turn off discharging/loads contactors
-		_COND							; Begin short circuit conditional
-			bit		#OV_UT,R8
-		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
-			bit.b	#bCharging,&monFlags
-		_AND_IF	_Z						; And if we're not charging
-			cmp.b	#MinContStress,R9
-		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#LoadCtor,&P2OUT		; Drop out the load contactor (magenta LED)
-		_ENDIFS
-
-		; If stress <= 7
-		;	turn on discharging/loads contactors
-		cmp.b	#8,R9
-		_IF	_L							; If incoming stress is normal
-			bis.b	#LoadCtor,&P2OUT		; Turn on the load contactor (magenta LED)
-		_ENDIF
-
 		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
 		;	turn off charging/source contactors
 		mov		R8,R10					; Make a copy of the status byte in R10
@@ -1192,7 +1168,7 @@ ControlContactors:
 		_AND_IF	_NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#SourceCtor,&CtorPortOUT ; Drop out the source contactor (yellow LED)
+			bic.b	#RtPvCtor|AcLfPvCtor,&CtorPortOUT ; Drop out the source contactors (green, white LEDs)
 		_ELSES							; Else
 			push	R8
 			push	R9
@@ -1201,7 +1177,10 @@ ControlContactors:
 			pop		R8
 			cmp		#145*10,R10
 			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
-				bic.b	#SourceCtor,&CtorPortOUT ; Drop out the source contactor (yellow LED)
+				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
+				mov		#400,R8						; 400 milliseconds
+				call	#DelayMs					; Wait for last economiser to reduce coil current
+				bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
 			_ENDIF
 		_ENDIF
 
@@ -1215,9 +1194,9 @@ ControlContactors:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#SourceCtor,&CtorPortOUT ; Turn on the source contactor (yellow LED)
+
+			bis.b	#AcLfPvCtor,&CtorPortOUT ; Turn on the source contactor (yellow LED)
 		_ENDIFS
-#endif
 
 		; If all considered full (and no comms error), reset the coulomb counter
 		_COND
