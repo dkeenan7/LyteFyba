@@ -600,6 +600,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 InitPip:
 			mov			#PipInit,R10		; Point to CR before initialisation strings
 			_DO			#15,R8				; Number of initialisation strings,
+;			_DO			#3,R8				; Number of initialisation strings,
 											; including initial CR
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -1084,7 +1085,10 @@ DoStatus:
 				call	#TxByte					; Send the status byte. Wait buffer not full
 			_ELSE							; Else we're a BMU
 				; Process incoming status for BMU. Stress in R9, complete status in R8.
-				call	#ScuTxByte				; Send status byte to the SCU. Wait buffer not full
+				bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
+				_IF		_Z
+					call	#ScuTxByte				; Send status byte to the SCU. Wait buffer not full
+				_ENDIF
 				mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
 				call	#ControlContactors		; Control PIP charging
 			_ENDIF							; End else BMU
@@ -1281,7 +1285,7 @@ DoPrecharge:
 		;        -----o o------     Right PV+ and delayed right PV- contactors
 		;          t1 RPV P26
 		;
- mov	#500,R8
+ mov	#200,R8
  call	#DelayMs	; Give power supply time to stabilise before first big load
 		; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 		bis.b	#BatNegCtor,&CtorPortOUT 	; Turn on the battery negative contactor
@@ -1313,6 +1317,9 @@ DoPrecharge:
 				bis.b	#BatPosCtor,&CtorPortOUT	; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
+				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for pre-charge to come off
 				; Each source contactor output drives multiple contactors some of which have
 				; delay circuit boards preceding them. Their delay is 160 to 240 ms.
 				; So we must wait the worst case plus another 160 ms. Total 400 ms.
@@ -1323,7 +1330,6 @@ DoPrecharge:
 				mov		#400,R8						; 400 milliseconds
 				call	#DelayMs					; Wait for last economiser to reduce coil current
 			_ENDIF
-		bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
 		ret
 
 #if 0
