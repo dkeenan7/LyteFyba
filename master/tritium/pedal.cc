@@ -118,6 +118,15 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.rpm = RPM_FWD_MAX;
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
+
+				// Drop out of cruise-control if the pedal has been pushed beyond the current speed.
+				if (command.rpm > command.prev_rpm)
+					command.cruise_control = false;
+
+				if (command.cruise_control) {
+					command.rpm = command.prev_rpm;
+					// command.current = regen / 3.0;
+				}
 #endif
 #if 0
 				// Ross Pink's pedal regen algorithm (best with wsConfig mass = 50 kg)

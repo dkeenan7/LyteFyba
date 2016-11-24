@@ -84,6 +84,7 @@ bool bAuxBatNeedsCharge = false;				// True if auxiliary battery (12 V) needs ch
 unsigned int iAuxBatMilliVolts = 0;				// Voltage of auxiliary battery in millivolts
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
+bool cruiseControl = false;						// True if cruise control is on
 enum TachoDisplayType {RPM, PWR, TRQ, BATV, AUXV, LIM};
 TachoDisplayType tacho_display = RPM;
 #define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
@@ -225,6 +226,7 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
+					cruiseControl = false;			// Drop out of cruiseControl
 					P5OUT &= (uchar)~LED_GEAR_ALL;
 							// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
 							// Stop requesting brakelights from DCU-B if we're DCU-A (LED_GEAR_3).
@@ -288,13 +290,24 @@ int main( void )
 					|| (switches & SW_INH_TRACTION)) { 		// or DCU-B is in charge mode (IN_GEAR_3)
 						next_state = MODE_OFF;				// Go to OFF mode
 					}
-					else {  // Stay in Drive  mode
+					else {  // Stay in Drive mode
 						next_state = MODE_D;
-						// Cycle through the various tacho displays on rising edges of IGN_START
+						// Make rising edges of IGN_START cycle through various options.
 						if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
-							if (tacho_display == LIM) tacho_display = RPM;
-							else tacho_display = TachoDisplayType(tacho_display + 1);
+							// If we're in neutral, or the clutch is in ...
+							if (switches & SW_NEUT_OR_CLCH) {
+								// cycle around the 6 different tacho displays
+								if (tacho_display == LIM) tacho_display = RPM;
+								else tacho_display = TachoDisplayType(tacho_display + 1);
+							}
+							// otherwise ...
+							else {
+								// toggle cruise control on and off.
+								command.cruise_control = !command.cruise_control;
+							}
 						}
+						// Make the brake pedal drop us out of cruise control
+						if (switches & SW_BRAKE) command.cruise_control = false;
 					}
 					break; // End case MODE_D
 				case MODE_CHARGE:
