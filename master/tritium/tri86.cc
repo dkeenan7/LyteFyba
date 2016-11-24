@@ -84,7 +84,6 @@ bool bAuxBatNeedsCharge = false;				// True if auxiliary battery (12 V) needs ch
 unsigned int iAuxBatMilliVolts = 0;				// Voltage of auxiliary battery in millivolts
 unsigned char statusB = 0xC8;					// Status from DCU-B, initially assume a bad case
 												// i.e. stress 8 with a comms error
-bool cruiseControl = false;						// True if cruise control is on
 enum TachoDisplayType {RPM, PWR, TRQ, BATV, AUXV, LIM};
 TachoDisplayType tacho_display = RPM;
 #define LOG2(x) (4 * ((x)-8) / ((x)+8) + 3)		// Only valid for the domain 1-64, and range 0-6.
@@ -226,7 +225,7 @@ int main( void )
 			// Track current operating state
 			switch(command.state){
 				case MODE_OFF:
-					cruiseControl = false;			// Drop out of cruiseControl
+					command.cruise_control = false;			// Drop out of cruise control
 					P5OUT &= (uchar)~LED_GEAR_ALL;
 							// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
 							// Stop requesting brakelights from DCU-B if we're DCU-A (LED_GEAR_3).
@@ -304,10 +303,15 @@ int main( void )
 							else {
 								// toggle cruise control on and off.
 								command.cruise_control = !command.cruise_control;
+								// When turning on, snapshot the present rpm.
+								if (command.cruise_control)
+									command.cruise_rpm = motor_rpm;
 							}
 						}
-						// Make the brake pedal drop us out of cruise control
-						if (switches & SW_BRAKE) command.cruise_control = false;
+						// Drop us out of cruise control if the brake or clutch pedal is pushed or
+						// we're in neutral.
+						if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH))
+							command.cruise_control = false;
 					}
 					break; // End case MODE_D
 				case MODE_CHARGE:

@@ -119,13 +119,14 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
 
-				// Drop out of cruise-control if the pedal has been pushed beyond the current speed.
-				if (command.rpm > command.prev_rpm)
+				// Drop out of cruise-control if the pedal has been pushed significantly
+				// beyond the current speed.
+				if (command.rpm > command.cruise_rpm + 100.0)
 					command.cruise_control = false;
 
 				if (command.cruise_control) {
-					command.rpm = command.prev_rpm;
-					// command.current = regen / 3.0;
+					command.rpm = command.cruise_rpm;
+					// command.current = regen / 3.0; // An option. Value to be chosen by trial and error.
 				}
 #endif
 #if 0

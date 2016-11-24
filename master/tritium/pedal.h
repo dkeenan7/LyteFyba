@@ -41,6 +41,7 @@ typedef struct _command_variables {
 	float prev_current;
 	int tq_ramp_state;
 	bool cruise_control;
+	float cruise_rpm;
 } command_variables;
 
 extern command_variables command;
