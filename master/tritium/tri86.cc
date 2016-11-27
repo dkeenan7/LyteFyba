@@ -216,7 +216,7 @@ int main( void )
 #if !PEDAL_ON_VEL		// If not processing on 25 Hz velocity packets, do pedal commands at 100 Hz
 			// Update motor commands based on pedal and slider positions and actual rpm
 			// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
-			if (!bDCUb) process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
+			if (!bDCUb) process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current, switches, switches_diff);
 #endif
 	 		// Send a fuel gauge request to our IMU every 40.96 seconds (must be power-of-2 x 10ms ticks)
 	 		static unsigned int fuelGaugeTimer = 0;
@@ -299,19 +299,8 @@ int main( void )
 								if (tacho_display == LIM) tacho_display = RPM;
 								else tacho_display = TachoDisplayType(tacho_display + 1);
 							}
-							// otherwise ...
-							else {
-								// toggle cruise control on and off.
-								command.cruise_control = !command.cruise_control;
-								// When turning on, snapshot the present rpm.
-								if (command.cruise_control)
-									command.cruise_rpm = motor_rpm;
-							}
+							// else toggle cruise control on and off -- handled in process_pedal().
 						}
-						// Drop us out of cruise control if the brake or clutch pedal is pushed or
-						// we're in neutral.
-						if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH))
-							command.cruise_control = false;
 					}
 					break; // End case MODE_D
 				case MODE_CHARGE:

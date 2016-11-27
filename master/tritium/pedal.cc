@@ -44,6 +44,8 @@ command_variables	command;
 /**************************************************************************************************
  * PUBLIC FUNCTIONS
  *************************************************************************************************/
+#define max(x, y) (((x)>(y))?(x):(y))
+#define min(x, y) (((x)<(y))?(x):(y))
 
 /*
  * Process analog pedal inputs
@@ -51,7 +53,8 @@ command_variables	command;
  * Implement Dave's square law algorithm; channel C is ready for a regen pot
  *
  */
-void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c , float motor_rpm, float torque_current)
+void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c ,
+			float motor_rpm, float torque_current, unsigned int switches, unsigned int switches_diff)
 {
 	float pedal, regen;
 
@@ -119,14 +122,56 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				else
 					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
 
-				// Drop out of cruise-control if the pedal has been pushed significantly
-				// beyond the current speed.
-				if (command.rpm > command.cruise_rpm + 100.0)
+				// Dave Keenan's combined cruise control and speed limiting using the ignition key.
+				// See http://forums.aeva.asn.au/forums/weber-and-coulombs-mx5_topic980_post63320.html#63320
+
+				// Make rising edges of IGN_START toggle cruise control or speed limiting.
+				if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
+					// If either of them is on, turn them off
+					if (command.cruise_control || command.speed_limiting) {
+							command.cruise_control = false;
+							command.speed_limiting = false;
+					}
+					// else they're off, so turn one of them on
+					else {
+						// If we're not in regen, choose cruise control
+						if (command.rpm > motor_rpm) {
+							command.cruise_control = true;
+							command.rpm_limit = motor_rpm; // Snapshot the present motor rpm
+						}
+						// else we're in regen, so choose speed limiting
+						else {
+							command.speed_limiting = true;
+							// Round the motor rpm to the nearest rpm in the array below.
+							// It gives rpm for various multiples of 10 km/h in gears 2 thru 5.
+							const unsigned int nx10km_rpm[10] = {2540,2738,3027,3175,3363,3578,3809,4025,4473,5079};
+							const unsigned int nx10km_upr_bound[9] = {2625,2878,3060,3297,3454,3673,3935,4198,4760};
+							unsigned int rpm = motor_rpm;
+							unsigned int i;
+							for ( i = 0; i < 10; i++ ) {
+								if (rpm < nx10km_upr_bound[i]) break;
+							}
+							command.rpm_limit = nx10km_rpm[i];
+						}
+					}
+				}
+				// Drop out of cruise control if the brake pedal is pushed even slightly.
+				// or the clutch pedal is pushed, or we're in neutral.
+				if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH))
 					command.cruise_control = false;
 
-				if (command.cruise_control) {
-					command.rpm = command.cruise_rpm;
-					// command.current = regen / 3.0; // An option. Value to be chosen by trial and error.
+				// Drop out of speed limiting if the accelerator pedal has been pushed all the way,
+				// or the clutch pedal is pushed, or we're in neutral.
+				if ((pedal > 0.95) || (switches & SW_NEUT_OR_CLCH))
+					command.speed_limiting = false;
+
+				// For cruise control apply a lower limit on requested rpm.
+				// For speed limiting apply an upper limit on requested rpm.
+				if (((command.cruise_control) && (command.rpm < command.rpm_limit))
+				||  ((command.speed_limiting) && (command.rpm > command.rpm_limit))) {
+					command.rpm = command.rpm_limit;
+					// Allow enough torque to maintain speed up hills and prevent overspeed down hills
+					command.current = regen * command.rpm_limit * (1.0 / RPM_FWD_MAX);
 				}
 #endif
 #if 0

@@ -27,7 +27,8 @@
 #define __PEDAL_H_
 
 // Public function prototypes
-void process_pedal( unsigned int a, unsigned int b, unsigned int c , float motor_rpm, float torque_current);
+void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int analog_c ,
+			float motor_rpm, float torque_current, unsigned int switches, unsigned int switches_diff);
 
 // Public variables
 typedef struct _command_variables {
@@ -41,7 +42,8 @@ typedef struct _command_variables {
 	float prev_current;
 	int tq_ramp_state;
 	bool cruise_control;
-	float cruise_rpm;
+	bool speed_limiting;
+	float rpm_limit;
 } command_variables;
 
 extern command_variables command;
