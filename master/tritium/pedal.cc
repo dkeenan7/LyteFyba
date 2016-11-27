@@ -162,7 +162,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 
 				// Drop out of speed limiting if the accelerator pedal has been pushed all the way,
 				// or the clutch pedal is pushed, or we're in neutral.
-				if ((pedal > 0.95) || (switches & SW_NEUT_OR_CLCH))
+				if ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH))
 					command.speed_limiting = false;
 
 				// For cruise control apply a lower limit on requested rpm.
@@ -170,8 +170,8 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				if (((command.cruise_control) && (command.rpm < command.rpm_limit))
 				||  ((command.speed_limiting) && (command.rpm > command.rpm_limit))) {
 					command.rpm = command.rpm_limit;
-					// Allow enough torque to maintain speed up hills and prevent overspeed down hills
-					command.current = regen * command.rpm_limit * (1.0 / RPM_FWD_MAX);
+					// Ensure enough torque to maintain speed up hills and prevent overspeed down hills
+					command.current = max(command.current, regen * command.rpm_limit * (1.0 / RPM_FWD_MAX));
 				}
 #endif
 #if 0
