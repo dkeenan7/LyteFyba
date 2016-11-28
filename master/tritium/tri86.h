@@ -67,7 +67,7 @@ void dint();
 // Port 5
 #define LED_FAULT_3			0x01
 #define LED_FAULT_2			0x02	// DCU-A: Cell stress alarm
-#define LED_FAULT_1			0x04	// DCU-A: Alternator light (charge mode indicator)
+#define LED_FAULT_1			0x04	// DCU-A: Alternator light (charge/cruise/limit mode indicator)
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10	// DCU-B: Presence of this non-pedal DCU
 #define LED_GEAR_3			0x20	// DCU-A: heavy regen, request DCU-B to turn on brake light
@@ -114,7 +114,7 @@ void dint();
 #define TICK_RATE			100					// Hz
 #define COMMS_SPEED			10					// Number of ticks per event: 10 ticks = 100ms = 10 Hz
 #define ACTIVITY_SPEED		2					// LED flash period for activity: 2 ticks = 20ms
-#define FAULT_SPEED			/*200*/10					// LED sustain period for FAULT led: 200 ticks = 2 seconds
+#define FAULT_SPEED			/*200*/10			// LED sustain period for FAULT led: 200 ticks = 2 seconds
 
 // Event definitions
 #define EVENT_TIMER			0x0001				// Timer went off

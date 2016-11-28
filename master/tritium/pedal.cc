@@ -129,11 +129,13 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				if (!bDCUb &&  (switches & switches_diff & SW_IGN_START)) {
 					// If either of them is on, turn them off
 					if (command.cruise_control || command.speed_limiting) {
-							command.cruise_control = false;
-							command.speed_limiting = false;
+						P5OUT |= LED_FAULT_1;	// Turn off the alternator light (charge/cruise/limit)
+						command.cruise_control = false;
+						command.speed_limiting = false;
 					}
 					// else they're off, so turn one of them on
 					else {
+						P5OUT &= (uchar)~LED_FAULT_1;	// Turn on the alternator light (charge/cruise/limit)
 						// If we're not in regen, choose cruise control
 						if (command.rpm > motor_rpm) {
 							command.cruise_control = true;
@@ -143,30 +145,43 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 						else {
 							command.speed_limiting = true;
 							// Round the motor rpm to the nearest rpm in the array below.
-							// It gives rpm for various multiples of 10 km/h in gears 2 thru 5.
-							const unsigned int nx10km_rpm[10] = {2540,2738,3027,3175,3363,3578,3809,4025,4473,5079};
-							const unsigned int nx10km_upr_bound[9] = {2625,2878,3060,3297,3454,3673,3935,4198,4760};
-							unsigned int rpm = motor_rpm;
+							// Each is the rpm for a near-multiple of 10 km/h in some gear other than first.
+							const unsigned int nx10km_rpm[10] =
+								{2540,2723,3027,3176,3363,3578,3809,4025,4473,5079};
+								// 40             50             60        70   80	km/h in 2nd gear
+								//      61        71        80        90  100		km/h in 3rd gear
+								//      81   90       100							km/h in 4th gear
+								//      99  111										km/h in 5th gear
+							// The following are the boundaries between the bins for the above.
+							// They allow for a capture range of +- 1.8 km/h or more, except above
+							// 40 km/h in 2nd and below 60 km/h in 3rd, which are only +-1.3 km/h.
+							const unsigned int nx10km_upr_bound[9] =
+								{2624,2879,3060,3297,3455,3673,3936,4198,4761};
+							unsigned int rpm = (unsigned int)motor_rpm;	// Convert float to integer
+							// Determine which bin the present motor rpm falls into
 							unsigned int i;
 							for ( i = 0; i < 10; i++ ) {
 								if (rpm < nx10km_upr_bound[i]) break;
 							}
+							// Use the standard rpm for that bin
 							command.rpm_limit = nx10km_rpm[i];
 						}
 					}
 				}
 				// Drop out of cruise control if the brake pedal is pushed even slightly.
 				// or the clutch pedal is pushed, or we're in neutral.
-				if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH))
+				if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH)) {
+					P5OUT |= LED_FAULT_1;	// Turn off the alternator light (charge/cruise/limit)
 					command.cruise_control = false;
-
+				}
 				// Drop out of speed limiting if the accelerator pedal has been pushed all the way,
 				// or the clutch pedal is pushed, or we're in neutral.
-				if ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH))
+				if ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH)) {
+					P5OUT |= LED_FAULT_1;	// Turn off the alternator light (charge/cruise/limit)
 					command.speed_limiting = false;
-
-				// For cruise control apply a lower limit on requested rpm.
-				// For speed limiting apply an upper limit on requested rpm.
+				}
+				// For cruise control, apply a lower limit on requested rpm.
+				// For speed limiting, apply an upper limit on requested rpm.
 				if (((command.cruise_control) && (command.rpm < command.rpm_limit))
 				||  ((command.speed_limiting) && (command.rpm > command.rpm_limit))) {
 					command.rpm = command.rpm_limit;
