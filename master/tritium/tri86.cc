@@ -227,6 +227,7 @@ int main( void )
 				case MODE_OFF:
 					command.cruise_control = false;			// Drop out of cruise control
 					command.speed_limiting = false;			// Drop out of speed limiting
+					P5OUT &= (uchar)~LED_FAULT_3; // Turn off the headlight retractor light (cruise/limit)
 					P5OUT &= (uchar)~LED_GEAR_ALL;
 							// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
 							// Stop requesting brakelights from DCU-B if we're DCU-A (LED_GEAR_3).
@@ -242,7 +243,7 @@ int main( void )
 					if (!bDCUb) {
 						P1OUT &= (uchar)~BRAKE_OUT; // Turn off traction contactors if we're DCU-A
 													// Leave brake output alone if we're DCU-B (handled later)
-						P5OUT |= LED_FAULT_1;		// Turn off alternator light (charge/cruise/limit)
+						P5OUT |= LED_FAULT_1;		// Turn off alternator light (charge mode)
 					}
 
 					if (switches & SW_CRASH)				// if we've crashed
@@ -254,7 +255,7 @@ int main( void )
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
 															// so it can inhibit traction
 						else								// If DCU-A,
-							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the alternator light (charge/cruise/limit)
+							P5OUT &= (uchar)~LED_FAULT_1;	// turn on the alternator light (charge mode)
 						P1OUT |= CHG_CONT_OUT;				// Turn on our charge contactor
 						bms_changeDirection(TRUE);			// Tell CMUs direction of current flow
 						chgr_start();						// Start the charge controller (PID loop)

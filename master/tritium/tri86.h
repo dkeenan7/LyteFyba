@@ -65,9 +65,9 @@ void dint();
 //#define P4_UNUSED			0x40 | 0x80		// MVE: no longer unused
 
 // Port 5
-#define LED_FAULT_3			0x01
-#define LED_FAULT_2			0x02	// DCU-A: Cell stress alarm
-#define LED_FAULT_1			0x04	// DCU-A: Alternator light (charge/cruise/limit mode indicator)
+#define LED_FAULT_3			0x01	// DCU-A: Headlight retractor light via diode (cruise/limit) (active high)
+#define LED_FAULT_2			0x02	// DCU-A: Cell stress alarm (active high)
+#define LED_FAULT_1			0x04	// DCU-A: Alternator light (charge mode) (active low)
 #define LED_GEAR_BL			0x08
 #define LED_GEAR_4			0x10	// DCU-B: Presence of this non-pedal DCU
 #define LED_GEAR_3			0x20	// DCU-A: heavy regen, request DCU-B to turn on brake light
