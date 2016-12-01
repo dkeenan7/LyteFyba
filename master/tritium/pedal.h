@@ -44,6 +44,7 @@ typedef struct _command_variables {
 	bool cruise_control;
 	bool speed_limiting;
 	float rpm_limit;
+	float pedal_limit;
 } command_variables;
 
 extern command_variables command;

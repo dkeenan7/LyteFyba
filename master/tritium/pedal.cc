@@ -41,6 +41,22 @@
 // Public variables
 command_variables	command;
 
+float safe_norm_divide( float num, float denom ) {
+	// Safe divide of quantities where the result can be limited to -1.0 to +1.0
+	if (num == 0.0) return 0.0;
+	if (denom < 0.0)
+		if (num <= denom) return 1.0;
+		else if (num >= -denom) return -1.0;
+		else return num/denom;
+	else if (denom > 0.0)
+		if (num >= denom) return 1.0;
+		else if (num <= -denom) return -1.0;
+		else return num/denom;
+	else if (num > 0.0) return 1.0;
+		else return -1.0;
+}
+
+
 /**************************************************************************************************
  * PUBLIC FUNCTIONS
  *************************************************************************************************/
@@ -114,13 +130,12 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
 				pedal = 0.15 + 0.85 * pedal;	// Implement creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
-				command.current = (CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm));
+				command.current = CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm);
 				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
 				// The following, suggested by Dave, avoids both the MIN() macro and the hazards
-				if (p2 >= ((1-p2)*regen))
-					command.rpm = RPM_FWD_MAX;
-				else
-					command.rpm = RPM_FWD_MAX * p2/((1-p2)*regen);
+				command.rpm = RPM_FWD_MAX * safe_norm_divide(
+					p2,
+					(1-p2)*regen );
 
 				// Dave Keenan's combined cruise control and speed limiting using the ignition key.
 				// See http://forums.aeva.asn.au/forums/weber-and-coulombs-mx5_topic980_post63320.html#63320
@@ -136,56 +151,103 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					// else they're off, so turn one of them on
 					else {
 						P5OUT |= LED_FAULT_3;	// Turn on the headlight retractor light (cruise/limit)
-						// If we're not in regen, choose cruise control
-						if (command.rpm > motor_rpm) {
+						// If we're in regen, choose cruise control
+						if (command.rpm < motor_rpm) {
 							command.cruise_control = true;
 						}
-						// else we're in regen, so choose speed limiting
+						// else we're not in regen, so choose speed limiting
 						else {
 							command.speed_limiting = true;
 						}
 						// Round the motor rpm to the nearest rpm in the array below.
 						// Each is the rpm for a near-multiple of 10 km/h in some gear other than first.
-						const unsigned int nx10km_rpm[10] =
-							{2540,2723,3027,3176,3363,3578,3809,4025,4473,5079};
-							// 40             50             60        70   80	km/h in 2nd gear
-							//      61        71        80        90  100		km/h in 3rd gear
-							//      81   90       100							km/h in 4th gear
-							//      99  111										km/h in 5th gear
+						const unsigned int nx10km_rpm[11] =
+							{2216,2540,2723,3027,3176,3363,3578,3809,4025,4473,5079};
+							//      40             50             60        70   80	km/h in 2nd gear
+							// 50        61        71        80        90  100		km/h in 3rd gear
+							//           81   90       100							km/h in 4th gear
+							// 81        99  111									km/h in 5th gear
 						// The following are the boundaries between the bins for the above.
-						// They allow for a capture range of +- 1.8 km/h or more, except above
-						// 40 km/h in 2nd and below 60 km/h in 3rd, which are only +-1.3 km/h.
-						const unsigned int nx10km_upr_bound[9] =
-							{2624,2879,3060,3297,3455,3673,3936,4198,4761};
+						// In the worst cases, the capture range is only +- 1.3 km/h.
+						const unsigned int nx10km_upr_bound[10] =
+							{2361,2624,2879,3071,3297,3455,3673,3936,4198,4761};
+						// Here are the pedal positions corresponding to these rpms, assuming
+						// REGEN_MAX = 0.7 and RPM_FWD_MAX = 7000.
+						// pedal = sqrt(REGEN_MAX*rpm/RPM_FWD_MAX)/sqrt(REGEN_MAX*rpm/RPM_FWD_MAX + 1)
+						const float nx10km_pedal[11] =
+							{0.425912480,0.450057590,0.462624956,0.482041028,0.490962649,0.501662282,
+							 0.513336643,0.525199582,0.535712164,0.555930073,0.580367168};
 						unsigned int rpm = (unsigned int)motor_rpm;	// Convert float to integer
 						// Determine which bin the present motor rpm falls into
 						unsigned int i;
-						for ( i = 0; i < 10; i++ ) {
+						for ( i = 0; i < 11; i++ ) {
 							if (rpm < nx10km_upr_bound[i]) break;
 						}
-						// Use the standard rpm for that bin
+						// Record the standard rpm (and pedal position) for that bin, as our set point.
 						command.rpm_limit = nx10km_rpm[i];
+						command.pedal_limit = nx10km_pedal[i];
 					}
 				}
 				// Drop out of cruise control if the brake pedal is pushed even slightly.
 				// or the clutch pedal is pushed, or we're in neutral.
-				if ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH)) {
+				if (command.cruise_control && ((switches & SW_BRAKE) || (switches & SW_NEUT_OR_CLCH))) {
 					P5OUT &= (uchar)~LED_FAULT_3;	// Turn off the headlight retractor light (cruise/limit)
 					command.cruise_control = false;
 				}
 				// Drop out of speed limiting if the accelerator pedal has been pushed all the way,
 				// or the clutch pedal is pushed, or we're in neutral.
-				if ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH)) {
+				if (command.speed_limiting && ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH))) {
 					P5OUT &= (uchar)~LED_FAULT_3;	// Turn off the headlight retractor light (cruise/limit)
 					command.speed_limiting = false;
 				}
+
+				const float LIMIT_GAIN = 10.0; // This determines how hard the motor works to maintain
+									 		// constant speed when in speed limiting or cruise control
+				float fader, current_limit, normalised_rpm_limit, gain_times_delta_rpm;
 				// For cruise control, apply a lower limit on requested rpm.
 				// For speed limiting, apply an upper limit on requested rpm.
-				if (((command.cruise_control) && (command.rpm < command.rpm_limit))
-				||  ((command.speed_limiting) && (command.rpm > command.rpm_limit))) {
-					command.rpm = command.rpm_limit;
-					// Ensure enough torque to maintain speed up hills and prevent overspeed down hills
-					command.current = max(command.current, regen * command.rpm_limit * (1.0 / RPM_FWD_MAX));
+				if ((command.cruise_control && (pedal < command.pedal_limit + 0.1))
+				||  (command.speed_limiting && (pedal > command.pedal_limit - 0.1))) {
+					// Ensure enough torque to maintain speed up hills and prevent overspeed down hills.
+					// But do not exceed the maximum allowed regen torque.
+					// I use the max regen torque also as the max forward torque
+					// in cruise control and speed limiting.
+					current_limit = CURRENT_MAX * max(-regen, min(regen,
+											(motor_rpm - command.rpm_limit) * (LIMIT_GAIN / RPM_FWD_MAX)));
+					// Give a smooth transition between limiting and non-limiting torques by fading
+					// between them over 10% of pedal travel. Also fade out speed-limiting above 90% pedal.
+					if (command.cruise_control)
+						fader = max(0.0, min(1.0, (pedal - command.pedal_limit) * 10));
+					else  // Speed limiting
+						if (pedal > 0.9)
+							fader = max(0.0, min(1.0, (pedal - 0.9) * 10.0));
+						else
+							fader = max(0.0, min(1.0, (command.pedal_limit - pedal) * 10));
+					command.current = fader * command.current + (1.0-fader) * current_limit;
+					// The WaveSculptor, like most VF drives, ignores the sign of the current, and gives
+					// it the sign of the difference between requested rpm and actual rpm.
+					// That means we have to calculate the requested rpm very carefully to ensure
+					// we get the sign we're expecting for the torque.
+					// Its not as simple as fading between rpms in the same way we fade between currents.
+					// Thanks to Wolfram Alpha for solving some of the equations to help get this right.
+					// I ran it in a spreadsheet and plotted graphs to test it.
+					normalised_rpm_limit = command.rpm_limit * (1.0 / RPM_FWD_MAX);
+					gain_times_delta_rpm = safe_norm_divide(
+						fader*((1-p2)*regen*normalised_rpm_limit - p2)*LIMIT_GAIN,
+						(fader*(1-p2)*regen + (1-fader)*LIMIT_GAIN) );
+					if (gain_times_delta_rpm <= -regen)
+						command.rpm = safe_norm_divide(
+							(fader*p2+(1-fader)*-regen),
+							(fader*(1-p2)*regen) );
+					else if (gain_times_delta_rpm >= regen)
+						command.rpm = safe_norm_divide(
+							(fader*p2+(1-fader)*regen),
+							(fader*(1-p2)*regen) );
+					else
+						command.rpm = safe_norm_divide(
+							(fader*p2+(1-fader)*LIMIT_GAIN*normalised_rpm_limit),
+							(fader*(1-p2)*regen+(1-fader)*LIMIT_GAIN) );
+					command.rpm = command.rpm * RPM_FWD_MAX;
 				}
 #endif
 #if 0
