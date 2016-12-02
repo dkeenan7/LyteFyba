@@ -201,13 +201,13 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					command.speed_limiting = false;
 				}
 
-				const float LIMIT_GAIN = 10.0; // This determines how hard the motor works to maintain
+				const float LIMIT_GAIN = 20.0; // This determines how hard the motor works to maintain
 									 		// constant speed when in speed limiting or cruise control
 				float fader, current_limit, normalised_rpm_limit, gain_times_delta_rpm;
 				// For cruise control, apply a lower limit on requested rpm.
 				// For speed limiting, apply an upper limit on requested rpm.
-				if ((command.cruise_control && (pedal < command.pedal_limit + 0.1))
-				||  (command.speed_limiting && (pedal > command.pedal_limit - 0.1))) {
+				if ((command.cruise_control && (pedal < command.pedal_limit))
+				||  (command.speed_limiting && (pedal > command.pedal_limit))) {
 					// Ensure enough torque to maintain speed up hills and prevent overspeed down hills.
 					// But do not exceed the maximum allowed regen torque.
 					// I use the max regen torque also as the max forward torque
@@ -217,12 +217,12 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 					// Give a smooth transition between limiting and non-limiting torques by fading
 					// between them over 10% of pedal travel. Also fade out speed-limiting above 90% pedal.
 					if (command.cruise_control)
-						fader = max(0.0, min(1.0, (pedal - command.pedal_limit) * 10));
+						fader = max(0.0, min(1.0, (0.1 + pedal - command.pedal_limit) * 10));
 					else  // Speed limiting
 						if (pedal > 0.9)
 							fader = max(0.0, min(1.0, (pedal - 0.9) * 10.0));
 						else
-							fader = max(0.0, min(1.0, (command.pedal_limit - pedal) * 10));
+							fader = max(0.0, min(1.0, (0.1 + command.pedal_limit - pedal) * 10));
 					command.current = fader * command.current + (1.0-fader) * current_limit;
 					// The WaveSculptor, like most VF drives, ignores the sign of the current, and gives
 					// it the sign of the difference between requested rpm and actual rpm.
