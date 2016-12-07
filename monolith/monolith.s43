@@ -552,6 +552,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_WHILE		_NE					; While the SCU TX buffer is not full
 						call	#ChgRxByteNW			; Try to read a character from the charger (PIP)
 					_WHILE		_NZ					; While there is a character from the charger (PIP)
+						bic.b	#$80,R8					; Clear hi bit so doesn't look like status byte
 						call	#ScuTxByte				; Transmit it to the SCU
 					_REPEAT
 					_ENDIF							; To balance the nasty second while
