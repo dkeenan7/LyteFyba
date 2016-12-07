@@ -1321,13 +1321,13 @@ DoPrecharge:
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for pre-charge to come off
 				; Each source contactor output drives multiple contactors some of which have
-				; delay circuit boards preceding them. Their delay is 160 to 240 ms.
-				; So we must wait the worst case plus another 160 ms. Total 400 ms.
+				; delay circuit boards preceding them. Their delay is 160 to 400 ms.
+				; So we must wait the worst case plus another 160 ms. Total 560 ms.
 				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
-				mov		#400,R8						; 400 milliseconds
+				mov		#560,R8						; 560 milliseconds
 				call	#DelayMs					; Wait for last economiser to reduce coil current
 				bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
-				mov		#400,R8						; 400 milliseconds
+				mov		#560,R8						; 560 milliseconds
 				call	#DelayMs					; Wait for last economiser to reduce coil current
 			_ENDIF
 		ret
