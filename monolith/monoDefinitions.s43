@@ -28,7 +28,7 @@
 
 #if MASTERLESS_CHARGING
 ; ChargerC(o)ntrol ( voltMin voltMax -- )
-			; This command only makes sense for the last CMU/IMU in the string, with an adapter
+			; This command only makes sense for the last CMU/BMU in the string, with an adapter
 			; from its fibre-optic output to the serial input of a PIP inverter/charger.
 			; If voltMax is non-zero, whenever you get a '1c' command, run a PI controller on stress
 			; to control a PIP inverter/charger at 2400 baud.
@@ -311,27 +311,27 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ;		ret
 
 
-; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
+; Current (tenths-of-an-amp -- ) // Sent by BMU to CMUs
 		xCODE	'i',Current,_Current
 		cmp.b	#255,&ID
-		_IF	_NE							; If we're not an IMU
+		_IF	_NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		ret
 
 ; Store discharge counter high word (dischargeHi -- )
-		; Sent periodically by IMU to CMU 1, and sent by CMU 1 to IMU on receiving a 'G' command.
-		; The IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
-		; it can restore it after the monolith has been shut down and hence IMU has been powered down.
+		; Sent periodically by BMU to CMU 1, and sent by CMU 1 to BMU on receiving a 'G' command.
+		; The BMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
+		; it can restore it after the monolith has been shut down and hence BMU has been powered down.
 		xCODE	'Z',ZtoreDischarge,_ZtoreDischarge
 		mov		Rtos,&discharge+2		; Set the discharge counter high word to the received value
 		ret
 
 ; Get discharge counter high word ( -- )
-		; Sent by IMU to CMU 1 when IMU is reset. Sends a 'Z' command back to the IMU with the
+		; Sent by BMU to CMU 1 when BMU is reset. Sends a 'Z' command back to the BMU with the
 		; high byte of the discharge counter.
 		xCODE	'G',GetDischarge,_GetDischarge
-		mov		#SelectIMU,R10			; Transmit "255s" to select the IMU only
+		mov		#SelectBMU,R10			; Transmit "255s" to select the BMU only
 		call	#TxStringCk
 		ClearWatchdog
 
@@ -348,37 +348,41 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		br		#TxEndOfPacket			; Tail-call TxEndOfPacket and return
 ;		ret
 
-SelectIMU	DB	4, '255s'				; First byte is length of following string
+SelectBMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1
 
 
 ; Send PIP command ( c-addr u u2 -- )
+		; BMU only.
 		; Send the string given by pointer c-addr and length u, out of one or both of the Chg ports,
 		; as specified by u2 values of 1 = Chg1 only, 2 = Chg2 only, 3 = both.
 		xCODE	'P'|'p' <<8,PipCommmand,_PipCommand ; 'Pp' collides with 'Ph' 'Px' 'Xh' 'Xp' 'Xx'
-		; Temporarily disable the timer functions of all Chg pins
-		bic.b	#TxMiChg|TxMiChg2|RxChg|RxChg2,ChgPortSEL
-		bit		#2,Rtos
-		_IF		_NZ
-			; Enable the timer function of the TxChg2 and RxChg2 pins
-			bis.b	#TxMiChg2|RxChg2,ChgPortSEL
-			bis		#CCIS0,&ChgCCTLr		; Select input B for charger capture compare register
-		_ENDIF
-		bit		#1,Rtos
-		_IF		_NZ
-			; Enable the timer function of the TxChg and RxChg pins
-			; This comes last so if sending to both ports, we receive from RxChg, not RxCgh2
-			bis.b	#TxMiChg|RxChg,ChgPortSEL
-			bic		#CCIS0,&ChgCCTLr		; Select input A for charger capture compare register
-		_ENDIF
+		cmp.b	#255,&ID
+		_IF	_EQ							; If I'm a BMU
+			; Temporarily disable the timer functions of all Chg pins
+			bic.b	#TxMiChg|TxMiChg2|RxChg|RxChg2,ChgPortSEL
+			bit		#2,Rtos
+			_IF		_NZ
+				; Enable the timer function of the TxChg2 and RxChg2 pins
+				bis.b	#TxMiChg2|RxChg2,ChgPortSEL
+				bis		#CCIS0,&ChgCCTLr		; Select input B for charger capture compare register
+			_ENDIF
+			bit		#1,Rtos
+			_IF		_NZ
+				; Enable the timer function of the TxChg and RxChg pins
+				; This comes last so if sending to both ports, we receive from RxChg, not RxCgh2
+				bis.b	#TxMiChg|RxChg,ChgPortSEL
+				bic		#CCIS0,&ChgCCTLr		; Select input A for charger capture compare register
+			_ENDIF
 
-		push		&TxBytePtr			; Save the present Tx pointer
-		mov			#ChgTxByte,&TxBytePtr ; Point the Tx pointer at the charge ports
-		mov			Rthd,R10
-		mov			Rsec,R11
-		call		#TxStringCrcS		; Send string pointed to by R10, len R11. Trashes R8 thru R11
-		call		#TxCrc				; Send the two bytes of CRC and clear it
-		mov.b		#$0D,R8
-		call		#TxByte				; Send the carriage return without accumulating CRC
-		pop			&TxBytePtr			; Set the Tx pointer back to what it was
+			push		&TxBytePtr			; Save the present Tx pointer
+			mov			#ChgTxByte,&TxBytePtr ; Point the Tx pointer at the charge ports
+			mov			Rthd,R10
+			mov			Rsec,R11
+			call		#TxStringCrcS		; Send string pointed to by R10, len R11. Trashes R8 thru R11
+			call		#TxCrc				; Send the two bytes of CRC and clear it
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+			pop			&TxBytePtr			; Set the Tx pointer back to what it was
+		_ENDIF
 		ret

@@ -143,7 +143,6 @@ STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
 SourceCtor	EQU		BatNegCtor			; Source contactor MOSFET and orange LED
 LoadCtor	EQU 	AcLfPvCtor			; Load contactor MOSFET and cyan/white LED
-CtorPortOUT	EQU		P3OUT
 
 ;
 ; RAM allocation
@@ -1287,7 +1286,7 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		BSL2_START		; Start of last main-flash segment
 ; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
+BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision, jWriteBreak
 				ORG		$FFFE			; The reset vector
 				DW		BSL2			; Reset to BSL2 in case there is a crash
 

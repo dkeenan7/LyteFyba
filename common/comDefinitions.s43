@@ -1101,3 +1101,15 @@ CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
 		mov		#5,Rtos				; Use 5 digits
 		mov		#'@',Rthd			; Response type is @, CapATcity Constant
 		br		#_prettyPrint		; Pretty print and return
+
+
+; Break
+; Send a break out of the UART port, which is the CMU port on a BMU, and the only port on a CMU.
+; This will reset a following CMU, but not a following BMU.
+; When a CMU is reset it sends a break, so all following CMUs will be reset, but not the BMU.
+; BMUs are reset by a break to their SCU port only.
+; When a BMU is reset, it does not send a break to its CMUs (or anywhere else).
+; So the most likely use of this command is to make a BMU reset all its CMUs.
+		xCODE		'B'|'r' <<8,break,_break ; 'Br' collides with 'Bb' 'Bj' 'Bz' 'Zr' 'Zb' 'Zj' 'Zz'
+		br	#jWriteBreak			; Tail call and return
+

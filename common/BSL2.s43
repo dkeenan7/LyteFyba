@@ -13,7 +13,7 @@
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
-BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
+BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision, jWriteBreak
 			LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
 			LOCAL	MckPerFTGck, initBSL2, mainLoop2
 			LOCAL	resetFSM2, FSMloop2, processByte2, eraseLoop, progByte2, TestNoInterp2
@@ -30,6 +30,7 @@ jBSLErase:	br		#BSLErase-jBSL+BSL2_START	; adjusted so that, in both active and 
 jReadByte:	br		#ReadByte-jBSL+BSL2_START	; they are correct for the active copy, since a 'b'
 jWriteByte:	br		#WriteByte-jBSL+BSL2_START	; command will copy the inactive to become the active.
 jBslRevision: br	#BslRevision-jBSL+BSL2_START ; Return the BSL2 revision
+jWriteBreak: br		#WriteBreak-jBSL+BSL2_START	; Send a break via the UART. Used by the 'Br' command
 
 BSL:		; Initialisation
 			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)

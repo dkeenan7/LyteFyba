@@ -173,7 +173,7 @@ CMDCHRNAM	EQU		$80|_char1<<3|_char2		; Combine the hashed characters and set the
 
 ; Interpreter for 8 bit command characters.
 ; Partly inspired by the transputer instruction set with its PFIX and OPR instructions,
-; and partly inspired by Forth, but with a maximum of two letters per command. "Touth"?
+; and partly inspired by Forth, but with a maximum of two letters per command. "Twoth"?
 ; This could be extended to more letters per command, without requiring spaces as separators,
 ; by adopting the convention that a command word is terminated by a lower case character.
 ; So valid words would be x, Xx, XXx, XXXx etc.
