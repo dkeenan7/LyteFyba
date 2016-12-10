@@ -1086,12 +1086,30 @@ DoStatus:
 				call	#TxByte					; Send the status byte. Wait buffer not full
 			_ELSE							; Else we're a BMU
 				; Process incoming status for BMU. Stress in R9, complete status in R8.
+				mov.b	R8,&globalStatus		; Put it where can be read by '255sp' (or modbus equiv)
 				bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
 				_IF		_Z
 					call	#ScuTxByte				; Send status byte to the SCU. Wait buffer not full
 				_ENDIF
-				mov.b	R8,&globalStatus		; '255sp' (or modbus equiv) reads global status
-				call	#ControlContactors		; Control PIP charging
+
+				; If all considered full (and no comms error), reset the coulomb counter
+				_COND							; Start short-circuit conditional
+					bit		#COM_ERR,R8				; Test the comms error bit
+				_AND_IF	_Z						; If no comms error
+					mov		R8,R10					; Make a copy of the status byte in R10
+					and		#S_TYPE,R10				; Extract the stress type bits
+					cmp		#ALL_FULL,R10
+				_AND_IF	_EQ						; And If all cells are considered full
+					; Set the discharge counter to the required DoD (usually 0).
+					; This was to allow for possible floating at the 25.0% DoD point where there is a
+					; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
+					; It performs the inverse calculation to that used in the fuelGauge 'g' command.
+					mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
+					mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+					call	#UpdateSoC			; Update the pre-computed PWM counter advance value
+				_ENDIFS ; All Considered Full and no comms error
+
+				call	#ControlContactors		; Control PIP charging, and shut down if all else fails
 			_ENDIF							; End else BMU
 		_ENDIF							; End if no comms error
 		ret
@@ -1173,7 +1191,7 @@ ControlContactors:
 		_AND_IF	_NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
-			bic.b	#RtPvCtor|AcLfPvCtor,&CtorPortOUT ; Drop out the source contactors (green, white LEDs)
+			bic.b	#RtPvCtor|AcLfPvCtor,&CtorPortOUT ; Drop out the source contactors (grn, white LEDs)
 		_ELSES							; Else
 			push	R8
 			push	R9
@@ -1182,14 +1200,11 @@ ControlContactors:
 			pop		R8
 			cmp		#145*10,R10
 			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
-				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
-				mov		#400,R8						; 400 milliseconds
-				call	#DelayMs					; Wait for last economiser to reduce coil current
-				bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
+				bic.b	#RtPvCtor|AcLfPvCtor,&CtorPortOUT ; Drop out the source contactors
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 7 && array voltge < 140 V
+		; If stress <= 7 && array voltage < 140 V
 		;	turn on charging/source contactors
 		_COND							; Begin short circuit conditional
 			cmp.b	#8,R9
@@ -1199,26 +1214,11 @@ ControlContactors:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-
-			bis.b	#AcLfPvCtor,&CtorPortOUT ; Turn on the source contactor (yellow LED)
+			bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
+			mov		#560,R8						; 560 milliseconds
+			call	#DelayMs					; Wait for last economiser to reduce coil current
+			bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
 		_ENDIFS
-
-		; If all considered full (and no comms error), reset the coulomb counter
-		_COND
-			bit		#COM_ERR,R8
-		_AND_IF	_Z
-			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#S_TYPE,R10				; Extract the stress type bits
-			cmp		#ALL_FULL,R10
-		_AND_IF	_EQ						; If all cells are considered full
-			; Set the discharge counter to the required DoD (usually 0).
-			; This was to allow for possible floating at the 25.0% DoD point where there is a
-			; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
-			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
-		_ENDIFS ; All Considered Full and no comms error
 
 #if 1
 		bit.b	#bCharging,&monFlags	; Set by sign of current in 'i' command
