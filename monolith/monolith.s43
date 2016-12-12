@@ -291,8 +291,8 @@ chgBitCntTx		DS		1			; Bit count 10 -> 1
 chgBitCntRx		DS		1			; Bit count 8 -> 1
 chgTxCksum		DS		1			; Transmit checksum
 
-ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
-									; 8 is sufficient to prevent dropped cmd and response characters
+ChgRxSz			EQU		64			; Receive queue size. Must be a power of 2 no greater than 256
+									; 64 is needed to prevent dropped PIP "QPIGS" response characters
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
