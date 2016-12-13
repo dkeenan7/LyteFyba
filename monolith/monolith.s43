@@ -1037,11 +1037,12 @@ DoMeasurement:
 				_IF		_HS
 					; If our ID is not 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
-					; every 256 status bytes (approx every 136 seconds).
+					; every 256 status bytes (approx every 8.5 seconds).
 					cmp.b	#1,&ID
 					_IF		_NE
 						bis.b	#COM_ERR,&localStatus
-						tst.b	&statusFreqCtr
+						mov.b	&statusFreqCtr,R8
+						and.b	#$F,R8
 						_IF	_Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
