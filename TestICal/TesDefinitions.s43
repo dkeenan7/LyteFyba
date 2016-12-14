@@ -391,7 +391,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 ;
 ; f command ( -- )
-; This outputs a fixed frequency to TxPl for 5 seconds.
+; This outputs a fixed frequency to TxPl (on a G2553) or TxMi (on a G2452) for 5 seconds.
 ; Used for checking clock calibration.
 ; NOTE: this command can only be used (in conjunction with `fw) to make small adjustments to
 ;	CPU speed, since communications will be affected!
@@ -414,7 +414,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 
 ;
-; Toggle TxPl with a 10 cycle loop,
+; Toggle one of the Tx outputs with a 10 cycle loop. TxPl on G2553 devices, TxMi otherwise.
 ; This timing depends on TxPl or TxMi being in the low 4 bits of its output register.
 ; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/10 = 200.0 kHz.
 ; If we were trying to achieve exact 9600 baud comms we'd want 9600*416/2/10 = 199.7 kHz.
