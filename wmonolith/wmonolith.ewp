@@ -721,7 +721,7 @@
       <name>BUILDACTION</name>
       <archiveVersion>1</archiveVersion>
       <data>
-        <prebuild>$PROJ_DIR$\..\common\GetSVNrevs.bat</prebuild>
+        <prebuild>$PROJ_DIR$\..\common\GetSVNrevs.bat "$PROJ_DIR$"</prebuild>
         <postbuild></postbuild>
       </data>
     </settings>
