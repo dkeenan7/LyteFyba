@@ -1,10 +1,13 @@
 ;
-; This is a version of ACCEPT that doesn't interpret, but instead injects Z, G, i (etc) commands as
-; needed and in synch with the incoming stream (i.e. it waits for either a CR or a timeout before
-; sending)
+; This is similar to the ACCEPT (slave) function, except that it doesn't interpret commands.
+; Instead it injects Z, G, i (etc) commands as needed, and in synch with the incoming stream
+; (i.e. it waits for either a CR or a timeout before sending).
 ;
+; This represents the BMU behaviour as the ID = 0 device, the beginning of the comms chain,
+; and hence the Master, whereas ACCEPT represents its behaviour as the ID = 255 device,
+; the end of the comms chain.
 
-AccMaster
+Master:
 		cmp.b	#$0D,R8				; Carriage return?
 		_IF		_EQ
 			; No longer blocked, and if we unblocked via a timeout but didn't have anything to inject,

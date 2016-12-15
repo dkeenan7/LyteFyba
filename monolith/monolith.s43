@@ -270,9 +270,8 @@ scuBitCntRx		DS		1			; Bit count 8 -> 1
 scuTxCksum		DS		1			; Transmit checksum
 
 ScuRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
-									; 8 is sufficient to prevent dropped cmd and response characters
 ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
-									; 4 is sufficient to reduce dropped status to less than one a minute
+
 				ALIGNRAM 1
 scuRxBuf		DS		ScuRxSz		; Receive queue buffer
 scuRxWr			DS		1			; Receive queue write index
@@ -291,11 +290,10 @@ chgBitCntTx		DS		1			; Bit count 10 -> 1
 chgBitCntRx		DS		1			; Bit count 8 -> 1
 chgTxCksum		DS		1			; Transmit checksum
 
-ChgRxSz			EQU		64			; Receive queue size. Must be a power of 2 no greater than 256
-									; 64 is needed to prevent dropped PIP "QPIGS" response characters
+ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256.
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
-									; 4 is sufficient to reduce dropped status to less than one a minute
-				ALIGNRAM 1
+
+ALIGNRAM 1
 chgRxBuf		DS		ChgRxSz		; Receive queue buffer
 chgRxWr			DS		1			; Receive queue write index
 chgRxRd			DS		1			; Receive queue read index
@@ -353,7 +351,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/math.s43"		// Multiply and divide routines
 #include "crc.s43"					// CRC calculation routines
 #include "monoDefinitions.s43"		// Command character definitions
-#include "master.s43"				// AccMaster function for injecting commands
+#include "master.s43"				// Master function for injecting commands
 
 ;-------------------------------------------------------------------------------
 ; InterpretInit
@@ -523,7 +521,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
-; This is now done in AccMaster, using the bSendInit masterFlag.
+; This is now done in Master, using the bSendInit masterFlag.
 			cmp.b	#255,&ID
 			_IF		_EQ
 				bis.b	#bSendInit,&masterFlags
@@ -531,31 +529,26 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 ; Main loop
 			_BEGIN
-				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
-				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
+				; If we're a BMU (ID = 255) handle SCU and Charger communication.
 				cmp.b	#255,&ID
 				_IF		_EQ
-					call	#ScuRxByteNW			; Check if received SCU data
-					_IF		_NZ
-						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
-					_ELSE
-						clr		R8						; Indicate to AccMaster that no char is avail
+					; Check for a character from the SCU Rx port, and send it to the CMU Tx port.
+					; Also pass it to the "Master" function, so it knows when it is safe for it to
+					; inject commands such as Z, G and i as required.
+					call	#ScuRxByteNW			; Try to read a character from the SCU
+					_IF		_NZ						; If there was one
+						call	#CmuTxByte				; Send it to the CMUs. Preserves R8
+					_ELSE							; Else
+						clr		R8						; Indicate to Master that no char is avail
 					_ENDIF
-					call	#AccMaster				; Call the "master" accept function, char or not
+					call	#Master					; Call the "Master" function, char or not
 
-					; Connect charger out to SCU in
-					_BEGIN							; Start a loop
-						mov.b	&scuTxWr,R9				; Get the write index (not changed by TxIsr)
-						inc.b	R9						; Increment a copy of the write index
-						and.b	#ScuTxSz-1,R9			;	modulo the queue size
-						cmp.b	&scuTxRd,R9				; If wr+1 mod sz = rd then it's full
-					_WHILE		_NE					; While the SCU TX buffer is not full
-						call	#ChgRxByteNW			; Try to read a character from the charger (PIP)
-					_WHILE		_NZ					; While there is a character from the charger (PIP)
+					; Check for a character from the Chg Rx port, and send it to the SCU Tx port.
+					call	#ChgRxByteNW			; Try to read a character from the charger (PIP)
+					_IF		_NZ						; If there was one
 						bic.b	#$80,R8					; Clear hi bit so doesn't look like status byte
-						call	#ScuTxByte				; Transmit it to the SCU
-					_REPEAT
-					_ENDIF							; To balance the nasty second while
+						call	#ScuTxByte				; Send it to the SCU
+					_ENDIF
 				_ENDIF
 
 				; Check for a command or status character from the CMU port
