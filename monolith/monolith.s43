@@ -293,7 +293,7 @@ chgTxCksum		DS		1			; Transmit checksum
 ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256.
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 
-ALIGNRAM 1
+				ALIGNRAM 1
 chgRxBuf		DS		ChgRxSz		; Receive queue buffer
 chgRxWr			DS		1			; Receive queue write index
 chgRxRd			DS		1			; Receive queue read index
@@ -593,7 +593,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 InitPip:
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#15,R8				; Number of initialisation strings,
+			_DO			#16,R8				; Number of initialisation strings,
 ;			_DO			#3,R8				; Number of initialisation strings,
 											; including initial CR
 				push		R8					; Save loop counter
@@ -614,9 +614,9 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (Param 1)
+;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
-;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for off-grid use) (Param 1)
+		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for on-grid use) (Param 1)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper (Param 18)
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen (Param 19)
 ;			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense (Param 4)
@@ -632,7 +632,8 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PSDV50.8',$8A,$CC,$0D	; Battery low cutoff voltage 50.8 V (3.175 Vpc) (Param 29)
 ;			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage 48.0 V (3.00 Vpc)
 			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V (Param 12)
-			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved (Param 13)
+;			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved (Param 13)
+			DB	11,'PBDV52.0',$EA,$BE,$0D	; Stop charging from utility when bat rises to 52 V (Param 13)
 			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc) (Param 26)
 ;			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc) (Param 27)
@@ -1208,9 +1209,14 @@ ControlContactors:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
-			mov		#560,R8						; 560 milliseconds
-			call	#DelayMs					; Wait for last economiser to reduce coil current
+			; The following test is required to avoid waiting 560 ms every time around the main loop
+			; and thereby slowing communications between BMU ports to a crawl.
+			bit.b	#AcLfPvCtor,&CtorPortOUT
+			_IF		_Z							; If the AC and left PV source contactors aren't on
+				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
+				mov		#560,R8						; 560 milliseconds
+				call	#DelayMs					; Wait for last economiser to reduce coil current
+			_ENDIF
 			bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
 		_ENDIFS
 
@@ -1240,8 +1246,9 @@ ControlContactors:
 						and		#STRESS,R8				; Use the given stress value (0-15)
 					_ENDIF
 				_ENDIF
-				call	#ChgController			; Call charger controller with R8 as input
-				call	#SendChargerPackets		; Send packets to charger to set voltage
+				; Disabled until a version can be written without so much busy-waiting
+				; call	#ChgController			; Call charger controller with R8 as input
+				; call	#SendChargerPackets		; Send packets to charger to set voltage
 			_ENDIF ; Every fourth tick
 		_ENDIF ; bCharging
 #endif
