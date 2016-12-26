@@ -809,6 +809,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 DepthOfDischarge:
 		mov		&discharge,R8		; Low word of discharge accumulator
 		mov		&discharge+2,R9		; High word of discharge accumulator
+									; Starts with units of 1/72 mAh
 		tst		R9
 		_IF		_L					; Clamp negative values to zero. Unsigned divide below.
 			clr		R8
@@ -826,16 +827,19 @@ DepthOfDischarge:
 			rla		R8
 			rlc		R9
 		#endif
-		rla		R8					; Shift the 32-bit quantity R9:R8 3 more bits left
+		rla		R8					; Shift the 32-bit quantity R9:R8 2 more bits left
 		rlc		R9
 		rla		R8
 		rlc		R9
-		rla		R8
-		rlc		R9					; Then use only the high 16-bits in the calculation
+		; Units are now 1/72 x 1/32 mAh
 		rla		R8					; Do rounding
-		adc		R9					; Resulting units are 8192/270000 Ah ~= 0.03034 Ah
-		mov		#607,R8				; Mult to give tenths of a percent when div by 1/20ths of an Ah
-		call	#UMStar				; R10:R9 = R8 * R9 and return
+		adc		R9
+		; Upper half has units of 65536 x 1/72 x 1/32 mAh = 28.44 mAh
+		; Will overflow at .02844 * 65536 = 1864 Ah
+		; Want result in 1/10 % = 1/1000, after dividing by capacity in 1/20 Ah
+		; So need to multiply by 28.44 / 1000 * 20 * 1000 = 568.9, use 569.
+		mov		#569,R8
+		call	#UMStar				; R10:R9 = R8 * R9
 
 		ClearWatchdog
 

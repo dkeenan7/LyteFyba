@@ -26,7 +26,9 @@
 
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
+;BatCapacity	EQU		3200	; Battery capacity in tenths of an amp-hour. Mike's
 HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
+;HiTempCellRes	EQU		1250	; Cell internal resistance at high temp in micro-ohms. Mike's
 				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
 				; Alternatively cell resistance can be measured as the change in battery voltage
 				; divided by the step change in current that caused it, divided by the number of cells.
@@ -152,8 +154,8 @@ bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
-									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
-									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
+									; Unit is 1/10 A for 1/2 s = 1/20 coulomb = 1/72 milliamphour.
+									; So 32 bits allows 60,000 Ah, but 24 bits would only allow 233 Ah.
 
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
@@ -829,6 +831,8 @@ DoMeasurement:
 
 												; Multiply by 2 to
 				rla		R10						;  convert to tenths of an amp
+												; Note: this means that the unit of current used by CMUs
+												;	and the discharge logic is 1/10 A
 				mov		R10,&current			; Save in RAM variable
 				bis.b	#bSendi,&masterFlags	; Indicate that an 'i' command using &current is due
 				ClearWatchdog					; When testing, seem to need this
@@ -1099,8 +1103,10 @@ DoStatus:
 					; This was to allow for possible floating at the 25.0% DoD point where there is a
 					; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
 					; It performs the inverse calculation to that used in the fuelGauge 'g' command.
-					mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-					mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+					; FIXME! The above produces 1/10 of the required result, and I don't know why
+					; It doesn't matter while AllFulDod == 0
+					mov		#(((BatCapacity*AllFullDod*StatusFreq)/569)<<11)&$FFFF,&discharge	; Lo word
+					mov		#(((BatCapacity*AllFullDod*StatusFreq)/569)>> 5)      ,&discharge+2 ; Hi word
 					call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 				_ENDIFS ; All Considered Full and no comms error
 

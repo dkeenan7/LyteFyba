@@ -153,8 +153,11 @@ bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
-									; Unit is 1/5 A for 8/15 s = 8/75 coulomb = 8/270 milliamphour.
-									; So 32 bits allows 127,200 Ah, but 24 bits would only allow 497 Ah.
+									; Shunt amplifier measures 1/5 A units, but there is a shift right
+									;	before the current is stored in variable 'current' and used for
+									;	DOD calculation
+									; Unit is 1/10 A for 1/2 s = 1/20 coulomb = 1/72 milliamphour.
+									; So 32 bits allows 60,000 Ah, but 24 bits would only allow 233 Ah.
 
 oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
