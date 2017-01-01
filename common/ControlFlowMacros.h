@@ -426,6 +426,14 @@ _count  SET _CS_TOP+1   ; Copy and increment the _IF-count
 						LSTOUT+
 						ENDM
 
+_IF_OR	MACRO cond		; Alias for first short circuit OR condition
+						_OR_ELSE	cond
+						ENDM
+
+_OR		MACRO cond		; Alias for intermediate short circuit OR conditions
+						_OR_ELSE	cond
+						ENDM
+
 
 _OR_IFS	MACRO cond		; Last short-circuit OR condition
 						LSTOUT-
