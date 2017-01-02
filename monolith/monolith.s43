@@ -208,6 +208,9 @@ uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive c
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
 HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
+;BatCapacity		EQU		3200		; Battery capacity in tenths of an amp-hour - Mike's
+;HiTempCellRes	EQU		520			; Cell internal resistance at high temp in micro-ohms - Mike's
+									;	Mike's figure based on 700 mV @ 56 A @ 29C
 				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
 				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
 				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
@@ -910,12 +913,15 @@ DoMeasurement:
 				_ENDIF
 #endif
 			_ELSE	; IMU
-				// For an IMU, so-called link-voltage is really shunt current in 1/5ths of an amp.
-				// Tell the CMUs what the current is, by sending an 'i' command
+				; We have a 200 A 50 mV shunt,
+				; and the diffamp has a gain of 10, so the linkV result should be
+				; in units of 0.2 A. So -1500 to 1500 corresp to -300 A to 300 A.
 				mov		#'\r',R8				; Transmit a carriage return to flush any 2400 baud junk
 				call	#TxByte					; Trashes R9 but preserves R10
 
 				rla		R10						; Convert to tenths of an amp
+												; Note: this means that the unit of current used by CMUs
+												;	and the discharge logic is 1/10 A
 				mov		R10,&current			; Save in RAM variable
 				abs		R10						; Take the absolute value of the current in R10
 				mov		R10,Rsec
