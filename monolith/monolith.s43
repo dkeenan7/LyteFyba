@@ -26,9 +26,9 @@
 
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
 BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
-;BatCapacity	EQU		3200	; Battery capacity in tenths of an amp-hour. Mike's
+;BatCapacity		EQU		3200	; Battery capacity in tenths of an amp-hour. Mike's
 HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
-;HiTempCellRes	EQU		1250	; Cell internal resistance at high temp in micro-ohms. Mike's
+;HiTempCellRes	EQU		520	; Cell internal resistance at high temp in micro-ohms. Mike's
 				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
 				; Alternatively cell resistance can be measured as the change in battery voltage
 				; divided by the step change in current that caused it, divided by the number of cells.
@@ -1150,12 +1150,12 @@ ControlContactors:
 			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
-			and		#STRESS,R9				; Get stress into R9
-			bit		#COM_ERR,R8
-			_IF		_NZ						; If the comms error bit is set
-				mov		#15,R9					; Treat it as stress 15 for contactor control
-			_ENDIF								;   (it will be smoothed)
 		_ENDIF							; Endif ignore stress
+		and		#STRESS,R9				; Get stress into R9
+		bit		#COM_ERR,R8
+		_IF		_NZ						; If the comms error bit is set
+			mov		#15,R9					; Treat it as stress 15 for contactor control
+		_ENDIF								;   (it will be smoothed)
 
 		; Calculate smoothed stress for controlling contactors and charge voltages
 		rla2	R9						; Quadruple the incoming stress
