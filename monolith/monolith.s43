@@ -855,6 +855,11 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				_IF		_NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF _N with the MSP430
+					clr		&discharge
+					clr		&discharge+2
+				_ENDIF
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
@@ -1145,13 +1150,13 @@ ControlContactors:
 			_ENDIF							; Endif 1 amp discharge
 		_ENDIF							; Endif >= 1 amp charge or source contactors off
 
-		; Treat ignorable stress as 7 and comms error as 15, for contactor control (will be smoothed)
+		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+			mov		#5,R9					; Treat it as stress 7 (neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
+			and		#STRESS,R9				; Get stress into R9
 		_ENDIF							; Endif ignore stress
-		and		#STRESS,R9				; Get stress into R9
 		bit		#COM_ERR,R8
 		_IF		_NZ						; If the comms error bit is set
 			mov		#15,R9					; Treat it as stress 15 for contactor control
@@ -1211,11 +1216,12 @@ ControlContactors:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 7 && array voltage < 140 V
+		; If stress <= 5 && array voltage < 140 V
 		;	turn on charging/source contactors
+		; We need to let it go down to stress 5 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#8,R9
-		_AND_IF	_L						; And if incoming stress is normal
+			cmp.b	#6,R9
+		_AND_IF	_L						; And if incoming stress is <= 5
 			push	R8
 			call	#cellV
 			pop		R8

@@ -760,6 +760,11 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				_IF		_NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF _N with the MSP430
+					clr		&discharge
+					clr		&discharge+2
+				_ENDIF
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
@@ -1009,32 +1014,38 @@ ControlContactors:
 		push 	R9
 		push	R10
 
+		; Check if the stress type can be ignored, based on the direction of the current.
+		; But if the source contactors are off, treat it as if we are charging, and so ignore only
+		; undervoltage stress.
+		mov		R8,R9					; Take a copy of the status byte in R9
+		_COND							; Begin a short-circuit conditional
+			cmp		#10,&current			; Check the current, which is in tenths of an amp
+		_IF_OR	_GE						; If there's 1 amp or more of charge current (positive)
+			bit.b	#AcLfPvCtor,&CtorPortOUT ; Check the state of the source contactors
+		_OR_IFS	_Z						; Or if the AC and left PV source contactors are off
+			and		#S_TYPE,R9				; Isolate the two stress-type bits
+			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
+		_ELSE							; Else not charging
+			cmp		#-9,&current			; Check the current, which is in tenths of an amp
+			_IF		_L						; If 1 amp or more of discharge current (negative)
+				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
+				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+			_ELSE							; Else current between -1 amp and 1 amp
+				clrz							; Ensure stress will not be ignored, by clearing EQ flag
+			_ENDIF							; Endif 1 amp discharge
+		_ENDIF							; Endif >= 1 amp charge or source contactors off
+
+		; Treat ignorable stress as 7 and comms error as 15, for contactor control (will be smoothed)
+		_IF		_EQ						; If we can ignore this stress
+			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+		_ELSE							; Else can't ignore
+			mov		R8,R9
+			and		#STRESS,R9				; Get stress into R9
+		_ENDIF							; Endif ignore stress
 		bit		#COM_ERR,R8
 		_IF		_NZ						; If the comms error bit is set
-			mov		#15,R9					; Treat as stress 15 for contactr control (will be smoothed)
-		_ELSE							; Else check if stress can be ignored due to current direction
-			mov		R8,R9
-			cmp		#10,&current			; Current is in tenths of an amp
-			_IF		_GE						; If 1 amp or more of charge current (positive)
-				and		#S_TYPE,R9				; Isolate the two stress-type bits
-				cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
-			_ELSE							; Else not charging
-				cmp		#-9,&current			; Current is in tenths of an amp
-				_IF		_L						; If 1 amp or more of discharge current (negative)
-					and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
-					cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
-				_ELSE							; Else current between -1 amp and 1 amp
-					clrz							; Ensure stress will not be ignored, by clearing EQ flag
-				_ENDIF							; Endif 1 amp discharge
-			_ENDIF							; Endif 1 amp charge
-
-			_IF		_EQ						; If we can ignore this stress
-				mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
-			_ELSE							; Else can't ignore
-				mov		R8,R9
-				and		#STRESS,R9				; Get stress into R9
-			_ENDIF							; End if ignore stress
-		_ENDIF							; End if comms error bit set
+			mov		#15,R9					; Treat it as stress 15 for contactor control
+		_ENDIF								;   (it will be smoothed)
 
 		; Calculate smoothed stress for controlling contactors
 		rla2	R9						; Quadruple the incoming stress
