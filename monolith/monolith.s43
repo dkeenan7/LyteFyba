@@ -815,6 +815,11 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				_IF		_NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF _N with the MSP430
+					clr		&discharge
+					clr		&discharge+2
+				_ENDIF
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
@@ -1115,10 +1120,13 @@ ControlCharger:
 			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
 		_ENDIFS
 
-		; If stress <= 7
+		; If OV_UT || stress <= 7
 		;	turn on discharging/loads contactors
-		cmp.b	#8,R9
-		_IF	_L							; If incoming stress is normal
+		_COND							; Begin short circuit conditional
+			bit		#OV_UT,R8
+		_OR_ELSE _NZ					; If the stress is due to OverVoltage or UnderTemp
+			cmp.b	#8,R9
+		_OR_IFS	_L						; Or if incoming stress is normal
 			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
 		_ENDIF
 
@@ -1146,19 +1154,22 @@ ControlCharger:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 5 && array voltge < 140 V
+		; If (UV || stress <= 5) && array voltage < 140 V
 		;	turn on charging/source contactors
 		; We need to let it go down to stress 5 so that balancing can occur.
 		_COND							; Begin short circuit conditional
+			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
+		_OR_ELSE _EQ					; If the stress is due to UnderVoltage
 			cmp.b	#6,R9
-		_AND_IF	_L						; And if incoming stress is normal
+		_OR_IFS	_L						; Or incoming stress is 5 or less
 			push	R8
 			call	#cellV
 			pop		R8
 			cmp		#140*10,R10
-		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
-		_ENDIFS
+			_IF	_LO						; And if PV array voltage is less than 140 volts
+				bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
+			_ENDIF
+		_ENDIF
 
 		; If all considered full (and no comms error), reset the coulomb counter
 		_COND
