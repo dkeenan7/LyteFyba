@@ -86,7 +86,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			_ENDIF
 			and.b	#$7F,Rsec				; Clear the high bit
 ;			mov		#3,Rtos					; Print 3 digits
-			call	#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			call	#_prettyPrint3			; Call pretty-print of 3 digits
 			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 

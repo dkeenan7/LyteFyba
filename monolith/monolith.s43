@@ -131,7 +131,7 @@ AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 
 ; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
 									;	3408 mV. Stress 6/7 threshold
-; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
+; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
 
 MinAlarmStress EQU	11			; Minimum stress to light error LED and beep
 MinContStress EQU	12			; Minimum stress to drop out source or load contactors (IMU or BMU only)
@@ -188,6 +188,7 @@ bBadInsulation	EQU		1<<4		; 1 if the last insulation test failed. (IMU only)
 bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
+globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
@@ -835,16 +836,16 @@ DoMeasurement:
 			; Set bypass as required
 			cmp.b	#255,&ID				; If we're not an IMU
 			_IF		_NE
-				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
-				rla3		R9
+				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 7*ovStep
+				rla3		R9					; 8 * ovStep
 				add			&ovZero,R9
-				sub			&ovStep,R9
-				sub			&ovStep,R9
+				sub			&ovStep,R9			; 7 * ovStep
+;				sub			&ovStep,R9			; 6 * ovStep
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
-				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
-												;	One level above bypass (cf. one below for monitor)
+												; Calculate the full (coulomb-counter reset) threshold
+;				add			&ovStep,R9			;	One level above bypass (cf. one below for monitor)
 				cmp			R9,R10				; Compare cell voltage (R10) to the full threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_FULL,&localStatus ; Move only All-Full bits from R8 to localStatus
@@ -954,6 +955,11 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				_IF		_NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF _N with the MSP430
+					clr		&discharge
+					clr		&discharge+2
+				_ENDIF
 				call	#UpdateSoC					; Update the pre-computed SoC timer advance value
 
 				; Send the high word of the discharge counter to safe storage
@@ -1063,7 +1069,7 @@ DoMeasurement:
 					_IF		_Z							; If we're not in charge control mode
 						call	#TxByte						; Send the status byte. Wait buffer not full
 					_ELSE								; Else we're in charger control mode
-						call	#ControlCharger				; Control a charger
+						call	#ControlContactors			; Control contactors (was ControlCharger)
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -1199,31 +1205,56 @@ DoStatus:
 				_IF		_Z							; If we're not in charge control mode
 					call	#TxByte						; Send the status byte. Wait buffer not full
 				_ELSE								; Else we're in charger control mode
-					call	#ControlCharger				; Control a charger
+					call	#ControlContactors				; Control contactors (was ControlCharger)
 				_ENDIF
 			_ELSE							; Else we're an IMU
 				; Process incoming status for IMU. Stress in R9, complete status in R8.
-				call	#ControlCharger			; Control PIP charging
+				call	#ControlContactors			; Control contactors
 			_ENDIF							; End else IMU
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
 
-ControlCharger:
+ControlContactors:
 ;
-; Status byte is in R8. Use it to control contactors, and as input to a PI controller to control charging
+; Status byte is in R8. Use it to control contactors
 ;
 		push 	R9
 		push	R10
 
-		; Treat comms eror as stress 15 for contactor control (will be smoothed)
-		mov		R8,R9
-		and		#STRESS,R9				; Get stress into R9
+		; Check if the stress type can be ignored, based on the direction of the current.
+		; But if the source contactors are off, treat it as if we are charging, and so ignore only
+		; undervoltage stress.
+		mov		R8,R9					; Take a copy of the status byte in R9
+		_COND							; Begin a short-circuit conditional
+			cmp		#10,&current			; Check the current, which is in tenths of an amp
+		_OR_ELSE _GE						; If there's 1 amp or more of charge current (positive)
+			bit.b	#SourceCont,&ContPortOUT ; Check the state of the source contactors
+		_OR_IFS	_Z						; Or if the AC and left PV source contactors are off
+			and		#TYPE,R9				; Isolate the two stress-type bits
+			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
+		_ELSE							; Else not charging
+			cmp		#-9,&current			; Check the current, which is in tenths of an amp
+			_IF		_L						; If 1 amp or more of discharge current (negative)
+				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
+				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
+			_ELSE							; Else current between -1 amp and 1 amp
+				clrz							; Ensure stress will not be ignored, by clearing EQ flag
+			_ENDIF							; Endif >= 1 amp discharge
+		_ENDIF							; Endif >= 1 amp charge or source contactors off
+
+		; Treat ignorable stress as 6 and comms error as 15, for contactor control (will be smoothed)
+		_IF		_EQ						; If we can ignore this stress
+			mov		#6,R9					; Treat it as stress 6 for contactor control
+		_ELSE							; Else can't ignore
+			mov		R8,R9
+			and		#STRESS,R9				; Get stress into R9
+		_ENDIF							; Endif ignore stress
 		bit		#COM_ERR,R8
 		_IF		_NZ						; If the comms error bit is set
 			mov		#15,R9					; Treat it as stress 15 for contactor control
-		_ENDIF
+		_ENDIF								;   (it will be smoothed)
 
 		; Calculate smoothed stress for controlling contactors
 		rla2	R9						; Quadruple the incoming stress
@@ -1286,10 +1317,11 @@ ControlCharger:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 7 && array voltge < 140 V
+		; If stress <= 6 && array voltge < 140 V
 		;	turn on charging/source contactors
+        ; We need to let it go down to stress 6 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#8,R9
+			cmp.b	#7,R9
 		_AND_IF	_L						; And if incoming stress is normal
 			push	R8
 			call	#cellV
@@ -1351,7 +1383,7 @@ ControlCharger:
 		pop		R10
 		pop		R9
 		ret
-; End of ControlCharger
+; End of ControlContactors
 
 
 PiController:

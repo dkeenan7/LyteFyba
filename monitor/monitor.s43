@@ -659,6 +659,11 @@ DoMeasurement:
 
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
+				_IF		_NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF _N with the MSP430
+					clr		&discharge
+					clr		&discharge+2
+				_ENDIF
 			_ENDIF
 
 			; Update local present stress, and worst stress for trip so far

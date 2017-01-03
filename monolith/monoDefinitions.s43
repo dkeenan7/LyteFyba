@@ -65,14 +65,23 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
 			br		#_prettyPrint			; Tail-call pretty-print and return
 
-; Stress ( -- )								; Report local stress
+; Status ( -- )								; Report global status if a BMU, else local status
 			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
 			cmp.b	#'P',-2(Rip)			; Dirty way of ignoring 'Pp' (PIP inverter) commands for
 			_IF		_NE						; Mike's monolith that uses rev61 CMUs with later BMUs
+				push.b	&interpFlags			; Save present number base
+				bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
 				mov		#'p',Rthd				; Type is stress
-				mov.b	&localStatus,Rsec		; Get local status
-				and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
+				cmp.b	#255,&ID
+				_IF		_EQ						; If BMU
+					mov.b	&globalStatus,Rsec		; Get global status
+				_ELSE
+					mov.b	&localStatus,Rsec		; Get local status
+				_ENDIF
+				and.b	#$7F,Rsec				; Clear the high bit
+	;			mov		#3,Rtos					; Print 3 digits
 				call	#_prettyPrint3			; Call pretty-print of 3 digits
+				popBits_B #bHexOutput,&interpFlags ; Restore number base
 			_ENDIF
 			ret
 
