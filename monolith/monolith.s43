@@ -150,6 +150,7 @@ STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 ;
 				ORG		$200		; Start of RAM. Ends at InitSP-1
 ; This area is common to all main programs and used by the BSL and is not block erased on a reset
+bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
@@ -162,8 +163,6 @@ oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
 oldMeasureCount DS		2			; Value of the above at last measure
 oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
-
-bsl2state		DS		1			; Password recogniser state for BSL2
 
 ; Command Character Interpreter variables
 
