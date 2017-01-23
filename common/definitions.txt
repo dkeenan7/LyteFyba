@@ -31,7 +31,7 @@ $  $  dollarHex (set number input mode to hex for next literal)
 \  \  exit or comment
 ^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
-A to F are hexadecimal digits
+A to F are hexadecimal digits after a dollar sign
    a  ADCScaled or r(A)wVoltage (TestICal only)
    b  update Bootstrap loader (BSL2)
 c     Charging, '1c' to include undertemp and exclude undervolt as stress.

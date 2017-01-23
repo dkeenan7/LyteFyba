@@ -460,7 +460,7 @@ DoPassword:
 			bic.b	#Bypass,&BypPortOUT	; Set Bypass off
 			mov.b	#0,Rtos				; Set Error Led and Piezo off
 			call	#_errorLed
-			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
+			clr.b	&bsl2state			; Set BSL2's state variable as if it has just recognised password
 			mov		#InitSP,SP			; Give the BSL maximum stack
 			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
 
