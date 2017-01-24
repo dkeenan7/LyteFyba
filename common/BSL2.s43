@@ -267,18 +267,14 @@ TestNoInterp2:
 				; We get there via the PROG_START-independent vector "jInterpretByte".
 				br		#jInterpretByte	; Tail call jInterpretByte
 				; ret					; Effective ret to BSL2 init or main loop due to tail-call above
-			_ELSE					; Else not interpreting
-				; If we're not programming (bootstrap loading), toggle the error LED,
-				; and set the comms error bit and a bad check bit on any passing status bytes,
-				; since we are not calling the main program.
-				cmp		#1,&bsl2state
-				_IF		_GE				; If we're not programming (state >= 1)
-					ErrLedToggle
-					tst.b	R8				; Test the character
-					_IF		_L				; If the character is a status byte (bit 7 set)
-						mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
-												; $C0 to identify BSL2 here, $C1 for TestICal above
-					_ENDIF
+			_ELSE					; Else not interpreting (and not programming)
+				; Toggle the error LED, and set the comms error bit and a bad check bit on any passing
+				; status bytes, since we are not calling the main program.
+				ErrLedToggle
+				tst.b	R8				; Test the character
+				_IF		_L				; If the character is a status byte (bit 7 set)
+					mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
+											; $C0 to identify BSL2 here, $C1 for TestICal above
 				_ENDIF
 				call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
 			_ENDIF					; End if interpreting
