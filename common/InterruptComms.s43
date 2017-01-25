@@ -494,3 +494,10 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 				ret
 #endif			// end if G2553
 
+; The waiting version of RxByteNoWait
+; Trashes R9
+RxByte:
+				_BEGIN
+					call	#RxByteNoWait		; Check for a received byte
+				_UNTIL	_NZ					; Repeat until received
+				ret
