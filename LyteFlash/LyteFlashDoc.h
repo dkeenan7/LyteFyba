@@ -47,6 +47,8 @@ private:
 	afx_msg void OnFileMruFile(UINT uiMsgId);
 public:
 	afx_msg void OnSend();
+	afx_msg void OnPasswordTrunk();
+	afx_msg void OnPasswordRev61();
 public:
 	afx_msg void OnSetserial();
 public:

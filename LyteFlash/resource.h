@@ -5,7 +5,7 @@
 #define ID_REFRESH                      3
 #define IDD_ABOUTBOX                    100
 #define IDR_MAINFRAME                   128
-#define IDR_LyteFlashTYPE                 129
+#define IDR_LyteFlashTYPE               129
 #define IDD_DLG_SELPORT                 129
 #define IDD_PROGRESS                    130
 #define IDC_LIST_PORTS                  1000
@@ -33,13 +33,15 @@
 #define ID_IMAGE_PROGRAM_8K             32791
 #define ID_IMAGE_BADSUM                 32792
 #define ID_FILE_LONGLONGLONBGLONGNAMEOFMENUITEMITEMITEMITEMITEM 32793
+#define ID_PASSWORD_TRUNK               32794
+#define ID_PASSWORD_REV61               32795
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32794
+#define _APS_NEXT_COMMAND_VALUE         32796
 #define _APS_NEXT_CONTROL_VALUE         1002
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

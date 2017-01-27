@@ -164,8 +164,20 @@ void CLyteFlashApp::Adjust_start_and_len() {
 		uBSL2_len = 1024;				// Now using 1K BSL2
 	else if (m_uResetVec == 0xFE00)
 		uBSL2_len = 512;
-	m_start_off = 0;					// Start at the beginning of the image u
+	m_start_off = 0;					// Start at the beginning of the image
 	m_len_to_send = m_total_len - uBSL2_len; // Remove space for BSL2 (1 or 2 flash segments)
+
+	if (m_total_len == 8 * 1024) {
+		CMenu *pMenu = m_pMainWnd->GetMenu();
+			pMenu->CheckMenuItem(ID_PASSWORD_REV61, MF_CHECKED | MF_BYCOMMAND);
+			pMenu->CheckMenuItem(ID_PASSWORD_TRUNK, MF_UNCHECKED | MF_BYCOMMAND);
+		}
+	else {
+		CMenu *pMenu = m_pMainWnd->GetMenu();
+		pMenu->CheckMenuItem(ID_PASSWORD_TRUNK, MF_CHECKED | MF_BYCOMMAND);
+		pMenu->CheckMenuItem(ID_PASSWORD_REV61, MF_UNCHECKED | MF_BYCOMMAND);
+	}
+
 
 	m_pMainWnd->InvalidateRect(NULL);
 	m_pMainWnd->UpdateWindow();	// Force a paint of the number of bytes

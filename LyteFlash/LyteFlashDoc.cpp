@@ -148,6 +148,9 @@ BEGIN_MESSAGE_MAP(CLyteFlashDoc, CDocument)
 	ON_COMMAND(ID_SEND, &CLyteFlashDoc::OnSend)
 	ON_COMMAND(ID_SETSERIAL, &CLyteFlashDoc::OnSetserial)
 	ON_COMMAND(ID_FILE_SAVEAS, &CLyteFlashDoc::OnFileSaveas)
+	ON_COMMAND(ID_PASSWORD_TRUNK, &CLyteFlashDoc::OnPasswordTrunk)
+	ON_COMMAND(ID_PASSWORD_REV61, &CLyteFlashDoc::OnPasswordRev61)
+
 END_MESSAGE_MAP()
 
 
@@ -410,6 +413,10 @@ void CLyteFlashDoc::OnSend()
     /* Write the prefix (escape and the 4-character password) */
 	unsigned char pfx[5];
 	memcpy(pfx, "\x1B\x05\x04\x03\x02", 5);
+	CMenu* pMenu = theApp.m_pMainWnd->GetMenu();
+	if (pMenu->GetMenuState(ID_PASSWORD_TRUNK, MF_BYCOMMAND)) {
+		pfx[5 - 1] = 0x01;				// Use trunk password sequence 05 04 03 01
+	}
     for (i=0; i < 5; ++i) {
         writeByte(pfx+i);
 		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
@@ -504,3 +511,17 @@ void CLyteFlashDoc::OnFileSaveas()
 	
 }
 
+void CLyteFlashDoc::OnPasswordTrunk()
+{
+	CMenu* pMenu = theApp.m_pMainWnd->GetMenu();
+	pMenu->CheckMenuItem(ID_PASSWORD_TRUNK, MF_CHECKED | MF_BYCOMMAND);
+	pMenu->CheckMenuItem(ID_PASSWORD_REV61, MF_UNCHECKED | MF_BYCOMMAND);
+
+}
+
+void CLyteFlashDoc::OnPasswordRev61()
+{
+	CMenu* pMenu = theApp.m_pMainWnd->GetMenu();
+	pMenu->CheckMenuItem(ID_PASSWORD_REV61, MF_CHECKED | MF_BYCOMMAND);
+	pMenu->CheckMenuItem(ID_PASSWORD_TRUNK, MF_UNCHECKED | MF_BYCOMMAND);
+}

@@ -77,6 +77,11 @@ BEGIN
         MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
         MENUITEM "&Status Bar",                 ID_VIEW_STATUS_BAR
     END
+    POPUP "&Password"
+    BEGIN
+        MENUITEM "&Trunk",                      ID_PASSWORD_TRUNK, CHECKED
+        MENUITEM "&Rev61/58",                   ID_PASSWORD_REV61
+    END
     POPUP "&Help"
     BEGIN
         MENUITEM "&About LyteFlash...",         ID_APP_ABOUT
@@ -117,9 +122,9 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "About LyteFlash"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    ICON            IDR_MAINFRAME,IDC_STATIC,7,24,21,20
-    LTEXT           "LyteFlash Version 1.5",IDC_STATIC,38,10,119,8,SS_NOPREFIX
-    LTEXT           "Free Software 2016",IDC_STATIC,38,21,119,8
+    ICON            IDR_MAINFRAME,IDC_STATIC,7,24,20,20
+    LTEXT           "LyteFlash Version 1.6",IDC_STATIC,38,10,119,8,SS_NOPREFIX
+    LTEXT           "Free Software 2017",IDC_STATIC,38,21,119,8
     DEFPUSHBUTTON   "OK",IDOK,198,7,50,16,WS_GROUP
     LTEXT           "A reflash tool for the LyteFyba Battery Management System.",IDC_STATIC,38,32,203,8
     LTEXT           "http://dkeenan7.github.io/LyteFyba",IDC_STATIC,38,43,119,8
@@ -309,6 +314,12 @@ STRINGTABLE
 BEGIN
     ID_SEND                 "Send to LyteFyba device(s)"
     ID_SETSERIAL            "Choose the serial port\n"
+END
+
+STRINGTABLE
+BEGIN
+    ID_PASSWORD_TRUNK       "Use Trunk password 05 04 03 01"
+    ID_PASSWORD_REV61       "Use Rev61 and Rev 58 password 05 04 03 02"
 END
 
 #endif    // English (United States) resources
