@@ -114,6 +114,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; leaving us with n bits of additional information.
 
 #define		PROG_START	$E000		// Start of program image in flash memory. Ends at $FDFF
+#define		TRUNK_PROG_ST $C000		// Equivalent start of program image for trunk images
 
 #endif							// End else using the older MSP430G2452 processor
 
@@ -122,6 +123,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 									// Turning it off doesn't work because BSL will still clear and
 									// restart the watchdog timer on every call to ReadByte.
 #define		BSL2_START	$FE00		// Start of BSL2 image in flash memory. Ends at $FFFD
+#define		TRUNK_BSL2_ST $FC00		// Equivalent start for Trunk images
 
 ; The address BSL2 downloads to is usually the same as PROG_START,
 ; but when making a transition between different download sizes, the version of TestICal that does the

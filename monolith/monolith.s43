@@ -1645,7 +1645,7 @@ DoPassword:
 					; Start a fake download, reading and discarding a complete download worth of bytes
 					; Note that merely exiting will not ignore them
 					push	R10					; Don't trash R10
-					_DO		#BSL2-PROG_START,R10 ; Set count of bytes to ignore
+					_DO		#TRUNK_BSL2_ST-TRUNK_PROG_ST,R10 ; Set count of bytes to ignore
 						call	#RxByte					; Check for a received byte
 					_LOOP 	R10
 					pop		R10
