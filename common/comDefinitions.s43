@@ -843,10 +843,9 @@ DepthOfDischarge:
 
 		ClearWatchdog
 
-		mov		#BatCapacity,R8		; Battery capacity in tenths of an amp-hour
-									; The above constant may be stored in info-flash in future
+		mov		&infoCapacity,R8	; Battery capacity in tenths of an amp-hour
 		rla		R8					; This works in conjuction with the 607 above, to scale correctly
-		add		#BatCapacity,R9		; For rounding
+		add		&infoCapacity,R9	; For rounding
 		adc		R10
 		br		#UMSlashMod			; R9 = R10:R9 / R8 and return
 		;ret
@@ -1083,9 +1082,6 @@ abortColon
 ; Capacities of the battery system
 ; For the first Genevo Demand Charge Management system at Kingscliff TAFE
 CAP_TOTV	EQU		16 * 32					; Nominal total volltage in decivolts. 16 cells at 3.2 V
-CAP_ENERGY	EQU		CAP_TOTV * BatCapacity / 100	; Energy capacity in Wh. Nom voltage x Ah capacity
-CAP_DISCH	EQU		CAP_ENERGY * 1			; Discharge power in W. 1C
-CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
 
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
 		_CASE
@@ -1093,19 +1089,32 @@ CAP_CHARGE	EQU		CAP_ENERGY * 1			; Charge power in W. 1C
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
 		_OFb	#$C,Rtos			; $C: Charge power capability (W)
-			mov		#CAP_CHARGE,Rsec
+			call	#EnergyCap
+			; Need a multiply or divide here if the charge C rate isn't 1.0
+			mov		R9,Rsec
 		_ENDOF
 		_OFb	#$D,Rtos			; $D: Discharge power capability (W)
-			mov		#CAP_DISCH,Rsec
+			call	#EnergyCap
+			; Need a multiply or divide here if the discharge C rate isn't 1.0
+			mov		R9,Rsec
 		_ENDOF
 		_OFb	#$E,Rtos			; $E: Energy capacity (Wh)
-			mov		#CAP_ENERGY,Rsec
+			call	#EnergyCap
+			mov		R9,Rsec
 		_ENDOF
 		_ENDCASE
 		mov		#5,Rtos				; Use 5 digits
 		mov		#'@',Rthd			; Response type is @, CapATcity Constant
-		br		#_prettyPrint		; Pretty print and return
+		br		#_prettyPrint		; Tail call prettyPrint and return
 
+EnergyCap:		; Return energy capacity in R9. Trashes R8, R10, R11
+		mov		&infoCapacity,R8 ; Battery capacity in tenths of an amp-hour
+		mov		#CAP_TOTV,R9	; Nominal total voltage in tenths of a volt
+		mov		#50,R10			; For rounding
+		call	#UMStarPlus		; Battery energy in hundredths of a watt-hour
+		mov		#100,R8			; Convert to watt-hours
+		call	#UMSlashMod
+		ret
 
 ; Break
 ; Send a break out of the UART port, which is the CMU port on a BMU, and the only port on a CMU.

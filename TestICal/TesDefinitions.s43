@@ -21,11 +21,14 @@
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
-		DB		'v' , ramVoltCal  & $7F	| $80	; High bit set to indicate word quantity,
-		DB		't' , ramTempCal  & $7F | $00	; clear for byte quantity
-		DB		'l' , ramLinkCal  & $7F | $00
-		DB		'f' , ram8MHzCalD & $7F	| $80
-		DB		'i' , ramID       & $7F | $00
+		DB		'c' , ramCapacity	& $7F | $80
+		DB		'r' , ramCellRes	& $7F | $80
+		DB		'b' , ramBoltPlCal	& $7F | $80
+		DB		'v' , ramVoltCal	& $7F | $80	; High bit set to indicate word quantity,
+		DB		't' , ramTempCal	& $7F | $00	; clear for byte quantity
+		DB		'l' , ramLinkCal	& $7F | $00
+		DB		'f' , ram8MHzCalD	& $7F | $80
+		DB		'i' , ramID			& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -176,6 +179,16 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ; is no longer capable of receiving commands, and needs physical access to recover.
 ; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
 ; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
+;
+; Note: For the 'rw command a ballpark estimate for LiFePO4 would be 144000 divided by the capacity in
+; amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			xCODE	'w',writeCalValue,_writeCalValue
 			call 	#TranslateToCalAddr
