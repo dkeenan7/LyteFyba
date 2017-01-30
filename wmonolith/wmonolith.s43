@@ -38,16 +38,7 @@
 #define	G2553		0			// MSP430 model. True for BMUs, false for CMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
 ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
-BatCapacity		EQU		1600	; Battery capacity in tenths of an amp-hour. DCM 4000, pods 1600.
-HiTempCellRes	EQU		900		; Cell internal resistance at high temp in micro-ohms. DCM 360, pods 900
-				; A ballpark estimate for LiFePO4 would be 144000 divided by the capacity in amp hours.
-				; Alternatively cell resistance can be measured as the change in battery voltage
-				; divided by the step change in current that caused it, divided by the number of cells.
-				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
-				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
-				; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
-				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
-				; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -712,8 +703,19 @@ DoMeasurement:
 				; We rely on the fact that the assembler performs 32 bit calculations.
 				; HiTempCellRes is in micro-ohms.
 				; The +5000 is for correct rounding of the truncating division by 10000.
-				mov		#((HiTempCellRes<<(16-3))+5000)/10000,R8
-												; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
+;				mov		#((HiTempCellRes<<(16-3))+5000)/10000,R8
+				mov		&infoCellRes,R10
+				clr		R9
+				REPT	3
+					rra		R10
+					rrc		R9
+				ENDR
+				add		#5000,R9
+				adc		R10
+				mov		#10000,R8
+				call	#UMSlashMod
+				mov		R9,R8
+				; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
 
 				; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
 				; So the temperature-dependent component doubles for every 10 degC drop in temperature.
@@ -723,7 +725,9 @@ DoMeasurement:
 				; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
 
 				; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
-				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+;				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+				add		#4,R9
+				rra3	R9
 
 				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
 				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.

@@ -182,6 +182,18 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
 ; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
 
+; Note: For the 'rw command a ballpark estimate for LiFePO4 would be 144000 divided by the capacity in
+; amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+; Values for Kingscliff PODs: 160.0 Ah and 900 uR
+; Values for Mike's: 320.0 Ah and 520 uR
+
 			xCODE	'w',writeCalValue,_writeCalValue
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R9					; Convert to RAM address in R9

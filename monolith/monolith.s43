@@ -207,16 +207,6 @@ prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
 uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
 PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
-BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
-HiTempCellRes	EQU		740			; Cell internal resistance at high temp in micro-ohms
-;BatCapacity		EQU		3200		; Battery capacity in tenths of an amp-hour - Mike's
-;HiTempCellRes	EQU		520			; Cell internal resistance at high temp in micro-ohms - Mike's
-									;	Mike's figure based on 700 mV @ 56 A @ 29C
-				; To obtain "HiTempCellRes", the measured cell resistance should be divided by
-				; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
-				; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
-AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
-;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
@@ -789,8 +779,19 @@ DoMeasurement:
 				; We rely on the fact that the assembler performs 32 bit calculations.
 				; HiTempCellRes is in micro-ohms.
 				; The +5000 is for correct rounding of the truncating division by 10000.
-				mov		#((HiTempCellRes<<(16-3))+5000)/10000,R8
-												; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
+;				mov		#((HiTempCellRes<<(16-3))+5000)/10000,R8
+				mov		&infoCellRes,R10
+				clr		R9
+				REPT	3
+					rra		R10
+					rrc		R9
+				ENDR
+				add		#5000,R9
+				adc		R10
+				mov		#10000,R8
+				call	#UMSlashMod
+				mov		R9,R8
+				; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
 
 				; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
 				; So the temperature-dependent component doubles for every 10 degC drop in temperature.
@@ -800,7 +801,9 @@ DoMeasurement:
 				; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
 
 				; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
-				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+;				mov		#((HiTempCellRes<<(16-3-3))+5000)/10000,R9
+				add		#4,R9
+				rra3	R9
 
 				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
 				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
@@ -1339,12 +1342,9 @@ ControlContactors:
 			and		#TYPE,R10				; Extract the stress type bits
 			cmp		#ALL_FULL,R10
 		_AND_IF	_EQ						; If all cells are considered full
-			; Set the discharge counter to the required DoD (usually 0).
-			; This was to allow for possible floating at the 25.0% DoD point where there is a
-			; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
-			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
+			; Set the discharge counter to a DOD of zero.
+			mov		#0,&discharge		; Lo word
+			mov		#0,&discharge+2		; Hi word
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Considered Full and no comms error
 
