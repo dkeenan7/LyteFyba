@@ -138,8 +138,6 @@ SETLOCKA	MACRO
 
 				ORG		$200		; Start of RAM
 
-BatCapacity		EQU		1800		; Battery capacity in tenths of an amp-hour
-
 ; This area is common to both Monitor and TestICal and is not erased on a reset
 bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
@@ -160,17 +158,20 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 
 ; RAM copies of various calibration settings
 ; Same order as stored in info-flash
-			ALIGNRAM 1				; So ramVoltCal is word-aligned
+			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
-ramVoltCal	DS		2				; Voltage scale calibration word
-ramTempCal	DS		1				; Temperature offset calibration for internal sensor
-ramLinkCal	DS		1				; Link voltage offset calibration data
-ram8MHzCalD DS		1				; 8 MHz DCO frequency calibration byte
-ram8MHzCalB DS		1				; 8 MHz DCO range calibration byte
-ramID		DS		1				; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
-ramDataVers	DS		1				; Data version
+ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
+ramCellRes		DS		2			; High temperature cell internal resistance in micro-ohms
+ramBoltPlCal	DS		2			; Not used here; retain for data compatibility
+ramVoltCal		DS		2			; Voltage scale calibration word
+ramTempCal		DS		1			; Temperature offset calibration for internal sensor
+ramLinkCal		DS		1			; Link voltage offset calibration data
+ram8MHzCalD 	DS		1			; 8 MHz DCO frequency calibration byte
+ram8MHzCalB 	DS		1			; 8 MHz DCO range calibration byte
+ramID			DS		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
+ramDataVers		DS		1			; Data version
 #ifdef	KINGSCLIFF_DCM
-ramThermCal	DS		1				; Temperature offset calibration for external thermistor
+ramThermCal		DS		1			; Temperature offset calibration for external thermistor
 #endif
 ramDataEnd
 
@@ -189,7 +190,7 @@ bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestI
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
 bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
-ALIGNRAM 1
+			ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
 TIB			DS		48				; Text Input Buffer (packet buffer)
 TIBEnd
@@ -279,7 +280,9 @@ InterpretInit:
 				; A new chip. We want to preserve some of the existing DCO calibration data.
 				; Set the ID, voltage, temperature and link calibration.
 newChip:
-				mov.w	#$8000,&ramVoltCal			; !!!FIXME. G series chips have manuf's ADC cal data
+				mov.w	#1800,&ramCapacity			; 160 amp-hours
+				mov.w	#740,&ramCellRes			; 900 micro-ohms
+				mov.w	#$8000,&ramVoltCal			; Note: G series chips have manuf's ADC cal data
 				mov.b	#$00,&ramTempCal
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data

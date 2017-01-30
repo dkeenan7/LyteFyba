@@ -23,6 +23,8 @@
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
+		DB		'c' , ramCapacity & $7F | $80
+		DB		'r' , ramCellRes  & $7F | $80
 		DB		'v' , ramVoltCal  & $7F	| $80	; High bit set to indicate word quantity,
 		DB		't' , ramTempCal  & $7F | $00	; clear for byte quantity
 		DB		'l' , ramLinkCal  & $7F | $00
@@ -243,9 +245,6 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 ; Erase appropriate info flash segment.
 			mov		#FWKEY,&FCTL3			; Clear LOCK
-#if	CAL_IN_SEG_A
-			CLRLOCKA						; Ensure segment A is unlocked
-#endif
 			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 			mov		#0,&infoDataStart		; Dummy write: Start of cal data in info-flash
 
@@ -260,9 +259,6 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
-#if	CAL_IN_SEG_A
-			SETLOCKA						; Ensure segment A is locked
-#endif
 			;
 			; Check that the flash programming worked
 			;
