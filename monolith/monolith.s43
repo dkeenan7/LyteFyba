@@ -1647,6 +1647,7 @@ DoPassword:
 					push	R10					; Don't trash R10
 					_DO		#TRUNK_BSL2_ST-TRUNK_PROG_ST,R10 ; Set count of bytes to ignore
 						call	#RxByte					; Check for a received byte
+						call	#TxByte					; Echo byte to later CMUs also ignoring
 					_LOOP 	R10
 					pop		R10
 					; The last byte read could look like a command char. Clear it so that it will be

@@ -497,7 +497,9 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 ; The waiting version of RxByteNoWait
 ; Trashes R9
 RxByte:
+				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 				_BEGIN
 					call	#RxByteNoWait		; Check for a received byte
 				_UNTIL	_NZ					; Repeat until received
+				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 				ret
