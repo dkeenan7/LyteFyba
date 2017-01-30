@@ -540,7 +540,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 					call	#ScuRxByteNW			; Try to read a character from the SCU
 					_IF		_NZ						; If there was one
 						call	#CmuTxByte				; Send it to the CMUs. Preserves R8
-					_ELSE							; Else
+						call	#DoPassword				; Check for BSL password bytes from SCU port
+					_ELSE							; Else there was no character
 						clr		R8						; Indicate to Master that no char is avail
 					_ENDIF
 					call	#Master					; Call the "Master" function, char or not
@@ -560,7 +561,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
-						call	#DoPassword				; Check for password bytes
+						cmp.b	#255,&ID				; Check ID
+						_IF		_NE						; If I'm not a BMU
+							call	#DoPassword				; Check for BSL password bytes from CMU port
+						_ENDIF
 						call	#ACCEPT					; Process command bytes (could be slow)
 					_ELSE								; Else was status byte
 						call	#DoStatus				; Forward possibly-updated status bytes
@@ -1668,7 +1672,7 @@ jTA0FllIsr		reti					; Timer A0 CCR0 (frequency locked loop capture).
 				nop						;   This is handled directly by the BSL.
 				ORG		BSL2_START-2	; FBFE for now
 ProgPresence	DB		$AA				; For BSL2 to check before calling main program (InterpretByte)
-ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
+ProgChecksum	DB		$FF				; Placeholder for checksum added by LyteFlash or SendProg
 
 ;---------------------------------------------------------------------------------
 ; Bootstrap loader, in the last main-flash segment

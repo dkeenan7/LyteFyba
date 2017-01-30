@@ -14,10 +14,14 @@
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
 BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision, jWriteBreak
-			LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
-			LOCAL	MckPerFTGck, TestNoInterp2, WriteBreak
-			LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
-			LOCAL	TA0FllIsr
+	LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
+	LOCAL	MckPerFTGck, TestNoInterp2, WriteBreak
+	LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
+	LOCAL	ScuBaudRate, ScuBitCycles, ScuBitCyc1_5, TA0FllIsr
+
+ScuBaudRate	EQU		9600			; SCU serial comms rate in bits per second
+ScuBitCycles EQU	(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per SCU bit
+ScuBitCyc1_5 EQU	(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per SCU 1.5 bits
 MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
 
 #define		Rcksum	R14				// Register holding the 8-bit XOR checksum during bootstrap-loading
@@ -31,321 +35,378 @@ jBslRevision: br	#BslRevision-jBSL+BSL2_START ; Return the BSL2 revision
 jWriteBreak: br		#WriteBreak-jBSL+BSL2_START	; Send a break via the UART. Used by the 'Br' command
 
 BSL:		; Initialisation
-			mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
-			clr		&oldCCR0		; Clear this before interrupts are enabled
-			; XCAP = 11, Choose 12.5 pF
-			; LFXT1Sx = 00, Watch crystal (32768 kHz)
-			mov.b	#XCAP1 | XCAP0, &BCSCTL3
-			; SELM = 0, DCO for MCLK
-			; DIVM = 0, Divide by 1 for MCLK
-			; SELS = 0, DCO for SMCLK
-			; DIVS = 0, Divide by 1 for SMCLK
-			mov.b	#0, &BCSCTL2
-			; XT2OFF = 1, Turn off non-existent oscillator. Defaults to 1 on reset
-			; XTS = 0, Low frequency mode
-			; DIVAx = 11, for ACLK = XIN div by 8
-			; RSEL = $A, Range select guess for 3.6864 MHz
-			mov.b	#XT2OFF | DIVA_3 | $A, &BCSCTL1
-			; DCO = 0, Frequency select guess for 3.6864 MHz
-			; MOD = 4, Modulation select guess for 3.6864 MHz
-			mov.b	#$80,&DCOCTL	; Initial guess DCO step + modulation for 3.6864 MHz
-			; TASSSEL = 10, Use SMCLK for timer A source
-			; ID = 0, Divide by 1
-			; MC = 10, Continuous count mode
-			; TAIE = 0, No overflow interrupt
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA0CTL ; Used for FLL as well as comms
-			; CM = 01, Capture on rising edge
-			; CCIS = 01, Capture input = CCI0B
-			; SCS = 1, synchronous capture
-			; CAP = 1, Capture mode
-			; CCIE = 1, enable interrupts
-			mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
+	mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
+	clr		&oldCCR0		; Clear this before interrupts are enabled
+	; XCAP = 11, Choose 12.5 pF
+	; LFXT1Sx = 00, Watch crystal (32768 kHz)
+	mov.b	#XCAP1 | XCAP0, &BCSCTL3
+	; SELM = 0, DCO for MCLK
+	; DIVM = 0, Divide by 1 for MCLK
+	; SELS = 0, DCO for SMCLK
+	; DIVS = 0, Divide by 1 for SMCLK
+	mov.b	#0, &BCSCTL2
+	; XT2OFF = 1, Turn off non-existent oscillator. Defaults to 1 on reset
+	; XTS = 0, Low frequency mode
+	; DIVAx = 11, for ACLK = XIN div by 8
+	; RSEL = $A, Range select guess for 3.6864 MHz
+	mov.b	#XT2OFF | DIVA_3 | $A, &BCSCTL1
+	; DCO = 0, Frequency select guess for 3.6864 MHz
+	; MOD = 4, Modulation select guess for 3.6864 MHz
+	mov.b	#$80,&DCOCTL	; Initial guess DCO step + modulation for 3.6864 MHz
+	; TASSSEL = 10, Use SMCLK for timer A source
+	; ID = 0, Divide by 1
+	; MC = 10, Continuous count mode
+	; TAIE = 0, No overflow interrupt
+	mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA0CTL ; Used for FLL as well as comms
+	; CM = 01, Capture on rising edge
+	; CCIS = 01, Capture input = CCI0B
+	; SCS = 1, synchronous capture
+	; CAP = 1, Capture mode
+	; CCIE = 1, enable interrupts
+	mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
 
-			; If this is a BMU, we will use TA1 for comms, so don't set up TA1's CCRs here
-			cmp.b	#255,&infoID
-			_IF		_NE				; If we're not a BMU
-				; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
-				; TASSSEL = 10, Use SMCLK for timer A source
-				; ID = 0, Divide by 1
-				; MC = 01, Up mode, the counter counts to TACCR0
-				; TAIE = 0, No overflow interrupt
-				mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
-				; Output mode 3 = set/reset: set on EQU1, reset on EQU0
-				mov		#OUTMOD_3, &TA1CCTL1
-				mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
-				mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
-				bis.b	#TxMiChg2_RlyP_57k6,&P2SEL	; Set P2.1 as TA1.1
-				bis.b	#TxMiChg2_RlyP_57k6,&P2DIR	; and as an output
-			_ENDIF
+	; If this is a BMU, we will use TA1 for comms, so don't set up TA1's CCRs here
+	cmp.b	#255,&infoID
+	_IF		_NE				; If we're not a BMU
+		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
+		; TASSSEL = 10, Use SMCLK for timer A source
+		; ID = 0, Divide by 1
+		; MC = 01, Up mode, the counter counts to TACCR0
+		; TAIE = 0, No overflow interrupt
+		mov		#TASSEL_2 + ID_0 + MC_1, &TA1CTL
+		; Output mode 3 = set/reset: set on EQU1, reset on EQU0
+		mov		#OUTMOD_3, &TA1CCTL1
+		mov		#(3686400/57600)-1, &TA1CCR0 ; Sets period: want /64 (3,686,400/57,600)
+		mov		#32, &TA1CCR1				; Sets duty cycle (here 50%)
+		bis.b	#TxMiChg2_RlyP_57k6,&P2SEL	; Set P2.1 as TA1.1
+		bis.b	#TxMiChg2_RlyP_57k6,&P2DIR	; and as an output
+	_ENDIF
 
-			; Initialise the UART
-			bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
+	; Initialise the UART
+	bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
 ;			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
-			; Above not needed since UCA0CTL0 defaults to 0
-			mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
-			mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 		; Set for 9600 b/s
-			mov.b	#(MClock/9600/16)/256,&UCA0BR1
-			mov.b	#UCOS16, &UCA0MCTL			; 16x oversampling mode
-			bis.b	#TxPl|Rx,&P1SEL				; Select the UART functions
-			bis.b	#TxPl|Rx,&P1SEL2
-			bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
+	; Above not needed since UCA0CTL0 defaults to 0
+	mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
+	mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 		; Set for 9600 b/s
+	mov.b	#(MClock/9600/16)/256,&UCA0BR1
+	mov.b	#UCOS16, &UCA0MCTL			; 16x oversampling mode
+	bis.b	#TxPl|Rx,&P1SEL				; Select the UART functions
+	bis.b	#TxPl|Rx,&P1SEL2
+	bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 ;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
 
 ; Need to init timer A1 to generate 57.6 kHz
 
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer
-			_DO		#0,R8						; Wait for ACLK
-			_LOOP	R8							;	to stabilise
-			eint								; Enable general interrupts for FLL
+	mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer
+	_DO		#0,R8						; Wait for ACLK
+	_LOOP	R8							;	to stabilise
+	eint								; Enable general interrupts for FLL
 
 ;			clr		&measureCount
-			mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
-			bis.b	#Piezo|TxPl|VrefP,&P1DIR 	; Set Piezo, TxPl and VrefP as outputs
+	mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
+	bis.b	#Piezo|TxPl|VrefP,&P1DIR 	; Set Piezo, TxPl and VrefP as outputs
 
-			; We've been reset, so send a break to reset the next guy, unless we're a BMU,
-			; (or the IMU in the Helidon Monolith), in which case it would lead to
-			; endlessly circulating breaks. We give these devices the ID 255.
+	; We've been reset, so send a break to reset the next guy, unless we're a BMU,
+	; (or the IMU in the Helidon Monolith), in which case it would lead to
+	; endlessly circulating breaks. We give these devices the ID 255.
 
-			cmp.b	#255,&infoID
-			_IF		_NE				; If we're not a BMU
-				; Send a 27 ms break
-				call	#WriteBreak-jBSL+BSL2_START	; Address adjusted for BSL's relocation
-			_ENDIF
+	cmp.b	#255,&infoID
+	_IF		_NE				; If we're not a BMU
+		; Send a 27 ms break
+		call	#WriteBreak-jBSL+BSL2_START	; Address adjusted for BSL's relocation
+	_ENDIF
 
-			ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
+	ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
 
-			; Log the reason for the reset, as the contents of IFG1.
-			; $08 = RST pin (break), $4 = power on, $2 = osc fault, $1 = watchdog, $0 = other bad stuff
-			; $80 = UART TX interrupt flag, $40 = UART RX interrupt flag
-			; or JTAG.
-			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset,
-			; namely a flash key violation or an instruction fetch in range $0 to $1FF
-			; (special function regs).
+	; Log the reason for the reset, as the contents of IFG1.
+	; $08 = RST pin (break), $4 = power on, $2 = osc fault, $1 = watchdog, $0 = other bad stuff
+	; $80 = UART TX interrupt flag, $40 = UART RX interrupt flag
+	; or JTAG.
+	; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset,
+	; namely a flash key violation or an instruction fetch in range $0 to $1FF
+	; (special function regs).
 
-			mov			&resetCounter,R8
-			and			#$0F,R8
-			mov.b		&IFG1,resetBuffer(R8)
-			inc			&resetCounter
-			bic.b		#OFIFG,&IFG1	; Clear the oscillator fault flag
+	mov			&resetCounter,R8
+	and			#$0F,R8
+	mov.b		&IFG1,resetBuffer(R8)
+	inc			&resetCounter
+	bic.b		#OFIFG,&IFG1	; Clear the oscillator fault flag
 
-			_BEGIN					; Main loop
-				; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
-				; or main program not present.
-				; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here,
-				; to fake a normal reset.
-	#if 1	// Set to 1 only when JTAG debugging
-		#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
-				bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
-				_IF		_Z				; If a non-watchdog abnormal reset (may only be a JTAG reset)
-					mov.b	#PORIFG,&IFG1	; Fake a Vcc power-up reset for the code below
+	_BEGIN					; Main loop
+		; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
+		; or main program not present.
+		; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here,
+		; to fake a normal reset.
+#if 1	// Set to 1 only when JTAG debugging
+#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
+		bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
+		_IF		_Z				; If a non-watchdog abnormal reset (may only be a JTAG reset)
+			mov.b	#PORIFG,&IFG1	; Fake a Vcc power-up reset for the code below
+		_ENDIF
+#endif
+		_COND					; Begin a short-circuit conditional
+			cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
+			clr.b	&IFG1			; Clear those bits ready for next time
+		_OR_ELSE	_L			; If Vcc power-up or /RST pin pulsed low Or Else
+			cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
+		_OR_IFS		_NE			; Or If no main program
+			mov.b	#WDTIFG,&IFG1	; Set watchdog int flag so we won't call jInterpretInit
+		_ENDIF					; End short circuit conditional
+
+		; Initialise main program, if allowed
+		bit.b	#WDTIFG, &IFG1
+		_IF		_Z
+			call	#jInterpretInit
+		_ENDIF
+		; Used by TestICal or other main-flash code
+		; to tell if the interpretByte call is for initialisation
+
+		; Password checking loop
+		mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
+		_BEGIN
+			call	#ReadByte-jBSL+BSL2_START	; Wait for a byte fr4om the appropriate port
+			; Pass byte in R8 on to main program, if allowed
+			call	#TestNoInterp2-jBSL+BSL2_START	; Adjusted for relocation
+
+			; Password-checking finite-state-machine (FSM)
+			; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
+			; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
+			; 0 = waiting for last pwd char and erase if received,
+			;
+			dec		&bsl2state
+			; Check for a continuing password match
+			_IF		_NZ					; If not the final password character
+				mov		&bsl2state,R9		; Passwords are $05 $04 $03 $01-or-$02
+				add		#2,R9				; Expected password char is &bsl2state plus 2
+				cmp.b	R9,R8				; Check for a match
+				_IF		_NE					; If not a match
+					mov		#4,&bsl2state		; Go back to waiting for first password character
+					;clrz						; NE = NZ. So we don't leave the password checking loop
 				_ENDIF
-	#endif
-				_COND					; Begin a short-circuit conditional
-					cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
-					clr.b	&IFG1			; Clear those bits ready for next time
-				_OR_ELSE	_L			; If Vcc power-up or /RST pin pulsed low Or Else
-					cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
-				_OR_IFS		_NE			; Or If no main program
-					mov.b	#WDTIFG,&IFG1	; Set watchdog int flag so we won't call jInterpretInit
-				_ENDIF					; End short circuit conditional
+			_ELSE						; Else the final character
+				; No matter what happens now, we want to begin a new password match after we return
+				mov.b	#4,&bsl2state		; Go back to waiting for first password character
+				_CASE
+				_OFb	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
+					; Start a fake download, reading and discarding a complete download worth of bytes
+					push	R10					; Don't trash R10
+					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R10 ; Set count of bytes to ignore
+						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
+						call	#WriteByte-jBSL+BSL2_START	; Echo it to the CMU port
+					_LOOP 	R10
+					pop		R10
+					; The last byte read could look like a command char. Clear it so that it will be
+					clr		R8					;	ignored by ACCEPT
+					clrz						; Clear Z flag so we don't leave password checking loop
+				_ENDOF						; End of fake download case
+				_OFb	#1,R8				; If matched complete real download pwd 05 04 03 01
+					; Erase segments of main flash used for the main program, not the BSL.
+					; Reflash tool will need to delay at least 7*16 ms = 112 ms before sending
+					; the first byte to program.
+BSLErase:			dint					; Main-flash program has probably turned on interrupts
+					mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
+					mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+					mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
 
-				; Initialise main program, if allowed
-				bit.b	#WDTIFG, &IFG1
-				_IF		_Z
-					call	#jInterpretInit
-				_ENDIF
-				; Used by TestICal or other main-flash code
-				; to tell if the interpretByte call is for initialisation
+					mov		#PROG_START_FOR_BSL,R12	; Start of program image in main flash
+					; Erase
+					mov		R12,R11			; R12 contains start of program image in main flash
+					_BEGIN
+						mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
+						rra		@R11			; Dummy write: erase segment
+						add		#$200,R11		; Increment to next segment
+						cmp		#BSL2_START,R11
+					_UNTIL	_HS				; Stop when we get to the start of the BSL
 
-				; Password checking loop
-				mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
-				_BEGIN
-					call	#ReadByte-jBSL+BSL2_START	; Address adjusted for BSL's relocation
-					; Pass byte in R8 on to main program, if allowed
-					call	#TestNoInterp2-jBSL+BSL2_START	; Adjusted for relocation
+					mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled)
+					clr.b	Rcksum			; Initialise the checksum to 0
 
-					; Password-checking finite-state-machine (FSM)
-					; After decrementing bsl2state below, 3 = waiting for 1st pwd char,
-					; 2 = waiting for 2nd pwd char, 1 = waiting for 3rd pwd char,
-					; 0 = waiting for last pwd char and erase if received,
-					;
-					dec		&bsl2state
+					; Assume a bad checksum, clear on good checksum.
+					bis.b	#WDTIFG,&IFG1
 
-					; Check for a continuing password match $05 $04 $03 $02
-					mov		&bsl2state,R9
-					add		#2,R9			; Expected password byte is equal to &bsl2state with 2 added
-					cmp.b	R9,R8
-					_IF		_NE				; If the character doesn't match the required password byte
-						mov		#4,&bsl2state	; Go back to waiting for first password character
-						; clrz					; Ensure we loop (NZ is the same as NE)
-					_ELSE
-						tst		&bsl2state
+					; Program using received bytes
+					_BEGIN					; Programming loop
+						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
+						call	#WriteByte-jBSL+BSL2_START	; Echo it to the CMU port
+						mov.b	R8,0(R12)		; Program it (takes 90 microseconds)
+						xor.b	R8,Rcksum		; Include in check-XOR
+						inc		R12
+						cmp		#BSL2_START,R12
+					_UNTIL	_HS				; Repeat until we get to the start of the BSL
+
+					mov		#FWKEY,&FCTL1	; Done. Clear WRT
+					mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
+					tst.b	Rcksum			; Check the checksum
+					_IF		_Z		; If good checksum
+						mov.b	#RSTIFG | OFIFG,&IFG1 ; Clear no-interpret flag (watchdog flag), and
+							; fake a normal reset so InterpretInit and InterpretByte will be called.
+						; And Z-flag set will cause us to leave the password checking loop below
 					_ENDIF
-					_IF		_Z			; If complete password is matched, erase and program
-
-						; Erase segments of main flash used for the main program, not the BSL.
-						; Reflash tool will need to delay at least 7*16 ms = 112 ms before sending
-						; the first byte to program.
-BSLErase:
-						dint					; Main-flash program has probably turned on interrupts
-						mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
-						mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
-						mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
-
-						mov		#PROG_START_FOR_BSL,R12	; Start of program image in main flash
-						; Erase
-						mov		R12,R11			; R12 contains start of program image in main flash
-						_BEGIN
-							mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
-							rra		@R11			; Dummy write: erase segment
-							add		#$200,R11		; Increment to next segment
-							cmp		#BSL2_START,R11
-						_UNTIL	_HS				; Stop when we get to the start of the BSL
-
-						mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled)
-						clr.b	Rcksum			; Initialise the checksum to 0
-
-						; Assume a bad checksum, clear on good checksum.
-						bis.b	#WDTIFG,&IFG1
-
-						; Program using received bytes
-						_BEGIN					; Programming loop
-							call	#ReadByte-jBSL+BSL2_START	; Address adjusted for BSL's relocation
-							call	#WriteByte-jBSL+BSL2_START	; Echo. Address adjusted for relocation
-							mov.b	R8,0(R12)		; Program it (takes 90 microseconds)
-							xor.b	R8,Rcksum		; Include in check-XOR
-							inc		R12
-							cmp		#BSL2_START,R12
-						_UNTIL	_HS				; Repeat until we get to the start of the BSL
-
-						mov		#FWKEY,&FCTL1	; Done. Clear WRT
-						mov		#FWKEY+LOCK,&FCTL3 ; Set LOCK; don't change LOCKA
-						tst.b	Rcksum			; Check the checksum
-						_IF		_Z		; If good checksum
-							mov.b	#RSTIFG | OFIFG,&IFG1 ; Clear no-interpret flag (watchdog flag), and
-								; fake a normal reset so InterpretInit and InterpretByte will be called.
-						_ENDIF
-						; Else bad checksum, so leave the no-interpret flag (watchdog flag) set
-						mov		#4,&bsl2state	; Go back to waiting for first password character
-					;_ELSE					; Else we didn't erase-and-program
-						;clrz					; So ensure we don't leave the loop
-					_ENDIF					; End if password matched
-
-				_UNTIL	_Z				; Until successfully programmed
-			_AGAIN					; Go back to normal operation as if reset (main loop)
-			; end FSM code
+					; Else bad checksum, so leave the no-interpret flag (watchdog flag) set,
+					; and we won't leave the password checking loop.
+				_ENDOF
+				; Otherwise the last password byte didn't match either trunk or rev61
+					clrz					; Clear Z flag so we don't leave the password checking loop
+				_ENDCASE				; End of final character cases
+			_ENDIF					; End else the final password character
+		_UNTIL	_Z				; Until successfully programmed
+	_AGAIN					; Go back to normal operation as if reset (main loop)
+	; end FSM code
 
 
 ; Call jInterpretByte, if it's safe to do so.
 TestNoInterp2:
-			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
-			_IF		_Z				; If we're interpreting
-				tst.b	R8
-				_IF		_L				; If data is a status byte (bit 7 set)
-					mov.b	#$C1,R8			; Send status with comms error bit and bad check bit
-											; $C1 to identify TestICal here, $C0 for BSL2 below
-				_ENDIF
+	bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
+	_IF		_Z				; If we're interpreting
+		tst.b	R8
+		_IF		_L				; If data is a status byte (bit 7 set)
+			mov.b	#$C1,R8			; Send status with comms error bit and bad check bit
+									; $C1 to identify TestICal here, $C0 for BSL2 below
+		_ENDIF
 
-				; Echo the character if required
-				_COND							; Begin short circuit conditional
-					cmp.b		#$11,R8
-				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
-					bit.b	#bDontEcho,&interpFlags
-				_OR_IFS		_Z					; Or If the dont-echo flag is clear
-					call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-				_ENDIF
+		; Echo the character if required
+		_COND							; Begin short circuit conditional
+			cmp.b		#$11,R8
+		_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
+			bit.b	#bDontEcho,&interpFlags
+		_OR_IFS		_Z					; Or If the dont-echo flag is clear
+			call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
+		_ENDIF
 
-				; We are about to jump to jInterpretByte. In case the flash is corrupted by a
-				; partial download, set the watchdog timer to the shortest interval, 64 cycles
-				; InterpretByte should set it back to the longest interval, 32k cycles
-				mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
+		; We are about to jump to jInterpretByte. In case the flash is corrupted by a
+		; partial download, set the watchdog timer to the shortest interval, 64 cycles
+		; InterpretByte should set it back to the longest interval, 32k cycles
+		mov.w	#WDTPW+WDTCNTCL+WDTIS0+WDTIS1,&WDTCTL ; Clear and enable Watchdog Timer
 
-				; Tail-call InterpretByte in main flash. If you change this to a proper call, you also
-				; need to change InterpretByte in TestICal to look one level deeper on the stack
-				; when checking if this is an init call.
-				; It must preserve at least R8 and bsl2state.
-				; We get there via the PROG_START-independent vector "jInterpretByte".
-				br		#jInterpretByte	; Tail call jInterpretByte
-				; ret					; Effective ret to BSL2 init or main loop due to tail-call above
-			_ELSE					; Else not interpreting (and not programming)
-				; Toggle the error LED, and set the comms error bit and a bad check bit on any passing
-				; status bytes, since we are not calling the main program.
-				ErrLedToggle
-				tst.b	R8				; Test the character
-				_IF		_L				; If the character is a status byte (bit 7 set)
-					mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
-											; $C0 to identify BSL2 here, $C1 for TestICal above
-				_ENDIF
-				call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
-			_ENDIF					; End if interpreting
-			ret						; Return to BSL2 init or main loop
+		; Tail-call InterpretByte in main flash. If you change this to a proper call, you also
+		; need to change InterpretByte in TestICal to look one level deeper on the stack
+		; when checking if this is an init call.
+		; It must preserve at least R8 and bsl2state.
+		; We get there via the PROG_START-independent vector "jInterpretByte".
+		br		#jInterpretByte	; Tail call jInterpretByte
+		; ret					; Effective ret to BSL2 init or main loop due to tail-call above
+	_ELSE					; Else not interpreting (and not programming)
+		; Toggle the error LED, and set the comms error bit and a bad check bit on any passing
+		; status bytes, since we are not calling the main program.
+		ErrLedToggle
+		tst.b	R8				; Test the character
+		_IF		_L				; If the character is a status byte (bit 7 set)
+			mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
+									; $C0 to identify BSL2 here, $C1 for TestICal above
+		_ENDIF
+		call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
+	_ENDIF					; End if interpreting
+	ret						; Return to BSL2 init or main loop
 
 
 ; ReadByte ( regs: -- R8 R9 R10 R11 )
-; Reads a byte from serial input to R8. Trashes R9 R10 R11.
+; Reads a byte from the CMU port if we're a CMU, or the SCU port if we're a BMU, to R8.
+; Trashes R9 R10 R11.
 ;
 ReadByte:
+	cmp.b	#255,&infoID	; Check our ID
+	_IF		_NE			; If we're a CMU
+		; Wait for a byte from the CMU port -- Uses a UART, but without interrupts
 		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 		_BEGIN						; Loop
 			bit.b	#UCA0RXIFG,&IFG2
 		_UNTIL	_NZ					; Until byte received
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 		mov.b	&UCA0RXBUF,R8		; Return the received byte
-		ret					; Return from ReadByte
+	_ELSE				; Else we're a BMU
+		; Wait for a byte from the SCU port -- Uses bit banging with timed busy-wait loops
+		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+		_BEGIN						; Numbers in parentheses are numbers of cycles (timed waits)
+			bit.b	#RxScu,&ScuPortIN ; (4) Start bit?
+		_UNTIL	_Z					; (2) Loop until 0 (start bit)
+		; The loop above takes 6 cycles so on average we will have missed the start bit by
+								; (3) cycles
+		push	SR				; (3) cycles
+		dint					; (1) cycle
+		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and enable the Watchdog Timer
 
+		; Pad out the average delay between starting edge of start bit
+		; and sampling of first bit below to ~ 1.5 bittimes
+		mov.b	#(ScuBitCyc1_5-21+1)/3,R11 ; (2) Loop count for waitMid delay loop
+		_BEGIN
+			dec		R11				; (1) Delay loop
+		_UNTIL	_Z					; (2)
+
+		mov		#8,R10			; (1) Bit count
+		_BEGIN
+			bit.b	#RxScu,&ScuPortIN ; (4) Sampled bit to carry
+			rrc.b	R8				; (1) Store received bit
+
+			mov.b	#(ScuBitCycles-10+1)/3,R11 ; (2) Pad RX bit loop out to one bit time
+			_BEGIN
+				dec		R11				; (1) Delay loop
+			_UNTIL	_Z					; (2) Note: Clearing R11 here is assumed in WriteByte below
+			dec		R10				; (1) All bits RXed?
+		_UNTIL	_Z					; (2) Sample next bit
+
+		; We need a 1 bit delay here so we return in the middle of the stop bit, so
+		; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
+		mov.b	#(ScuBitCycles-21+1)/3,R11 ; (2) Loop count for stop bit delay loop
+		_BEGIN
+			dec		R11				; (1) Delay loop
+		_UNTIL	_Z					; (2)
+
+		pop		SR
+	_ENDIF
+	ret					; Return from ReadByte
 
 ; WriteBreak ( R9 R10 -- R9 R10 R11 )
 ; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
 ; Trashes R9 R10 R11.
 WriteBreak:
-		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-		mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
-		mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
-		; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
-		mov.b	#0,&UCA0TXBUF		; Send all zero data bits
-		_BEGIN						; Wait until finished sending
-			bit.b	#UCBUSY,&UCA0STAT
-		_UNTIL	_Z
-		mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 ; Restore to 9600 b/s
-		mov.b	#(MClock/9600/16)/256,&UCA0BR1
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
-		ret
+	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+	mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
+	mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
+	; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
+	mov.b	#0,&UCA0TXBUF		; Send all zero data bits
+	_BEGIN						; Wait until finished sending
+		bit.b	#UCBUSY,&UCA0STAT
+	_UNTIL	_Z
+	mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 ; Restore to 9600 b/s
+	mov.b	#(MClock/9600/16)/256,&UCA0BR1
+	mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+	ret
 
 ; WriteByte ( R8 -- R9 R10 R11 )
 ; Write the low byte of R8 to serial output.
 ; Trashes R9 R10 R11. Preserves R8.
 WriteByte:
-		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-		mov.b	R8,&UCA0TXBUF		; Send byte
-		_BEGIN						; Loop
-			bit.b	#UCA0TXIFG,&IFG2
-		_UNTIL	_NZ					; Until byte sent
-		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
-		ret					; Return from WriteByte
+	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+	mov.b	R8,&UCA0TXBUF		; Send byte
+	_BEGIN						; Loop
+		bit.b	#UCA0TXIFG,&IFG2
+	_UNTIL	_NZ					; Until byte sent
+	mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+	ret					; Return from WriteByte
 
 ; Frequency locked loop interrupt service routine.
 ; Timer A0 is clocked at the DCO frequency. Its CCR0 captures the timer value on every rising edge of
 ; ACLK = watch_xtal / 8 = 4096 Hz, and generates this interrupt.
 TA0FllIsr:
-			tst		&oldCCR0
-			_IF		_NZ
-				push	R8
-				mov		&TACCR0, R8		; Captured timer value at ACLK rising edge
-				sub		&oldCCR0, R8	; Count of DCO clocks since previous ACLK rising edge
-				sub		#MClock/(32768/8),R8 ; Expect 900 count. Calculate the error.
-				rra		R8
-				sub.b	R8,&DCOCTL		; Fine adjust DCO frequency by half the error amount
-				pop		R8
-			_ENDIF
-			mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
-			inc		&measureCount	; Inc counter used to initiate measurement
-			reti
+	tst		&oldCCR0
+	_IF		_NZ
+		push	R8
+		mov		&TACCR0, R8		; Captured timer value at ACLK rising edge
+		sub		&oldCCR0, R8	; Count of DCO clocks since previous ACLK rising edge
+		sub		#MClock/(32768/8),R8 ; Expect 900 count. Calculate the error.
+		rra		R8
+		sub.b	R8,&DCOCTL		; Fine adjust DCO frequency by half the error amount
+		pop		R8
+	_ENDIF
+	mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
+	inc		&measureCount	; Inc counter used to initiate measurement
+	reti
 
 BslRevision:
-			mov		#BSL_REV,R8			; Return the SVN revision for this file
-			ret
+	mov		#BSL_REV,R8			; Return the SVN revision for this file
+	ret
 
-			; Any free last-segment space is between here and the UART interrupt vectors
+	; Any free last-segment space is between here and the UART interrupt vectors
 ;freeSpaceBSL2	EQU		jBSL+$1EC - $		; Number of bytes spare in the BSL
 freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BSL
 
@@ -355,21 +416,21 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 ;-------------------------------------------------------------------------------
 ; Interrupt Vectors at the end of the last flash segment
 ;-------------------------------------------------------------------------------
-				ORG		jBSL+($FFEC-BSL2_START)		; $FFEC, UART Vectors
-				DW		jUCA0TxIsr		; UART transmit
-				DW		jUCA0RxIsr		; UART receive
+		ORG		jBSL+($FFEC-BSL2_START)		; $FFEC, UART Vectors
+		DW		jUCA0TxIsr		; UART transmit
+		DW		jUCA0RxIsr		; UART receive
 
-										; $FFF0, Timer A0 Vectors
-				DW		jTA0TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
-				DW		TA0FllIsr-jBSL+BSL2_START; Timer A CC0IFG (freq lock loop). In BSL, not main prg
-				DW		$FFFF, $FFFF	; FFF4, FFF6
-										; $FFF8, Timer A1 Vectors
-				DW		jTA1TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
-				DW		jTA1PwmIsr		; Timer A CC0IFG (transmit compare)
+								; $FFF0, Timer A0 Vectors
+		DW		jTA0TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+		DW		TA0FllIsr-jBSL+BSL2_START; Timer A CC0IFG (freq lock loop). In BSL, not main prg
+		DW		$FFFF, $FFFF	; FFF4, FFF6
+								; $FFF8, Timer A1 Vectors
+		DW		jTA1TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+		DW		jTA1PwmIsr		; Timer A CC0IFG (transmit compare)
 
-										; $FFFC, Unused NMI vector location
+								; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
-BSL2checksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
-				; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.
+BSL2checksum	DB		$FF				; Placeholder for checksum added by LyteFlash or SendProg
+		; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.
 
-				ENDM
+		ENDM

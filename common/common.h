@@ -53,6 +53,7 @@ BatIPortIN	EQU		P3IN			; BatI input is on port 3
 ScuPortDIR	EQU		P3DIR			; SCU comms on port 3
 ScuPortSEL	EQU		P3SEL
 ScuPortOUT	EQU		P3OUT
+ScuPortIN	EQU		P3IN
 CtorPortOUT	EQU		P3OUT
 
 ; ADC channel numbers
@@ -71,12 +72,14 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; but half of them are noise and should be thrown away,
 ; leaving us with n bits of additional information.
 
-#define		PROG_START	$C000		// Start of program image in flash memory. Ends at $FDFF
+#define		PROG_START	$C000		// Start of program image in flash memory. Ends at BSL2_START-1
+#define		REV61_PROG_ST $E000		// Equivalent start of program image for old rev61 images
 
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 									// Turning it off doesn't work because BSL will still clear and
 									// restart the watchdog timer on every call to ReadByte.
 #define		BSL2_START	$FC00		// Start BSL2 1 KiB before the end.
+#define		REV61_BSL2_ST $FE00		// Equivalent start for old rev61 images
 
 ; The address BSL2 downloads to is usually the same as PROG_START,
 ; but when making a transition between different download sizes, the version of TestICal that does the

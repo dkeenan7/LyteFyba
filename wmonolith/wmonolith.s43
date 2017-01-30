@@ -524,6 +524,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					call	#ScuRxByteNW			; Check if received SCU data
 					_IF		_NZ
 						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
+						call	#DoPassword				; Check for BSL password bytes from SCU port
 					_ELSE
 						clr		R8						; Indicate to AccMaster that no char is avail
 					_ENDIF
@@ -537,7 +538,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 					tst.b	R8
 					_IF		_NN
 						call	#DoEcho					; Echo the command or password byte if required
-						call	#DoPassword				; Check for password bytes
+						cmp.b	#255,&ID				; Check ID
+						_IF		_NE						; If I'm not a BMU
+							call	#DoPassword				; Check for BSL password bytes from CMU port
+						_ENDIF
 						call	#ACCEPT					; Process command bytes (could be slow)
 					_ELSE								; Else was status byte
 						call	#DoStatus					; Forward possibly-updated status bytes
