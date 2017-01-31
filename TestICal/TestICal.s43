@@ -113,9 +113,9 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
-oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
-									;	comNoEraseEnd, as it will affect the first FLL interrupt
-measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
+oldFllTime		DS		2			; Used by Frequency Locked Loop
+									;	Must be cleared before enabling or re-enabling interrupts
+measureCount	DS		2			; Incremented by FLL interrupt routine, on ACLK rising edge, 4096 Hz
 oldMeasureCount DS		2			; Value of the above at last measure
 oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
 

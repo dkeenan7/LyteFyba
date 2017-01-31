@@ -242,20 +242,32 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			_ENDIF
 			ret
 
+
+MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
+
 ;
 ; Update info-flash ( -- )
 ;
 			xCODE	'u',updateInfoFlash,_updateInfoFlash
-; Prepare to flash-program
-; Assumes ACCVIE = NMIIE = OFIE = 0.
-; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
 
-; Erase appropriate info flash segment.
+			; Erase appropriate info flash segment.
 			mov		#FWKEY,&FCTL3			; Clear LOCK
 			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
-			mov		#0,&infoDataStart		; Dummy write: Start of cal data in info-flash
+
+			push	SR						; Save the interrupt state
+			dint							; Disable interrupts so the FLL can't interrupt
+											;	between the erase and the clr &oldFllTime below
+			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
+			clr		&oldFllTime				; Avoid a clock-speed hiccup when the FLL interrupt is
+											;	next called, because it will have missed
+											;	several ACLK rising edges during the flash erase.
+			pop		SR						; Restore the interrupt state
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
@@ -289,20 +301,26 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				ret								; Return without doing anything
 			_ENDIF							; Endif
 
-; Prepare to flash-program
-; Assumes ACCVIE = NMIIE = OFIE = 0.
-; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			dint
-			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 
-			; Erase last segment of main flash (usually contains BSL2).
+			; Erase last segments of main flash (usually contain BSL2).
 			mov		#jBSL,R12				; Start of BSL2 image, $FE00 or $FC00 or ...
 			mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			_BEGIN
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
-				rra		@R12					; Dummy write: erase segment
-				add		#512,R12				; Next block
+				push	SR						; Save the interrupt state
+				dint							; Disable interrupts so the FLL can't interrupt
+												;	between the erase and the clr &oldFllTime below
+				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
+				clr		&oldFllTime				; Avoid a clock-speed hiccup when the FLL interrupt is
+												;	next called, because it will have missed
+												;	several ACLK rising edges during the flash erase.
+				pop		SR						; Restore the interrupt state
+				add		#512,R12				; Next segment
 			_UNTIL	_NN
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
@@ -384,19 +402,23 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ;
 ; Toggle TxPl with a 10 cycle loop,
 ; This timing depends on TxPl or TxMi being in the low 4 bits of its output register.
+
+; The folowing is irrelevant now that we are using a watch crystal and FLL to achieve 3686400 Hz.
+
 ; If we were trying to achieve an exact 4 MHz MCLK, we'd want 4000/2/10 = 200.0 kHz.
 ; If we were trying to achieve exact 9600 baud comms we'd want 9600*416/2/10 = 199.7 kHz.
 ; But we've gone with minimising the number of controllers whose default DCO calibration
 ; we need to change. For that we have settled on the acceptable range being
 ; 199.5 to 200.5 kHz at 20 degC and
 ; 200.5 to 201.5 kHz at 30 degC.
+
 ; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
 ; output frequency by about 0.5 kHz in the same direction.
 
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
-			push	SR						; Interrupts like the
-			dint							;	FFL will spoil results
+			push	SR						; Save interrupt state
+			dint							; Disable interrupts (FLL and comms). Would ruin timing
 			clr		R10
 burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit. Must give 10 cycle loop.
 			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
@@ -407,7 +429,9 @@ burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit. Must give 10 cycle loo
 			jnz		jBurstLp				; (2) Jump to a 3-cycle delay to burstLp
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
-			pop		SR
+
+			clr		&oldFllTime				; Avoid clock-speed hiccup when FLL interrupts are reenabled
+			pop		SR						; Restore interrupt state
 			ClearWatchdog					; Clear and restart Watchdog Timer
 
 			ret

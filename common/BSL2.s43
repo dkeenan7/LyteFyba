@@ -36,7 +36,6 @@ jWriteBreak: br		#WriteBreak-jBSL+BSL2_START	; Send a break via the UART. Used b
 
 BSL:		; Initialisation
 	mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
-	clr		&oldCCR0		; Clear this before interrupts are enabled
 	; XCAP = 11, Choose 12.5 pF
 	; LFXT1Sx = 00, Watch crystal (32768 kHz)
 	mov.b	#XCAP1 | XCAP0, &BCSCTL3
@@ -96,11 +95,13 @@ BSL:		; Initialisation
 ;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
 
 ; Need to init timer A1 to generate 57.6 kHz
-
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer
-	_DO		#0,R8						; Wait for ACLK
-	_LOOP	R8							;	to stabilise
+	_DO		#0,R8						; Allow time for the XTAL oscillator and hence ACLK to stabilise
+	_LOOP	R8							;	before enabling FLL interrupts
+	clr		&oldFllTime					; Avoid a clock-speed hiccup when FLL interrupts are enabled
 	eint								; Enable general interrupts for FLL
+	_DO		#0,R8						; Allow time for FFL interrupts to tune the DCO and hence MCLK
+	_LOOP	R8							;	before interrupts get disabled in ReadByte
 
 ;			clr		&measureCount
 	mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
@@ -200,10 +201,11 @@ BSL:		; Initialisation
 					clrz						; Clear Z flag so we don't leave password checking loop
 				_ENDOF						; End of fake download case
 				_OFb	#1,R8				; If matched complete real download pwd 05 04 03 01
-					; Erase segments of main flash used for the main program, not the BSL.
-					; Reflash tool will need to delay at least 7*16 ms = 112 ms before sending
-					; the first byte to program.
-BSLErase:			dint					; Main-flash program has probably turned on interrupts
+BSLErase:			; Erase segments of main flash used for the main program, not the BSL.
+					; Reflash tool will need to delay at least number_of_segments * 16 ms
+					; = number_of_KiB * 32 ms before sending the first byte to program.
+					; Don't need to disable interrupts during flash operations,
+					; because the flash controller holds the CPU.
 					mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
 					mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 					mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
@@ -213,7 +215,14 @@ BSLErase:			dint					; Main-flash program has probably turned on interrupts
 					mov		R12,R11			; R12 contains start of program image in main flash
 					_BEGIN
 						mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
-						rra		@R11			; Dummy write: erase segment
+						push	SR				; Save the interrupt state
+						dint					; Disable interrupts so the FLL can't interrupt
+												;	between the erase and the clr &oldFllTime below
+						rra		@R11			; Dummy write to erase segment. Takes 16 milliseconds.
+						clr		&oldFllTime		; Avoid a clock-speed hiccup when the FLL interrupt is
+												;	next called, because it will have missed
+												;	several ACLK rising edges during the flash erase.
+						pop		SR				; Restore the interrupt state
 						add		#$200,R11		; Increment to next segment
 						cmp		#BSL2_START,R11
 					_UNTIL	_HS				; Stop when we get to the start of the BSL
@@ -228,7 +237,7 @@ BSLErase:			dint					; Main-flash program has probably turned on interrupts
 					_BEGIN					; Programming loop
 						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
 						call	#WriteByte-jBSL+BSL2_START	; Echo it to the CMU port
-						mov.b	R8,0(R12)		; Program it (takes 90 microseconds)
+						mov.b	R8,0(R12)		; Program it. Takes 90 microseconds. No problem for FLL
 						xor.b	R8,Rcksum		; Include in check-XOR
 						inc		R12
 						cmp		#BSL2_START,R12
@@ -316,7 +325,7 @@ ReadByte:
 	_ELSE						; Else we're a BMU
 		; Wait for a byte from the SCU port -- Uses bit banging with timed busy-wait loops
 		push	SR				; Save the interrupt state
-		dint					; Disable interrupts to guarantee timings below
+		dint					; Disable interrupts (FLL and comms) to guarantee timings below
 		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 		_BEGIN						; Numbers in parentheses are numbers of cycles (timed waits)
 			bit.b	#RxScu,&ScuPortIN ; (4) Start bit?
@@ -344,6 +353,7 @@ ReadByte:
 			dec		R10				; (1) All bits RXed?
 		_UNTIL	_Z					; (2) Sample next bit
 
+		clr		&oldFllTime			; Avoid clock-speed hiccup when FLL interrupts are reenabled
 		pop		SR					; (2) Restore the interrupt state
 	_ENDIF						; End else we're a BMU
 	ret							; (2) Return from ReadByte
@@ -381,19 +391,48 @@ WriteByte:
 ; Timer A0 is clocked at the DCO frequency. Its CCR0 captures the timer value on every rising edge of
 ; ACLK = watch_xtal / 8 = 4096 Hz, and generates this interrupt.
 TA0FllIsr:
-	tst		&oldCCR0
-	_IF		_NZ
-		push	R8
-		mov		&TACCR0, R8		; Captured timer value at ACLK rising edge
-		sub		&oldCCR0, R8	; Count of DCO clocks since previous ACLK rising edge
-		sub		#MClock/(32768/8),R8 ; Expect 900 count. Calculate the error.
-		rra		R8
-		sub.b	R8,&DCOCTL		; Fine adjust DCO frequency by half the error amount
-		pop		R8
+	push	R8				; (3)
+	mov		&oldFllTime,R8	; (3) Get the old captured timer value. Cleared before enabling interrupts
+	tst		R8				; (1) Check the old captured timer value
+	_IF		_NZ				; (2) If interrupts haven't just been (re-)enabled
+		sub		&TACCR0,R8		; (3) Subtract the timer value captured at latest ACLK rising edge from
+								; old timer value to get negative of MCLKs since prior ACLK rising edge
+		add		#MClock/(32768/8),R8 ; (2) Expect -900. Calculate the error.
+		rra		R8				; (1) Halve the error
+		add.b	R8,&DCOCTL		; (4) Fine adjust the DCO frequency using half the error
 	_ENDIF
-	mov		&TACCR0, &oldCCR0 ; Save present captured timer value as old captured timer value
-	inc		&measureCount	; Inc counter used to initiate measurement
-	reti
+	mov		&TACCR0,&oldFllTime	; (6) Save present captured timer value as old captured timer value
+	inc		&measureCount	; (4) Increment counter used to initiate measurement
+	pop		R8				; (2)
+	reti					; Max 31 cycles (the interrupt call and return add another 11 cycles)
+	; Note: Using more registers to reduce RAM accesses won't save any cycles
+	; unless a reg is dedicated to oldFllTime, because the push/pop of the reg costs 5 cycles
+	; and changing a RAM access to a reg access only saves 2 cycles.
+
+#if 0 	// Faster version of FLL ISR. Requires a dedicated register.
+// This was of interest if we needed to leave interrupts enabled during the busy-wait for a start bit
+// in the bit-sniffing version of ReadByte, as used by BMUs.
+TA0FllIsr:
+#define	RoldFllTime R15	// The two existing users of R15 (DoMeasurement and insulationTest)
+						// could replace it with R13 (= Rthd), and push and pop R13.
+	push	R8				; (3)
+	mov		&TACCR0,R8		; (3) Get the the timer value captured at latest ACLK rising edge
+	tst		RoldFllTime		; (1) Check the old captured timer value. Cleared before enabling interrupts
+	_IF		_NZ				; (2) If interrupts haven't just been (re-)enabled
+		sub		R8,RoldFllTime	; (1) Subtract the timer value captured at latest ACLK rising edge from
+								; old timer value to get negative of MCLKs since prior ACLK rising edge
+		add		#MClock/4096,RoldFllTime ; (2) Expect -900. Calculate the error.
+		rra		RoldFllTime		; (1) Halve the error
+		add.b	RoldFllTime,&DCOCTL	; (4) Fine adjust the DCO frequency using half the error
+	_ENDIF
+	mov		R8,RoldFllTime	; (1) Save present captured timer value as old captured timer value
+	inc		&measureCount	; (4) Increment counter used to initiate measurement
+	pop		R8				; (2)
+	reti					; Max 24 cycles (the interrupt call and return add another 11 cycles)
+	; It might also be possible to move the "inc &measureCount" instruction out of the above and into
+	; a timer overflow interrupt routine, which would only be called every 65,536 cycles,
+	; instead of every 900 cycles like the above.
+#endif
 
 BslRevision:
 	mov		#BSL_REV,R8			; Return the SVN revision for this file

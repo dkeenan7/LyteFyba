@@ -145,7 +145,7 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/10 A for 1/2 s = 1/20 coulomb = 1/72 milliamphour.
 									; So 32 bits allows 60,000 Ah, but 24 bits would only allow 233 Ah.
 
-oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
+oldFllTime		DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
 
 measureCount	DS		2			; Incremented on ACLK rising edge (4096 Hz)
@@ -350,8 +350,9 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 InterpretInit:                              ; This is called by the BSL, on reset.
 InterpretByte:								; Should not be called -- but just in case
 main:										; For IAR Embedded Workbench IDE debugger
-			dint							; Disable interrupts while initialising; note that this will
-											;	temporarily stop the FLL.
+			dint							; Disable interrupts while initialising various things that
+											;	will use interrupts. Note that this will temporarily
+											;	stop the FLL.
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			mov.w	#InitSP,SP				; Initialize stackpointer, likely not necessary
 
@@ -499,7 +500,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
-			clr		&oldCCR0				; Clear this before interrupts are enabled
+			clr		&oldFllTime				; Avoid a clock-speed hiccup when FLL interrupts are enabled
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Do precharge and get the main contactor on, so we stay powered up

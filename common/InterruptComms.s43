@@ -107,14 +107,14 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
-					dint
+					dint						; Disable interrupts
 					; Calculate max number of timer clocks till CCRt & CCTLt will be correctly set up.
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; Half of the +2 is in case the TAR increments just after we read it.
 					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
 					; and MckPerTAck = 32.
 					; If we get it wrong, the timer wraps around in just 16 ms anyway.
-					mov		#((27+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
+					mov		#((31+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
 					add		&TAR,R9				; (4) R9 := timer value + setup time
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
@@ -123,7 +123,8 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
-					eint						; (1) Next instruction still protected
+					clr		&oldFllTime			; (4) Avoid clock-speed hiccup when FLL ints are enabled
+					eint						; (1) Enable interrupts. Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&CCTLt;(5) Set out mode for start bit, enable compare ints
 
 				_ENDIF 						; Endif transmit interrupts disabled
@@ -496,7 +497,7 @@ DoPassword:
 					clr		&ScuCCTLr			; Clear at least the CCIE RX interrupt enable bit
 					clr		&ChgCCTLr			; Clear at least the CCIE RX interrupt enable bit
 
-					; Important: wait for last password byte to be echoed before disabling interrupts!
+					; Important: wait for last password byte to be echoed before interrupts get disabled
 					call	#WaitTxComplete		; Wait for all transmission on all ports to complete
 
 					bic.b	#Bypass,&BypPortOUT	; Set Bypass off
