@@ -65,6 +65,7 @@ BSL:		; Initialisation
 	mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
 
 	; If this is a BMU, we will use TA1 for comms, so don't set up TA1's CCRs here
+	; For CMUs, init timer A1 to generate 57.6 kHz
 	cmp.b	#255,&infoID
 	_IF		_NE				; If we're not a BMU
 		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
@@ -83,7 +84,7 @@ BSL:		; Initialisation
 
 	; Initialise the UART
 	bis.b	#UCSWRST,&UCA0CTL1			; Need while initialising other USCI registers
-;			mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
+;	mov.b	#0,&UCA0CTL0			 	; UART mode, 8 bits, 1 stop bit, no parity
 	; Above not needed since UCA0CTL0 defaults to 0
 	mov.b	#UCSWRST | UCSSEL_2 ,&UCA0CTL1 ; Use SMCLK
 	mov.b	#(MClock/9600/16)&$FF,&UCA0BR0 		; Set for 9600 b/s
@@ -92,10 +93,11 @@ BSL:		; Initialisation
 	bis.b	#TxPl|Rx,&P1SEL				; Select the UART functions
 	bis.b	#TxPl|Rx,&P1SEL2
 	bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
-;			bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
+;	bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
 
-; Need to init timer A1 to generate 57.6 kHz
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer
+
+	; Stabilise ACLK, enable interrupts, stabilise the FLL, DCO and MCLK
 	_DO		#0,R8						; Allow time for the XTAL oscillator and hence ACLK to stabilise
 	_LOOP	R8							;	before enabling FLL interrupts
 	clr		&oldFllTime					; Avoid a clock-speed hiccup when FLL interrupts are enabled
@@ -103,14 +105,17 @@ BSL:		; Initialisation
 	_DO		#0,R8						; Allow time for FFL interrupts to tune the DCO and hence MCLK
 	_LOOP	R8							;	before interrupts get disabled in ReadByte
 
-;			clr		&measureCount
+;	clr		&measureCount				; !!! Fix me please, Mike. Why am I here? Why am I commented out?
+
+	; Initialise port 1
 	mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
 	bis.b	#Piezo|TxPl|VrefP,&P1DIR 	; Set Piezo, TxPl and VrefP as outputs
 
-	; We've been reset, so send a break to reset the next guy, unless we're a BMU,
-	; (or the IMU in the Helidon Monolith), in which case it would lead to
-	; endlessly circulating breaks. We give these devices the ID 255.
+	; Initialise the interpreter flags
+	clr.b	&interpFlags				; The bDontEcho bit is read by the BSL in some modes
 
+	; We've been reset, so send a break to reset the next guy, unless we're a BMU,
+	; in which case it would lead to endlessly circulating breaks.
 	cmp.b	#255,&infoID
 	_IF		_NE				; If we're not a BMU
 		; Send a 27 ms break
