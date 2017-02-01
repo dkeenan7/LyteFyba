@@ -1216,12 +1216,12 @@ ControlContactors:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 5 && array voltage < 140 V
+		; If stress <= 6 && array voltage < 140 V
 		;	turn on charging/source contactors
-		; We need to let it go down to stress 5 so that balancing can occur.
+		; We need to let it go down to stress 6 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#6,R9
-		_AND_IF	_L						; And if incoming stress is <= 5
+			cmp.b	#7,R9
+		_AND_IF	_L						; And if incoming stress is <= 6
 			push	R8
 			call	#cellV
 			pop		R8
