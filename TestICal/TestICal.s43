@@ -145,11 +145,20 @@ resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 res
 discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
-oldCCR0			DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
-									;	comNoEraseEnd, as it will affect the first FLL interrupt
+oldFllTime		DS		2			; Used by Frequency Locked Loop, in trunk programs.
+									; Kept for consistency.
 comNoEraseEnd
 
-measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz)
+; NOTE: interpFlags must go here, so that it has the same address in TestICal and hence BSL2 as it does
+;	in the mainflash programs. Fixes problems with echoing
+interpFlags	DS		1				; Interpreter flags, bitmask definitions follow
+bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
+bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
+bDontInterpret	EQU		1<<2		; Are we interpreting?
+bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
+bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
+bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
+measureCount	DS		2			; Incremented on ACLK rising edge (8192 Hz). Trunk programs only.
 
 #if	ADCBUF
 			ALIGNRAM 1
@@ -182,13 +191,6 @@ txCksum		DS		1				; Transmit checksum
 ; Command Character Interpreter variables
 
 rxCksum		DS		1				; Received packet xor checksum
-interpFlags	DS		1				; Interpreter flags, bitmask definitions follow
-bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
-bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
-bDontInterpret	EQU		1<<2		; Are we interpreting?
-bDontEcho		EQU		1<<3		; Are we echoing characters? (not yet implemented in TestICal)
-bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
-bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer

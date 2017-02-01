@@ -118,7 +118,7 @@ mainLoop2:
 resetFSM2:	mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
 FSMloop2:	call	#ReadByte-jBSL+BSL2_START	; Address adjusted for BSL's relocation
 processByte2
-			; Pass byte in R8 on to main program, if allowed
+			; Echo if needed, pass byte in R8 on to main program, if allowed
 			call	#TestNoInterp2-jBSL+BSL2_START	; Adjust for relocation
 
 			; Password-checking finite-state-machine (FSM)
@@ -130,13 +130,9 @@ processByte2
 			dec		&bsl2state
 			jn		progByte2		; If state is negative, program, don't test for password etc.
 
-			; Check for a continuing password match $07 $06 $05 $04
+			; Check for a continuing password match $05 $04 $03 $02
 			mov		&bsl2state,R9
-#if PROG_START_FOR_BSL == $E000		; Changed password for 8 KiB image
 			add.b	#2,R9			; Expected password character is equal to &bsl2state with 2 added
-#else								; Assume non 8 KiB image
-			bis.b	#4,R9			; Expected password character is equal to &bsl2state with bit 2 set
-#endif
 			cmp.b	R9,R8
 			jne		resetFSM2
 			tst		&bsl2state
