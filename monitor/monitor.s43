@@ -131,9 +131,9 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 
 oldFllTime		DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
-measureCount	DS		2			; Incremented on ACLK rising edge (4096 Hz)
-oldMeasureCount DS		2			; Value of the above at last measure
-oldRtcMeasCnt	DS		2			; Upper 4 bits of above last second advance
+measureCount	DS		2			; Incremented by FLL interrupt routine, on ACLK rising edge, 4096 Hz
+oldMeasureCount DS		2			; Value of measureCount at the last measure
+oldRtcMeasCnt	DS		2			; Hi 4 bits of measureCount at the last advance of RTC seconds count
 
 ; Command Character Interpreter flags
 interpFlags		DS		1			; Interpreter flags, bitmask definitions follow

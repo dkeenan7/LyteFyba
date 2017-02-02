@@ -35,6 +35,7 @@ jBslRevision: br	#BslRevision-jBSL+BSL2_START ; Return the BSL2 revision
 jWriteBreak: br		#WriteBreak-jBSL+BSL2_START	; Send a break via the UART. Used by the 'Br' command
 
 BSL:		; Initialisation
+	mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop the Watchdog Timer
 	mov		#InitSP,SP		; Initialise the stack pointer ($300 or $400)
 	; XCAP = 11, Choose 12.5 pF
 	; LFXT1Sx = 00, Watch crystal (32768 kHz)
@@ -64,8 +65,8 @@ BSL:		; Initialisation
 	; CCIE = 1, enable interrupts
 	mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TACCTL0
 
-	; If this is a BMU, we will use TA1 for comms, so don't set up TA1's CCRs here
-	; For CMUs, init timer A1 to generate 57.6 kHz
+	; For CMUs only, initialise timer A1 to generate the 57.6 kHz carrier for infrared transmission.
+	; BMUs don't have IR, and use TA1 for comms on the charger port; initialised in the main program.
 	cmp.b	#255,&infoID
 	_IF		_NE				; If we're not a BMU
 		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
@@ -95,17 +96,17 @@ BSL:		; Initialisation
 	bic.b	#UCSWRST,&UCA0CTL1			; No longer resetting UCSI, clear to run
 ;	bic.b	#UCA0RXIE, &IE2				; Disable UART RX interrupts
 
-	mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer
-
-	; Stabilise ACLK, enable interrupts, stabilise the FLL, DCO and MCLK
+	; Stabilise ACLK, enable interrupts, stabilise the FLL and hence the DCO and MCLK
 	_DO		#0,R8						; Allow time for the XTAL oscillator and hence ACLK to stabilise
 	_LOOP	R8							;	before enabling FLL interrupts
+	clr		&measureCount				; Initialise MeasureCount which is incremented by FLL
+	clr		&oldMeasureCount			; Ensure oldMeasureCount is initially the same as measureCount
+	clr		&oldRtcMeasCnt				; Ensure RtcMeasCount has low 12 bits zero and high 4 bits
+										;	initially the same as those of measureCount
 	clr		&oldFllTime					; Avoid a clock-speed hiccup when FLL interrupts are enabled
-	eint								; Enable general interrupts for FLL
+	eint								; Enable general interrupts so the FLL can do its job
 	_DO		#0,R8						; Allow time for FFL interrupts to tune the DCO and hence MCLK
 	_LOOP	R8							;	before interrupts get disabled in ReadByte
-
-;	clr		&measureCount				; !!! Fix me please, Mike. Why am I here? Why am I commented out?
 
 	; Initialise port 1
 	mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
