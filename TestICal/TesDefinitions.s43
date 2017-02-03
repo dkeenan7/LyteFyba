@@ -243,8 +243,6 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			ret
 
 
-MckPerFTGck	EQU		(MClock+165000)/330000	; MCLK cycles per Flash Timing Generator cycle
-
 ;
 ; Update info-flash ( -- )
 ;

@@ -13,12 +13,6 @@
 ; It's called "BSL2" because there was an earlier version BSL that we miraculously fitted in
 ; the 256 bytes of info-flash, along with the calibration data. The two BSLs coexisted for a time.
 
-BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision, jWriteBreak
-	LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
-	LOCAL	MckPerFTGck, TestNoInterp2, WriteBreak
-	LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
-	LOCAL	ScuBaudRate, ScuBitCycles, ScuBitCyc1_5, TA0FllIsr
-
 ScuBaudRate	EQU		9600			; SCU serial comms rate in bits per second
 ScuBitCycles EQU	(MClock+BaudRate/2)/BaudRate	; CPU clock cycles per SCU bit
 ScuBitCyc1_5 EQU	(MClock*3+BaudRate)/(BaudRate*2) ; CPU clock cycles per SCU 1.5 bits
@@ -188,11 +182,11 @@ BSL:		; Initialisation
 				cmp.b	R9,R8				; Check for a match
 				_IF		_NE					; If not a match
 					mov		#4,&bsl2state		; Go back to waiting for first password character
-					;clrz						; NE = NZ. So we don't leave the password checking loop
 				_ENDIF
+				clrz						; Clear the Z flag so we don't leave the pwd checking loop
 			_ELSE						; Else the final character
 				; No matter what happens now, we want to begin a new password match after we return
-				mov.b	#4,&bsl2state		; Go back to waiting for first password character
+				mov		#4,&bsl2state		; Go back to waiting for first password character
 				_CASE
 				_OFb	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
@@ -469,6 +463,5 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 								; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.
 BSL2checksum	DB		$FF				; Placeholder for checksum added by LyteFlash or SendProg
-		; The reset vector (at $FFFE) is set by monitor and TestICal, but could be done here.
+		; The reset vector (at $FFFE) is set by the main program, but could be done here.
 
-		ENDM
