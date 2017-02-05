@@ -79,9 +79,9 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 									// Turning it off doesn't work because BSL will still clear and
 									// restart the watchdog timer on every call to ReadByte.
 #define		BSL2_START	$FC00		// Start BSL2 1 KiB before the end.
-#define		REV61_BSL2_ST $FE00		// Equivalent start for old rev61 images
+#define		REV61_BSL2_ST $FE00		// Equivalent start for old rev61 BSL
 
-; The address BSL2 downloads to is usually the same as PROG_START,
+; The address BSL2 downloads a program to is usually the same as PROG_START,
 ; but when making a transition between different download sizes, the version of TestICal that does the
 ; update to the new BSL2 will still need to be the old size, so it can be downloaded by the old BSL2.
 #define		PROG_START_FOR_BSL		PROG_START	// Where the BSL should put the images it downloads.

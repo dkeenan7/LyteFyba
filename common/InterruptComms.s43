@@ -114,7 +114,7 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
 					; and MckPerTAck = 32.
 					; If we get it wrong, the timer wraps around in just 16 ms anyway.
-					mov		#((31+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
+					mov		#((27+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
 					add		&TAR,R9				; (4) R9 := timer value + setup time
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
@@ -123,7 +123,6 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
-					clr		&oldFllTime			; (4) Avoid clock-speed hiccup when FLL ints are enabled
 					eint						; (1) Enable interrupts. Next instruction still protected
 					mov		#OUTMOD_1+CCIE,&CCTLt;(5) Set out mode for start bit, enable compare ints
 
@@ -455,7 +454,7 @@ DoPassword:
 ; so we don't attempt to interpret it as commands. This allows a system with mixed hardware revisions.
 ; After decrementing passWordState below, 3 = waiting for 1st pwd byte, 2 = waiting for 2nd pwd byte,
 ; 1 = waiting for 3rd pwd byte, 0 = waiting for last pwd byte and erase if received.
-; Trashes R9. Preserves R8 except when a complete password has been recognised.
+; Trashes R9, R12. Preserves R8.
 ;
 			dec.b	&passWordState
 			; Check for a continuing password match
@@ -472,19 +471,17 @@ DoPassword:
 				_CASE
 				_OFb	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
-					push	R10					; Don't trash R10
-					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R10 ; Set count of bytes to ignore
+					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
 						cmp.b	#255,&ID			; Check my ID
 						_IF		_EQ					; If I'm a BMU
 							call	#ScuRxByte			; Wait for a byte from the SCU port
 						_ELSE
 							call	#RxByte				; Wait for a byte from the CMU port
 						_ENDIF
-						call	#TxByte				; Echo it to the CMU port
-					_LOOP 	R10
-					pop		R10
-					; The last byte read could look like a command char. Clear it so that it will be
-					clr		R8					;	ignored by ACCEPT
+						call	#CmuTxByte				; Echo it to the CMU port
+					_LOOP 	R12
+					; The last byte read could look like a command char.  Ensure it doesn't.
+					mov.b	#2,R8				; Restore last password character, ignored by ACCEPT
 				_ENDOF						; End of fake download case
 				_OFb	#1,R8				; If matched complete real download pwd 05 04 03 01
 					; Start a real download
@@ -518,15 +515,19 @@ DoPassword:
 
 
 Halt:
-		; We need an endless loop at various times, but want to check for the BSL password.
-		; It may still be powered up by the inverter capacitors, or some charge source.
-		; This will require the red button to be pushed to remove power from the BMU
-		; to reset it. After which, releasing the red may be sufficient to restart,
-		; or you may also have to push the green.
-		_BEGIN
-			ClearWatchdog
-			call	#RxByteNoWait			; Check for BSL password
-			_IF		_NZ						; Don't process none received as if they are nulls
-				call	#DoPassword			;	(bad between password chars)
+		; We need an endless loop at various times, but still want to check for the BSL password.
+		; A BMU may still be powered up by the inverter capacitors, or some charge source.
+		; So getting out of this loop may require the red button to be pushed to remove power from the
+		; BMU to reset it. After which, releasing the red button may be sufficient to restart,
+		; or you may also have to push the green button.
+		; Sending a break to a BMU's SCU port will also reset it.
+		_BEGIN							; Begin loop
+			cmp.b	#255,&ID			; Check my ID
+			_IF		_EQ					; If I'm a BMU
+				call	#ScuRxByte			; Wait for a byte from the SCU port
+			_ELSE
+				call	#RxByte				; Wait for a byte from the CMU port
 			_ENDIF
-		_AGAIN								; Endless loop
+			call	#CmuTxByte				; Echo it to the CMU port
+			call	#DoPassword			; Check for a BSL password
+		_AGAIN							; Loop forever

@@ -97,7 +97,6 @@ BSL:		; Initialisation
 	clr		&oldMeasureCount			; Ensure oldMeasureCount is initially the same as measureCount
 	clr		&oldRtcMeasCnt				; Ensure RtcMeasCount has low 12 bits zero and high 4 bits
 										;	initially the same as those of measureCount
-	clr		&oldFllTime					; Avoid a clock-speed hiccup when FLL interrupts are enabled
 	eint								; Enable general interrupts so the FLL can do its job
 	_DO		#0,R8						; Allow time for FFL interrupts to tune the DCO and hence MCLK
 	_LOOP	R8							;	before interrupts get disabled in ReadByte
@@ -190,14 +189,12 @@ BSL:		; Initialisation
 				_CASE
 				_OFb	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
-					push	R10					; Don't trash R10
-					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R10 ; Set count of bytes to ignore
+					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
 						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
 						call	#WriteByte-jBSL+BSL2_START	; Echo it to the CMU port
-					_LOOP 	R10
-					pop		R10
-					; The last byte read could look like a command char. Clear it so that it will be
-					clr		R8					;	ignored by ACCEPT
+					_LOOP 	R12
+					; The last byte read could look like a command char. Ensure it doesn't.
+					mov.b	#2,R8				; Restore last password character, ignored by ACCEPT
 					clrz						; Clear Z flag so we don't leave password checking loop
 				_ENDOF						; End of fake download case
 				_OFb	#1,R8				; If matched complete real download pwd 05 04 03 01
@@ -215,14 +212,7 @@ BSLErase:			; Erase segments of main flash used for the main program, not the BS
 					mov		R12,R11			; R12 contains start of program image in main flash
 					_BEGIN
 						mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
-						push	SR				; Save the interrupt state
-						dint					; Disable interrupts so the FLL can't interrupt
-												;	between the erase and the clr &oldFllTime below
 						rra		@R11			; Dummy write to erase segment. Takes 16 milliseconds.
-						clr		&oldFllTime		; Avoid a clock-speed hiccup when the FLL interrupt is
-												;	next called, because it will have missed
-												;	several ACLK rising edges during the flash erase.
-						pop		SR				; Restore the interrupt state
 						add		#$200,R11		; Increment to next segment
 						cmp		#BSL2_START,R11
 					_UNTIL	_HS				; Stop when we get to the start of the BSL
@@ -353,7 +343,6 @@ ReadByte:
 			dec		R10				; (1) All bits RXed?
 		_UNTIL	_Z					; (2) Sample next bit
 
-		clr		&oldFllTime			; Avoid clock-speed hiccup when FLL interrupts are reenabled
 		pop		SR					; (2) Restore the interrupt state
 	_ENDIF						; End else we're a BMU
 	ret							; (2) Return from ReadByte
@@ -392,47 +381,39 @@ WriteByte:
 ; ACLK = watch_xtal / 8 = 4096 Hz, and generates this interrupt.
 TA0FllIsr:
 	push	R8				; (3)
-	mov		&oldFllTime,R8	; (3) Get the old captured timer value. Cleared before enabling interrupts
-	tst		R8				; (1) Check the old captured timer value
-	_IF		_NZ				; (2) If interrupts haven't just been (re-)enabled
-		sub		&TACCR0,R8		; (3) Subtract the timer value captured at latest ACLK rising edge from
-								; old timer value to get negative of MCLKs since prior ACLK rising edge
-		add		#MClock/(32768/8),R8 ; (2) Expect -900. Calculate the error.
-		rra		R8				; (1) Halve the error
-		add.b	R8,&DCOCTL		; (4) Fine adjust the DCO frequency using half the error
+	mov		&TACCR0,R8		; (3) Get the timer value captured at the latest ACLK rising edge.
+							; 	We read this just before checking for a capture overflow.
+							; 	We must not read it again, as another capture may happen in between.
+	bit		#COV,&TACCTL0	; (4) Check for a capture overflow i.e. second capture before first was read
+	_IF		_NZ				; (2) If a capture overflow has occurred
+		bic		#COV,&TACCTL0	; (4) Clear the capture overflow flag, but don't change the DCO setting
+		mov		R8,&oldFllTime	; (4) Update the old captured timer value
+	_ELSE					; (2) Else no overflow
+		sub		&oldFllTime,R8	; (3) Subtract the timer value captured at prior ACLK rising edge from
+								;  latest captured timer value to get MCLKs since prior ACLK rising edge
+		; I don't understand why, but after interrupts have been disabled for a while, e.g. in the
+		; bit-sniffing version of ReadByte used by the BSL or TestICal on a BMU, this routine
+		; occasionally gets called twice with the same value in TACCR0. So we test for this below.
+		_IF		_Z				; (2) If the difference between new and old timer values is zero
+			add		R8,&oldFllTime	; (4) Update the old captured timer value, but don't change the DCO
+		_ELSE					; (2) Else a nonzero difference between old and new
+			add		R8,&oldFllTime	; (4) Update the old captured timer value
+			sub		#MClock/(32768/8),R8 ; (2) Expect 900. Calculate the error.
+			rra		R8				; (1) Halve the error
+			sub.b	R8,&DCOCTL		; (4) Fine adjust the DCO frequency using half the error
+		_ENDIF
 	_ENDIF
-	mov		&TACCR0,&oldFllTime	; (6) Save present captured timer value as old captured timer value
 	inc		&measureCount	; (4) Increment counter used to initiate measurement
 	pop		R8				; (2)
-	reti					; Max 31 cycles (the interrupt call and return add another 11 cycles)
+	reti					; Max 34 cycles (the interrupt call and return add another 11 cycles)
 	; Note: Using more registers to reduce RAM accesses won't save any cycles
 	; unless a reg is dedicated to oldFllTime, because the push/pop of the reg costs 5 cycles
 	; and changing a RAM access to a reg access only saves 2 cycles.
-
-#if 0 	// Faster version of FLL ISR. Requires a dedicated register.
-// This was of interest if we needed to leave interrupts enabled during the busy-wait for a start bit
-// in the bit-sniffing version of ReadByte, as used by BMUs.
-TA0FllIsr:
-#define	RoldFllTime R15	// The two existing users of R15 (DoMeasurement and insulationTest)
-						// could replace it with R13 (= Rthd), and push and pop R13.
-	push	R8				; (3)
-	mov		&TACCR0,R8		; (3) Get the the timer value captured at latest ACLK rising edge
-	tst		RoldFllTime		; (1) Check the old captured timer value. Cleared before enabling interrupts
-	_IF		_NZ				; (2) If interrupts haven't just been (re-)enabled
-		sub		R8,RoldFllTime	; (1) Subtract the timer value captured at latest ACLK rising edge from
-								; old timer value to get negative of MCLKs since prior ACLK rising edge
-		add		#MClock/4096,RoldFllTime ; (2) Expect -900. Calculate the error.
-		rra		RoldFllTime		; (1) Halve the error
-		add.b	RoldFllTime,&DCOCTL	; (4) Fine adjust the DCO frequency using half the error
-	_ENDIF
-	mov		R8,RoldFllTime	; (1) Save present captured timer value as old captured timer value
-	inc		&measureCount	; (4) Increment counter used to initiate measurement
-	pop		R8				; (2)
-	reti					; Max 24 cycles (the interrupt call and return add another 11 cycles)
-	; It might also be possible to move the "inc &measureCount" instruction out of the above and into
+	; The two existing users of R15 (DoMeasurement and insulationTest)
+	; could replace it with R13 (= Rthd), and push and pop R13.
+	; It might be possible to move the "inc &measureCount" instruction out of the above and into
 	; a timer overflow interrupt routine, which would only be called every 65,536 cycles,
 	; instead of every 900 cycles like the above.
-#endif
 
 BslRevision:
 	mov		#BSL_REV,R8			; Return the SVN revision for this file

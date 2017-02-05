@@ -258,14 +258,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			mov		#FWKEY,&FCTL3			; Clear LOCK
 			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 
-			push	SR						; Save the interrupt state
-			dint							; Disable interrupts so the FLL can't interrupt
-											;	between the erase and the clr &oldFllTime below
 			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
-			clr		&oldFllTime				; Avoid a clock-speed hiccup when the FLL interrupt is
-											;	next called, because it will have missed
-											;	several ACLK rising edges during the flash erase.
-			pop		SR						; Restore the interrupt state
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
@@ -310,14 +303,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
 			_BEGIN
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
-				push	SR						; Save the interrupt state
-				dint							; Disable interrupts so the FLL can't interrupt
-												;	between the erase and the clr &oldFllTime below
 				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
-				clr		&oldFllTime				; Avoid a clock-speed hiccup when the FLL interrupt is
-												;	next called, because it will have missed
-												;	several ACLK rising edges during the flash erase.
-				pop		SR						; Restore the interrupt state
 				add		#512,R12				; Next segment
 			_UNTIL	_NN
 
@@ -416,7 +402,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
 			push	SR						; Save interrupt state
-			dint							; Disable interrupts (FLL and comms). Would ruin timing
+			dint							; Disable interrupts (FLL and comms) to guarantee timing
 			clr		R10
 burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit. Must give 10 cycle loop.
 			; We used to toggle both Tx lines in phase but this caused problems with IFO outputs.
@@ -428,7 +414,6 @@ burstLp		xor.b	#TxPl,&P1OUT 			; (4) Toggle the TxPl bit. Must give 10 cycle loo
 			dec		R11						;	(alt1 1)
 			jnz		burstLp					;	(alt1 2)
 
-			clr		&oldFllTime				; Avoid clock-speed hiccup when FLL interrupts are reenabled
 			pop		SR						; Restore interrupt state
 			ClearWatchdog					; Clear and restart Watchdog Timer
 

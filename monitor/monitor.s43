@@ -419,7 +419,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^G ^F ^E ^D sequence
-			clr		&oldFllTime				; Avoid a clock-speed hiccup when FLL interrupts are enabled
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Main loop
