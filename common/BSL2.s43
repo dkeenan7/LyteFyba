@@ -104,17 +104,15 @@ BSL:		; Initialisation
 	; Initialise port 1
 	mov.b	#TxPl,&P1OUT				; Set Txs to idle state, Vref output off
 	bis.b	#Piezo|TxPl|VrefP,&P1DIR 	; Set Piezo, TxPl and VrefP as outputs
+	; Don't change the contactor port (port 3 of a BMU) or you might cut off your own power.
 
 	; Initialise the interpreter flags
 	clr.b	&interpFlags				; The bDontEcho bit is read by the BSL in some modes
 
-	; We've been reset, so send a break to reset the next guy, unless we're a BMU,
-	; in which case it would lead to endlessly circulating breaks.
-	cmp.b	#255,&infoID
-	_IF		_NE				; If we're not a BMU
-		; Send a 27 ms break
-		call	#WriteBreak-jBSL+BSL2_START	; Address adjusted for BSL's relocation
-	_ENDIF
+	; We've been reset, so send a break to reset the next guy
+	; This doesn't result in an endlessly circulating break, because a BMU is only reset by
+	; a break on its SCU input, not its CMU input.
+	call	#WriteBreak-jBSL+BSL2_START	; Send a 27 ms break
 
 	ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
 
@@ -126,11 +124,11 @@ BSL:		; Initialisation
 	; namely a flash key violation or an instruction fetch in range $0 to $1FF
 	; (special function regs).
 
-	mov			&resetCounter,R8
-	and			#$0F,R8
-	mov.b		&IFG1,resetBuffer(R8)
-	inc			&resetCounter
-	bic.b		#OFIFG,&IFG1	; Clear the oscillator fault flag
+	mov		&resetCounter,R8
+	and		#$0F,R8
+	mov.b	&IFG1,resetBuffer(R8)
+	inc		&resetCounter
+	bic.b	#OFIFG,&IFG1	; Clear the oscillator fault flag
 
 	_BEGIN					; Main loop
 		; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
@@ -158,8 +156,6 @@ BSL:		; Initialisation
 		_IF		_Z
 			call	#jInterpretInit
 		_ENDIF
-		; Used by TestICal or other main-flash code
-		; to tell if the interpretByte call is for initialisation
 
 		; Password checking loop
 		mov		#4,&bsl2state	; Initialise FSM: waiting for first password character
@@ -206,9 +202,9 @@ BSLErase:			; Erase segments of main flash used for the main program, not the BS
 					mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Stop Watchdog Timer
 					mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 					mov		#FWKEY,&FCTL3	; Clear LOCK, but keep segment A safe (no change)
-
 					mov		#PROG_START_FOR_BSL,R12	; Start of program image in main flash
-					; Erase
+
+					; Erase flash
 					mov		R12,R11			; R12 contains start of program image in main flash
 					_BEGIN
 						mov		#FWKEY+ERASE,&FCTL1	; Enable single segment erase
@@ -219,11 +215,9 @@ BSLErase:			; Erase segments of main flash used for the main program, not the BS
 
 					mov		#FWKEY+WRT,&FCTL1 ; Enable write (can leave enabled)
 					clr.b	Rcksum			; Initialise the checksum to 0
+					bis.b	#WDTIFG,&IFG1	; Assume a bad checksum, clear on good checksum.
 
-					; Assume a bad checksum, clear on good checksum.
-					bis.b	#WDTIFG,&IFG1
-
-					; Program using received bytes
+					; Program flash using received bytes
 					_BEGIN					; Programming loop
 						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
 						call	#WriteByte-jBSL+BSL2_START	; Echo it to the CMU port

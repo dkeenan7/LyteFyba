@@ -304,8 +304,17 @@ newChip:
 				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
-			; Set contactor outputs as outputs in case they aren't already
-			; Don't change their state or you might cut off your own power
+			; Don't change the state of contactor outputs unless this is a power-on reset
+			; or you might cut off your own power.
+			mov		&resetCounter,R8
+			dec		R8
+			and		#$0F,R8
+			mov.b	resetBuffer(R8),R8
+			bit.b	#PORIFG,R8
+			_IF		_NZ
+				mov.b	#0,&P3OUT			; Turn off all contactors
+			_ENDIF
+			; Set contactor outputs as outputs in case they aren't already.
 			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
 			bic.b	#TxMiScu,&ScuPortOUT		; Set Tx low
 			bis.b	#TxMiScu,&ScuPortDIR		; Set Tx as output
