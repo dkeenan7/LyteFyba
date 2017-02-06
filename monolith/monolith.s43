@@ -391,9 +391,18 @@ main:										; For IAR Embedded Workbench IDE debugger
 				bis.b	#Bypass,&BypPortDIR 		; Set Bypass as output
 			_ENDIF
 
-			; Initialise port 3
-			mov.b	#0,&P3OUT					; Set all outputs low.
-			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR ; Set outputs for contactors
+			; Initialise port 3. CMUs don't use this port, but no harm in setting it up.
+			; Don't change the state or direction of any BMU contactor outputs or you might cut off
+			; power to the BMU.
+			cmp.b	#255,&ID
+			_IF		_NE						; If we're a CMU
+				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
+												;   any pin which may remain a floating input in a CMU.
+			_ENDIF
+			; Set contactor outputs as outputs in case they aren't already.
+			; Don't change their state or you might cut off your own power.
+			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
+			bic.b	#TxMiScu,&ScuPortOUT		; Set Tx low
 			bis.b	#TxMiScu,&ScuPortDIR		; Set Tx as output
 			bis.b	#RxScu|TxMiScu,&ScuPortSEL	; Select timer functions for Rx and Tx pins
 
