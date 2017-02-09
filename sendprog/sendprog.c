@@ -91,12 +91,6 @@ void writeByte(const char* p) {
 }
 #endif
 
-void usage() {
-	fprintf(stderr, "Usage: sendprog <binfile> <comm port name/path> [passwordtype]\n");
-	fprintf(stderr, "Optional passwordtype is 1 (default, for trunk) or 2 (for Rev 61)\n");
-	exit(1);
-}
-
 int main(int argc, char* argv[]) {
 	FILE* f;
 	char c;
@@ -109,12 +103,9 @@ int main(int argc, char* argv[]) {
 	unsigned int sum, checksum, total_len;
 	char lastPassChar = 1;
 
-	if ((argc != 3) && (argc != 4)) {
-		usage();}
-	if (argc == 4) {
-		lastPassChar = (char) atoi(argv[3]);
-		if ((lastPassChar != 1) && (lastPassChar != 2))
-			usage();
+	if (argc != 3) {
+		fprintf(stderr, "Usage: sendprog <binfile> <comm port name/path>\n");
+		exit(1);
 	}
 
 #if LINUX
@@ -244,7 +235,9 @@ int main(int argc, char* argv[]) {
 	/* Write the prefix */
 #define PASSLEN (1+4)
 	char* pfx = "\x1B\x05\x04\x03\x01\x00";	/* ESC 05 04 03 01 */
-	pfx[4] = lastPassChar;
+	if (total_len == 8192)
+		// Only Rev61 images have 8 KiB images, and use a password ending in 02
+		pfx[4] = '\x02';
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
 		usleep(2000+100);					/* Time to transmit byte to CMU, and for it to echo to next CMU */
