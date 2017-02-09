@@ -1,6 +1,7 @@
 /*
  * SendProg: send a program over the BMS serial system to all CMUs
  * Sends main program only
+ * Updated 8/Feb/2017 for trunk password
  */
 
 #define LINUX 0
@@ -20,7 +21,7 @@
 #endif
 
 unsigned int address = 0;
-unsigned int sum;
+unsigned char sum;
 
 unsigned int readHexNibble(FILE* f) {
 	char c = fgetc(f);
@@ -90,6 +91,12 @@ void writeByte(const char* p) {
 }
 #endif
 
+void usage() {
+	fprintf(stderr, "Usage: sendprog <binfile> <comm port name/path> [passwordtype]\n");
+	fprintf(stderr, "Optional passwordtype is 1 (default, for trunk) or 2 (for Rev 61)\n");
+	exit(1);
+}
+
 int main(int argc, char* argv[]) {
 	FILE* f;
 	char c;
@@ -97,14 +104,17 @@ int main(int argc, char* argv[]) {
 	unsigned int add;
 	unsigned int typ;
 	unsigned int u;
-	char progBuf[8192];
-	char* p = progBuf;
+	unsigned char* pBuf;			/* Pointer to program buffer */ 
+	unsigned char* p = NULL;
 	unsigned int sum, checksum, total_len;
+	char lastPassChar = 1;
 
-	if (argc != 3) {
-		fprintf(stderr, "Usage: sendprog <file.hex or file.bin> <comm port name/path>\n");
-		fprintf(stderr, "File extension .hex is case sensitive\n");
-		exit(1);
+	if ((argc != 3) && (argc != 4)) {
+		usage();}
+	if (argc == 4) {
+		lastPassChar = (char) atoi(argv[3]);
+		if ((lastPassChar != 1) && (lastPassChar != 2))
+			usage();
 	}
 
 #if LINUX
@@ -205,91 +215,66 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	}
 
-	memset(progBuf, '\xFF', 8192);
-
-	if (strcmp(argv[1] + strlen(argv[1]) - 4, ".hex") == 0) {
-
-		unsigned int first_addr = (unsigned int) -1;
-		total_len = 0;
-		do {
-			readColon(f);
-			sum = 0;
-			len = readHexByte(f);
-			add = readHexWord(f);
-			typ = readHexByte(f);
-			if (typ == 1)
-				break;
-			if (typ > 0) {
-				fprintf(stderr, "Unexpected record type %X at address %X\n", typ, address);
-				exit(1);
-			}
-			if (add < 0xE000)
-				continue;			/* Repeat the loop, looking for the colon on the next line */
-			if (first_addr == (unsigned int) -1)
-				/* Assume that the first address past E000 is the start of the image */
-				first_addr = add;
-			address = add;
-			p = progBuf + add - first_addr;
-			for (u=0; u < len; ++u) {
-				*p++ = readHexByte(f);
-			}
-			total_len += len;
-			checksum = readHexByte(f);
-			if (sum & 0xFF) {
-				fprintf(stderr, "Bad checksum %X expected %X\n", checksum, 0-(sum-checksum) & 0xFF);
-				exit(1);
-			}
-			address += len;
-		} while (!feof(f));
+	struct stat st;
+	stat(argv[1], &st);
+	total_len = st.st_size;
+	if ((pBuf = malloc(total_len)) == NULL) {
+		fprintf(stderr, "Could not allocate %d bytes for program buffer\n", total_len);
+		exit(2);
 	}
-
-	else /* Assume a binary file */
-	{
-		struct stat st;
-		stat(argv[1], &st);
-		total_len = st.st_size;
-		fread(progBuf, 1, total_len, f);
-	}
+	fread(pBuf, 1, total_len, f);
 	printf("Read %d bytes\n", total_len);
 	fclose(f);
 
-	/* Calculate the checksum, and place at 0xFFFD (first unused interrupt vector, starting at highest address,
-		after reset */
-	sum = 0;
-	for (u=0; u < 0xE00-1; ++u)
-		sum ^= progBuf[u];
-	progBuf[0xE00-1] = sum;		/* Now it will checksum to zero */
+	unsigned short uReset;
+	unsigned int lenToSend, BSLlen;
+	uReset = pBuf[total_len-1]; 
+	uReset = (uReset << 8) + pBuf[total_len-2];
+	if (uReset == 0xFC00)
+		BSLlen = 1024;
+	else
+		BSLlen = 512;
+	lenToSend = total_len - BSLlen;
 
-	/* Now send this image to the CMUs */
+
+	/* Now send this image */
 	{
 	int i, j, k;
 
 	/* Write the prefix */
 #define PASSLEN (1+4)
-	char* pfx = "\x1B\x07\x06\x05\x04\x00";	/* ESC ^G ^F ^E ^D */
+	char* pfx = "\x1B\x05\x04\x03\x01\x00";	/* ESC 05 04 03 01 */
+	pfx[4] = lastPassChar;
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
-		usleep(2000);						/* Time to transmit byte to CMU, and for it to echo to next CMU */
+		usleep(2000+100);					/* Time to transmit byte to CMU, and for it to echo to next CMU */
+											/* Plus 100 us for safety */
 	}
 
-	/* NOTE: We are putting the delay in two positions now, because we have two versions of the BSL. Soon
-		the second delay can go away */
-	/* Allow extra time for bulk erase; approximately 3 characters */
-	usleep(32000);					// But this is ~ 32 chars worth, could likely cut down
-	/* Send the $E00-2 bytes of the binary image */
-//	writeByte(progBuf);						/* Write first byte */
-	/* Allow time for bulk erase; approximately 3 characters */
-	usleep(32000);							/* To be safe, enough for 32 chars */
-	for (u=0; u < 0xE00; ++u) {
+	// Extra 2 second delay in case it's monolith, and it is busy sending data to the PIP inverter
+	usleep(2000000);
+
+    /* Allow time for segment erases (approximately 15 ms per segment) */
+	/* Note that m_len_to_send is sometimes 2 short of the real length, because of the reset vector */
+	/* Be conservative and use 21 ms per segment erase */
+	usleep(1000 * ((((lenToSend + 2) / 512) * 21) +1));
+	
+	/* Send the lenToSend-1 bytes of the binary image */
+	sum = 0;
+	for (u=0; u < lenToSend-1; ++u) {
 		if ((u & 0x7F) == 0x7F)
 		{
 			printf(".");
 			fflush(stdout);
 		}
-		writeByte(progBuf+u);				/* Write byte */
+		writeByte(pBuf+u);					/* Write byte */
+		sum ^= pBuf[u];
     	usleep(3000);						/* Time to transmit, echo, and flash write */
 	}
 	}
+
+	// Finally send the checksum byte in place of the very last byte (just before the BSL)
+	writeByte((char*)&sum);
 
 #if LINUX
 	close(fd);
