@@ -75,7 +75,7 @@ manually almost-overlap the blue blobs where the rotatables connect to the non-r
 remember the new dx and dy figures from the bottom of the window to use in a + command from
 now on. Click in space to deselect all.
 Context menu in space and choose Pour Copper (with Remove isolated islands). Design check. 
-Check for silkscreen on pads and fix any.
+Check for silkscreen on pads and fix any. You may need to move the text "Fyba" to the diagonally opposite position.
 
 
 Replication Procedure (Squiggle-joined CMUs for prismatic cells)
