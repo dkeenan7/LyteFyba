@@ -75,7 +75,7 @@ manually almost-overlap the blue blobs where the rotatables connect to the non-r
 remember the new dx and dy figures from the bottom of the window to use in a + command from
 now on. Click in space to deselect all.
 Context menu in space and choose Pour Copper (with Remove isolated islands). Design check. 
-Check for silkscreen on pads and fix any. You may need to move the text "Fyba" to the diagonally opposite position.
+Check for silkscreen on pads and fix any. Ignore it if "Fyba" is on pads. That will be fixed later.
 
 
 Replication Procedure (Squiggle-joined CMUs for prismatic cells)
@@ -83,10 +83,10 @@ Replication Procedure (Squiggle-joined CMUs for prismatic cells)
 Copy or Save As the .pcb file to a suitable name
 Display only bottom silkscreen and bottom copper layers. 
 Unroute (^U) the blue track segment to the south of R1.
-with the rest of the printed resistor. Select R1 and delete it. Add a new track from the end of the
-printed resistor to the now unconnected via. Ok the warning that this will create one net from Vdd
+Select R1 and delete it. Add a new track from the end of the
+printed resistor up to the now unconnected via. Ok the warning that this will create one net Vdd from Vdd
 and BypR; this is unavoidable. Design rule check should still pass. 
-If necessary, add the *two* new track segments (one is small under the via) to the Rotatables group
+Add the *two* new track segments (one is small under the via) to the Rotatables group
 (select them, use context menu "add to group", choose the "Rotatables" group, uncheck "Tight Group").
 Display top copper as well.
 Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
@@ -100,17 +100,18 @@ Keep the cell-terminal cutouts. Zoom out; leave room below.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
-Click in space to deselect all
+Click in space to deselect all.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
+You may need to move the text "Fyba" to the diagonally opposite position in the copy.
 Now is a good time for a design rule check. We expect only two errors 
-(Track to track errors: RX- and TY-, RX+ and TY+).
+(Track to track errors: RX- and TY-, RX+ and WTY+).
 Make all layers visible, except the two documentation layers and Cutouts text.
 Zoom out; select the two CMUs; deselect board outline and squiggle cutout outlines; copy paste; All No
 Press shift-"+" and enter X = 0 and Y = 92
 Zoom in near the top of the 4 CMUs
 Select around the top squiggle join; delete
 Delete dangling tracks at top and bottom.
-Deselect all; Context menu in space and Pour copper, if necessary.
+Deselect all; Context menu in space and Pour copper.
 Save. Follow the procedure below to generate the manufacturing files.
 
 Isomerisation Procedure (Octagonal CMUs for cylindrical cells)
@@ -148,8 +149,8 @@ Save. Follow the procedure below to generate the manufacturing files.
 
 Generate manufacturing files
 ============================
-Choose Output / Manufacturing Plots; Select the Cutouts Text plot, 
-use Layers tab to turn on "Board outline" for this plot.
+Choose Output / Manufacturing Plots.
+Select the Cutouts Text plot. Use Layers tab to turn on "Board outline" for this plot.
 For OSH Park and PCB Zone use 3:3 metric for gerbers and 3:4 metric for drill files 
 and ensure the outline is not included in any gerber or drill files
 except the gerber generated from the Cutouts text layer.
