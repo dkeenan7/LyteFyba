@@ -652,6 +652,7 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 ;			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc) (Param 27)
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar) (Param 2)
+;			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah; Param 2)
 			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps (Param 11)
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
