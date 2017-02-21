@@ -89,9 +89,9 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-// UV = Under Voltage: One stress unit for each 20 mV below 3.460 V, to a maximum of 15 at <= 3.16 V
-// UV setpoint is 3.32 to 3.30 V. Alarm at 3.24 V. Drop out load contactor at 3.22.
-UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
+// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
+// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
+UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 2 degree C above 33C, to a max of 15 at >= 63degC
 // OT setpoint is ?? to ?? degC. Alarm at 57 degC. Dropout source contactors at 57 degC.
@@ -680,7 +680,8 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc)
 ;			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc)
-			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
+;			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar)
+			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah)
 			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 PipJunkSweep:	DB	6,'PExSh('				; All junk between this and a CR or LF will be ACKed.
