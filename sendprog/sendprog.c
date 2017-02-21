@@ -4,7 +4,7 @@
  * Updated 8/Feb/2017 for trunk password
  */
 
-#define LINUX 0
+#define LINUX 1
 
 /* Usage: sengprog path/to/binary COM16 */
 
@@ -234,7 +234,7 @@ int main(int argc, char* argv[]) {
 
 	/* Write the prefix */
 #define PASSLEN (1+4)
-	char* pfx = "\x1B\x05\x04\x03\x01\x00";	/* ESC 05 04 03 01 */
+	char pfx[6] = "\x1B\x05\x04\x03\x01";	/* ESC 05 04 03 01 */
 	if (total_len == 8192)
 		// Only Rev61 images have 8 KiB images, and use a password ending in 02
 		pfx[4] = '\x02';
