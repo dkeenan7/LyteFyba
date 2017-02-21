@@ -85,9 +85,6 @@ LinkCal		EQU	ramLinkCal
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 
-; Error register. 0 means no error
-#define		rERR	r14					// Overlaps with Rcksum in the BSL, but that is OK
-
 ; The LOCKA bit in FCTL3 was made a *toggle*, for backwards compatibility.
 ; Use these macros to safely clear and set it.
 CLRLOCKA	MACRO
@@ -278,8 +275,8 @@ newChip:
 			; default action if none of the above apply
 				; Data version number is higher or lower than can be handled by this version of TestICal
 				; so we should leave it alone and raise an error.
-				mov		#b'01010101,rERR			; 4 flashes
-				call	ErrorFlash					; Infinite loop, never returns
+				mov		#b'0000000001010101,R8	; 4 flashes
+				br		#jErrorFlash			; Infinite loop, never returns
 			_ENDCASE
 
 
@@ -320,7 +317,6 @@ newChip:
 			bis.b	#TxMiScu,&ScuPortDIR		; Set Tx as output
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 
-			clr		rERR						; Clear the error register
 
 ;
 ; Initialise the ADC10
@@ -397,45 +393,15 @@ compareBSL2:
 			ret
 
 ; ----------------------------------------------------------------------------
-; errorFlash
-; Takes a 16 bit pattern in rERR and repeatedly flashes the error LED in that pattern
-; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
-; This error processing code should be near the middle of the image to allow jmps to it instead of brs.
-ErrorFlash:
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Hold the Watchdog Timer (ReadByte may have reset it)
-			; We could end up here after the DCO calibration has been set to $FFFF,
-			;	so the processor could be running very fast.
-			mov.b	#$8D,&BCSCTL1				; Typical 8 MHz DCO calibration value
-			mov.b	#$81,&DCOCTL				;	so we can count the flashes
-			mov		rERR,R9
-			mov		#16,R10						; Bit loop counter
-			_BEGIN
-				rra		R9						; LSB into carry
-				_IF		_C
-					ErrLedOn
-				_ELSE
-					ErrLedOff
-				_ENDIF
-				_DO		#8,R11					; 8 * 49 = 392 ms delay
-					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
-					_LOOP	R12
-				_LOOP	R11
-				dec		R10
-			_UNTIL	_Z							; Until 16 bits sent
-			jmp		ErrorFlash					; Infinite loop
-
-
-; ----------------------------------------------------------------------------
 ; Inactive copy of bootstrap loader (BSL2b)
 ;---------------------------------------------------------------------------------
 #include "BSL2Macro.s43"					// Include macro for bootstrap-loader and interrupt vectors
 
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 ; Instantiate this copy of the BSL with different external labels from the main copy at $FE00.
-				BSL2MACRO	jBSLb, jBSLEraseb, jReadByteb, jWriteByteb, jBslRevisionb, jWriteBreakb
-;				ORG		jBSLb+$1FE			; The copy of the reset vector
-				ORG		$FFFE-(jBSL-jBSLb)	; The copy of the reset vector
-				DW		jBSL				; Points to BSL2 in last main-flash segment, $FE00
+		BSL2MACRO	jBSLb, jBSLEraseb, jReadByteb, jWriteByteb, jBslRevisionb, jWriteBreakb, jErrorFlashb
+		ORG		$FFFE-(jBSL-jBSLb)	; The copy of the reset vector
+		DW		jBSL				; Points to BSL2 in last main-flash segments
 
 ; Some calculations so we can see how much space we have left, by reading the listing.
 freespace		EQU		_CMDCHRTBL-$	; From here to the start of the command character table

@@ -276,8 +276,8 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
 			_IF    _NE
-				mov		#b'01010000,rERR		; 2 flashes
-				call	#ErrorFlash				; Infinite loop, never returns
+				mov	#b'0000000000000101,R8	; 2 flashes
+				br		#jErrorFlash		; Infinite loop, never returns
 			_ENDIF
 			ret
 
@@ -301,6 +301,9 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			; Erase last segments of main flash (usually contain BSL2).
 			mov		#jBSL,R12				; Start of BSL2 image, $FE00 or $FC00 or ...
 			mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
+
+			push	SR						; Save the interrupt state
+			dint							; Disable interrupts while the interrupt vectors are erased
 			_BEGIN
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
@@ -313,6 +316,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				mov		jBSLb-jBSL(R12),0(R12)		; Program word
 				incd	R12
 			_UNTIL	_NN						; Will wrap to 0 after writing last word
+			pop		SR						; Restore the interrupt state
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3 		; Set LOCK
@@ -323,8 +327,8 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			_IF		_EQ						; If it was successful
 				br		#jBSL					; Start the new BSL. Effectively a software reset.
 			_ELSE							; Else
-				mov	#b'01010100,rERR			; 3 flashes
-				br		#ErrorFlash				; Infinite loop flashing error LED
+				mov	#b'0000000000010101,R8	; 3 flashes
+				br		#jErrorFlash		; Infinite loop flashing error LED
 			_ENDIF							; Endif
 			; Can't ret because then TestICal may return to the wrong place in a changed BSL.
 
