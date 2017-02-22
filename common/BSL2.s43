@@ -119,11 +119,13 @@ BSL:		; Initialisation
 
 	_BEGIN					; Main loop
 		; Log the reason for the reset, as the contents of IFG1.
-		; $08 = RST pin (break), $4 = power on, $2 = osc fault (not a reset), $1 = watchdog,
-		; $0 = bad flash key, SFR instruction fetch or JTAG reset.
+		; $08 = RST pin (break), $04 = power on, $02 = osc fault (not a reset), $01 = watchdog,
+		; $00 = bad flash key, SFR instruction fetch or JTAG reset.
 		; Some MSP430 devices also have $80 = USART TX interrupt flag, $40 = USART RX interrupt flag,
 		; but not the G2553. Also $10 is NMIIFG, but we don't enable NMI.
-BSLFG	EQU		$20				; We use this spare bit in IFG1 to indicate a bootstrap-load "reset".
+		; Don't be tempted to use the apparently-unused bit with mask $20. Strange things happen.
+		; Instead we use the combination of the RST-pin and Vcc-power-on bits for a BSL "reset".
+BSLFG	EQU		$0C				; Use these two bits in IFG1 to indicate a bootstrap-load "reset".
 
 		mov		&resetCounter,R8
 		and		#$0F,R8
@@ -391,29 +393,34 @@ BslRevision:
 
 ; ----------------------------------------------------------------------------
 ; ErrorFlash
-; Takes a 16 bit pattern in R8 and repeatedly flashes the error LED in that pattern
-; at 0.4 seconds per bit, LSbit first. It never returns -- infinite loop.
+; Takes a 16 bit pattern in R8 and repeatedly flashes the error LED in that pattern, MSbit first,
+; preceded by an ON start bit -- a 17 bit cycle, at 0.2 seconds per bit.
+; It never returns -- infinite loop.
 ErrorFlash:
 		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Hold the Watchdog Timer (ReadByte may have reset it)
 		; We could end up here after the DCO calibration has been set to $FFFF,
 		;	so the processor could be running very fast.
 		mov.b	#XT2OFF | DIVA_3 | $A, &BCSCTL1 ; Keep watch crystal ACLK working and guess DCO range and
-		mov.b	#$80,&DCOCTL					; DCO step and modulation for 3.6864 MHz
+		mov.b	#$80,&DCOCTL					; approximate DCO step and modulation for 3.6864 MHz
 		_BEGIN
-		mov		#16,R10						; Bit loop counter
+		setc								; Set carry so we always have an ON start bit
+		mov		#17,R10						; Set bit loop counter to 17
 			_BEGIN
-				rra		R8						; LSB into carry
 				_IF		_C
 					ErrLedOn
 				_ELSE
 					ErrLedOff
 				_ENDIF
-				_DO		#8,R11					; 8 * 49 = 392 ms delay
-					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
+				_DO		#4,R11					; 4 * 53 = 212 ms delay
+					_DO		#0,R12				; 65536 * 3 / 3.6864 MHz = 53 ms delay
 					_LOOP	R12
 				_LOOP	R11
+				rlc		R8						; Carry into LSB, MSB into carry
 				dec		R10
-			_UNTIL	_Z							; Until 16 bits sent
+			_UNTIL	_Z						; Until R8 is back how it was
+			; ErrLedOff						; Uncomment for caveman debugging
+			; mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Uncomment for caveman debugging
+			; ret							; Uncomment for caveman debugging
 		_AGAIN					; Infinite loop
 
 
