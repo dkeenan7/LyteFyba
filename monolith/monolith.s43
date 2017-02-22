@@ -1333,7 +1333,13 @@ DoPrecharge:
 		mov		#160,R8						; 160 milliseconds (to allow for GX14 or EV200)
 		call	#DelayMs					; Wait for economiser to reduce coil current
 
-		bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
+		; We may have come here after a bootstrap-load, with all contactors (except precharge) still on.
+		; We should only turn on the precharge contactor if the positive contactor isn't already on,
+		; because otherwise it may put too much load on the power supply and shut down the Monolith.
+		bit.b	#BatPosCtor,&CtorPortOUT	; Check the positive contactor
+		_IF		_Z							; If the positive contactor is off
+			bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
+		_ENDIF
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
@@ -1351,11 +1357,11 @@ DoPrecharge:
 				mov		#1,Rtos						; Fall thru to here on timeout
 				call	#_errorLed					; We who are about to die beep at you
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
-				bic.b	#BatNegCtor,&CtorPortOUT 	; Turn off the batttery negative contactor
+				bic.b	#BatNegCtor,&CtorPortOUT 	; Turn off the battery negative contactor
 				br		#Halt						; Endless loop, but check for BSL password
 			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
-				bis.b	#BatPosCtor,&CtorPortOUT	; Turn on the lower discharge-direction contactor
+				bis.b	#BatPosCtor,&CtorPortOUT	; Turn on the battery positive contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power

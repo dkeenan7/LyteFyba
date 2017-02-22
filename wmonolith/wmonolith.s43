@@ -74,7 +74,7 @@ UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62 degC
 // OT setpoint is 46 to 48 degC. Alarm at 56 degC. Dropout bat contactors at 62 degC.
-OT_ZERO		EQU		32			; Threshold in degrees C between OT stress levels -1 and 0
+OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6 degC
 // UT setpoint is 10 to 8 degC. Alarm at 0 degC. Bat contactor dropout at -6 degC.
@@ -1183,7 +1183,13 @@ DoPrecharge:
 		mov		#160,R8						; 160 milliseconds
 		call	#DelayMs					; Wait for economiser to reduce coil current
 
-		bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor (probably Minitactor)
+		; We may have come here after a bootstrap-load, with all contactors (except precharge) still on.
+		; We should only turn on the precharge contactor if the positive contactor isn't already on,
+		; because otherwise it may put too much load on the power supply and shut down the Monolith.
+		bit.b	#BatPosCtor,&CtorPortOUT	; Check the positive contactor
+		_IF		_Z							; If the positive contactor is off
+			bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
+		_ENDIF
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
@@ -1195,7 +1201,7 @@ DoPrecharge:
 			sub		R8,R10						; R10 = BatV - CapV
 			abs		R10							; R10 = Abs(BatV - CapV), allow for CapV > BatV
 			cmp		#6*10,R10
-			_WHILE	_HS							; Wait for less than 5 V across contactor
+			_WHILE	_HS							; Wait for less than 6 V across contactor
 				dec		R12
 		_UNTIL	_Z
 				mov		#1,Rtos						; Fall thru to here on timeout
@@ -1209,11 +1215,13 @@ DoPrecharge:
 				bis.b	#BatPosCtor,&CtorPortOUT ; Turn on the lower discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for economiser to reduce coil current
+				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
+				mov		#160,R8						; 160 milliseconds
+				call	#DelayMs					; Wait for pre-charge to come off
 				bis.b	#AcLfPvCtor,&CtorPortOUT ; Turn on the upper discharge-direction contactor
 				mov		#160,R8						; 160 milliseconds
 				call	#DelayMs					; Wait for relay bounce and voltage settling
 			_ENDIF
-		bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save power
 		ret
 
 
