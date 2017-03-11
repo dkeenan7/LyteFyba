@@ -40,7 +40,7 @@ it does.
 
 To recreate the Rotatables group:
 
-* Delete any previous Rotatables group. Do this by double clicking on the old group name
+* Ungroup any previous Rotatables group. Do this by double clicking on the old group name
 to highlight the elements, right click on one, and choose Group / Ungroup. The group name
 should disappear from the interaction bar.
 * Show all layers except Top and Bottom Documentation, and Cutouts text.
@@ -54,7 +54,7 @@ grid.
 connected sections of track).
 * Add thee red sections of track near the crystal to the selection.
 * Add the printed bypass resistor to the selection by Ctrl-ShiftClick (may need clicking twice).
-* Remove the board outline from the selection but keep the oval holes. Ctrl-Shift-Clicking is
+* Remove the board outline from the selection but keep the terminal holes. Ctrl-Shift-Clicking is
 useful here.
 * From the top silkscreen, deselect any horizontal text except component designators.
 * Leave the plus and minus signs selected.
@@ -67,7 +67,7 @@ and give the group the name "Rotatables"
 Rotation Procedure
 ==================
 Ensure all layers are visible, except the two documentation layers and Cutouts text.
-Click in space to deselect all. Context menu in space and choose Clear Copper if possible.
+Click in space to deselect all. Context menu in space and choose Clear Copper if it's available.
 Select SG1, e.g. by clicking on one of its pads. 
 Context menu on SG1 and choose Group / Select Group. Press R twice.
 If the above doesn't work because it no longer rotates about the origin, then
@@ -94,23 +94,24 @@ Pour all copper (with Remove isolated islands). Design check.
 Zoom out.
 Apply the above rotation procedure.  Clear all copper pours.
 Ensure all layers are visible, except the two documentation layers and Cutouts text layer.
-Frame select the whole CMU including the squiggle-join cutouts above, but not below.
-Deselect board outline and squiggle-join cutout outlines above and below by Ctrl-Shift-clicks. 
-Keep the cell-terminal cutouts. Zoom out; leave room below.
+Frame select the whole CMU.
+Use Ctrl-Shift-clicks to deselect CMU outlines, fill-in outlines, tabs and tooling hole. 
+Keep the cell-terminal cutouts selected. Zoom out; leave room below.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
-Press shift-"+" and enter 0 into the X field and -46 into the Y field. OK
+Press shift-"+" and enter -85.5 into the X field and 21 into the Y field. OK
 Click in space to deselect all.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
+Change "CMU-A" to "CMU-B" on the copy.
 You may need to move the text "Fyba" to the diagonally opposite position in the copy.
-Now is a good time for a design rule check. We expect only two errors 
-(Track to track errors: RX- and TY-, RX+ and WTY+).
+Now is a good time for a design rule check. We expect zero errors.
+Also check that no parts have had their designators changed. 
+They should be displaying Name values rather than component names.
+Now is also a good time to generate the pick and place file.
 Make all layers visible, except the two documentation layers and Cutouts text.
-Zoom out; select the two CMUs; deselect board outline and squiggle cutout outlines; copy paste; All No
-Press shift-"+" and enter X = 0 and Y = 92
-Zoom in near the top of the 4 CMUs
-Select around the top squiggle join; delete
-Delete dangling tracks at top and bottom.
+Zoom out; select the two CMUs; deselect board outline and tabs; copy paste; All No
+Press shift-"+" and enter X = 0 and Y = 42.8
+Repeat until all CMU outlines contain CMUs.
 Deselect all; Context menu in space and Pour copper.
 Save. Follow the procedure below to generate the manufacturing files.
 
