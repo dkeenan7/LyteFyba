@@ -78,41 +78,43 @@ Context menu in space and choose Pour Copper (with Remove isolated islands). Des
 Check for silkscreen on pads and fix any. Ignore it if "Fyba" is on pads. That will be fixed later.
 
 
-Replication Procedure (Squiggle-joined CMUs for prismatic cells)
+Replication Procedure (Panel of 12 CMUs for prismatic cells)
 ================================================================
 Copy or Save As the .pcb file to a suitable name
 Display only bottom silkscreen and bottom copper layers. 
 Unroute (^U) the blue track segment to the south of R1.
-Select R1 and delete it. Add a new track from the end of the
-printed resistor up to the now unconnected via. Ok the warning that this will create one net Vdd from Vdd
+Select R1 and delete it. Add a new track starting from the end of the printed resistor
+and going up to the now unconnected via. Ok the warning that this will create one net Vdd from Vdd
 and BypR; this is unavoidable. Design rule check should still pass. 
-Add the *two* new track segments (one is small under the via) to the Rotatables group
-(select them, use context menu "add to group", choose the "Rotatables" group, uncheck "Tight Group").
+If necessary, add the *two* new track segments (one is small under the via) to the Rotatables group
+(select them, use context menu "Add to group", choose the "Rotatables" group, uncheck "Tight Group").
+If "Add to group" is not available they may have been automatically added to the group.
+Check this when you perform the rotation later.
 Display top copper as well.
-Ensure all copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
-Pour all copper (with Remove isolated islands). Design check.
+Ensure all 7 copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
+Pour all copper (with Remove isolated islands). Design check. Clear all copper pours.
 Zoom out.
-Apply the above rotation procedure.  Clear all copper pours.
+Apply the above rotation procedure.
 Ensure all layers are visible, except the two documentation layers and Cutouts text layer.
 Frame select the whole CMU.
 Use Ctrl-Shift-clicks to deselect CMU outlines, fill-in outlines, tabs and tooling hole. 
-Keep the cell-terminal cutouts selected. Zoom out; leave room below.
+Keep the cell-terminal cutouts selected. Zoom out, leaving room to the left.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
 Press shift-"+" and enter -85.5 into the X field and 21 into the Y field. OK
 Click in space to deselect all.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
-Change "CMU-A" to "CMU-B" on the copy.
+Change "CMU-A" to "CMU-B" in the copy.
 You may need to move the text "Fyba" to the diagonally opposite position in the copy.
 Now is a good time for a design rule check. We expect zero errors.
-Also check that no parts have had their designators changed. 
+Also check that no parts on the copy have had their designators changed. 
 They should be displaying Name values rather than component names.
 Now is also a good time to generate the pick and place file.
-Make all layers visible, except the two documentation layers and Cutouts text.
-Zoom out; select the two CMUs; deselect board outline and tabs; copy paste; All No
-Press shift-"+" and enter X = 0 and Y = 42.8
-Repeat until all CMU outlines contain CMUs.
-Deselect all; Context menu in space and Pour copper.
+Make all layers visible except the two Doc layers and Cutouts text. Clear copper pours. Zoom out. 
+Select the two CMUs. Deselect board outline, tabs, tooling holes and fiducial. 
+Copy and paste. All No. Press shift-"+" and enter X = 0 and Y = 42.8. OK.
+Repeat the above 4 more times, substituting the following values for Y. 85.6, 128.4, 171.2, 214.
+Deselect all. Pour copper.
 Save. Follow the procedure below to generate the manufacturing files.
 
 Isomerisation Procedure (Octagonal CMUs for cylindrical cells)
@@ -161,9 +163,11 @@ For OSH Park, generate a single (combined plated and non-plated) drill file.
 OSH Park use the presence of copper under the drill to distinguish plated from non-plated.
 For PCB Zone, generate separate plated and non-plated drill files.
 To change this see the Output tab of the Drill Data plot and use the Device Setup button.
+Check that the two Paste gerbers contain only their appropriate Paste layer.
 
 Don't send any bottom silkscreen gerber to the manufacturer. 
 It only contains thru-hole part outlines that we didn't want in the top silkscreen.
+And we don't need a Bottom paste mask either. It should be empty.
 
 Reasons for using lowercase letters after component designator numbers
 ======================================================================
