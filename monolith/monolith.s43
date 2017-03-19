@@ -597,7 +597,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 				_ENDIF
 
-			ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
+				ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
 
 			_AGAIN
 ; End of main loop
