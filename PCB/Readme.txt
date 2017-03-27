@@ -97,7 +97,7 @@ Zoom out.
 Apply the above rotation procedure.
 Ensure all layers are visible, except the two documentation layers and Cutouts text layer.
 Frame select the whole CMU.
-Use Ctrl-Shift-clicks to deselect CMU outlines, fill-in outlines, tabs and tooling hole. 
+Use Ctrl-Shift-clicks to deselect outlines of CMUs, fill-ins, tabs and tooling hole. 
 Keep the cell-terminal cutouts selected. Zoom out, leaving room to the left.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
