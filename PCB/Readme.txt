@@ -82,7 +82,7 @@ Replication Procedure (Panel of 12 CMUs for prismatic cells)
 ================================================================
 Copy or Save As the .pcb file to a suitable name
 Display only bottom silkscreen and bottom copper layers. 
-Unroute (^U) the blue track segment to the south of R1.
+Unroute (^U) the blue track segment immediately to the to the left of the south pad of R1.
 Select R1 and delete it. Add a new track starting from the end of the printed resistor
 and going up to the now unconnected via. Ok the warning that this will create one net Vdd from Vdd
 and BypR; this is unavoidable. Design rule check should still pass. 
@@ -91,7 +91,7 @@ If necessary, add the *two* new track segments (one is small under the via) to t
 If "Add to group" is not available they may have been automatically added to the group.
 Check this when you perform the rotation later.
 Display top copper as well.
-Ensure all 7 copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
+Ensure the 6 or 7 copper pours have their outline width set to the minimum track width e.g. 0.2 mm. 
 Pour all copper (with Remove isolated islands). Design check. Clear all copper pours.
 Zoom out.
 Apply the above rotation procedure.
