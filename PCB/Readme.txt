@@ -101,7 +101,7 @@ Use Ctrl-Shift-clicks to deselect outlines of CMUs, fill-ins, tabs and tooling h
 Keep the cell-terminal cutouts selected. Zoom out, leaving room to the left.
 Copy and Paste.
 When the Paste Net dialog comes up, select All No
-Press shift-"+" and enter -85.5 into the X field and 21 into the Y field. OK
+Press shift-"+" and enter -85.5 into the X field and 21 into the Y field (-83.5 and 21 for the MidCMU). OK.
 Click in space to deselect all.
 Apply the rotation procedure again, to the original CMU only, to return it to normal.
 Change "CMU-A" to "CMU-B" in the copy.
@@ -112,8 +112,8 @@ They should be displaying Name values rather than component names.
 Now is also a good time to generate the pick and place file.
 Make all layers visible except the two Doc layers and Cutouts text. Clear copper pours. Zoom out. 
 Select the two CMUs. Deselect board outline, tabs, tooling holes and fiducial. 
-Copy and paste. All No. Press shift-"+" and enter X = 0 and Y = 42.8. OK.
-Repeat the above 4 more times, substituting the following values for Y. 85.6, 128.4, 171.2, 214.
+Copy and paste. All No. Press shift-"+" and enter X = 0 and Y = 42.8 (0 and 42 for the MidCMU). OK.
+Repeat the above 4 more times, substituting the following values for Y. 85.6, 128.4, 171.2, 214 (84, 126, 168, 210 for the MidCMU).
 Deselect all. Pour copper.
 Save. Follow the procedure below to generate the manufacturing files.
 
