@@ -141,3 +141,24 @@ abs			MACRO	dest
 				inc		dest
 			_ENDIF
 			ENDM
+
+neg			MACRO	dest
+			inv		dest
+			inc		dest
+			ENDM
+
+rra8_l		MACRO	hi,lo
+			swpb	hi
+			swpb	lo
+			xor.b	hi,lo
+			xor.w	hi,lo
+			mov.b	hi,hi
+			ENDM
+
+rla8_l		MACRO	hi,lo
+			xor.b	lo,hi
+			xor.w	lo,hi
+			swpb	hi
+			mov.b	lo,lo
+			swpb	lo
+			ENDM

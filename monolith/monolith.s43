@@ -222,7 +222,7 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
-battVoltShifted	DS		4			; Low pass filtered battery voltage shifted left 8 bits
+batVoltShifted	DS		4			; Low pass filtered battery voltage shifted left 8 bits
 restedCounter	DS		2			; Counter of how many measurements the battery qualifies as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
@@ -524,6 +524,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
+			mov		#(3300*256) >> 8,&batVoltShifted+2	; Initialise the battery voltage
+			mov		#(3300*256) & 0xFF,&batVoltShifted	;	low pass filter to 3300 mV per cell
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Do precharge and get the main contactor on, so we stay powered up
@@ -698,93 +700,143 @@ DoMeasurement:
 
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
-			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
-				; Estimate OCV by subtracting current times internal resistance from measured voltage.
-				; Shunt must be wired so charge current is positive and discharge current is negative.
-				push	R10						; Save the cell voltage measurement
+			cmp.b	#255,&ID				; If we're a BMU
+			_IF		_EQ
+				; Multiply by 100/16 to bring the total battery voltage in tenths of a volt to
+				;	average cell millivolts. This is to let us use the same IR copensating code that
+				;	the CMUs already use.
+				; Use shifts and adds to multiply by 25, then divide by 4 at the end. 25 = 16+8+1
+				mov		R10,R8					; R8 = 1x
+				rla3	R8						; R8 = 8x
+				add		R8,R10					; R10 = 9x
+				rla		R8						; R8 = 16x
+				add		R8,R10					; R10 = 25x
+				mov		R10,R8					; Copy to R8
+				rra2	R10						; R10 = 6.25x
+				and		#2,R8					; Check if rounding needed
+				_IF		_NZ
+					inc		R10						; Round up
+				_ENDIF
+			_ENDIF
+			; Estimate OCV by subtracting current times internal resistance from measured voltage.
+			; Shunt must be wired so charge current is positive and discharge current is negative.
+			push	R10						; Save the cell voltage measurement
 
-				; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
-				; so the high 16 bits of the result is the voltage in millivolts, while ensuring
-				; that the scaled current and resistance do not overflow unsigned 16 bits.
-				; Also, we want to limit the scaling of the current to binary-shifts since it
-				; must be done at runtime, while the scaling of resistance can be more complicated
-				; since it can be done at assembly time.
-				; We will scale current by >>3 to 1/80ths of an amp, so overflow is at 819.2 A.
+			; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
+			; so the high 16 bits of the result is the voltage in millivolts, while ensuring
+			; that the scaled current and resistance do not overflow unsigned 16 bits.
+			; Also, we want to limit the scaling of the current to binary-shifts since it
+			; must be done at runtime, while the scaling of resistance can be more complicated
+			; since it can be done at assembly time.
+			; We will scale current by >>3 to 1/80ths of an amp, so overflow is at 819.2 A.
 
-				; Get the scaled cell internal resistance into R8.
-				; Given that we want the result to be in 1/65536ths of a millivolt, we need to scale
-				; resistance to 1/(65536/80) = 1/819.2ths of a milliohm
-				; We rely on the fact that the assembler performs 32 bit calculations.
-				; HiTempCellRes is in micro-ohms.
-				; The +5000 is for correct rounding of the truncating division by 10000.
-				mov		&infoCellRes,R10
-				clr		R9
-				REPT	3
-					rra		R10
-					rrc		R9
-				ENDR
-				add		#5000,R9
-				adc		R10
-				mov		#10000,R8
-				call	#UMSlashMod
-				mov 	R9,R8
-				; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
+			; Get the scaled cell internal resistance into R8.
+			; Given that we want the result to be in 1/65536ths of a millivolt, we need to scale
+			; resistance to 1/(65536/80) = 1/819.2ths of a milliohm
+			; We rely on the fact that the assembler performs 32 bit calculations.
+			; HiTempCellRes is in micro-ohms.
+			; The +5000 is for correct rounding of the truncating division by 10000.
+			mov		&infoCellRes,R10
+			clr		R9
+			REPT	3
+				rra		R10
+				rrc		R9
+			ENDR
+			add		#5000,R9
+			adc		R10
+			mov		#10000,R8
+			call	#UMSlashMod
+			mov 	R9,R8
+			; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
 
-				; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
-				; So the temperature-dependent component doubles for every 10 degC drop in temperature.
-				; Assume that the "HiTempCellRes" constant is the fixed or high-temperature component,
-				; and that, at 10 degC, the temp-dependent component is equal to the fixed component.
-				; So the cell resistance at a given temperature is estimated as
-				; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
+			; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
+			; So the temperature-dependent component doubles for every 10 degC drop in temperature.
+			; Assume that the "HiTempCellRes" constant is the fixed or high-temperature component,
+			; and that, at 10 degC, the temp-dependent component is equal to the fixed component.
+			; So the cell resistance at a given temperature is estimated as
+			; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
 
-				; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
-				add		#4,R9
-				rra3	R9
+			; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
+			add		#4,R9
+			rra3	R9
 
-				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
-				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
-				mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
-				_BEGIN
-					cmp		&temperature,R11
-				_WHILE	_GE						; While loop counter >= temperature
-					mov		R9,R10					; Multiply resistance by 1.5
-					rra		R10
-					add		R10,R9
-					sub		#6,R11					; Decrement loop counter by 6 degC
-				_REPEAT
-				add		R9,R8					; Add the temperature-dependent part to the fixed part
+			; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
+			; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
+			mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
+			_BEGIN
+				cmp		&temperature,R11
+			_WHILE	_GE						; While loop counter >= temperature
+				mov		R9,R10					; Multiply resistance by 1.5
+				rra		R10
+				add		R10,R9
+				sub		#6,R11					; Decrement loop counter by 6 degC
+			_REPEAT
+			add		R9,R8					; Add the temperature-dependent part to the fixed part
 
-				; Get the scaled absolute value of the current into R9
-				mov		&current,R9				; Current is in tenths of an amp
-				abs		R9
-				rla3	R9						; Now in 1/80ths of an amp, so overflow is at 819.2 A
+			; Get the scaled absolute value of the current into R9
+			mov		&current,R9				; Current is in tenths of an amp
+			abs		R9
+			rla3	R9						; Now in 1/80ths of an amp, so overflow is at 819.2 A
 
-				; Multiply cell resistance and current, and subtract from measured cell voltage
-				ClearWatchdog
-				call	#UMStar					; R10:R9 = R8 * R9, resistance * current, clears R11
-				mov		R10,R9					; Use only the high word of the result, put into R9
-				pop		R10						; Restore the cell voltage measurement to R10
-				tst		&current
-				_IF		_NN						; If current is not negative (i.e. if charging)
-					sub		R9,R10					; OCV is lower than measured, when charging
-				_ELSE							; Else discharging
-					add		R9,R10					; OCV is higher than measured, when discharging
-				_ENDIF							; Endif
-			_ELSE
-				; BMU. Check for low rested battery voltage and update of SOC
+			; Multiply cell resistance and current, and subtract from measured cell voltage
+			ClearWatchdog
+			call	#UMStar					; R10:R9 = R8 * R9, resistance * current, clears R11
+			mov		R10,R9					; Use only the high word of the result, put into R9
+			pop		R10						; Restore the cell voltage measurement to R10
+			tst		&current
+			_IF		_NN						; If current is not negative (i.e. if charging)
+				sub		R9,R10					; OCV is lower than measured, when charging
+			_ELSE							; Else discharging
+				add		R9,R10					; OCV is higher than measured, when discharging
+			_ENDIF							; Endif
+
+			cmp.b	#255,&ID				; If a BMU
+			_IF		_EQ
+				; Check for low rested battery voltage and update of SOC
 				; First calculate the smoothed battery votage.
 				; Use (255/256) * old + (1/256) * new
 				; = (old << 8 - old + new) >> 8
-				; Label battVoltShifted as 0HML (Zero High Middle Low bytes)
-				mov			&battVoltShifted+2,R9; Get upper word 0H
-				swpb		R9					; Move to upper byte of R9; R9 = H0
-				mov.b		&battVoltShifted+1,R11	; Upper byte of lower word  R11 = 0M
-				bis			R9,R11				; R11 has old value = HM = 0HML >> 8
-				sub			R11,&battVoltShifted ; Ram -= old
-				sbc			&battVoltShifted+2
-				add			R10,&battVoltShifted ; Ram += new
-				adc			&battVoltShifted+2
+				; Label batVoltShifted as 0HML (Zero High Middle Low bytes)
+				mov			&batVoltShifted+2,R9; Get upper word 0H
+				mov			&batVoltShifted  ,R8; Get lower word ML
+				rra8_l		R9,R8				; Shift right 8 bits with tricky macro
+				sub			R8,&batVoltShifted	; Ram -= old
+				sbc			&batVoltShifted+2
+				add			R10,&batVoltShifted ; Ram += new
+				adc			&batVoltShifted+2
+				; Check if battery current is "rested"
+				_COND
+					cmp			#20,&current		; No more than 2.0 A
+				_AND_IF		_L
+					mov			&infoCapacity,R8
+					rra4		R8					; C/16 in tenths of an amp
+					neg			R8
+					cmp			R8, &current
+				_AND_IF		_GE					; No less than -C/16
+					mov			&batVoltShifted+2,R9; Get upper word 0H
+					mov			&batVoltShifted  ,R8; Get lower word ML
+					rra8_l		R9,R8
+					cmp			#521,R8
+				_AND_IF		_L					; <= 52.0 V smoothed
+					cmp			#10*60*2,&restedCounter
+					_IF			_HS				; If counter >= 10 minutes
+						; Calculate a new SOC based on the rested smoothed battery voltage that hasn't
+						;	been charging for 10 minutes
+						; Use SOC = (V-3.15)*300%
+						sub		#3150,R8			; R8 = smoothed battery voltage - 3.150 V
+						; Result is 0-100 representing 0-30% SOC
+						; So the units are 0.30%. Multiply by 3 to bring to tenths of a percent.
+						mov		R8,R9				; R9 = 1x
+						rra		R8					; R8 = 2x
+						add		R8,R9				; R9 = 3x
+						call	#SOCtoDisch			; Convert to discharge
+						mov		R10,&discharge		; Update estimated discharge value
+						mov		R9,&discharge
+					_ENDIF
+				_ELSE
+					clr			&restedCounter
+				_ENDIF
+
 			_ENDIF	; not BMU
 
 			; Set bypass as required

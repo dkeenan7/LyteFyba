@@ -850,11 +850,35 @@ DepthOfDischarge:
 		br		#UMSlashMod			; R9 = R10:R9 / R8 and return
 		;ret
 
+; Opposite to the above
+; Convert SOC (tenths of a %) to dischare value
+; disch = (1000 - SOC) * 7.2 * capacity (SOC in tenths of %, capacity in tenths of Ah, result in
+;	1/72 mAh.
+; Pass SOC in R9, result in R10:R9
+; Trashes R8-R11
+SOCtoDisch:
+		mov		#1000, R8
+		sub		R9, R8				; R8 = 1000-R9
+		mov		#1843,R9			; Use 1843/256 = 7.199
+		call	UMStar				; R10:R9 = R9 * R8
+		swpb	R9
+		mov.b	R9,R9
+		mov		&infoCapacity,R8
+		br		#UMStar
+		;ret
+
 
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
 		; Only IMUs care about this, but no harm if CMUs do it too
 		clr		&discharge				; Clear low word of discharge accumulator
 		clr		&discharge+2			; Clear high word of discharge accumulator
+		ret
+
+		xCODE	'F',forceFuelGauge,_forceFuelGauge
+		mov		Rtos,R9
+		call	SOCtoDisch
+		mov		R10,&discharge
+		mov		R9,&discharge+2
 		ret
 
 #if 0
@@ -871,9 +895,9 @@ DepthOfDischarge:
 #else
 		; DELETEME!
 		xCODE	'a',setFuelGauge,_setFuelGauge
-		mov		&battVoltShifted+2, R9; Get upper word 0H
+		mov		&batVoltShifted+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
-		mov.b	&battVoltShifted, R8; Upper byte of lower word  R8 = 0M
+		mov.b	&batVoltShifted+1,R8; Upper byte of lower word  R8 = 0M
 		bis		R9, R8				; R8 has old value = HM = 0HML >> 8
 		mov		R8, Rsec
 		mov		#'a',Rthd			; Type is s for 'a command
