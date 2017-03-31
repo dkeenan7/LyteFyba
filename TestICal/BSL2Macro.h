@@ -6,7 +6,7 @@
 
 BSL2MACRO	MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision, jWriteBreak, jErrorFlash
 	LOCAL	BSL, BSLErase, ReadByte, WriteByte, BslRevision
-	LOCAL	MckPerFTGck, TestNoInterp2, WriteBreak, ErrorFlash
+	LOCAL	MckPerFTGck, TestNoInterp2, WriteBreak, ErrorFlash, WriteScuByte
 	LOCAL	freeSpaceBSL2, BSL2presence, BSL2checksum
 	LOCAL	ScuBaudRate, ScuBitCycles, ScuBitCyc1_5, TA0FllIsr, BSLFG
 

@@ -325,6 +325,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			;
 			call	#compareBSL2			; Compare the payload copy with what's at $FC00
 			_IF		_EQ						; If it was successful
+				mov.b	#BSLFG,&IFG1			; Clear the watchdog flag, and indicate a BSL "reset"
 				br		#jBSL					; Start the new BSL. Effectively a software reset.
 			_ELSE							; Else
 				mov	#b'0000000000010101,R8	; 3 flashes

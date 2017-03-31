@@ -31,6 +31,7 @@ ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Assembler macros for obscure instruction sequences
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
+			LSTOUT+
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their RAM counterparts instead of info-flash
@@ -221,6 +222,8 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
+battVoltShifted	DS		4			; Low pass filtered battery voltage shifted left 8 bits
+restedCounter	DS		2			; Counter of how many measurements the battery qualifies as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
 smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
@@ -768,6 +771,25 @@ DoMeasurement:
 				_ELSE							; Else discharging
 					add		R9,R10					; OCV is higher than measured, when discharging
 				_ENDIF							; Endif
+			_ELSE
+				; BMU. Check for low rested battery voltage and update of SOC
+				; First calculate the smoothed battery votage.
+				; Use (255/256) * old + (1/256) * new
+				; = (old << 8 - old + new) >> 8
+				mov			&battVoltShifted+2,R9; Get upper word 0H
+				swpb		R9					; Move to upper byte of R9; R9 = H0
+				mov.b		&battVoltShifted,R8	; Upper byte of lower word  R8 = 0M
+				bis			R9,R8				; R8 has old value = HM = 0HML >> 8
+				inv			R8					; Negate R8
+				inc			R8
+				swpb		R9					; Restore R9 to 0H
+				; Want R9R8 = 0HML - HM = old<<8 - old
+				add			&battVoltShifted,R8 ; R9R8 has old<<8 - old
+				addc		#-1,R9				;
+				add			R10,R8				; R9R8 = old<<8 - old + new
+				adc			R9
+				mov			R9,&battVoltShifted+2 ; Save new shifted value
+				mov			R8,&battVoltShifted
 			_ENDIF	; not BMU
 
 			; Set bypass as required

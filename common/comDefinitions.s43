@@ -136,7 +136,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; ? GetByte - get a byte (NOT to stack) and display it ( addr -- )
 ;
 			xCODE	'?',GetByte,_GetByte
-			mov.b	#' ',Rthd
+			mov.b	#'?',Rthd
 			mov.b	@Rtos,Rsec
 ;			mov		#3,Rtos
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits
@@ -868,6 +868,17 @@ DepthOfDischarge:
 		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
 		call	#UpdateSoC					; For monolith only: update variable for SoC meter
 		ret
+#else
+		; DELETEME!
+		xCODE	'a',setFuelGauge,_setFuelGauge
+		mov		&battVoltShifted+2, R9; Get upper word 0H
+		swpb	R9					; Move to upper byte of R9; R9 = H0
+		mov.b	&battVoltShifted, R8; Upper byte of lower word  R8 = 0M
+		bis		R9, R8				; R8 has old value = HM = 0HML >> 8
+		mov		R8, Rsec
+		mov		#'a',Rthd			; Type is s for 'a command
+		mov		#4,Rtos				; Use 4 digits
+		call	#_prettyPrint		; Call pretty-print
 #endif
 
 #if 0

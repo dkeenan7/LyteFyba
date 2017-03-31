@@ -322,7 +322,7 @@ ReadByte:
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 		mov.b	&UCA0RXBUF,R8		; Return the received byte
 	_ELSE						; Else we're a BMU
-		; Wait for a byte from the SCU port -- Uses bit banging with timed busy-wait loops
+		; Wait for a byte from the SCU port -- Uses bit sniffing with timed busy-wait loops
 		push	SR				; Save the interrupt state
 		dint					; Disable interrupts (FLL and comms) to guarantee timings below
 		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
@@ -357,13 +357,13 @@ ReadByte:
 	ret							; (2) Return from ReadByte
 
 ; WriteBreak ( R9 R10 -- R9 R10 R11 )
-; Send a 27 ms break on the serial output. R9 must be zero and R10 must be $FF.
+; Send a 27 ms break on the CMU serial output. R9 must be zero and R10 must be $FF.
 ; Trashes R9 R10 R11.
 WriteBreak:
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 	mov.b	#(MClock/9600/16*256/9+1)&$FF,&UCA0BR0 ; Slow baud rate to generate a 27 ms break,
 	mov.b	#(MClock/9600/16*256/9+1)/256,&UCA0BR1 ; simulating the old 256 bits of 9600 b/s
-	; Sending 26 consecutive breaks at 9600 b/s didn't work. It put an idle bit between them!
+	; Sending 26 consecutive UART breaks at 9600 b/s didn't work. It put an idle bit between them!
 	mov.b	#0,&UCA0TXBUF		; Send all zero data bits
 	_BEGIN						; Wait until finished sending
 		bit.b	#UCBUSY,&UCA0STAT
@@ -374,7 +374,7 @@ WriteBreak:
 	ret
 
 ; WriteByte ( R8 -- R9 R10 R11 )
-; Write the low byte of R8 to serial output.
+; Write the low byte of R8 to CMU serial output.
 ; Trashes R9 R10 R11. Preserves R8.
 WriteByte:
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
@@ -384,6 +384,41 @@ WriteByte:
 	_UNTIL	_NZ					; Until byte sent
 	mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 	ret					; Return from WriteByte
+
+
+; WriteScuByte ( R8 -- R9 R10 R11 )
+; Write the low byte of R8 to the SCU output (BMU only) -- Uses bit banging with timed busy-wait loops
+; Trashes R9 R10 R11. Preserves R8.
+WriteScuByte:
+			clr		R11
+			mov		R8,R9			; Allow R8 to be preserved for password compare
+
+			mov.b	#9,R10			; Loop counter, 1 start + 8 data (decrements to -1)
+			rla		R9				; Add the start bit
+			bis		#1<<9,R9		; Add the stop bit
+			push	SR
+			dint
+
+			_BEGIN					; (Number of cycles)
+				rra		R9				; (1) Next bit to C.
+				_IF		_C				; (2) If carry is set
+					bic.b	#TxMiScu,&ScuPortOUT ; (5) Clear TxMiScu
+				_ELSE
+					bis.b	#TxMiScu,&ScuPortOUT ; (alt 5) Set TxMiScu
+				_ENDIF
+				mov.b	#(ScuBitCycles-13+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
+				_BEGIN
+					dec		R11				; [1]
+				_UNTIL	_Z					; [2]
+
+				dec		R10				; (1) Decrement the bit counter
+			_UNTIL	_NC				; (2) Loop until -1
+			; To ensure the stop bit has sufficient duration we rely in the fact that
+			; calls to WriteByte must be at least 2 byte-times apart
+			; to allow any receiving CMU's BSL time to both read and echo the byte.
+
+			pop		SR
+			ret
 
 
 BslRevision:
