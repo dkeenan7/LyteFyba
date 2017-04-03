@@ -222,11 +222,11 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
-batVoltShifted	DS		4			; Low pass filtered battery voltage shifted left 8 bits
+avgCellVoltX256	DS		4			; Low pass filtered average cell voltage shifted left 8 bits
 restedCounter	DS		2			; Counter of how many measurements the battery qualifies as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
-smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
+smoothStressX4	DS		1			; Low pass filtered stress used by BMU to control contactors
 lastChgChanged	DS		1			; True (non zero) if lastBulk or lastFloat changed
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 
@@ -523,9 +523,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Miscellaneous initialisation
 ;
-			mov.b	#4,&passWordState		; Waiting for first byte of ^E ^D ^C ^B sequence
-			mov		#(3300*256) >> 8,&batVoltShifted+2	; Initialise the battery voltage
-			mov		#(3300*256) & 0xFF,&batVoltShifted	;	low pass filter to 3300 mV per cell
+			mov.b	#4,&passWordState		; Waiting for first byte of bootstrap loader password
+			mov		#(3300*256)&$FFFF,&avgCellVoltX256	; Initialise the low pass filter for the
+			mov		#(3300*256)>>16,&avgCellVoltX256+2	;	average cell voltage to 3300 mV
+
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Do precharge and get the main contactor on, so we stay powered up
@@ -792,49 +793,52 @@ DoMeasurement:
 
 			cmp.b	#255,&ID				; If a BMU
 			_IF		_EQ
-				; Check for low rested battery voltage and update of SOC
-				; First calculate the smoothed battery votage.
+				; Check for low rested avaerage cell voltage and update of SoC
+				; First calculate the smoothed average cell voltage.
 				; Use (255/256) * old + (1/256) * new
 				; = (old << 8 - old + new) >> 8
-				; Label batVoltShifted as 0HML (Zero High Middle Low bytes)
-				mov			&batVoltShifted+2,R9; Get upper word 0H
-				mov			&batVoltShifted  ,R8; Get lower word ML
-				rra8_l		R9,R8				; Shift right 8 bits with tricky macro
-				sub			R8,&batVoltShifted	; Ram -= old
-				sbc			&batVoltShifted+2
-				add			R10,&batVoltShifted ; Ram += new
-				adc			&batVoltShifted+2
+				; Label avgCellVoltX256 as 0HML (Zero High Middle Low bytes)
+				mov		&avgCellVoltX256  ,R8; Get lower word ML
+				mov		&avgCellVoltX256+2,R9; Get upper word 0H
+				rra8_l	R9,R8				; Shift right 8 bits with tricky macro
+				sub		R8,&avgCellVoltX256	; Ram -= old
+				sbc		&avgCellVoltX256+2
+				add		R10,&avgCellVoltX256 ; Ram += new
+				adc		&avgCellVoltX256+2
 				; Check if battery current is "rested"
 				_COND
-					cmp			#20,&current		; No more than 2.0 A
-				_AND_IF		_L
-					mov			&infoCapacity,R8
-					rra4		R8					; C/16 in tenths of an amp
-					neg			R8
-					cmp			R8, &current
-				_AND_IF		_GE					; No less than -C/16
-					mov			&batVoltShifted+2,R9; Get upper word 0H
-					mov			&batVoltShifted  ,R8; Get lower word ML
-					rra8_l		R9,R8
-					cmp			#521,R8
-				_AND_IF		_L					; <= 52.0 V smoothed
-					cmp			#10*60*2,&restedCounter
-					_IF			_HS				; If counter >= 10 minutes
-						; Calculate a new SOC based on the rested smoothed battery voltage that hasn't
-						;	been charging for 10 minutes
-						; Use SOC = (V-3.15)*300%
-						sub		#3150,R8			; R8 = smoothed battery voltage - 3.150 V
-						; Result is 0-100 representing 0-30% SOC
-						; So the units are 0.30%. Multiply by 3 to bring to tenths of a percent.
+					cmp		#20,&current		; No more than 2.0 A
+				_AND_IF	_L
+					mov		&infoCapacity,R8
+					add		#8,R8				; Add half the divisor, for rounding
+					rra4	R8					; C/16 in tenths of an amp
+					neg		R8
+					cmp		R8, &current
+				_AND_IF	_GE					; No less than -C/16
+					mov		&avgCellVoltX256  ,R8; Get lower word ML
+					mov		&avgCellVoltX256+2,R9; Get upper word 0H
+					rra8_l	R9,R8
+					cmp		#3251,R8
+				_AND_IF	_L					; <= 3.250 V smoothed
+					inc		&restedCounter
+					cmp		#10*60*StatusFreq,&restedCounter
+					_IF		_HS				; If counter >= 10 minutes
+						clr		&restedCounter
+						; Calculate a new SoC based on the rested smoothed average cell voltage that
+						;	hasn't been charging for 10 minutes
+						; Use SoC = (V-3.15)*300%
+						sub		#3150,R8			; R8 = smoothed average cell voltage - 3.150 V
+						; Result is 0-100 representing 0-30.0% SoC
+						; So the units are 0.3%. Multiply by 3 to bring to tenths of a percent.
 						mov		R8,R9				; R9 = 1x
-						rra		R8					; R8 = 2x
+						rla		R8					; R8 = 2x
 						add		R8,R9				; R9 = 3x
-						call	#SOCtoDisch			; Convert to discharge
-						mov		R10,&discharge		; Update estimated discharge value
-						mov		R9,&discharge
+						call	#SocToDischarge		; Convert to discharge
+						mov		R9,&discharge		; Update discharge counter
+						mov		R10,&discharge+2
 					_ENDIF
-				_ELSE
-					clr			&restedCounter
+				_ELSES
+					clr		&restedCounter
 				_ENDIF
 
 			_ENDIF	; not BMU

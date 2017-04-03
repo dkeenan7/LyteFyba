@@ -851,21 +851,33 @@ DepthOfDischarge:
 		;ret
 
 ; Opposite to the above
-; Convert SOC (tenths of a %) to dischare value
-; disch = (1000 - SOC) * 7.2 * capacity (SOC in tenths of %, capacity in tenths of Ah, result in
-;	1/72 mAh.
-; Pass SOC in R9, result in R10:R9
-; Trashes R8-R11
-SOCtoDisch:
+; Convert SoC (tenths of a %) to discharge value
+; discharge = (1000 - SoC) * 7.2 * capacity (SoC in tenths of %, capacity in tenths of Ah, result in
+;	1/72 mAh when StatusFreq = 2.
+; Pass SoC in R9, result is returned in R10:R9
+; Trashes R8-R10
+SocToDischarge:
 		mov		#1000, R8
-		sub		R9, R8				; R8 = 1000-R9
+		sub		R9, R8				; Convert SoC to DoD (tenths of a percent). R8 = 1000-R9
 		mov		#1843,R9			; Use 1843/256 = 7.199
-		call	UMStar				; R10:R9 = R9 * R8
-		swpb	R9
-		mov.b	R9,R9
-		mov		&infoCapacity,R8
-		br		#UMStar
-		;ret
+		mov		#128,R10			; Half the divisor, for rounding
+		call	#UMStarPlus			; Multiply DoD by 1843 and add 128. R10:R9 = (R8 * R9) + R10
+		rra8_l	R10,R9				; Divide by 256. Result will fit in R9.
+		mov		&infoCapacity,R8	; Multiply by the battery capoacity in tenths of an amp-hour.
+		call	#UMStar				; R10:R9 = R8 * R9
+		#if StatusFreq >= 4
+			rra		R9
+			rrc		R10
+		#endif
+		#if StatusFreq >= 8
+			rra		R9
+			rrc		R10
+		#endif
+		#if StatusFreq = 16
+			rra		R9
+			rrc		R10
+		#endif
+		ret
 
 
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
@@ -874,36 +886,26 @@ SOCtoDisch:
 		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
 
+
 		xCODE	'F',forceFuelGauge,_forceFuelGauge
 		mov		Rtos,R9
-		call	SOCtoDisch
-		mov		R10,&discharge
-		mov		R9,&discharge+2
+		call	#SocToDischarge
+		mov		R9,&discharge
+		mov		R10,&discharge+2
 		ret
 
-#if 0
-		; Temporary command for testing fuel gauge
-		; setFuelGauge ( hiword loword -- )
-		; $A4 $CB80 a -- should correspond to 100.0% (of 40 Ah)
-		; $52 $65C0 a -- should correspond to 50.0% (of 40 Ah)
-		xCODE	'a',setFuelGauge,_setFuelGauge
-		; Only IMUs care about this, but no harm if CMUs do it too
-		mov		Rtos,&discharge				; Set low word of discharge accumulator
-		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
-		call	#UpdateSoC					; For monolith only: update variable for SoC meter
-		ret
-#else
-		; DELETEME!
-		xCODE	'a',setFuelGauge,_setFuelGauge
-		mov		&batVoltShifted+2,R9; Get upper word 0H
+
+		xCODE	'a',getSmoothAvgCellVolt,_getSmoothAvgCellVolt
+		mov		&avgCellVoltX256+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
-		mov.b	&batVoltShifted+1,R8; Upper byte of lower word  R8 = 0M
+		mov.b	&avgCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
 		bis		R9, R8				; R8 has old value = HM = 0HML >> 8
 		mov		R8, Rsec
-		mov		#'a',Rthd			; Type is s for 'a command
+		mov		#'a',Rthd			; Command being responded to is 'a'
 		mov		#4,Rtos				; Use 4 digits
 		call	#_prettyPrint		; Call pretty-print
-#endif
+		ret
+
 
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
