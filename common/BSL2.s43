@@ -438,8 +438,8 @@ ErrorFlash:
 		mov.b	#XT2OFF | DIVA_3 | $A, &BCSCTL1 ; Keep watch crystal ACLK working and guess DCO range and
 		mov.b	#$80,&DCOCTL					; approximate DCO step and modulation for 3.6864 MHz
 		_BEGIN
-		setc								; Set carry so we always have an ON start bit
-		mov		#17,R10						; Set bit loop counter to 17
+			setc								; Set carry so we always have an ON start bit
+			mov		#17,R10						; Set bit loop counter to 17
 			_BEGIN
 				_IF		_C
 					ErrLedOn

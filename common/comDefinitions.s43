@@ -895,17 +895,6 @@ SocToDischarge:
 		ret
 
 
-		xCODE	'a',getSmoothAvgCellVolt,_getSmoothAvgCellVolt
-		mov		&avgCellVoltX256+2,R9; Get upper word 0H
-		swpb	R9					; Move to upper byte of R9; R9 = H0
-		mov.b	&avgCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
-		bis		R9, R8				; R8 has old value = HM = 0HML >> 8
-		mov		R8, Rsec
-		mov		#'a',Rthd			; Command being responded to is 'a'
-		mov		#4,Rtos				; Use 4 digits
-		call	#_prettyPrint		; Call pretty-print
-		ret
-
 
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only

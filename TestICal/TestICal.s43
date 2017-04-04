@@ -269,8 +269,10 @@ newChip:
 				_ENDIF
 				mov.b	#$00,&P3REN					; Disable all pullup/pulldown resistors
 													; Leaving them on causes problems for outputs
-
 				mov.b	#DATAVERS,&ramDataVers		; The current data version
+				call	#_updateInfoFlash			; If we're a CMU, this is the only way to tell the
+													; BSL to assume CMU hardware (e.g. ReadByte)
+
 			_ENDOF
 			; default action if none of the above apply
 				; Data version number is higher or lower than can be handled by this version of TestICal
