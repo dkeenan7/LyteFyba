@@ -261,7 +261,7 @@ _emitNum3:
 
 ;
 ; cellVolt ( -- )
-; Transmit the cell (strap+) voltage measurement in millivolts (0 to 4095 mV)
+; Transmit the cell (strap+) voltage measurement in millivolts (0 to 4348 mV)
 ;
 		xCODE		'v',cellVolt,_cellVolt
 		call		#cellV				; Return cell voltage in millivolts in R10
@@ -272,7 +272,7 @@ _emitNum3:
 
 ;
 ; boltVolt ( -- )
-; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4095 mV)
+; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4348 mV)
 ;
 		xCODE		'V',BoltVolt,_BoltVolt
 		call		#BoltV				; Return cell voltage in millivolts in R10
@@ -351,7 +351,7 @@ _emitNum3:
 #if INSULATION_MONITORING
 ;
 ; TouchValue ( -- )
-; Transmit the raw touch value (0 to 4095 mV).
+; Transmit the raw touch value (0 to 4092 mV).
 ; This is an uncalibrated measurement as it is the touch current times the opto's CTR (0.63 to 1.25)
 ; times R17 (120R), scaled to 4092 counts for 1500 mV (ADC reference).
 ;

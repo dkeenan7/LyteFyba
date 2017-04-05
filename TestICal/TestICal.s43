@@ -245,10 +245,28 @@ InterpretInit:
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
-				mov.w	#$8000,&ramBoltPlCal
-				mov.w	#$8000,&ramVoltCal			; Note: G series chips have manuf's ADC cal data
-				mov.b	#$00,&ramTempCal
+CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index volt cal off tag adr
+				mov.w	&CALADC_15VREF_FACTOR,&ramBoltPlCal	; Use manufacturer's ADC cal data
+				mov.w	&CALADC_15VREF_FACTOR,&ramVoltCal
+CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal off the ADC tag address
+				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
+				; Convert it to Toff, our kind of offset calibration in degrees C.
+				; i.e. an offset from the typical T = (V - 0.986)/0.00355 where V = N/1023 * 1.5
+				; So Tcal = N30 * 1.5 / 1023 / 0.00355 - 0.986 / 0.00355 - 30
+				; = N30 * 0.413035 - 307.75
+				; = N30 * 27069/65536 - 1231/4
+				; = (N30*4 * 27069/65536 - 1231) / 4
+				mov		&CALADC_15T30,R8			; Get N30, the raw ADC count at 30degC with 1.5V ref
+				rla2	R8
+				mov		#27069,R9
+				call 	#UMStar						; R10:R9 = R8 * R9
+				sub		#1231,R10
+				add		#2,R10						; Add half the divisor for rounding
+				rra2	R10							; Divide by 4
+				mov.b	R10,&ramTempCal				; Will fit into a signed byte
 				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
+;CALDCO_8MHZ EQU TLV_DCO_30_TAG_ + 2 + CAL_DCO_8MHZ ; Index the DCO cal off the DCO tag address
+;CALBC1_8MHZ EQU TLV_DCO_30_TAG_ + 2 + CAL_BC1_8MHZ ; Index the BC1 cal off the DCO tag address
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
 				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
 				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
@@ -288,7 +306,7 @@ newChip:
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
 			bis.b	#ErrLed,&P2DIR				; Set ErrLed as output
-			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Txs as outputs
+			bis.b	#TxMiChg_57k6B|TxMiChg2_RlyP_57k6A,&ChgPortDIR ; Set Txs as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 			cmp.b	#255,&ID
 			_IF		_NE							; If we're not a BMU

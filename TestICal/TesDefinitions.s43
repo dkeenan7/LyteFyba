@@ -9,8 +9,8 @@
 ; ADCScaled or R(a)wVoltage ( channel -- measurement )
 ; "channel" has channel number shifted left 12 bits.
 ; e.g. $7000 for cell voltage, $A000 for temperature, $3000 for link voltage.
-; "measurement" is 12-bit (0 to 4095) with voltage scale calibration applied,
-; which corresponds to millivolts in the case of cell voltage.
+; "measurement" is 12-bit (0 to 4092) with voltage scale calibration applied,
+; which has units of 17/16 of a millivolt in the case of cell and bolt voltages.
 ;
 		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8

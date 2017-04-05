@@ -369,9 +369,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
 			bis.b	#ErrLed,&P2DIR 				; Set ErrLed as output
-			bis.b	#TxMiChg|TxMiChg2_RlyP_57k6,&ChgPortDIR ; Set Txs as outputs
+			bis.b	#TxMiChg_57k6B|TxMiChg2_RlyP_57k6A,&ChgPortDIR ; Set Txs as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
-			bis.b	#RxChg|TxMiChg,&ChgPortSEL	; Select timer functions for Rx and Tx pins
+			bis.b	#RxChg|TxMiChg_57k6B,&ChgPortSEL	; Select timer functions for Rx and Tx pins
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 			cmp.b	#255,&ID
 			_IF		_NE							; If we're not a BMU
