@@ -224,15 +224,15 @@ InterpretInit:
 			;_OFb	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
 			;_ENDOF
-			_OFb	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
+			_OFb	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~14 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~14 bytes
 					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
@@ -264,12 +264,12 @@ CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal
 				add		#2,R10						; Add half the divisor for rounding
 				rra2	R10							; Divide by 4
 				mov.b	R10,&ramTempCal				; Will fit into a signed byte
-				mov.b	#$00,&ramLinkCal			; Want link to be active for initial test
-;CALDCO_8MHZ EQU TLV_DCO_30_TAG_ + 2 + CAL_DCO_8MHZ ; Index the DCO cal off the DCO tag address
-;CALBC1_8MHZ EQU TLV_DCO_30_TAG_ + 2 + CAL_BC1_8MHZ ; Index the BC1 cal off the DCO tag address
+				mov.b	#$00,&ramLinkCal			; Really the BatV- or Shunt offset calibration now.
+
+				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
 				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
-				bis.b	#DIVA_2,&ram8MHzCalD+1		; Set ACLK = VLOCLK/4 = 3 kHz for piezo (non-G2553)
+				bis.b	#XT2OFF | DIVA_3,&ram8MHzCalB ; Set ACLK = watch crystal / 8
 
 				; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
 				mov.b	#0,&P3DIR					; Set Port 3 as all inputs
