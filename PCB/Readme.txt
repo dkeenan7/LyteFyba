@@ -61,6 +61,7 @@ useful here.
 * Deselect everything from the top and bottom documentation layers, and Cutouts text, if necessary.
 * Using the layers tab in the interaction bar, check each layer for items to deselect.
 * Select any tracks that connect selected objects. Ctrl-Shift-Clicking is useful here.
+* Select the mouse-bite holes on the wings.
 * Context menu on one of the selected objects and select "Group", uncheck "Tight Group" 
 and give the group the name "Rotatables"
 
