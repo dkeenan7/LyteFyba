@@ -64,7 +64,7 @@ BSL:		; Initialisation
 	; BMUs don't have IR, and use TA1 for comms on the charger port; initialised in the main program.
 	cmp.b	#255,&infoID
 	_IF		_NE				; If we're not a BMU
-		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1/TA1.1
+		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1 and P2.2 (TA1.1)
 		; TASSSEL = 10, Use SMCLK for timer A source
 		; ID = 0, Divide by 1
 		; MC = 01, Up mode, the counter counts to TACCR0

@@ -16,7 +16,7 @@ BatV_StrapVPl EQU	1<<7			; Analog input on P1.7
 
 ; Port 2 bit masks
 ErrLed		EQU		1<<0			; Error LED (red) on P2.0
-TxMiChg2_RlyP_57k6A EQU 1<<1		; IM relay for HazV+ test (BMU), 57.6 kHz IR carrier (CMU) on P2.1
+TxMiChg2_RlyP_57k6A EQU 1<<1		; Alt charger Tx- or HazV+ IM relay (BMU), 57.6 kHz IR (CMU) on P2.1
 TxMiChg_57k6B EQU		1<<2		; Transmit- to charger (BMU), 57.6 kHz IR carrier (CMU) on P2.2
 PreI		EQU		1<<3			; Precharge contactor auxiliary contact input (BMU) on P2.3
 RxChg		EQU		1<<4			; Receive from charger (TA1.2 input) on P2.4
@@ -32,6 +32,8 @@ RelayP		EQU		TxMiChg2_RlyP_57k6A
 TxMiChg2	EQU		TxMiChg2_RlyP_57k6A
 TxMiChg		EQU		TxMiChg_57k6B
 RxChg2		EQU		RxChg2_RlyM_Byp
+Ir57k6A		EQU		TxMiChg2_RlyP_57k6A
+Ir57k6B		EQU		TxMiChg_57k6B
 PreIPortIN	EQU		P2IN			; Precharge auxiliary contact input on port 2
 ChgPortDIR	EQU		P2DIR			; Charger comms on port 2
 ChgPortSEL	EQU		P2SEL
