@@ -457,7 +457,7 @@ bitDelay	dec		R11
 		call	#UMStar					; R10:R9 = R8 * R9
 		rla		R9						; Do rounding
 		adc		R10
-		mov		#MeasVcc,Rthd			; Type is Vcc Measurement
+		mov		#'M'|'v' <<8,Rthd		; Type is Vcc Measurement
 		mov		R10,Rsec				; Result in millivolts
 		mov		#4,Rtos					; Print 4 digits
 		br		#_prettyPrint			; Tail-call pretty-print and return
@@ -470,49 +470,50 @@ bitDelay	dec		R11
 			; When they are not pulsed, they are either a high output or a pulled-up input
 			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for either high output or pulled up input
 			_CASE
-				_OFb	#0,Rtos
+				_OF		#0,Rtos
 					bic.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are not pulsed
-					bic.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are pulled-up inputs
+					bis.b	#Ir57k6A|Ir57k6B,&P2REN		; Both are pulled-up
+					bic.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are inputs
 				_ENDOF
-				_OFb	#1,Rtos
+				_OF		#1,Rtos
 					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
 					bic.b	#Ir57k6B,&P2SEL				; B is high
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
-				_OFb	#2,Rtos
+				_OF		#2,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is high
 					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
-				_OFb	#3,Rtos
+				_OF		#3,Rtos
 					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
 					bis.b	#Ir57k6A,&P2DIR				; A is an output
 					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
 					bis.b	#Ir57k6B,&P2REN				; B is pulled up
 					bic.b	#Ir57k6B,&P2DIR				; B is an input
 				_ENDOF
-				_OFb	#4,Rtos
+				_OF		#4,Rtos
 					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
 					bis.b	#Ir57k6A,&P2DIR				; A is an output
 					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
 					bic.b	#Ir57k6B,&P2REN				; B is not pulled up
 					bic.b	#Ir57k6B,&P2DIR				; B is an input
 				_ENDOF
-				_OFb	#5,Rtos
+				_OF		#5,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
 					bis.b	#Ir57k6A,&P2REN				; A is pulled up
 					bic.b	#Ir57k6A,&P2DIR				; A is an input
 					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6B,&P2DIR				; B is an output
 				_ENDOF
-				_OFb	#6,Rtos
+				_OF		#6,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
 					bic.b	#Ir57k6A,&P2REN				; A is not pulled up
 					bic.b	#Ir57k6A,&P2DIR				; A is an input
 					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6B,&P2DIR				; B is an output
 				_ENDOF
-				_OFb	#7,Rtos
+				_OF		#7,Rtos
 					bis.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
