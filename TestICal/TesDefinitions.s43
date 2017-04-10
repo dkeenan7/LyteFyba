@@ -468,60 +468,31 @@ bitDelay	dec		R11
 ;
 		xCODE	'I'|'r' <<8,IrTxLevel,_IrTxLevel ; 'Ir' collides with 'Ib' 'Ij' 'Iz' 'Qr' 'Qb' 'Qj' 'Qz'
 			; When they are not pulsed, they are either a high output or a pulled-up input
-			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for either high output or pulled up input
+			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for high output
 			_CASE
 				_OF		#0,Rtos
 					bic.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are not pulsed
-					bis.b	#Ir57k6A|Ir57k6B,&P2REN		; Both are pulled-up
-					bic.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are inputs
+					bic.b	#Ir57k6A|Ir57k6B,&P2OUT		; Both are outputs (both high, from above)
 				_ENDOF
 				_OF		#1,Rtos
-					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
-					bic.b	#Ir57k6A,&P2REN				; A is not pulled-up
-					bic.b	#Ir57k6B,&P2SEL				; B is high
+					bic.b	#Ir57k6A,&P2SEL				; A is high
+					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
 				_OF		#2,Rtos
-					bic.b	#Ir57k6A,&P2SEL				; A is high
-					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
-					bic.b	#Ir57k6B,&P2REN				; B is not pulled-up
-					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
+					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
+					bis.b	#Ir57k6A,&P2DIR				; A is an output
+					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
+					bic.b	#Ir57k6B,&P2DIR				; B is an input
 				_ENDOF
 				_OF		#3,Rtos
-					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
-					bic.b	#Ir57k6A,&P2REN				; A is not pulled-up
-					bis.b	#Ir57k6A,&P2DIR				; A is an output
-					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
-					bis.b	#Ir57k6B,&P2REN				; B is pulled up
-					bic.b	#Ir57k6B,&P2DIR				; B is an input
+					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
+					bic.b	#Ir57k6A,&P2DIR				; A is an input
+					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
+					bis.b	#Ir57k6B,&P2DIR				; B is an output
 				_ENDOF
 				_OF		#4,Rtos
-					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
-					bic.b	#Ir57k6A,&P2REN				; A is not pulled-up
-					bis.b	#Ir57k6A,&P2DIR				; A is an output
-					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
-					bic.b	#Ir57k6B,&P2REN				; B is not pulled up
-					bic.b	#Ir57k6B,&P2DIR				; B is an input
-				_ENDOF
-				_OF		#5,Rtos
-					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
-					bis.b	#Ir57k6A,&P2REN				; A is pulled up
-					bic.b	#Ir57k6A,&P2DIR				; A is an input
-					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
-					bic.b	#Ir57k6B,&P2REN				; B is not pulled-up
-					bis.b	#Ir57k6B,&P2DIR				; B is an output
-				_ENDOF
-				_OF		#6,Rtos
-					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
-					bic.b	#Ir57k6A,&P2REN				; A is not pulled up
-					bic.b	#Ir57k6A,&P2DIR				; A is an input
-					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
-					bic.b	#Ir57k6B,&P2REN				; B is not pulled-up
-					bis.b	#Ir57k6B,&P2DIR				; B is an output
-				_ENDOF
-				_OF		#7,Rtos
 					bis.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are pulsed
-					bic.b	#Ir57k6A|Ir57k6B,&P2REN		; Both are not pulled-up
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
 			_ENDCASE
