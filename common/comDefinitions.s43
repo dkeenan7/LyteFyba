@@ -895,7 +895,6 @@ SocToDischarge:
 		ret
 
 
-
 #if 0
 ; Reset via watchdog 				; Cause a reset with watchdog interrupt flag set, for testing only
 			xCODE	'!',Watchdog,_Watchdog
