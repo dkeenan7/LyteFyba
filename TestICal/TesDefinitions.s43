@@ -467,12 +467,11 @@ bitDelay	dec		R11
 ; Infrared Tx level ( n -- )	; Set the signal level for the infrared emitter, from 0 (off) to 7 (max)
 ;
 		xCODE	'I'|'r' <<8,IrTxLevel,_IrTxLevel ; 'Ir' collides with 'Ib' 'Ij' 'Iz' 'Qr' 'Qb' 'Qj' 'Qz'
-			; When they are not pulsed, they are either a high output or a pulled-up input
-			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for high output
+			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for high output (when not pulsed or open)
 			_CASE
 				_OF		#0,Rtos
 					bic.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are not pulsed
-					bic.b	#Ir57k6A|Ir57k6B,&P2OUT		; Both are outputs (both high, from above)
+					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs (high from above)
 				_ENDOF
 				_OF		#1,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is high
