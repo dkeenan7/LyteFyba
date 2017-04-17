@@ -2,6 +2,7 @@
  * SendProg: send a program over the BMS serial system to all CMUs
  * Sends main program only
  * Updated 8/Feb/2017 for trunk password
+ * Updated 18/Apr/2017 for longer password delays
  */
 
 #define LINUX 1
@@ -240,8 +241,11 @@ int main(int argc, char* argv[]) {
 		pfx[4] = '\x02';
 	for (i=0; i < PASSLEN; ++i) {
 		writeByte(pfx+i);					/* Write prefix */
-		usleep(2000+100);					/* Time to transmit byte to CMU, and for it to echo to next CMU */
-											/* Plus 100 us for safety */
+//		usleep(2000+100);					/* Time to transmit byte to CMU, and for it to echo
+//											 to next CMU */
+//											/* Plus 100 us for safety */
+		usleep(270*1000);					/* Time to transmit byte to CMU, and for it to echo 
+											  to up to 255 CMUs */
 	}
 
 	// Extra 2 second delay in case it's monolith, and it is busy sending data to the PIP inverter
