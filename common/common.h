@@ -1,6 +1,6 @@
 ; Common definitions for TestICal, monitor, monolith and BSL
 
-HW_REV		EQU	64					; Expected hardware revision number for this code
+HW_REV		EQU		64				; Expected hardware revision number for this code
 
 InitSP		EQU		$400			; Initial value of stack pointer
 
