@@ -327,15 +327,23 @@ ReadByte:
 		dint					; Disable interrupts (FLL and comms) to guarantee timings below
 		mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 		_BEGIN						; Numbers in parentheses are numbers of cycles (timed waits)
-			bit.b	#RxScu,&ScuPortIN ; (4) Start bit?
+			bit.b	#UCA0RXIFG,&IFG2	; (4)
+			_IF		_NZ					; (2) If there's a byte from the CMU port
+				bit		#WRT,&FCTL1
+				_IF		_Z					; And if we're not writing to flash
+					mov.b	&UCA0RXBUF,R8
+					call 	#WriteScuByte		; Send the byte to the SCU port
+				_ENDIF
+			_ENDIF
+			bit.b	#RxScu,&ScuPortIN ; (4) Start bit on SCU port?
 		_UNTIL	_Z					; (2) Loop until 0 (start bit)
-		; The loop above takes 6 cycles so on average we will have missed the start bit by
-								; (3) cycles
+		; The loop above takes 12 cycles so on average we will have missed the start bit by
+									; (6) cycles
 		mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; (5) Clear and enable the Watchdog Timer
 
 		; Pad out the average delay between starting edge of start bit
 		; and sampling of first bit below to ~ 1.5 bittimes
-		mov.b	#(ScuBitCyc1_5-17+1)/3,R11 ; (2) Loop count for waitMid delay loop
+		mov.b	#(ScuBitCyc1_5-20+1)/3,R11 ; (2) Loop count for waitMid delay loop
 		_BEGIN
 			dec		R11				; (1) Delay loop
 		_UNTIL	_Z					; (2)
@@ -414,8 +422,8 @@ WriteScuByte:
 				dec		R10				; (1) Decrement the bit counter
 			_UNTIL	_NC				; (2) Loop until -1
 			; To ensure the stop bit has sufficient duration we rely in the fact that
-			; calls to WriteByte must be at least 2 byte-times apart
-			; to allow any receiving CMU's BSL time to both read and echo the byte.
+			; calls to WriteScuByte must be at least 2 byte-times apart
+			; to allow any preceding CMU's BSL time to both read and echo the byte.
 
 			pop		SR
 			ret
