@@ -1,4 +1,5 @@
 // LyteFlashDoc.cpp : implementation of the CLyteFlashDoc class
+// Modified 18?Apr/2017 for longer delay after password bytes
 //
 
 #include "stdafx.h"
@@ -419,7 +420,8 @@ void CLyteFlashDoc::OnSend()
 	}
     for (i=0; i < 5; ++i) {
         writeByte(pfx+i);
-		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
+//		Sleep(1+1+1);					// Delay for send, echo, and "rounding"/safety
+		Sleep(270);						// Delay for send, BMU echo, and up to 255 CMUs
     }
 
 	// Extra 2 second delay in case it's monolith, and it is busy sending data to the PIP inverter
@@ -442,8 +444,7 @@ void CLyteFlashDoc::OnSend()
 			pProg->SetFocus();			// Use the focus message to update the progress bar
 		}
     }
-	// Finally send the checksum byte in place of the very last byte (either just before the reset vector, or right at the end
-	//	of the main program, ust before BSL2
+	// Finally send the checksum byte in place of the very last byte, just before the reset vector
 	// Sometimes we want to deliberately send a bad checksum
 	if (theApp.m_bBadSum)
 	{
