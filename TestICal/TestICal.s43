@@ -247,17 +247,23 @@ newChip:
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
 CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index volt cal off tag adr
 				mov.w	&CALADC_15VREF_FACTOR,&ramBoltPlCal	; Use manufacturer's ADC cal data
+				add		#80,&ramBoltPlCal			; Compensate for systematic error
 				mov.w	&CALADC_15VREF_FACTOR,&ramVoltCal
+				add		#80,&ramVoltCal				; Compensate for systematic error
 CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal off the ADC tag address
 				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
 				; Convert it to Toff, our kind of offset calibration in degrees C.
-				; i.e. an offset from the typical T = (V - 0.986)/0.00355 where V = N/1023 * 1.5
-				; So Tcal = N30 * 1.5 / 1023 / 0.00355 - 0.986 / 0.00355 - 30
-				; = N30 * 0.413035 - 307.75
-				; = N30 * 27069/65536 - 1231/4
-				; = (N30*4 * 27069/65536 - 1231) / 4
+				; i.e. an offset from the typical T = (V - 0.986)/0.00355
+				; where V = Vcal/32768 * N/1023 * 1.5
+				; So Tcal = N30 * Vcal/32768 * 1.5 / 1023 / 0.00355 - 0.986 / 0.00355 - 30
+				; = N30 * Vcal/32768 * 0.413035 - 307.75
+				; = N30 * Vcal/32768 * 27069/65536 - 1231/4
+				; = (N30 * Vcal/65536 * 2 * 27069/65536 - 1231) / 4
 				mov		&CALADC_15T30,R8			; Get N30, the raw ADC count at 30degC with 1.5V ref
-				rla2	R8
+				mov		&ramVoltCal,R9				; Get voltage calibration word as multiplicand in R9
+				call	#UMStar						; R10:R9 = R8 * R9
+				rla		R10							; Multiply by 2
+				mov		R10,R8
 				mov		#27069,R9
 				call 	#UMStar						; R10:R9 = R8 * R9
 				sub		#1231,R10
