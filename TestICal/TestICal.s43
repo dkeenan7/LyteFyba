@@ -247,9 +247,9 @@ newChip:
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
 CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index volt cal off tag adr
 				mov.w	&CALADC_15VREF_FACTOR,&ramBoltPlCal	; Use manufacturer's ADC cal data
-				add		#80,&ramBoltPlCal			; Compensate for systematic error
+				add		#70,&ramBoltPlCal			; Compensate for systematic error
 				mov.w	&CALADC_15VREF_FACTOR,&ramVoltCal
-				add		#80,&ramVoltCal				; Compensate for systematic error
+				add		#70,&ramVoltCal				; Compensate for systematic error
 CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal off the ADC tag address
 				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
 				; Convert it to Toff, our kind of offset calibration in degrees C.

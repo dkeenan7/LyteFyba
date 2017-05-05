@@ -874,11 +874,15 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 				; Calculate stress due to undervoltage
-												; OCV for undervoltage stress calc already pushed
-				push	#UV_STEP				; For every UV_STEP (millivolts)
-				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-				push	#2						; Type of measurement
-				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
+
+				cmp		#100,0(sp)				; Compare voltage; value saved on stack earlier
+				_IF		_HS						; If voltage is not less than 100 mV (unbolted CMU)
+													; OCV for undervoltage stress calc already pushed
+					push	#UV_STEP				; For every UV_STEP (millivolts)
+					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+					push	#2						; Type of measurement
+					call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to UV
+				_ENDIF
 			_ENDIF	; not a BMU
 
 			; Do temperature measurement using internal sensor

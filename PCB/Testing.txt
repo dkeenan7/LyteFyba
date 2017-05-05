@@ -20,7 +20,7 @@ of the step it failed.
    Connect the communications plugs (in and out) to the pairs of holes at the
    north (TX) and south (RX) ends.
    Connect power to all Cell Monitoring Units (CMUs) with the alligator clips.
-   Wait for the current to fall to less than 0.020 A. No LEDs should be lit.
+   Wait for the current to fall to less than 0.250 A.
 2) Unplug the red probe of the Fluke 87 III from the white socket, and for each CMU,
    use it to check the voltage at JTAG+ (the rightmost hole of the group of 4).
    They should all read between 2.47 and 2.53 V. Put probe back in white socket.
@@ -38,7 +38,7 @@ of the step it failed.
    Reset all the CMUs by typing leftAlt+B. 
    Clip the oscilloscope probe alligator 
    clip to the negative bolt on the test jig. Press the oscilloscope probe tip
-   against the southwest pin of the part marked (OP1) in the southeast corner of each CMU.
+   into the hole east of the text BK, at the south end.
    Hold down the <Shift>+U keys to send auto-repeated U characters and observe
    approximate square waves with some rounded corners.
    The first CMU will be closer to 50/50 hi/lo as it is not being driven by a previous CMU.
@@ -73,7 +73,7 @@ of the step it failed.
     less than 10 or greater than 245.
   g) Use 1y to turn on bypass. Supply current should go to 0.4 to 0.7 amps. An amber LED
      should light. Turn it off with 0y<Enter>.
-  h) Use u<enter> to turn off bypass and update the calibration values.
+  h) Use u<enter> to update the calibration values.
      The u is very important otherwise all the above work will be lost. 
      Be sure you see the 'u' echoed.
   i) Type the <ESC> key (upper left corner of keyboard).
@@ -83,7 +83,7 @@ of the step it failed.
 8) Test break-to-reset with 1e then <leftAlt-b> (send break). All red LEDs should go off.
 9) Test for false break-to-reset with 1Q1e<Enter> then use TeraTerm's Send File command
    in binary mode and with no delays between characters, to send the file
-   "Documents/EV/LyteFyba/trunk/PCB/NullsTest.txt". All red LEDs should stay on.
+   "Documents/EV/LyteFyba/trunk/PCB/NullsTest.txt". All red LEDs should stay on. Type 0e<enter>.
 10) Test for excessive quiescent current by ensuring all LEDs are off and removing
    an alligator clip from each CMU in turn and inserting a multimeter on 300 mA range.
    The quiescent current (after supercap has charged) should be between 1.4 and 2.1 mA.
