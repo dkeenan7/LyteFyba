@@ -445,20 +445,22 @@ ErrorFlash:
 		;	so the processor could be running very fast.
 		mov.b	#XT2OFF | DIVA_3 | $A, &BCSCTL1 ; Keep watch crystal ACLK working and guess DCO range and
 		mov.b	#$80,&DCOCTL					; approximate DCO step and modulation for 3.6864 MHz
+		bis.b	#ErrLed,&P2DIR					; Ensure ErrLed is set as an output
 		_BEGIN
-			setc								; Set carry so we always have an ON start bit
-			mov		#17,R10						; Set bit loop counter to 17
+			mov		#16,R10						; Set bit loop counter to 16
 			_BEGIN
-				_IF		_C
-					ErrLedOn
-				_ELSE
+				tst		R8
+				_IF		_NN
 					ErrLedOff
+				_ELSE
+					ErrLedOn
 				_ENDIF
 				_DO		#4,R11					; 4 * 53 = 212 ms delay
 					_DO		#0,R12				; 65536 * 3 / 3.6864 MHz = 53 ms delay
 					_LOOP	R12
 				_LOOP	R11
-				rlc		R8						; Carry into LSB, MSB into carry
+				rla		R8						; Rotate left by shifting MSB left into carry
+				adc		R8						; and then copying carry to the LSB
 				dec		R10
 			_UNTIL	_Z						; Until R8 is back how it was
 			; ErrLedOff						; Uncomment for caveman debugging

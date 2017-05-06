@@ -55,23 +55,34 @@ TranslateToCalAddr:
 ; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
 ;
 voltCalWork:
-				call	#measure
+			call	#measure	; Get raw 12.2 bit fixed point measurement in R8
+#if (HW_REV != 63)
+			cmp.b	#255,&ID
+			_IF		_NE			; If not a BMU then
+				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+				mov		R8,R9		; Copy the value
+				add		#8,R9		; Add half the divisor for rounding
+				rra4	R9			; Divide by 16
+				add		R9,R8		; Add back to the original
+			_ENDIF
+#endif
+
 ; The calibration scale factor will be the expected value divided by the reading.
 ; The expected value is an unsigned 12 bit integer of millivolts and
 ; the reading is an unsigned 12.2 bit fixed-point number of millivolts.
 ; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
 ; i.e. a number with 1 integer bit and 15 fractional bits.
 ; So we shift the expected value 17 places left before the division.
-				clr		R9							; 16 bits of zeroes
-				mov		Rsec,R10
-				rla		R10							; 17 zeroes; we have value << 17 in R10:R9
-				mov		R8,R11						; The divisor is the voltage reading in R8
-				rra		R11							; Add half the divisor to the dividend for rounding
-				add		R11,R9
-				adc		R10
-				call	#UMSlashMod					; Gives quotient in R9, remainder in R10
-				; R9 has the value we want to store
-				ret
+			clr		R9							; 16 bits of zeroes
+			mov		Rsec,R10
+			rla		R10							; 17 zeroes; we have value << 17 in R10:R9
+			mov		R8,R11						; The divisor is the voltage reading in R8
+			rra		R11							; Add half the divisor to the dividend for rounding
+			add		R11,R9
+			adc		R10
+			call	#UMSlashMod					; Gives quotient in R9, remainder in R10
+			; R9 has the value we want to store
+			ret
 
 
 ;
@@ -276,7 +287,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
 			_IF    _NE
-				mov	#b'0000000000000101,R8	; 2 flashes
+				mov	#b'1010000000000000,R8	; 2 flashes
 				br		#jErrorFlash		; Infinite loop, never returns
 			_ENDIF
 			ret
@@ -328,7 +339,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 				mov.b	#BSLFG,&IFG1			; Clear the watchdog flag, and indicate a BSL "reset"
 				br		#jBSL					; Start the new BSL. Effectively a software reset.
 			_ELSE							; Else
-				mov	#b'0000000000010101,R8	; 3 flashes
+				mov	#b'1010100000000000,R8	; 3 flashes
 				br		#jErrorFlash		; Infinite loop flashing error LED
 			_ENDIF							; Endif
 			; Can't ret because then TestICal may return to the wrong place in a changed BSL.
@@ -464,7 +475,7 @@ bitDelay	dec		R11
 
 
 ;
-; Infrared Tx level ( n -- )	; Set the signal level for the infrared emitter, from 0 (off) to 7 (max)
+; Infrared Tx level ( n -- )	; Set the signal level for the infrared emitter, from 0 (off) to 4 (max)
 ;
 		xCODE	'I'|'r' <<8,IrTxLevel,_IrTxLevel ; 'Ir' collides with 'Ib' 'Ij' 'Iz' 'Qr' 'Qb' 'Qj' 'Qz'
 			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for high output (when not pulsed or open)

@@ -68,6 +68,8 @@
 ; Conditional assembly parameters which may be changed for special purposes
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
+#define		FAKE_NEW_CHIP	0		// 1 to force recalculation of our voltage and temperature
+									// calibration constants from the manufacturer's constants
 
 ProductCode	EQU		'T'				; T for TestICal, R for monitoR, L for monolith, W for wmonolith
 
@@ -220,6 +222,7 @@ InterpretInit:
 ;
 ; Copy calibration data into RAM
 ;
+#if !FAKE_NEW_CHIP
 			_CASE
 			;_OFb	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
@@ -237,6 +240,7 @@ InterpretInit:
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 			_OFb	#$FF,&infoDataVers
+#endif
 				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
 				; version number (way < $80).
@@ -279,7 +283,7 @@ CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal
 				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
 				bis.b	#XT2OFF | DIVA_3,&ram8MHzCalB ; Set ACLK = watch crystal / 8
 
-
+#if !FAKE_NEW_CHIP
 				; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
 				mov.b	#0,&P3DIR					; Set Port 3 as all inputs
 				mov.b	#$FF,&P3REN					; Enable all pullup/pulldown resistors
@@ -296,18 +300,21 @@ CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal
 				_ENDIF
 				mov.b	#$00,&P3REN					; Disable all pullup/pulldown resistors
 													; Leaving them on causes problems for outputs
-				mov.b	#DATAVERS,&ramDataVers		; The current data version
+#else
+				mov.b	&infoID,&ramID				; Preserve the existing ID
+#endif
+				mov.b	#DATAVERS,&ramDataVers		; The present data version
 				call	#_updateInfoFlash			; If we're a CMU, this is the only way to tell the
 													; BSL to assume CMU hardware (e.g. ReadByte)
-
+#if !FAKE_NEW_CHIP
 			_ENDOF
 			; default action if none of the above apply
 				; Data version number is higher or lower than can be handled by this version of TestICal
 				; so we should leave it alone and raise an error.
-				mov		#b'0000000001010101,R8	; 4 flashes
+				mov		#b'1010101000000000,R8	; 4 flashes
 				br		#jErrorFlash			; Infinite loop, never returns
 			_ENDCASE
-
+#endif
 
 			; Initialise port 1
 			; BSL settings of Port1 are OK. No interrupt comms in TestICal. Analog settings done later.
