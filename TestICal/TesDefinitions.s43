@@ -29,6 +29,8 @@ calAddressTable
 		DB		'l' , ramLinkCal	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
+		DB		'o' , ramVoltOff	& $7F | $00
+		DB		'O' , ramBoltPlOff	& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -52,9 +54,10 @@ TranslateToCalAddr:
 		ret
 
 ;
-; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
+; Measure and possibly scale by 17/16th
+; Needed by 'v', 'b', 'o', 'O' calibrate subcommands
 ;
-voltCalWork:
+voltOffWork:
 			call	#measure	; Get raw 12.2 bit fixed point measurement in R8
 #if (HW_REV != 63)
 			cmp.b	#255,&ID
@@ -65,7 +68,12 @@ voltCalWork:
 				rra4	R9			; Divide by 16
 				add		R9,R8		; Add back to the original
 			_ENDIF
+			ret
 #endif
+
+;
+; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
+;
 
 ; The calibration scale factor will be the expected value divided by the reading.
 ; The expected value is an unsigned 12 bit integer of millivolts and
@@ -73,6 +81,8 @@ voltCalWork:
 ; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
 ; i.e. a number with 1 integer bit and 15 fractional bits.
 ; So we shift the expected value 17 places left before the division.
+voltCalWork:
+			call	voltOffWork					; Measure and possibly scale by 17/16; res in R8
 			clr		R9							; 16 bits of zeroes
 			mov		Rsec,R10
 			rla		R10							; 17 zeroes; we have value << 17 in R10:R9
@@ -91,13 +101,28 @@ voltCalWork:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
-			_OFb	#'v',Rtos			; 'v': cell Voltage
+			_OFb	#'v',Rtos			; 'v': cell Voltage factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#voltCalWork
 				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
+			_ENDOF
+			_OFb	#'b',Rtos			; 'b': Bolt plus / array voltage factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#voltCalWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
+			_ENDOF
+
+			_OFb	#'o',Rtos			; 'o': cell voltage offset
+				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
+				call	#voltOffWork				; Measure and possibly scale 17/16
+				sub		R8,Rsec						; Calculate offset (expected - measured)
+				mov.b	Rsec,&ramVoltOff
+			_ENDOF
+			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
+				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
+				call	#voltOffWork				; Measure and possibly scale 17/16
+				sub		R8,Rsec						; Calculate offset (expected - measured)
+				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
 
 			_OFb	#'t',Rtos			; 't': temperature

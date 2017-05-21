@@ -92,10 +92,12 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-			ORG		$100A			; For compatibility with existing calibration values
+			ORG		$1008			; For compatibility with existing calibration values
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
+infoBoltPlOff	ds		1			; Bolt/array voltage offset calibration signed byte
+infoVoltOff		ds		1			; Cell/battery voltage offset calibration signed word
 infoCapacity	ds		2			; Battery capacity in tenths of an amp-hour
 infoCellRes		ds		2			; High temp cell internal resistance in micro-ohms
 infoBoltPlCal	ds		2			; Bolt/array voltage scale calibration word

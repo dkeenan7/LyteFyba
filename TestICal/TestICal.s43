@@ -79,6 +79,9 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 ; Some definitions so the measure.s43 code will work
 ; Monitor defines these as their info-flash counterparts instead of ram
 VoltCal 	EQU	ramVoltCal
+VoltOff		EQU ramVoltOff
+BoltPlCal 	EQU	ramBoltPlCal
+BoltPlOff	EQU ramBoltPlOff
 TempCal		EQU	ramTempCal
 LinkCal		EQU	ramLinkCal
 			LSTOUT-
@@ -143,6 +146,8 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
+ramBoltPlOff	DS		2			; Voltage offset calibration word for bolt/array
+ramVoltOff		DS		2			; Voltage offset calibration word for cell
 ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
 ramCellRes		DS		2			; High temp cell internal resistance in micro-ohms
 ramBoltPlCal	DS		2			; Voltage scale calibration word for bolt/array
@@ -229,13 +234,13 @@ InterpretInit:
 			;_ENDOF
 			_OFb	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~14 bytes
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~14 bytes
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
@@ -246,15 +251,36 @@ InterpretInit:
 				; version number (way < $80).
 				; A new chip. We want to preserve some of the existing DCO calibration data.
 				; Set the ID, voltage, temperature and link calibration.
+
+// Convert unfriendly TI provided indices to the addresses of the relevant constants
+// Their index names start with CAL_ADC, our pointer names start with CALADC (one less underscore)
+CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index vref cal off tag adr
+CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; Index off. cal off tag adr
+CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; Index gain cal off tag adr
+CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; Index temp cal off tag adr
+
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
-CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index volt cal off tag adr
-				mov.w	&CALADC_15VREF_FACTOR,&ramBoltPlCal	; Use manufacturer's ADC cal data
-				add		#70,&ramBoltPlCal			; Compensate for systematic error
-				mov.w	&CALADC_15VREF_FACTOR,&ramVoltCal
-				add		#70,&ramVoltCal				; Compensate for systematic error
-CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal off the ADC tag address
+				; Use the manufacturer's correction factors and offset.
+				; Despite what the Family User Guide and Datasheets suggest, three correction values
+				; are needed: a reference voltage factor, an ADC gain factor, and an ADC offset.
+				; We combine the two factors into our default volotage factors, and add two new
+				; calibration values for bolt and cell offsets.
+				; We want a calibraton factor in 1.15 FixedPoint that is the product of two TI given
+				; 1.15 FP values. These are all 2^15 times a real number, so we end up with 2^30 times
+				; a real number, so we have to divide by 2^15. Do this by doubling (32-bit shift left)
+				; and taking the top half
+				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
+				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
+				call	#UMStar						; R10:R9 = R8 * R9
+				rla		R9							; Get MSB to carry (actually a shift)
+				rlc		R10							; Double R10:R9, carry to LSB
+				mov.w	R10,&ramBoltPlCal			; Use this as the default bolt voltage factor
+				mov.w	R10,&ramVoltCal				; and the default cell voltage factor
+				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset for default bolt
+				mov.w	R8,&ramBoltPlOff			; offset and
+				mov.w	R8,&ramVoltOff				; cell offset
 				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
 				; Convert it to Toff, our kind of offset calibration in degrees C.
 				; i.e. an offset from the typical T = (V - 0.986)/0.00355
@@ -400,7 +426,7 @@ CALADC_15T30 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) ; Index the temp cal
 
 
 ;
-; Compare the 8 bytes of calibration data at ramDataStart with what's at infoDataStart (in info-flash).
+; Compare the ~16 bytes of calibration data at ramDataStart with what's at infoDataStart (in info-flash).
 ; Returns with Z set if OK, Z clear if not.
 ; Trashes R12
 compareInfoFlash:
@@ -416,7 +442,7 @@ compareInfoFlash:
 			ret
 
 ;
-; Compare the 512 bytes at jBSLb (inactive copy) with what's at jBSL (active copy at $FE00).
+; Compare the 1024 bytes at jBSLb (inactive copy) with what's at jBSL (active copy at $FC00).
 ; Returns with Z set if OK, Z clear if not.
 ; Trashes R12
 compareBSL2:
