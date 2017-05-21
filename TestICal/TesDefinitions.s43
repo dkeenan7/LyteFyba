@@ -23,7 +23,7 @@
 calAddressTable
 		DB		'c' , ramCapacity	& $7F | $80
 		DB		'r' , ramCellRes	& $7F | $80
-		DB		'b' , ramBoltPlCal	& $7F | $80
+		DB		'V' , ramBoltPlCal	& $7F | $80
 		DB		'v' , ramVoltCal	& $7F | $80	; High bit set to indicate word quantity,
 		DB		't' , ramTempCal	& $7F | $00	; clear for byte quantity
 		DB		'l' , ramLinkCal	& $7F | $00
@@ -58,18 +58,16 @@ TranslateToCalAddr:
 ; Needed by 'v', 'b', 'o', 'O' calibrate subcommands
 ;
 voltOffWork:
-			call	#measure	; Get raw 12.2 bit fixed point measurement in R8
-#if (HW_REV != 63)
-			cmp.b	#255,&ID
-			_IF		_NE			; If not a BMU then
-				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-				mov		R8,R9		; Copy the value
-				add		#8,R9		; Add half the divisor for rounding
-				rra4	R9			; Divide by 16
-				add		R9,R8		; Add back to the original
-			_ENDIF
-			ret
-#endif
+		call	#measure	; Get raw 12.2 bit fixed point measurement in R8
+		cmp.b	#255,&ID
+		_IF		_NE			; If not a BMU then
+			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+			mov		R8,R9		; Copy the value
+			add		#8,R9		; Add half the divisor for rounding
+			rra4	R9			; Divide by 16
+			add		R9,R8		; Add back to the original
+		_ENDIF
+		ret
 
 ;
 ; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
@@ -81,7 +79,7 @@ voltOffWork:
 ; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
 ; i.e. a number with 1 integer bit and 15 fractional bits.
 ; So we shift the expected value 17 places left before the division.
-voltCalWork:
+voltScaleWork:
 			call	voltOffWork					; Measure and possibly scale by 17/16; res in R8
 			clr		R9							; 16 bits of zeroes
 			mov		Rsec,R10
@@ -103,12 +101,12 @@ voltCalWork:
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
-				call	#voltCalWork
+				call	#voltScaleWork
 				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
 			_ENDOF
-			_OFb	#'b',Rtos			; 'b': Bolt plus / array voltage factor
+			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
-				call	#voltCalWork
+				call	#voltScaleWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 

@@ -146,8 +146,8 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
-ramBoltPlOff	DS		2			; Voltage offset calibration word for bolt/array
-ramVoltOff		DS		2			; Voltage offset calibration word for cell
+ramBoltPlOff	DS		1			; Voltage offset calibration word for bolt/array
+ramVoltOff		DS		1			; Voltage offset calibration word for cell
 ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
 ramCellRes		DS		2			; High temp cell internal resistance in micro-ohms
 ramBoltPlCal	DS		2			; Voltage scale calibration word for bolt/array
@@ -265,7 +265,7 @@ newChip:
 				; Use the manufacturer's correction factors and offset.
 				; Despite what the Family User Guide and Datasheets suggest, three correction values
 				; are needed: a reference voltage factor, an ADC gain factor, and an ADC offset.
-				; We combine the two factors into our default volotage factors, and add two new
+				; We combine the two factors into our default voltage factors, and add two new
 				; calibration values for bolt and cell offsets.
 				; We want a calibraton factor in 1.15 FixedPoint that is the product of two TI given
 				; 1.15 FP values. These are all 2^15 times a real number, so we end up with 2^30 times
@@ -274,6 +274,7 @@ newChip:
 				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
 				call	#UMStar						; R10:R9 = R8 * R9
+				add		#$4000,R9					; For rounding
 				rla		R9							; Get MSB to carry (actually a shift)
 				rlc		R10							; Double R10:R9, carry to LSB
 				mov.w	R10,&ramBoltPlCal			; Use this as the default bolt voltage factor
