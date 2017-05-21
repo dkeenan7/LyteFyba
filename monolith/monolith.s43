@@ -591,8 +591,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 					call	#UpdateRtc					; Update "real time clock" if needed
 
 					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
-					;	incrementing &measureCount. We want to know if this count has advanced more than
-					;	4096/StatusFreq since the last measure (when &measureCount was saved as
+					;	incrementing &measureCount. We want to know if this count has advanced by
+					;	4096/StatusFreq or more since the last measure (when &measureCount was saved as
 					;	&oldMeasureCount)
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
@@ -601,7 +601,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer before sleeping CPU
 				;		bis		#CPUOFF+GIE,SR				; Turn off CPU and ensure interrupts still enabled
 					_ELSE								; Else time to measure
-						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
+						add		#(4096/StatusFreq),&oldMeasureCount ; Set the count for the next measure
 						call	#DoMeasurement			; May transmit status
 					_ENDIF
 				_ENDIF
@@ -617,7 +617,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 InitPip:
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#16,R8				; Number of initialisation strings,
+			_DO			#15,R8				; Number of initialisation strings,
 ;			_DO			#3,R8				; Number of initialisation strings,
 											; including initial CR
 				push		R8					; Save loop counter
@@ -638,16 +638,15 @@ InitPip:
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-;		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
+		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
-		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for on-grid use) (Param 1)
+;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for on-grid use) (Param 1)
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper (Param 18)
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen (Param 19)
 ;			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense (Param 4)
 			DB	6,'PEu',$82,$C5,$0D			; Enable OL-restart (Param 6)
 			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart (Param 7)
 			DB	6,'PDy',$70,$78,$0D			; Disable beeps when primary charge source interrupted (Param 22)
-			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording (Param 25)
 			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User" (Param 5)
 ;			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac) Doesn't work with genset (Param 3)
 ;			DB	11,'PSDV52.0',$65,$A4,$0D	; Battery low cutoff voltage 52.0 V (3.25 Vpc)
@@ -664,7 +663,8 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc) (Param 27)
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar) (Param 2)
 ;			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah; Param 2)
-			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps (Param 11)
+			DB	12,'MUCHGC020',$F3,$F1,$0D	; Maximum utility charge current 20 amps (Param 11)
+;			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
 

@@ -26,6 +26,7 @@ PIEZO||2
 PMOS||3
 Relay Coil + Diode||2
 Schmitt Inverter||4
+SN75155||8
 Transorb||2
 TVS||3
 VREG||5
