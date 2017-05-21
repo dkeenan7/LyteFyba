@@ -275,6 +275,7 @@ newChip:
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
 				call	#UMStar						; R10:R9 = R8 * R9
 				add		#$4000,R9					; For rounding
+				adc		R10
 				rla		R9							; Get MSB to carry (actually a shift)
 				rlc		R10							; Double R10:R9, carry to LSB
 				mov.w	R10,&ramBoltPlCal			; Use this as the default bolt voltage factor
