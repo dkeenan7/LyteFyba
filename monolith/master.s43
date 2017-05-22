@@ -113,7 +113,11 @@ Master:
 				call	#TxByte					;	to tell CMUs to send and expect checksums
 				mov		#'\r',R8
 				call	#TxByte
-
+#if QUIET
+				mov		#Quiet,R10				; Transmit "1Q" to tell CMUs to be quiet
+				call	#TxStringCk
+				call	#TxEndOfPacket
+#endif
 				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
 				call	#TxStringCk
 				call	#TxEndOfPacket
@@ -132,5 +136,8 @@ Master:
 SelectCMU1		DB		2, '1s'			; Length-prefixed command string to select CMU 1
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
+#if QUIET
+Quiet			DB		2, '1Q'			; Length-prefixed command string to stop CMUs beeping
+#endif
 		ALIGN	1
 

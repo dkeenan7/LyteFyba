@@ -24,7 +24,7 @@
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
 
-ShutdownTime	EQU		15*StatusFreq ; Shut down after approx 15 seconds of stress 15.
+ShutdownTime	EQU		15*StatusFreq	; Shut down after approx 15 seconds of stress 15.
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -52,6 +52,7 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
 
 ; Conditional assembly
+#define		QUIET		1			// 1 for BMU to tell CMUs not to beep
 #define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
@@ -304,6 +305,8 @@ rxCksum			DS		1			; Received packet xor checksum
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
+ticksSinceLastBypass DS	2			; Ticks since last bypass
+beenBypassing	DS		1			; True if we've bypassed in the past 5 minutes
 
 				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
@@ -856,6 +859,19 @@ DoMeasurement:
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+				_IF		_C						; If bypassing
+					clr		&ticksSinceLastBypass
+					mov.b	#1,&beenBypassing
+				_ELSE
+					tst.b	&beenBypassing
+					_IF		_NZ						; If been bypassing in last 5 minutes
+						inc		&ticksSinceLastBypass
+						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
+						_IF		_GE						; If more than 5 minutes since last bypass
+							clr.b	&beenBypassing
+						_ENDIF
+					_ENDIF
+				_ENDIF
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
 				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
 												;	One level above bypass (cf. one below for monitor)
@@ -896,6 +912,10 @@ DoMeasurement:
 			_IF		_NE						; If we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
+				tst.b	beenBypassing
+				_IF		_NZ
+						sub		#10,R10				; Prevent alarms/shutdowns when OT due to bypassing
+				_ENDIF
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
 				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
