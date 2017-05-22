@@ -306,7 +306,7 @@ rxCksum			DS		1			; Received packet xor checksum
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 ticksSinceLastBypass DS	2			; Ticks since last bypass
-beenBypassing	DS		1			; True if we've bypassed in the past 5 minutes
+beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
 				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
@@ -859,19 +859,22 @@ DoMeasurement:
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
-				_IF		_C						; If bypassing
-					clr		&ticksSinceLastBypass
-					mov.b	#1,&beenBypassing
-				_ELSE
-					tst.b	&beenBypassing
+
+				; Update the beenBypassing flag used by the OT stress calculation
+				_IF		_HS						; If bypassing (Note: _HS = _C)
+					clr		&ticksSinceLastBypass	; ticksSinceLastBypass := 0
+					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
+				_ELSE							; Else not bypassing
+					tst.b	&beenBypassing			; ticksSinceLastBypass += 1
 					_IF		_NZ						; If been bypassing in last 5 minutes
-						inc		&ticksSinceLastBypass
+						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
 						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
-						_IF		_GE						; If more than 5 minutes since last bypass
-							clr.b	&beenBypassing
-						_ENDIF
-					_ENDIF
-				_ENDIF
+						_IF		_HS						; If 5 minutes or more since last bypass
+							clr.b	&beenBypassing			; beenBypassing := FALSE
+						_ENDIF							; End if
+					_ENDIF							; End if been bypassing in last 5 minutes
+				_ENDIF							; End else not bypassing
+
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
 				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
 												;	One level above bypass (cf. one below for monitor)
@@ -912,10 +915,13 @@ DoMeasurement:
 			_IF		_NE						; If we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
-				tst.b	beenBypassing
-				_IF		_NZ
-						sub		#10,R10				; Prevent alarms/shutdowns when OT due to bypassing
-				_ENDIF
+
+				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
+				tst.b	&beenBypassing
+				_IF		_NZ						; If we've been bypassing in the last 5 minutes
+						sub		#10,R10				; Subtract 10 degC from the temp used for OT stress
+				_ENDIF							; End if
+
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
 				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
