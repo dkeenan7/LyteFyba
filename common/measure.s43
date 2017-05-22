@@ -133,8 +133,8 @@ measure:
 ; Output: R10 = 12-bit measurement result with scale calibration applied.
 ; Trashes: R8, R9, R11
 ;
-; Correct for scale the value by multiplying the sum-of-samples by the voltage calibration scale factor
-; in infoFlash and correct for offset by using another value from info flash.
+; Correct the value for scale by multiplying the sum-of-samples by the voltage calibration scale factor
+; in info flash, and correct it for offset by adding another value from info flash.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
 ; is an unsigned 12.2 bit fixed-point number of millivolts.
 ; The calibration scale factor is an unsigned 1.15 bit fixed-point number.
