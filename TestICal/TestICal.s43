@@ -146,8 +146,8 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
-ramBoltPlOff	DS		1			; Voltage offset calibration word for bolt/array
-ramVoltOff		DS		1			; Voltage offset calibration word for cell
+ramBoltPlOff	DS		1			; Voltage offset calibration byte for bolt/array
+ramVoltOff		DS		1			; Voltage offset calibration byte for cell
 ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
 ramCellRes		DS		2			; High temp cell internal resistance in micro-ohms
 ramBoltPlCal	DS		2			; Voltage scale calibration word for bolt/array
@@ -281,8 +281,8 @@ newChip:
 				mov.w	R10,&ramBoltPlCal			; Use this as the default bolt voltage factor
 				mov.w	R10,&ramVoltCal				; and the default cell voltage factor
 				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset for default bolt
-				mov.w	R8,&ramBoltPlOff			; offset and
-				mov.w	R8,&ramVoltOff				; cell offset
+				mov.b	R8,&ramBoltPlOff			; offset and
+				mov.b	R8,&ramVoltOff				; cell offset
 				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
 				; Convert it to Toff, our kind of offset calibration in degrees C.
 				; i.e. an offset from the typical T = (V - 0.986)/0.00355

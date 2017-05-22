@@ -330,10 +330,10 @@ _emitNum3:
 											;	unless you know whether pos or neg strap!
 			push		R10					; Remember this neg term value
 			mov			#CellVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
-			call		#measAndScale
+			call		#measAndCorr
 			push		R10					; Save strap voltage
 			mov			#BoltVPlChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
-			call		#measAndScale
+			call		#measAndCorrBolt	; Measure and correct using the BoltPL corrections
 			sub			R10,0(SP)			; TOS has bolt/array - cell/battery
 			pop			R10					; R10 has pos term strap drop
 			abs			R10					; Absolute value

@@ -128,12 +128,13 @@ measure:
 			ret
 
 
-; measAndScale
+; measAndCorr
 ; Input:  R8  = analog channel number shifted left 12 bits.
 ; Output: R10 = 12-bit measurement result with scale calibration applied.
 ; Trashes: R8, R9, R11
 ;
-; Scale the value by multiplying the sum-of-samples by the voltage calibration scale factor in infoFlash.
+; Correct for scale the value by multiplying the sum-of-samples by the voltage calibration scale factor
+; in infoFlash and correct for offset by using another value from info flash.
 ; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
 ; is an unsigned 12.2 bit fixed-point number of millivolts.
 ; The calibration scale factor is an unsigned 1.15 bit fixed-point number.
@@ -141,7 +142,7 @@ measure:
 ; That means we have to shift the product 17 bits to the right, which is equivalent to
 ; throwing away the lo word and shifting the high word one bit to the right.
 ;
-measAndScale:
+measAndCorr:
 			call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&VoltCal,R9				; Get voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
@@ -154,7 +155,7 @@ measAndScale:
 			ret									; Finished
 
 ; As above, using the separate bolt calibration factor and offset
-measAndScaleBolt:
+measAndCorrBolt:
 			call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&BoltPlCal,R9			; Get voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
@@ -170,7 +171,7 @@ cellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			mov		#CellVChan<<12,R8
-			call	#measAndScale				; Tail-call measAndScale and return
+			call	#measAndCorr
 			cmp.b	#255,&ID
 			_IF		_NE			; If not a BMU then
 				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
@@ -188,7 +189,7 @@ BoltV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			mov		#BoltVPlChan<<12,R8
-			call	#measAndScaleBolt
+			call	#measAndCorrBolt
 			cmp.b	#255,&ID
 			_IF		_NE			; If not a BMU then
 				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
@@ -204,7 +205,7 @@ temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range ???
 ; Trashes: R8, R9, R11
 			mov		#TempChan<<12,R8
-			call	#measAndScale
+			call	#measAndCorr
 			; Scale it back to degrees Celsius. Typically, T = (V-0.986)/.00355
 			; But the measurement M is 4092* V/1.5 = 2728*V.
 			; So T = (M/2728 - 0.986)*281.75 = M/9.684 - 277.75
@@ -231,7 +232,7 @@ linkV:
 			_ELSE
 				; In the below, add ADC10DIV_7, which forces the link measurement to use the slowest (/8) clock
 				mov			#LinkVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
-				call		#measAndScale
+				call		#measAndCorrBolt	; Measure and correct using BoltPL corrections
 				; Link voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.
 				; So measure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
@@ -266,6 +267,6 @@ touchV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
 			mov		#TouchVChan<<12,R8
-			jmp		measAndScale				; Tail-call measAndScale and return
+			jmp		measAndCorr					; Tail-call measAndCorr and return
 #endif // INSULATION_MONITORING
 

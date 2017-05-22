@@ -28,6 +28,9 @@
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their RAM counterparts instead of info-flash
 VoltCal 	EQU	infoVoltCal
+VoltOff		EQU infoVoltOff
+BoltPlCal 	EQU	infoBoltPlCal
+BoltPlOff	EQU infoBoltPlOff
 TempCal		EQU	infoTempCal
 LinkCal		EQU	infoLinkCal
 

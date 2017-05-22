@@ -14,7 +14,7 @@
 ;
 		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8
-		call		#measAndScale			; Measure and use voltage scale calibration
+		call		#measAndCorr			; Measure and use voltage scale/offset correction
 		mov			R10,Rtos
 		ret
 
@@ -56,8 +56,9 @@ TranslateToCalAddr:
 ;
 ; Measure and possibly scale by 17/16th
 ; Needed by 'v', 'b', 'o', 'O' calibrate subcommands
+; The call to measure trashes R9,10
 ;
-voltOffWork:
+measure17:
 		call	#measure	; Get raw 12.2 bit fixed point measurement in R8
 		cmp.b	#255,&ID
 		_IF		_NE			; If not a BMU then
@@ -79,8 +80,13 @@ voltOffWork:
 ; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
 ; i.e. a number with 1 integer bit and 15 fractional bits.
 ; So we shift the expected value 17 places left before the division.
+; R9 contains the relevant (cell or array/bolt) offset correction as a signed byte
 voltScaleWork:
-			call	voltOffWork					; Measure and possibly scale by 17/16; res in R8
+			push	R9
+			call	measure17					; Measure and possibly scale by 17/16; res in R8
+			pop		R9							; Restore offset correction
+			sxt		R9							; Convert from signed byte to signed word
+			add		R9,R8						; Perform offset correction, but not scale correction
 			clr		R9							; 16 bits of zeroes
 			mov		Rsec,R10
 			rla		R10							; 17 zeroes; we have value << 17 in R10:R9
@@ -92,33 +98,54 @@ voltScaleWork:
 			; R9 has the value we want to store
 			ret
 
+;
+; Perform a scale correction on the value in R8, without the offset correction
+; R9 has the scale correction factor, so want R8 = R8*R9/2^15
+;
+correctScale:
+			call	UMStar							; R10:R9 = R8 * R9
+			add		#$4000,R9						; For rounding
+			adc		R10
+			rla		R9								; Get MSB to carry (actually a shift)
+			rlc		R10								; Double R10:R9, carry to LSB
+			mov		R10,R8							; Return MSW in R8 = /2^16
+			ret
 
 ;
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+; For the voltage scale and offset calibrations, we want to apply the other correction (i.e. scale if
+; we are calibrating offset, and vice versa) to get the best correction so far. This also allows for
+; successive improvement calibration if that turns out to be useful.
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
+				mov.b	&ramVoltOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
 			_ENDOF
 			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
+				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
 			_OFb	#'o',Rtos			; 'o': cell voltage offset
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
-				call	#voltOffWork				; Measure and possibly scale 17/16
+				call	#measure17					; Measure and possibly scale 17/16
+				mov		&ramVoltCal,R9				; Use this voltage scale for correction
+				call	correctScale				; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramVoltOff
 			_ENDOF
 			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
-				call	#voltOffWork				; Measure and possibly scale 17/16
+				call	#measure17					; Measure and possibly scale 17/16
+				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
+				call	correctScale				; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
@@ -136,7 +163,7 @@ voltScaleWork:
 ; and T = M/9.684 - 273 - offsetByte
 ;
 				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
-				call	#measAndScale
+				call	#measAndCorr
 
 ; To divide by 9.684, multiply by 65536/9.684 = 6767
 				mov		R10,R8
@@ -149,7 +176,7 @@ voltScaleWork:
 
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov		#LinkVChan<<12,R8
-				call	#measAndScale
+				call	#measAndCorrBolt			; Measure and correct using the BoltPl corrections
 				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
 				;sub		Rsec,R10				; Subtract required reading (usually 0)
 				; Actually require 1.364Rsec to be subtracted. Too much code. So `lc will always
@@ -485,7 +512,7 @@ bitDelay	dec		R11
 ;
 		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
 		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
-		call	#measAndScale			; Gives us 0-4092 in R10, for 0-1.5 V
+		call	#measAndCorr			; Gives us 0-4092 in R10, for 0-1.5 V
 		mov		R10,R8
 		mov		#48047,R9				; 3000/4092*65536
 		call	#UMStar					; R10:R9 = R8 * R9
