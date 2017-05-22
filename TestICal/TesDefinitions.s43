@@ -83,7 +83,7 @@ measure17:
 ; R9 contains the relevant (cell or array/bolt) offset correction as a signed byte
 voltScaleWork:
 			push	R9
-			call	measure17					; Measure and possibly scale by 17/16; res in R8
+			call	#measure17					; Measure and possibly scale by 17/16; res in R8
 			pop		R9							; Restore offset correction
 			sxt		R9							; Convert from signed byte to signed word
 			add		R9,R8						; Perform offset correction, but not scale correction
@@ -103,7 +103,7 @@ voltScaleWork:
 ; R9 has the scale correction factor, so want R8 = R8*R9/2^15
 ;
 correctScale:
-			call	UMStar							; R10:R9 = R8 * R9
+			call	#UMStar							; R10:R9 = R8 * R9
 			add		#$4000,R9						; For rounding
 			adc		R10
 			rla		R9								; Get MSB to carry (actually a shift)
@@ -125,27 +125,18 @@ correctScale:
 				mov.b	&ramVoltOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
-			_ENDOF
-			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor
-				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
-				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use
-				call	#voltScaleWork
-				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
+			_ENDOF			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
+				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use				call	#voltScaleWork				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
-			_OFb	#'o',Rtos			; 'o': cell voltage offset
-				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
+			_OFb	#'o',Rtos			; 'o': cell voltage offset				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramVoltCal,R9				; Use this voltage scale for correction
-				call	correctScale				; Correct for scale but not offset
-				sub		R8,Rsec						; Calculate offset (expected - measured)
-				mov.b	Rsec,&ramVoltOff
-			_ENDOF
-			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
+				call	#correctScale				; Correct for scale but not offset				sub		R8,Rsec						; Calculate offset (expected - measured)				mov.b	Rsec,&ramVoltOff			_ENDOF			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
-				call	correctScale				; Correct for scale but not offset
+				call	#correctScale				; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
