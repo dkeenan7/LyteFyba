@@ -11,7 +11,7 @@
 ;	Output format: raw-binary
 ;
 ; This software has been developed by Mike Van Emmerik and Dave Keenan for their
-; lithium battery monitoring system for high voltage electric vehicles.
+; lithium battery monitoring system for high voltage electric vehicles and energy storage systems.
 ;
 ; "TestICal" is a TESTer, Id-setter, CALibrator and bootstrap-loader updater for our
 ; Cell Management Unit (CMU) and Battery Management Unit (BMU) based on an MSP430 microcontroller.
@@ -21,9 +21,9 @@
 ;
 ; TestICal contains two copies of a bootstrap loader (BSL), one active, the other inactive.
 ; The initial JTAG programming of TestICal will place this BSL in its active position
-; in the last 512 bytes of main-flash.
+; in the last 1024 bytes of main-flash.
 ; From then on, programming may be done via serial communications using this BSL.
-; Use the Windows program CMUsend or the Linux program sendprog to send the file
+; Use the Windows program LyteFlash or the Linux program sendprog to send the file
 ; TestICal.bin or monitor.bin.
 ;
 ; When loading TestICal via BSL, only the inactive copy of the BSL is sent with it.
@@ -46,7 +46,7 @@
 ; This time you send TestICal via the serial input not the JTAG port.
 ; That way a 'b' command will update the BSLs of all the boards in the chain simultaneously.
 ;
-; The BSL code is located in the last 512 bytes of main-flash because this flash segment contains
+; The BSL code is located in the last 1024 bytes of main-flash because this flash segment contains
 ; the reset vector and can be left alone when the rest of main-flash is erased.
 ;
 ; The following is true of both TestICal and the BSL:
