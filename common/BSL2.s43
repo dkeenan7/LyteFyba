@@ -390,16 +390,17 @@ WriteByte:
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 	mov.b	R8,&UCA0TXBUF		; Send byte
 	_BEGIN						; Loop
-	cmp.b	#255,&infoID		; Check our ID
-	_IF		_EQ					; If we're a CMU
-		bit.b	#UCA0RXIFG,&IFG2
-		_IF		_NZ					; If there's a byte from the CMU port
-			bit		#WRT,&FCTL1
-			_IF		_Z					; And if we're not writing to flash
-				push	R8					; Preserve R8
-				mov.b	&UCA0RXBUF,R8		; Get CMU byte
-				call 	#WriteScuByte		; Send the byte to the SCU port
-				pop		R8					; Restore R8
+		cmp.b	#255,&infoID		; Check our ID
+		_IF		_EQ					; If we're a CMU
+			bit.b	#UCA0RXIFG,&IFG2
+			_IF		_NZ					; If there's a byte from the CMU port
+				bit		#WRT,&FCTL1
+				_IF		_Z					; And if we're not writing to flash
+					push	R8					; Preserve R8
+					mov.b	&UCA0RXBUF,R8		; Get CMU byte
+					call 	#WriteScuByte		; Send the byte to the SCU port
+					pop		R8					; Restore R8
+				_ENDIF
 			_ENDIF
 		_ENDIF
 		bit.b	#UCA0TXIFG,&IFG2
