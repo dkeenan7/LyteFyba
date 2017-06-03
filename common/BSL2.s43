@@ -428,7 +428,7 @@ WriteScuByte:
 					bic.b	#TxMiScu,&ScuPortOUT ; (5) Clear TxMiScu
 				_ELSE							(2)
 					bis.b	#TxMiScu,&ScuPortOUT ; (alt 5) Set TxMiScu
-					nop							 ; (alt 2)
+					jmp		$+2					 ; (alt 2)
 				_ENDIF
 				mov.b	#(ScuBitCycles-15+1)/3,R11 ; (2) Set delay counter to pad out to one bit time
 				_BEGIN
