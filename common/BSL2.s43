@@ -344,7 +344,7 @@ ReadByte:
 				bit		#WRT,&FCTL1
 				_IF		_Z					; And if we're not writing to flash
 					mov.b	&UCA0RXBUF,R8
-					call 	#WriteScuByte		; Send the byte to the SCU port
+					call 	#WriteScuByte-jBSL+BSL2_START ; Send the byte to the SCU port
 				_ENDIF
 			_ENDIF
 			bit.b	#RxScu,&ScuPortIN ; (4 CG) Start bit on SCU port?
@@ -408,7 +408,7 @@ WriteByte:
 				_IF		_Z					; And if we're not writing to flash
 					push	R8					; Preserve R8
 					mov.b	&UCA0RXBUF,R8		; Get CMU byte
-					call 	#WriteScuByte		; Send the byte to the SCU port
+					call 	#WriteScuByte-jBSL+BSL2_START ; Send the byte to the SCU port
 					pop		R8					; Restore R8
 				_ENDIF
 			_ENDIF
