@@ -82,7 +82,7 @@ VoltCal 	EQU	ramVoltCal
 VoltOff		EQU ramVoltOff
 BoltPlCal 	EQU	ramBoltPlCal
 BoltPlOff	EQU ramBoltPlOff
-TempCal		EQU	ramTempCal
+TempCal		EQU	ramTempOff
 LinkCal		EQU	ramLinkCal
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -146,13 +146,15 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
+ramBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
+ramTempSlope	ds		2			; Precomputed slope of voltage vs temperature curve
 ramBoltPlOff	DS		1			; Voltage offset calibration byte for bolt/array
 ramVoltOff		DS		1			; Voltage offset calibration byte for cell
 ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
 ramCellRes		DS		2			; High temp cell internal resistance in micro-ohms
 ramBoltPlCal	DS		2			; Voltage scale calibration word for bolt/array
 ramVoltCal		DS		2			; Voltage scale calibration word for cell
-ramTempCal		DS		1			; Temperature offset calibration for internal sensor
+ramTempOff		DS		1			; Temperature offset calibration for internal sensor
 ramLinkCal		DS		1			; Link voltage offset calibration data
 ram8MHzCalD 	DS		1			; 8 MHz DCO frequency calibration byte
 ram8MHzCalB 	DS		1			; 8 MHz DCO range calibration byte
@@ -258,6 +260,7 @@ CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; In
 CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; Index off. cal off tag adr
 CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; Index gain cal off tag adr
 CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; Index temp cal off tag adr
+CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)
 
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
@@ -303,8 +306,16 @@ newChip:
 				add		#7,R10						; Compensate for systematic error
 				add		#2,R10						; Add half the divisor for rounding
 				rra2	R10							; Divide by 4
-				mov.b	R10,&ramTempCal				; Will fit into a signed byte
+				mov.b	R10,&ramTempOff				; Will fit into a signed byte
 				mov.b	#$00,&ramLinkCal			; Really the BatV- or Shunt offset calibration now.
+				; Precalculate the slope of the voltage vs temperature curve
+				; = (85-30)/(CAL85-CAL30) stored as a 0.16 fixed point number
+				mov		#(85-30),R10				; Numerator MSW
+				mov		#0,R9						; LSW of numerator
+				mov		&CALADC_15T85,R8			; Cal value for 85C
+				sub		&CALADC_15T30,R8			; CAL85-CAL30 = denom
+				call	#UMSlashMod					; Divide; quotient to R9
+				mov		R9,&ramTempSlope
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data

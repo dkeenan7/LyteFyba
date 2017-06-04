@@ -25,7 +25,7 @@ calAddressTable
 		DB		'r' , ramCellRes	& $7F | $80
 		DB		'V' , ramBoltPlCal	& $7F | $80
 		DB		'v' , ramVoltCal	& $7F | $80	; High bit set to indicate word quantity,
-		DB		't' , ramTempCal	& $7F | $00	; clear for byte quantity
+		DB		't' , ramTempOff	& $7F | $00	; clear for byte quantity
 		DB		'l' , ramLinkCal	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
@@ -174,7 +174,7 @@ correctScale:
 				add		#2,R10						; Add half the divisor for rounding
 				rra2	R10							; Divide by 4
 				sub		Rsec,R10					; Subtract the calibration temperature
-				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
+				mov.b	R10,&ramTempOff				; Save temperature offset calibration value
 			_ENDOF
 
 			_OFb		#'l',Rtos				; 'l': link voltage

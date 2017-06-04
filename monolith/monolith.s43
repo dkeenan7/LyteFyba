@@ -39,7 +39,7 @@ VoltCal 	EQU	infoVoltCal
 VoltOff		EQU infoVoltOff
 BoltPlCal 	EQU	infoBoltPlCal
 BoltPlOff		EQU infoBoltPlOff
-TempCal		EQU	infoTempCal
+TempCal		EQU	infoTempOff
 LinkCal		EQU	infoLinkCal
 
 

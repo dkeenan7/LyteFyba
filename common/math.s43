@@ -31,6 +31,21 @@ mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
 			jnz		mullp		; (2) Loop until zero
 			ret					; (3)
 
+; Mixed sign Mixed size multiply: R8 can be signed, R9 has to be unsigned
+MMStar:
+			tst		R8			; Check for negative operand
+			_IF		_NN
+				call	#UMStar		; Two positive operands, just call UMStar
+			_ELSE
+				neg		R8			; Make operand positive
+				call	#UMStar		; Do unsigned multiply
+				inv		R9			; Invert 32-bit result
+				inv		R10
+				inc		R9			; Increment 32-bit result
+				adc		R10
+			_ENDIF
+			ret
+
 
 ; UMSlashMod -- Unsigned mixed divide and modulo
 ; R10:R9 / R8 -> R9, remainder R10. Clears R11
