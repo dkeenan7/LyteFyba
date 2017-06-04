@@ -374,10 +374,8 @@ newChip:
 			dec		R8
 			and		#$0F,R8
 			mov.b	resetBuffer(R8),R8
-			and.b	#PORIFG|RSTIFG,R8		; Extract the two bits that indicate power-on, reset-pin or,
-											; in combination, a bootstrap-load.
-			cmp.b	#PORIFG,R8				; Compare with power-on only
-			_IF		_EQ						; If it was a power-on
+			bit.b	#PORIFG,R8				; Check for power-on reset
+			_IF		_NZ						; If it was a power-on
 				mov.b	#0,&P3OUT				; Turn off all contactors
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.

@@ -127,8 +127,8 @@ BSL:		; Initialisation
 		; a "BSL reset". We tried using the apparently-unused bit with mask $20, but strange things
 		; happened. We also tried using the combination of RST-pin and Vcc-power-on, but this now
 		; happens since we added a capacitor (C3) on the RST pin. So now we use the combination of
-		; the Vcc-power-on bit and the watchdog bit.
-BSLFG	EQU		$05				; Use these two bits in IFG1 to indicate a bootstrap-load "reset".
+		; the RST pin bit and the watchdog bit.
+BSLFG	EQU		WDTIFG|RSTIFG		; Use these two bits in IFG1 to indicate a bootstrap-load "reset".
 
 		mov		&resetCounter,R8
 		and		#$0F,R8
