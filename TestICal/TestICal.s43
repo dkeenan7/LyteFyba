@@ -313,15 +313,18 @@ newChip:
 
 #if !FAKE_NEW_CHIP
 				; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
+				; Only BMUs have 28 pin chips so port 3 comes out on pins, and they will always have
+				; a load or an external pullup or pulldown on at least one pin, so that pin will not be
+				; pushed around by mere internal pullups or pulldowns.
 				mov.b	#0,&P3DIR					; Set Port 3 as all inputs
 				mov.b	#$FF,&P3REN					; Enable all pullup/pulldown resistors
 				_COND								; Begin a short-circuit conditional
-					mov.b	#0,&P3OUT					; Pull them all down with resistors
-					cmp.b	#0,&P3IN					; Check if all inputs are low
-				_AND_IF	_EQ							; If they all got pulled low
 					mov.b	#$FF,&P3OUT					; Pull them all up with resistors
-					cmp.b	#$FF,&P3IN					; Check if they are all low
-				_AND_IF _EQ							; And if they all got pulled high
+					cmp.b	#$FF,&P3IN					; Check if they are all high
+				_AND_IF _EQ							; If they all got pulled high
+					mov.b	#0,&P3OUT					; Pull them all down with resistors
+					cmp.b	#0,&P3IN					; Check if they are all low
+				_AND_IF	_EQ							; And if they all got pulled low
 					mov.b	#0,&ramID					; Set ID = 0 (un-IDed CMU)
 				_ELSES
 					mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
