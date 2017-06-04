@@ -258,7 +258,7 @@ InterpretInit:
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
-				; Use the manufacturer's correction factors and offset.
+				; Use the manufacturer's scale factors and offset for voltage measurement.
 				; Despite what the Family User Guide and Datasheets suggest, three correction values
 				; are needed: a reference voltage factor, an ADC gain factor, and an ADC offset.
 				; We combine the two factors into our default voltage factors, and add new
@@ -269,7 +269,7 @@ newChip:
 				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
 				call	#UMStar						; R10:R9 = R8 * R9
-				add		#$4000,R9					; For rounding
+				add		#$4000,R9					; Add half the divisor for rounding
 				adc		R10
 				; Instead of shifting 15 bits right we shift 1 bit left and keep the high word only
 				rla		R9							; Get MSB to carry (actually a shift)
@@ -281,35 +281,18 @@ newChip:
 				mov.b	R8,&ramCellOff				; cell offset,
 				mov.b	R8,&ramBoltPlOff			; bolt+ offset and
 				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration
-				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
-				; Convert it to Toff, our kind of offset calibration in degrees C.
-				; i.e. an offset from the typical T = (V - 0.986)/0.00355
-				; where V = Vcal/32768 * N/1023 * 1.5
-				; So Tcal = N30 * Vcal/32768 * 1.5 / 1023 / 0.00355 - 0.986 / 0.00355 - 30
-				; = N30 * Vcal/32768 * 0.413035 - 307.75
-				; = N30 * Vcal/32768 * 27069/65536 - 1231/4
-				; = (N30 * Vcal/32768 * 4 * 27069/65536 - 1231) / 4
-				; = (N30 * Vcal/65536 * 8 * 27069/65536 - 1231) / 4
-				mov		&CALADC_15T30,R8			; Get N30, the raw ADC count at 30degC with 1.5V ref
-				mov		&ramCellCal,R9				; Get voltage calibration word as multiplicand in R9
-				call	#UMStar						; R10:R9 = R8 * R9
-				rla3	R10							; Multiply by 8
-				mov		R10,R8
-				mov		#27069,R9
-				call 	#UMStar						; R10:R9 = R8 * R9
-				sub		#1231,R10
-				add		#7,R10						; Compensate for systematic error
-				add		#2,R10						; Add half the divisor for rounding
-				rra2	R10							; Divide by 4
-				mov.b	R10,&ramTempOff				; Will fit into a signed byte
-				; Precalculate the slope of the voltage vs temperature curve
+
+				; Precalculate the slope of the temperature vs ADC-value curve
 				; = (85-30)/(CAL85-CAL30) stored as a 0.16 fixed point number
-				mov		#(85-30),R10				; Numerator MSW
-				mov		#0,R9						; LSW of numerator
-				mov		&CALADC_15T85,R8			; Cal value for 85C
-				sub		&CALADC_15T30,R8			; CAL85-CAL30 = denom
-				call	#UMSlashMod					; Divide; quotient to R9
-				mov		R9,&ramTempSlope
+				mov		&CALADC_15T85,R8			; ADC value for 85C
+				sub		&CALADC_15T30,R8			; CAL85-CAL30 = divisor in R8 in 16.0 fixed-point
+				mov		#(85-30),R10				; Dividend in R10:R9 in 16.16 fixed-point
+				mov		R8,R9						; Add half the divisor to the dividend, for rounding
+				rra		R9
+				call	#UMSlashMod					; Divide; quotient to R9 in 0.16 fixed-point
+				mov		R9,&ramTempSlope			; Save as temperature/ADC-value slope
+				; The manufacturer's temp offset is calculated when needed, from CALADC_15T30
+				mov.b	#0,&ramTempOff				; Set our additional temp offset in degC to 0
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
@@ -519,4 +502,6 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 #include "../common/BSL2.s43"			// Include bootstrap-loader and interrupt vectors
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL main entry
+
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END

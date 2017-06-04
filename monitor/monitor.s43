@@ -559,7 +559,7 @@ DoMeasurement:
 				_ENDIF
 
 			; Do temperature measurement
-			call	#temp					; Get temperature in degrees Celsius in R10
+			call	#Temp					; Get temperature in degrees Celsius in R10
 			push	R10						; Save measurement for undertemperature stress calc
 
 			; Calculate stress due to overtemperature
@@ -841,4 +841,5 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL2 main entry in case there is a crash
 
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END

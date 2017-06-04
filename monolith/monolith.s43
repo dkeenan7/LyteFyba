@@ -907,7 +907,7 @@ DoMeasurement:
 			_ENDIF	; not a BMU
 
 			; Do temperature measurement using internal sensor
-			call	#temp					; Get temperature in degrees Celsius in R10
+			call	#Temp					; Get temperature in degrees Celsius in R10
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
@@ -1810,4 +1810,5 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by LyteFlash or SendPro
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL main entry in case there is a crash
 
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END

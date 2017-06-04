@@ -226,7 +226,7 @@ BoltPlV:
 			ret
 
 
-temp:
+Temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range -50..100
 ; Trashes: R8, R9, R11
 			mov		#TempChan<<12,R8
@@ -239,8 +239,8 @@ temp:
 			call	#MMStar					; R10:R9 := R8 * R9, R8 allowed to be negative
 			add		#2,R10					; Add half divisor for rounding
 			rra2	R10						; Shift (divide by 4) to get 16.0 FP in R10
-			add		#30,R10					; Add 30C
-			mov.b	&TempOff,R8				; Subtract the offset calibration
+			add		#30,R10					; Add 30 degC
+			mov.b	&TempOff,R8				; Subtract our offset calibration
 			sxt		R8
 			sub		R8,R10					; R10 now has temperature in degrees Celsius
 			ret

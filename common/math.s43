@@ -31,7 +31,7 @@ mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
 			jnz		mullp		; (2) Loop until zero
 			ret					; (3)
 
-; Mixed sign Mixed size multiply: R8 can be signed, R9 has to be unsigned
+; Mixed sign Mixed size multiply: signed R8 * unsigned R9 -> signed R10:R9
 MMStar:
 			tst		R8			; Check for negative operand
 			_IF		_NN

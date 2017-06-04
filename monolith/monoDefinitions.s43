@@ -199,7 +199,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
-				call	#temp			; Get temperature in degrees Celsius in R10
+				call	#Temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF #'p',Rsec
@@ -263,7 +263,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
-				call	#temp			; Get temperature in degrees Celsius in R10
+				call	#Temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF #'p',Rsec

@@ -717,7 +717,7 @@ DoMeasurement:
 			_ENDIF	; not a BMU
 
 			; Do temperature measurement using internal sensor
-			call	#temp					; Get temperature in degrees Celsius in R10
+			call	#Temp					; Get temperature in degrees Celsius in R10
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
@@ -739,7 +739,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
-			call	#BoltMiV					; Get link voltage in mV in R10
+			call	#BoltMiV				; Get link voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
@@ -1334,4 +1334,5 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL main entry in case there is a crash
 
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END

@@ -286,7 +286,7 @@ _emitNum3:
 ; Transmit cell temperature in degrees C
 ;
 		xCODE		't',cellTemp,_cellTemp
-		call		#temp				; Return temperature in degrees Celsius in R10
+		call		#Temp				; Return temperature in degrees Celsius in R10
 		mov			#'t',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). Looks like status
 		mov			R10,Rsec			; Result in degrees Celsius
