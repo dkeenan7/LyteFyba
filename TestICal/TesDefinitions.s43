@@ -181,9 +181,9 @@ correctScale:
 				mov		#LinkVChan<<12,R8
 				call	#measAndCorrBolt			; Measure and correct using the BoltPl corrections
 				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
-				;sub		Rsec,R10				; Subtract required reading (usually 0)
 				; Actually require 1.364Rsec to be subtracted. Too much code. So `lc will always
 				;	calibrate to zero millivolts (calibrate with no significant charge or discharge).
+;				sub		Rsec,R10					; Subtract required reading
 				cmp		#$FF81,R10					; -$7F
 				jl		nonCal						; If <s -$7F, use the $80 non-calibrated value
 				cmp		#$80,R10
