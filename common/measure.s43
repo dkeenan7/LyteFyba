@@ -157,7 +157,11 @@ measAndCorr:
 ; As above, using the separate bolt calibration factor and offset
 measAndCorrBolt:
 			call		#measure				; 12.2 fixed-point result in R8
-			mov.w		&BoltPlCal,R9			; Get voltage calibration word as multiplicand in R9
+			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
+			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
+			_IF			_EQ						; If it doesn't exist
+				mov.w		&VoltCal,R9				; Use the cell voltage scale factor instead
+			_ENDIF								; Endif
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
 			inc			R10						; For correct rounding
