@@ -57,7 +57,7 @@
         </option>
         <option>
           <name>DdfFileName</name>
-          <state>$TOOLKIT_DIR$\config\debugger\msp430g2452.ddf</state>
+          <state>$TOOLKIT_DIR$\config\debugger\msp430g2553.ddf</state>
         </option>
         <option>
           <name>ProcTMS</name>
@@ -296,7 +296,7 @@
         </option>
         <option>
           <name>RadioJtagSpeedType</name>
-          <state>2</state>
+          <state>0</state>
         </option>
         <option>
           <name>memoryTypeSlave</name>

@@ -166,11 +166,14 @@ correctScale:
 				call	#measAndCorr
 
 ; To divide by 9.684, multiply by 65536/9.684 = 6767
+; But we first calculate 4 times that, and then divide by 4 with rounding afterwards
 				mov		R10,R8
-				mov		#6767,R9
-				call	#UMStar
-				sub		#278,R10
-				sub		Rsec,R10					; Subtract 278 and the calibration temperature
+				mov		#27069,R9
+				call	#UMStar						; R10:R9 = meas*6767 so M/9.684 to R10
+				sub		#1111,R10					; M/9.684 - 277.75
+				add		#2,R10						; Add half the divisor for rounding
+				rra2	R10							; Divide by 4
+				sub		Rsec,R10					; Subtract the calibration temperature
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
 
