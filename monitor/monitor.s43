@@ -27,12 +27,13 @@
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their RAM counterparts instead of info-flash
-VoltCal 	EQU	infoVoltCal
-VoltOff		EQU infoVoltOff
+CellCal 	EQU	infoCellCal
+CellOff		EQU infoCellOff
 BoltPlCal 	EQU	infoBoltPlCal
 BoltPlOff	EQU infoBoltPlOff
-TempCal		EQU	infoTempOff
-LinkCal		EQU	infoLinkCal
+BoltMiCal 	EQU	infoBoltMiCal
+BoltMiOff	EQU infoBoltMiOff
+TempOff		EQU	infoTempOff
 
 
 			NAME	main			; Module name
@@ -509,7 +510,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Do cell voltage measurement
-			call	#cellV					; Get cell voltage in mV in R10
+			call	#CellV					; Get cell voltage in mV in R10
 			push	R10						; Save measurement for undervoltage stress calc
 
 			; Set bypass as required
@@ -581,7 +582,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
-			call	#linkV					; Get link voltage in mV in R10
+			call	#BoltMiV					; Get link voltage in mV in R10
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.

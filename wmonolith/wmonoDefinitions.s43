@@ -195,7 +195,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
 			_OF #'v',Rsec
-				call	#cellV			; Get cell voltage in millivolts in R10
+				call	#CellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
@@ -259,7 +259,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
 			_OF #'v',Rsec
-				call	#cellV			; Get cell voltage in millivolts in R10
+				call	#CellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
