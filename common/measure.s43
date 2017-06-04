@@ -240,6 +240,9 @@ temp:
 			add		#2,R10					; Add half divisor for rounding
 			rra2	R10						; Shift (divide by 4) to get 16.0 FP in R10
 			add		#30,R10					; Add 30C
+			mov.b	&TempOff,R8				; Subtract the offset calibration
+			sxt		R8
+			sub		R8,R10					; R10 now has temperature in degrees Celsius
 			ret
 
 BoltMiV:
