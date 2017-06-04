@@ -14,7 +14,7 @@
 ;
 		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8
-		call		#measAndCorr			; Measure and use voltage scale/offset correction
+		call		#MeasAndCorrCell			; Measure and use voltage scale/offset correction
 		mov			R10,Rtos
 		ret
 
@@ -24,12 +24,12 @@ calAddressTable
 		DB		'c' , ramCapacity	& $7F | $80
 		DB		'r' , ramCellRes	& $7F | $80
 		DB		'V' , ramBoltPlCal	& $7F | $80
-		DB		'v' , ramVoltCal	& $7F | $80	; High bit set to indicate word quantity,
+		DB		'v' , ramCellCal	& $7F | $80	; High bit set to indicate word quantity,
 		DB		't' , ramTempOff	& $7F | $00	; clear for byte quantity
-		DB		'l' , ramLinkCal	& $7F | $00
+		DB		'l' , ramBoltMiOff	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
-		DB		'o' , ramVoltOff	& $7F | $00
+		DB		'o' , ramCellOff	& $7F | $00
 		DB		'O' , ramBoltPlOff	& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
@@ -122,9 +122,9 @@ correctScale:
 			_CASE
 			_OFb	#'v',Rtos			; 'v': cell Voltage factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
-				mov.b	&ramVoltOff,R9				; This is the offset correction to use
+				mov.b	&ramCellOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
-				mov.w	R9,&ramVoltCal				; Save cell/battery calibration value
+				mov.w	R9,&ramCellCal				; Save cell/battery calibration value
 			_ENDOF
 			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
@@ -136,10 +136,10 @@ correctScale:
 			_OFb	#'o',Rtos			; 'o': cell voltage offset
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
-				mov		&ramVoltCal,R9				; Use this voltage scale for correction
+				mov		&ramCellCal,R9				; Use this voltage scale for correction
 				call	#correctScale				; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
-				mov.b	Rsec,&ramVoltOff
+				mov.b	Rsec,&ramCellOff
 			_ENDOF
 			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
@@ -163,7 +163,7 @@ correctScale:
 ; and T = M/9.684 - 273 - offsetByte
 ;
 				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
-				call	#measAndCorr
+				call	#MeasAndCorrCell
 
 ; To divide by 9.684, multiply by 65536/9.684 = 6767
 ; But we first calculate 4 times that, and then divide by 4 with rounding afterwards
@@ -179,18 +179,30 @@ correctScale:
 
 			_OFb		#'l',Rtos				; 'l': link voltage
 				mov		#LinkVChan<<12,R8
-				call	#measAndCorrBolt			; Measure and correct using the BoltPl corrections
+				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
-				; Actually require 1.364Rsec to be subtracted. Too much code. So `lc will always
-				;	calibrate to zero millivolts (calibrate with no significant charge or discharge).
-;				sub		Rsec,R10					; Subtract required reading
-				cmp		#$FF81,R10					; -$7F
-				jl		nonCal						; If <s -$7F, use the $80 non-calibrated value
-				cmp		#$80,R10
-				jl		realCal						; If >s -$7F and <s $80, use as real calibration value
-nonCal			mov		#$80,R10
-realCal
-				mov.b	R10,&ramLinkCal				; Save the link calibration value
+
+				; Multiply Rsec (signed) by 1.364
+				push 	R10
+				mov		Rsec,R8
+				mov		#44696,R9					; ~= 1.364 * 2^15
+				call	#MMStar						; Signed R10:R9 = signed R8 * unsigned R9
+				add		#$4000,R9					; Add half the divisor for rounding
+				adc		R10
+				rla		R9							; To divide by 2^15, mult by 2 and keep the hi word
+				rlc		R10
+				mov		R10,Rsec
+				pop		R10
+
+				sub		Rsec,R10					; Subtract required reading * 1.364
+				_COND								; Start a short-circuit conditional
+					cmp		#-$7F,R10					; Compare with -$7F
+				_IF_OR		_L						; If < -$7F
+					cmp		#$80,R10					; Compare with $80
+				_OR_IFS		_GE						; or >= $80
+					mov		#$80,R10					; Use $80 to indicate "not calibrated"
+				_ENDIF
+				mov.b	R10,&ramBoltMiOff			; Save the bolt-/current offset calibration value
 			_ENDOF
 ;
 ; Default case
@@ -515,7 +527,7 @@ bitDelay	dec		R11
 ;
 		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
 		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
-		call	#measAndCorr			; Gives us 0-4092 in R10, for 0-1.5 V
+		call	#MeasAndCorrCell		; Gives us 0-4092 in R10, for 0-1.5 V
 		mov		R10,R8
 		mov		#48047,R9				; 3000/4092*65536
 		call	#UMStar					; R10:R9 = R8 * R9

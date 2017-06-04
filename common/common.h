@@ -92,20 +92,28 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-			ORG		$1004			; For compatibility with existing calibration values
+// Convert unfriendly TI provided indices to the addresses of the relevant constants
+// Their index names start with CAL_ADC, our pointer names start with CALADC (one less underscore)
+CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index vref cal off tag adr
+CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; Index off. cal off tag adr
+CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; Index gain cal off tag adr
+CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; Index temp cal off tag adr
+CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)
+
+				ORG		$1004		; For compatibility with existing calibration values
 			; Calibration data
 DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
 infoBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
 infoTempSlope	ds		2			; Precomputed slope of voltage vs temperature curve
 infoBoltPlOff	ds		1			; Bolt/array voltage offset calibration signed byte
-infoVoltOff		ds		1			; Cell/battery voltage offset calibration signed byte
+infoCellOff		ds		1			; Cell/battery voltage offset calibration signed byte
 infoCapacity	ds		2			; Battery capacity in tenths of an amp-hour
 infoCellRes		ds		2			; High temp cell internal resistance in micro-ohms
 infoBoltPlCal	ds		2			; Bolt+/array voltage scale calibration word
-infoVoltCal		ds		2			; Cell/battery voltage scale calibration word
+infoCellCal		ds		2			; Cell/battery voltage scale calibration word
 infoTempOff		ds		1			; Temperature offset calibration for internal sensor
-infoLinkCal		ds		1			; Link voltage offset calibration data
+infoBoltMiOff	ds		1			; Bolt- voltage / current offset calibration signed byte
 info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte
 info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte
 infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd

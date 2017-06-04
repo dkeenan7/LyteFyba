@@ -78,12 +78,13 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 
 ; Some definitions so the measure.s43 code will work
 ; Monitor defines these as their info-flash counterparts instead of ram
-VoltCal 	EQU	ramVoltCal
-VoltOff		EQU ramVoltOff
+CellCal 	EQU	ramCellCal
+CellOff		EQU ramCellOff
 BoltPlCal 	EQU	ramBoltPlCal
 BoltPlOff	EQU ramBoltPlOff
-TempCal		EQU	ramTempOff
-LinkCal		EQU	ramLinkCal
+BoltMiCal 	EQU	ramBoltMiCal
+BoltMiOff	EQU ramBoltMiOff
+TempOff		EQU	ramTempOff
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -146,16 +147,16 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
-ramBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
-ramTempSlope	ds		2			; Precomputed slope of voltage vs temperature curve
+ramBoltMiCal	DS		2			; Bolt- voltage / current scale calibration word
+ramTempSlope	DS		2			; Precomputed slope of voltage vs temperature curve
 ramBoltPlOff	DS		1			; Voltage offset calibration byte for bolt/array
-ramVoltOff		DS		1			; Voltage offset calibration byte for cell
+ramCellOff		DS		1			; Voltage offset calibration byte for cell
 ramCapacity		DS		2			; Battery capacity in tenths of an amp-hour
 ramCellRes		DS		2			; High temp cell internal resistance in micro-ohms
 ramBoltPlCal	DS		2			; Voltage scale calibration word for bolt/array
-ramVoltCal		DS		2			; Voltage scale calibration word for cell
+ramCellCal		DS		2			; Voltage scale calibration word for cell
 ramTempOff		DS		1			; Temperature offset calibration for internal sensor
-ramLinkCal		DS		1			; Link voltage offset calibration data
+ramBoltMiOff	DS		1			; Bolt-/current offset calibration byte
 ram8MHzCalD 	DS		1			; 8 MHz DCO frequency calibration byte
 ram8MHzCalB 	DS		1			; 8 MHz DCO range calibration byte
 ramID			DS		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
@@ -254,38 +255,32 @@ InterpretInit:
 				; A new chip. We want to preserve some of the existing DCO calibration data.
 				; Set the ID, voltage, temperature and link calibration.
 
-// Convert unfriendly TI provided indices to the addresses of the relevant constants
-// Their index names start with CAL_ADC, our pointer names start with CALADC (one less underscore)
-CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index vref cal off tag adr
-CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; Index off. cal off tag adr
-CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; Index gain cal off tag adr
-CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; Index temp cal off tag adr
-CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)
-
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
 				; Use the manufacturer's correction factors and offset.
 				; Despite what the Family User Guide and Datasheets suggest, three correction values
 				; are needed: a reference voltage factor, an ADC gain factor, and an ADC offset.
-				; We combine the two factors into our default voltage factors, and add two new
+				; We combine the two factors into our default voltage factors, and add new
 				; calibration values for bolt and cell offsets.
 				; We want a calibraton factor in 1.15 FixedPoint that is the product of two TI given
 				; 1.15 FP values. These are all 2^15 times a real number, so we end up with 2^30 times
-				; a real number, so we have to divide by 2^15. Do this by doubling (32-bit shift left)
-				; and taking the top half
+				; a real number, so we have to divide by 2^15.
 				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
 				call	#UMStar						; R10:R9 = R8 * R9
 				add		#$4000,R9					; For rounding
 				adc		R10
+				; Instead of shifting 15 bits right we shift 1 bit left and keep the high word only
 				rla		R9							; Get MSB to carry (actually a shift)
 				rlc		R10							; Double R10:R9, carry to LSB
-				mov.w	R10,&ramBoltPlCal			; Use this as the default bolt voltage factor
-				mov.w	R10,&ramVoltCal				; and the default cell voltage factor
-				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset for default bolt
-				mov.b	R8,&ramBoltPlOff			; offset and
-				mov.b	R8,&ramVoltOff				; cell offset
+				mov.w	R10,&ramCellCal				; Use this as the default cell voltage scale factor
+				mov.w	R10,&ramBoltPlCal			; and the default bolt+ voltage scale factor
+				mov.w	R10,&ramBoltPlCal			; and the default bolt- voltage scale factor
+				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset as default
+				mov.b	R8,&ramCellOff				; cell offset,
+				mov.b	R8,&ramBoltPlOff			; bolt+ offset and
+				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration
 				; Call the manufacturer's temp cal N30, the raw ADC count at 30degC with 1.5V ref.
 				; Convert it to Toff, our kind of offset calibration in degrees C.
 				; i.e. an offset from the typical T = (V - 0.986)/0.00355
@@ -296,7 +291,7 @@ newChip:
 				; = (N30 * Vcal/32768 * 4 * 27069/65536 - 1231) / 4
 				; = (N30 * Vcal/65536 * 8 * 27069/65536 - 1231) / 4
 				mov		&CALADC_15T30,R8			; Get N30, the raw ADC count at 30degC with 1.5V ref
-				mov		&ramVoltCal,R9				; Get voltage calibration word as multiplicand in R9
+				mov		&ramCellCal,R9				; Get voltage calibration word as multiplicand in R9
 				call	#UMStar						; R10:R9 = R8 * R9
 				rla3	R10							; Multiply by 8
 				mov		R10,R8
@@ -307,7 +302,6 @@ newChip:
 				add		#2,R10						; Add half the divisor for rounding
 				rra2	R10							; Divide by 4
 				mov.b	R10,&ramTempOff				; Will fit into a signed byte
-				mov.b	#$00,&ramLinkCal			; Really the BatV- or Shunt offset calibration now.
 				; Precalculate the slope of the voltage vs temperature curve
 				; = (85-30)/(CAL85-CAL30) stored as a 0.16 fixed point number
 				mov		#(85-30),R10				; Numerator MSW

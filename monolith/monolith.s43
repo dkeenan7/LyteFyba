@@ -35,12 +35,13 @@ ShutdownTime	EQU		15*StatusFreq	; Shut down after approx 15 seconds of stress 15
 
 ; Some definitions so the measure.s43 code will work
 ; TestICal defines these as their RAM counterparts instead of info-flash
-VoltCal 	EQU	infoVoltCal
-VoltOff		EQU infoVoltOff
+CellCal 	EQU	infoCellCal
+CellOff		EQU infoCellOff
 BoltPlCal 	EQU	infoBoltPlCal
-BoltPlOff		EQU infoBoltPlOff
-TempCal		EQU	infoTempOff
-LinkCal		EQU	infoLinkCal
+BoltPlOff	EQU infoBoltPlOff
+BoltMiCal	EQU	infoBoltMiCal
+BoltMiOff	EQU	infoBoltMiOff
+TempOff		EQU	infoTempOff
 
 
 			NAME	main		; Module name
@@ -704,7 +705,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Do cell voltage measurement
-			call	#cellV					; Get cell voltage in mV in R10
+			call	#CellV					; Get cell voltage in mV in R10
 			cmp.b	#255,&ID				; If we're a BMU
 			_IF		_EQ
 				; Multiply by 100/16 to bring the total battery voltage in tenths of a volt to
@@ -935,7 +936,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
-			call	#linkV					; Get link voltage in mV in R10
+			call	#BoltMiV				; Get bolt- in mV or current in fifths of an amp in R10
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
@@ -1332,7 +1333,7 @@ ControlContactors:
 		_ELSES							; Else
 			push	R8
 			push	R9
-			call	#cellV					; Get the PV array voltage
+			call	#CellV					; Get the PV array voltage
 			pop		R9
 			pop		R8
 			cmp		#145*10,R10
@@ -1348,7 +1349,7 @@ ControlContactors:
 			cmp.b	#7,R9
 		_AND_IF	_L						; And if incoming stress is <= 6
 			push	R8
-			call	#cellV
+			call	#CellV
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts

@@ -264,18 +264,18 @@ _emitNum3:
 ; Transmit the cell (strap+) voltage measurement in millivolts (0 to 4348 mV)
 ;
 		xCODE		'v',cellVolt,_cellVolt
-		call		#cellV				; Return cell voltage in millivolts in R10
+		call		#CellV				; Return cell voltage in millivolts in R10
 		mov			#'v',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 ;
-; boltVolt ( -- )
+; boltPlVolt ( -- )
 ; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4348 mV)
 ;
-		xCODE		'V',BoltVolt,_BoltVolt
-		call		#BoltV				; Return cell voltage in millivolts in R10
+		xCODE		'V',BoltPlVolt,_BoltPlVolt
+		call		#BoltPlV			; Return bolt+ voltage in millivolts in R10
 		mov			#'V',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
@@ -311,7 +311,7 @@ _emitNum3:
 ; Minus terminal drop voltage (or shunt current) measurement ( -- )
 ; Display this drop in signed millivolts -1500 to 1500 or shunt current measurement (20x shunt V)
 		xCODE		'I'|'s' <<8,dropMi,_dropMi	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
-		call		#linkV				; Return link/shunt voltage in millivolts in R10
+		call		#BoltMiV			; Return bolt- voltage in millivolts in R10
 		mov			#'I',Rthd			; Character of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
 		mov			#4,Rtos				; Print 4 digits
@@ -321,7 +321,7 @@ _emitNum3:
 ; Link voltage measurement ( -- )
 ; Display link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
 		xCODE		'l',linkVolt,_linkVolt
-		call		#linkV				; Return neg term "link voltage" in millivolts in R10
+		call		#BoltMiV			; Return bolt- in mV or current in fifths of an amp in R10
 		cmp.b	#255,&ID
 		_IF		_EQ						; If we're a BMU
 			mov			R10,Rsec			; Result to Rsec
@@ -330,10 +330,10 @@ _emitNum3:
 											;	unless you know whether pos or neg strap!
 			push		R10					; Remember this neg term value
 			mov			#CellVChan<<12+ADC10DIV_7,R8 ; Shifted ADC channel for CellV voltage divider
-			call		#measAndCorr
+			call		#MeasAndCorrCell
 			push		R10					; Save strap voltage
 			mov			#BoltVPlChan<<12+ADC10DIV_7,R8 ; Shifted ADC channel for BoltVPl voltage divider
-			call		#measAndCorrBolt	; Measure and correct using the BoltPL corrections
+			call		#MeasAndCorrBoltPl	; Measure and correct using the BoltPL corrections
 			sub			R10,0(SP)			; TOS has bolt/array - cell/battery
 			pop			R10					; R10 has pos term strap drop
 			abs			R10					; Absolute value
@@ -380,7 +380,7 @@ _emitNum3:
 #define Rtest R15				// Touch self-test value when both relays are on.
 		cmp.b	#0,&ID				; If we're an IMU
 		_IF		_EQ
-			call	#cellV				; Return battery_voltage/109 in millivolts in R10
+			call	#CellV				; Return battery_voltage/109 in millivolts in R10
 			mov		R10,Rcellv
 
 			; Positive relay only
