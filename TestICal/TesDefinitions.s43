@@ -14,7 +14,7 @@
 ;
 		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8
-		call		#MeasAndCorrCell			; Measure and use voltage scale/offset correction
+		call		#MeasAndCorrBoltMi	; Measure and use voltage scale/offset correction
 		mov			R10,Rtos
 		ret
 
@@ -122,20 +122,21 @@ correctScale:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
-			_OFb	#'v',Rtos			; 'v': cell Voltage factor
+			_OFb	#'v',Rtos					; 'v': Cell voltage scale factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				mov.b	&ramCellOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramCellCal				; Save cell/battery calibration value
 			_ENDOF
-			_OFb	#'V',Rtos			; 'b': Bolt plus / array voltage factor
+
+			_OFb	#'V',Rtos					; 'b': Bolt+/Array voltage scale factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
-			_OFb	#'o',Rtos			; 'o': cell voltage offset
+			_OFb	#'o',Rtos					; 'o': Cell voltage offset
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramCellCal,R9				; Use this voltage scale for correction
@@ -143,7 +144,8 @@ correctScale:
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramCellOff
 			_ENDOF
-			_OFb	#'O',Rtos			; 'O': boltPlus / array voltage offset
+
+			_OFb	#'O',Rtos					; 'O': Bolt+/Array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
@@ -152,34 +154,16 @@ correctScale:
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
 
-			_OFb	#'t',Rtos			; 't': temperature
-;
-; Temperature offset calibration
-; M = 4092/1.5 * (.00355 T + typ0.986)
-;	= 9.684*T + typ2690
-; M/9.684	= T + typ277.7
-; Per the MSP430F2012 datasheet, typ277.7 aims at 273, so the reading is proportional
-; to the absolute temperature, with an offset of +- 100 mV.
-			; We use offsetByte = (M/9.684 - T) >> 1
-; So we use offsetByte = (M/9.684 - T) - 273
-; and T = M/9.684 - 273 - offsetByte
-;
-				mov		#TempChan<<12,R8			; ADC channel for temperature sensor
-				call	#MeasAndCorrCell
-
-; To divide by 9.684, multiply by 65536/9.684 = 6767
-; But we first calculate 4 times that, and then divide by 4 with rounding afterwards
-				mov		R10,R8
-				mov		#27069,R9
-				call	#UMStar						; R10:R9 = meas*6767 so M/9.684 to R10
-				sub		#1111,R10					; M/9.684 - 277.75
-				add		#2,R10						; Add half the divisor for rounding
-				rra2	R10							; Divide by 4
+			_OFb	#'t',Rtos					; 't': Temperature offset
+				call	#Temp						; Get calibrated temp in degC into R10
+				mov.b	&TempOff,R8					; Add back our existing offset calibration
+				sxt		R8
+				add		R8,R10
 				sub		Rsec,R10					; Subtract the calibration temperature
-				mov.b	R10,&ramTempOff				; Save temperature offset calibration value
+				mov.b	R10,&ramTempOff				; Save new temperature offset calibration value
 			_ENDOF
 
-			_OFb		#'l',Rtos				; 'l': bolt- mV or current in amps/5. Was "link" voltage
+			_OFb		#'l',Rtos				; 'l': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				sub		#2046,R10					; Zero volts is a 2046 reading
