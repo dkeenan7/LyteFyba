@@ -41,6 +41,7 @@ BoltPlCal 	EQU	infoBoltPlCal
 BoltPlOff	EQU infoBoltPlOff
 BoltMiCal	EQU	infoBoltMiCal
 BoltMiOff	EQU	infoBoltMiOff
+TempSlope	EQU	infoTempSlope
 TempOff		EQU	infoTempOff
 
 

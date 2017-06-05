@@ -239,7 +239,7 @@ Temp:
 			mov		&CALADC_15T30,R9		; CAL30 10.0 significant in 16.0 FP
 			rla2	R9						; CAL30 10.0 significant in 14.2 FP
 			sub		R9,R8					; R8 has (meas-CAL30); could be negative
-			mov		&infoTempSlope,R9		; R9 has slope in 0.16 FP
+			mov		&TempSlope,R9			; R9 has slope in 0.16 FP
 			call	#MMStar					; R10:R9 := R8 * R9, R8 allowed to be negative
 											; R10:R9 is 14.2:16
 			add		#2,R10					; Add half divisor for rounding
@@ -271,10 +271,7 @@ BoltMiV:
 				; R = 2046 + Vin * 1.364 (Vin in mV)
 				; Vin = (R - 2046)/1.364 mV
 				; To divide by 1.364, multiply by 65536/1.364 = 48047 and keep the top half
-				sub			#2046,R10
-				mov.b		&BoltMiOff,R8	; Bolt-/current offset calibration
-				sxt			R8				; Sign extend
-				sub			R8,R10
+				sub			#2046,R10		; A corrected reading of 2046 represents zero
 				mov			R10,R8
 				mov			#48047,R9
 				call		#MMStar			; Signed R10:R9 = signed R8 * unsigned R9

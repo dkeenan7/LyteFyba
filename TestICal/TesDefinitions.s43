@@ -156,7 +156,7 @@ correctScale:
 
 			_OFb	#'t',Rtos					; 't': Temperature offset
 				call	#Temp						; Get calibrated temp in degC into R10
-				mov.b	&TempOff,R8					; Add back our existing offset calibration
+				mov.b	&ramTempOff,R8					; Add back our existing offset calibration
 				sxt		R8
 				add		R8,R10
 				sub		Rsec,R10					; Subtract the calibration temperature
@@ -166,6 +166,9 @@ correctScale:
 			_OFb		#'l',Rtos				; 'l': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
+				mov.b	&ramBoltMiOff,R9				; Subtract the existing offset (signed byte)
+				sxt		R9
+				sub		R9,R10
 				sub		#2046,R10					; Zero volts is a 2046 reading
 
 				; Multiply Rsec (signed) by 1.364
@@ -181,6 +184,7 @@ correctScale:
 				pop		R10
 
 				sub		Rsec,R10					; Subtract required reading * 1.364
+				neg		R10
 				_COND								; Start a short-circuit conditional
 					cmp		#-$7F,R10					; Compare with -$7F
 				_IF_OR		_L						; If < -$7F

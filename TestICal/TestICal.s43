@@ -84,6 +84,7 @@ BoltPlCal 	EQU	ramBoltPlCal
 BoltPlOff	EQU ramBoltPlOff
 BoltMiCal 	EQU	ramBoltMiCal
 BoltMiOff	EQU ramBoltMiOff
+TempSlope	EQU	ramTempSlope
 TempOff		EQU	ramTempOff
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -277,7 +278,7 @@ newChip:
 				rlc		R10							; Double R10:R9, carry to LSB
 				mov.w	R10,&ramCellCal				; Use this as the default cell voltage scale factor
 				mov.w	R10,&ramBoltPlCal			; and the default bolt+ voltage scale factor
-				mov.w	R10,&ramBoltPlCal			; and the default bolt- voltage scale factor
+				mov.w	R10,&ramBoltMiCal			; and the default bolt- voltage scale factor
 				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset as default
 				mov.b	R8,&ramCellOff				; cell offset,
 				mov.b	R8,&ramBoltPlOff			; bolt+ offset and
