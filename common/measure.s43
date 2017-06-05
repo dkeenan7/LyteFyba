@@ -230,13 +230,18 @@ Temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range -50..100
 ; Trashes: R8, R9, R11
 			mov		#TempChan<<12,R8
-			call	#measure				; 12.2 fixed-point result in R8, really 14.2
+			call	#measure				; 12.2 significant fixed-point result in R8, in 14.2
+											; This is 4 bits shifted compared to a single measurement,
+											; as stored in CAL30
+			add		#2,R8					; For rounding
+			rra2	R8						; Now 12.2 in 14.2 FP, still 2 bits shifted left
 			; Want (meas-CAL30) * SLOPE + 30 (see FUG 24.2.2.1)
-			mov		&CALADC_15T30,R9		; CAL30 in 16.0 FP
-			rla2	R9						; CAL30 in 14.2 FP
-			sub		R9,R8					; R8 has meas-CAL30 in 14.2 FP; could be negative
+			mov		&CALADC_15T30,R9		; CAL30 10.0 significant in 16.0 FP
+			rla2	R9						; CAL30 10.0 significant in 14.2 FP
+			sub		R9,R8					; R8 has (meas-CAL30); could be negative
 			mov		&infoTempSlope,R9		; R9 has slope in 0.16 FP
 			call	#MMStar					; R10:R9 := R8 * R9, R8 allowed to be negative
+											; R10:R9 is 14.2:16
 			add		#2,R10					; Add half divisor for rounding
 			rra2	R10						; Shift (divide by 4) to get 16.0 FP in R10
 			add		#30,R10					; Add 30 degC
