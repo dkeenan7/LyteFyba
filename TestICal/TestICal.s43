@@ -280,9 +280,25 @@ newChip:
 				mov.w	R10,&ramBoltPlCal			; and the default bolt+ voltage scale factor
 				mov.w	R10,&ramBoltMiCal			; and the default bolt- voltage scale factor
 				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset as default
-				mov.b	R8,&ramCellOff				; cell offset,
-				mov.b	R8,&ramBoltPlOff			; bolt+ offset and
-				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration
+				rla2	R8							; Multiply it by 4 to match our oversampled 12 bits
+													; Assume it still fits in a signed byte and set as
+				mov.b	R8,&ramCellOff				; cell offset and
+				mov.b	R8,&ramBoltPlOff			; bolt+ offset calibration values.
+				; BoltMiOffset needs further correction because it is a bipolar input where
+				; Vref/2 corresponds to zero.
+				push R8
+				mov		&CALADC_15VREF_FACTOR,R8
+				sub		#$8000,R8					; Vref_factor - 1 in R8
+				mov		#2046,R9					; The middle count (of our effective 12 bits) in R9
+				call	#MMStar						; Signed R10:R9 = signed R8 * unsigned R9
+				add		#$4000,R9					; Add half the divisor for rounding
+				adc		R10
+				rla		R9							; Divide by 2^15 by mult'ing by 2 and taking hi word
+				rlc		R10
+				pop		R8
+				sub		R10,R8						; Subtract this Vref/2 offset from 4x the ADC offset
+													; Assume it still fits in a signed byte and set as
+				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration value.
 
 				; Precalculate the slope of the temperature vs ADC-value curve
 				; = (85-30)/(CAL85-CAL30) stored as a 0.16 fixed point number
