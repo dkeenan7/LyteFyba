@@ -66,7 +66,7 @@ ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
 ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
 BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU)
 TempChan	EQU		$A				; Temperature
-LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
+BoltVMiChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
 CellVChan	EQU		BatV_StrapVPl_Chan
 BoltVPlChan EQU		ArrayV_BoltVPl_Chan
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)

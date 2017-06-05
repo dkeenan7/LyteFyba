@@ -114,6 +114,7 @@ bsl2state		DS		2			; Password recogniser state for BSL2
 resetCounter	DS		2			; Number of resets since the last "^" command
 resetBuffer		DS		16			; Circular buffer recording the reason for the last 16 resets
 discharge		DS		4			; Accumulator for depth of discharge determination.
+									; Assuming a 200 A 50 mV shunt and StatusFreq of 15 Hz:
 									; Unit is 1/5 A for 1/15 s = 1/75 coulomb = 1/270 milliamphour.
 									; So 32 bits allows 15,900 Ah, but 24 bits would only allow 62 Ah.
 
@@ -253,7 +254,7 @@ InterpretInit:
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
 				; version number (way < $80).
 				; A new chip. We want to preserve some of the existing DCO calibration data.
-				; Set the ID, voltage, temperature and link calibration.
+				; Set the ID, voltage and temperature calibration.
 
 newChip:
 				mov.w	#1800,&ramCapacity			; 180 amp-hours

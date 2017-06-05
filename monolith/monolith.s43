@@ -488,15 +488,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ELSE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				; No longer TouchVChan
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ENDIF
+			; Disconnect digital buffers from analog inputs. Enable ADC function of P1.4 (Vref+ out).
+			; BMU TouchVChan is not currently used
+			mov.b		#(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan)|(1<<4),&ADC10AE0
 			; Initialise ADC10
 			; SREF_1	= +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)

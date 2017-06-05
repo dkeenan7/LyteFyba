@@ -5,7 +5,7 @@
 
 ; measure
 ; Input:  R8 = analog channel number shifted left 12 bits.
-; 			   e.g. $7000 for cell voltage, $A000 for temperature, $6000 for link voltage.
+; 			   e.g. CellVChan<<12, TempChan<<12, BoltVPlChan<<12, BoltVMiChan<<12.
 ; Output: R8 = uncalibrated 12.2-bit fixed-point result.
 ; Trashes R9-R10.
 ; Formerly assumed 4 MHz MCLK.
@@ -246,18 +246,19 @@ Temp:
 			ret
 
 BoltMiV:
-; Output: R10 = calibrated in millivolts, approx range -1500 to +1500.
+; Output: R10 = bolt- voltage or shunt voltage x20 calibrated in millivolts, approx range -1500 to +1500
 ; 9999 means bolt- voltage or current not valid, ignore.
+; Corresponds to fifths of an amp with a 200 A 50 mV shunt.
 ; Trashes: R8, R9, R11
-			mov.b		&BoltMiOff,R8	; Bolt-/current offset calibration
+			mov.b		&BoltMiOff,R8	; Bolt- / current shunt offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
-			_IF			_EQ				; If link calibration value is $80
+			_IF			_EQ				; If BoltMi offset calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				; In the below, add ADC10DIV_7, which forces the link measurement to use the slowest (/8) clock
-				mov			#LinkVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
+				; In the below, add ADC10DIV_7, which forces the measurement to use slowest (/8) clock
+				mov			#BoltVMiChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for BoltMi input
 				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections
-				; Link voltage measurement in mV
+				; Bolt- voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.
 				; So measure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
 				; Reading = 2046 + (Vin/2)(4092/1.5)
@@ -279,10 +280,10 @@ BoltMiV:
 			ret
 
 #if INSULATION_MONITORING
-touchV:
+GetTouchV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
 			mov		#TouchVChan<<12,R8
-			jmp		MeasAndCorrCell					; Tail-call MeasAndCorrCelk and return
+			jmp		MeasAndCorrBoltMi					; Tail-call MeasAndCorrBoltMi and return
 #endif // INSULATION_MONITORING
 

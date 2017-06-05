@@ -415,11 +415,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
 			_IF		_NE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+				; Enable analog inputs. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan)|(1<<4),&ADC10AE0
 			_ELSE
-				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
+				; Enable analog inputs including TouchV. Enable ADC function of P1.4 (Vref+ out)
+				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan)|(1<<4),&ADC10AE0
 			_ENDIF
 			; Initialise ADC10
 			; SREF_1	= +-refs are Vref+ and AVSS

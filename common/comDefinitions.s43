@@ -308,20 +308,22 @@ _emitNum3:
 #endif
 
 ;
-; Minus terminal drop voltage (or shunt current) measurement ( -- )
-; Display this drop in signed millivolts -1500 to 1500 or shunt current measurement (20x shunt V)
-		xCODE		'I'|'s' <<8,dropMi,_dropMi	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
+; Current shunt voltage x20 for BMU, Minus terminal volt drop for CMU ( -- )
+; Display in signed millivolts -1500 to 1500 or 9999 for "invalid".
+; Corresponds to fifths of an amp with a 200 A 50 mV shunt
+		xCODE		'I'|'s' <<8,CurrSh,_CurrSh	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
 		call		#BoltMiV			; Return bolt- voltage in millivolts in R10
-		mov			#'I',Rthd			; Character of command being responded to
+		mov			#'I'|'s'<<8,Rthd	; Characters of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 ;
-; Link voltage measurement ( -- )
-; Display link voltage in millivolts, -1500 to 1500 or 9999 for "invalid".
-		xCODE		'l',linkVolt,_linkVolt
-		call		#BoltMiV			; Return bolt- in mV or current in fifths of an amp in R10
+; Link voltage (max abs volt drop across any terminal) for CMU, Current shunt voltage x20 for BMU ( -- )
+; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
+; Corresponds to fifths of an amp with a 200 A 50 mV shunt
+		xCODE		'l',BoltMiVolt,_BoltMiVolt
+		call		#BoltMiV			; Return bolt- or shuntx20 in mV in R10
 		cmp.b	#255,&ID
 		_IF		_EQ						; If we're a BMU
 			mov			R10,Rsec			; Result to Rsec
@@ -358,7 +360,7 @@ _emitNum3:
 		xCODE		'T'|'o' <<8,touchValue,_touchValue	; 'To' collides with 'Tg' 'Tw' 'Lg' 'Lo' 'Lw'
 		cmp.b	#255,&ID					; If we're a BMU
 		_IF		_EQ
-			call		#touchV				; Return touch value (0 to 4092) in R10
+			call		#GetTouchV			; Return touch value (0 to 4092) in R10
 			mov			#'T'|'o' <<8,Rthd	; Command characters
 			mov			R10,Rsec			; Result
 			mov			#4,Rtos				; Print 4 digits
@@ -387,14 +389,14 @@ _emitNum3:
 			bis.b	#RelayP,&P2OUT		; Turn on positive relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
-			call	#touchV				; Return touch value in R10
+			call	#GetTouchV			; Return touch value in R10
 			mov		R10,Rmeas
 
 			; Both relays
 			bis.b	#RelayM,&P2OUT		; Turn on negative relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
-			call	#touchV				; Return touch value in R10
+			call	#GetTouchV			; Return touch value in R10
 			; This allows calibration, as it will represent the battery voltage divided by 100k
 			; irrespective of any leakage resistances, assuming only that the two optos
 			; have similar CTRs.
@@ -404,7 +406,7 @@ _emitNum3:
 			bic.b	#RelayP,&P2OUT		; Turn off positive relay
 			mov		#130,R8				; 130 milliseconds
 			call	#DelayMs			; Wait for relay bounce and voltage settling
-			call	#touchV				; Return touch value in R10
+			call	#GetTouchV			; Return touch value in R10
 
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
 			_IF		_LO
