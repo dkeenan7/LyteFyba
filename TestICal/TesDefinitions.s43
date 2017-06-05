@@ -21,6 +21,10 @@
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
+		DB		'I' , ramBoltMiCal	& $7F | $80
+		DB		's' , ramTempSlope	& $7F | $80
+		DB		'O' , ramBoltPlOff	& $7F | $00
+		DB		'o' , ramCellOff	& $7F | $00
 		DB		'c' , ramCapacity	& $7F | $80
 		DB		'r' , ramCellRes	& $7F | $80
 		DB		'V' , ramBoltPlCal	& $7F | $80
@@ -29,8 +33,6 @@ calAddressTable
 		DB		'l' , ramBoltMiOff	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
-		DB		'o' , ramCellOff	& $7F | $00
-		DB		'O' , ramBoltPlOff	& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 

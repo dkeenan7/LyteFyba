@@ -53,11 +53,11 @@ J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255,
    j  JumpToSubroutine (call)
 k     chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
-l  l  LinkVoltage
+l  l  LinkVoltage, abs max of volt drop at both terminals
    L  Liven contactor (1L .. 5L)
    m  e(m)itCharacter
 Ms Ms Milliseconds delay
-   Mv Measure half Vcc
+   Mv Measure Vcc
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
    O  stOre wOrd (poke wOrd)
@@ -124,9 +124,9 @@ In In Display input port value
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-   Mv Measure half Vcc
+   Mv Measure Vcc
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
-l  l  LinkVoltage
+l  l  LinkVoltage, abs max of volt drop at both terminals
 t  t  Temperature
 r     RxState (monitor only. 'r' is ReadCalValue in TestICal)
 p     Stress level (Pain) (local to each CMU)
@@ -188,15 +188,21 @@ In addition, the following character literals (character preceded by a single-qu
 have the following meaning when used as an address parameter to a ReadCalValue, WriteCalValue
 or Calibrate command in TestICal.
 
-'v cell (v)oltage
-'t Temperature
-'l Link voltage
-'g fuel (g)auge
+'I Bolt-/Shuntx20 voltage scale factor
+'s Temperature vs ADC-value slope
+'O Bolt+/Array voltage offset
+'o Cell/Battery voltage offset
+'c Battery capacity in tenths of an amp hour (only used by BMU)
+'r Cell internal resistance in uR (average battery IR for BMU)
+'V Bolt+/Array voltage scale factor
+'v Cell/Battery voltage scale factor
+'t Temperature offset
+'l Bolt-/Shuntx20 voltage offset
 'f Frequency (DCO 8 MHz)
 'i ID
 The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given
 at present would be equivalent to either the character as a command in itself, or a Write command
 with that character as address parameter.
 
-The first 2, along with 'p for stress (pain), are also valid parameters for the max '>' and
+'v and 't, along with 'p for stress (pain), are also valid parameters for the max '>' and
 min '<' commands.
