@@ -612,10 +612,12 @@ TranslateToManAddr:
 			bis.b	#1<<3,P1SEL				; Set ADC10CLK function for pin
 			bis.b	#1<<3,P1DIR				; Set as output
 			bis		#ADC10ON,&ADC10CTL0		; Turn on the ADC core
+			bis		#MSC|ENC|ADC10SC,&ADC10CTL0 ; Enable and start multiple conversions
+											; Uses whatever was previously set in ADC10CTL1
 			mov		#5000,R8				; Wait 5 seconds
 			call	#DelayMs
 			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
-			bic		#ADC10ON,&ADC10CTL0 	; Turn off the ADC core
+			bic		#ADC10ON|MSC,&ADC10CTL0 ; Disable multiple conversions and turn off the ADC core
 			bic.b	#1<<3,P1SEL				; Set GPIO function for pin
 			bic.b	#1<<3,P1DIR				; Set as input
 			ret
