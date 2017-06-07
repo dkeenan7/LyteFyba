@@ -355,6 +355,11 @@ newChip:
 
 			; Initialise port 1
 			; BSL settings of Port1 are OK. No interrupt comms in TestICal. Analog settings done later.
+			; Put the ADC10CLK out on processor pin 5 so it can be measured.
+			; On a CMU this connects to the expansion port -- the pin nearest the GND (-) pin.
+			; On a BMU this is unconnected (was TouchV analog input).
+			bis.b	#1<<3,P1SEL
+			bis.b	#1<<3,P1DIR
 
 			; Initialise port 2
 			mov.b	#0,&P2OUT					; Set all outputs low.
