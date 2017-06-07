@@ -133,20 +133,22 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		ret
 
 ;
-; ? GetByte - get a byte (NOT to stack) and display it ( addr -- )
+; ? GetWord - get a word (NOT to stack) and display it (Forth ?) ( addr -- )
 ;
-			xCODE	'?',GetByte,_GetByte
-			mov.b	#'?',Rthd
-			mov.b	@Rtos,Rsec
-;			mov		#3,Rtos
-			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits
+			xCODE	'?',GetWord,_GetWord
+			mov		#'?',Rthd
+			mov.w	@Rtos,Rsec
+			mov		#5,Rtos
+			br		#_prettyPrint			; Tail-call pretty-print and return
 
 ;
-; ! StoreByte - store a byte (Forth C!) ( ch addr -- )
+; C? GetByte - get a byte (C for char) (NOT to stack) and display it ( addr -- )
 ;
-			xCODE	'!',ZtoreByte,_ZtoreByte
-			mov.b	Rsec,0(Rtos)
-			ret
+			xCODE	'C'|'?' <<8,GetByte,_GetByte	; 'C?' collides with 'Co' 'Cg' 'Cw' 'C'' 'C/'
+			mov		#'C'|'?'<<8,Rthd
+			mov.b	@Rtos,Rsec
+;			mov		#3,Rtos
+			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
 _emitNum4:
 		mov		#4,Rtos				; Common to want 4
@@ -312,6 +314,7 @@ _emitNum3:
 ; Display in signed millivolts -1500 to 1500 or 9999 for "invalid".
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
 		xCODE		'I'|'s' <<8,CurrSh,_CurrSh	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
+		xCODE		'o',CurrSh2,_CurrSh2		; 'o' alias to allow keyboard auto-repeat when testing
 		call		#BoltMiV			; Return bolt- voltage in millivolts in R10
 		mov			#'I'|'s'<<8,Rthd	; Characters of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
@@ -348,6 +351,23 @@ _emitNum3:
 		mov			#'l',Rthd			; Type is Link voltage
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; Measure Vcc ( -- )	; Emit the Vcc voltage in millivolts
+;
+		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
+		xCODE	'n',MeasVcc2,_MeasVcc2			; 'n' alias to allow keyboard auto-repeat when testing
+		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
+		call	#MeasAndCorrCell		; Gives us 0-4092 in R10, for 0-1.5 V
+		mov		R10,R8
+		mov		#48047,R9				; 3000/4092*65536
+		call	#UMStar					; R10:R9 = R8 * R9
+		rla		R9						; Do rounding
+		adc		R10
+		mov		#'M'|'v' <<8,Rthd		; Type is Vcc Measurement
+		mov		R10,Rsec				; Result in millivolts
+		mov		#4,Rtos					; Print 4 digits
+		br		#_prettyPrint			; Tail-call pretty-print and return
 
 
 #if INSULATION_MONITORING

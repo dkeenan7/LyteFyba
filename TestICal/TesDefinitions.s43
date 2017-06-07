@@ -14,7 +14,7 @@
 ;
 		xCODE		'a',ADCScaled,_ADCScaled
 		mov			Rtos,R8
-		call		#MeasAndCorrBoltMi	; Measure and use voltage scale/offset correction
+		call		#MeasAndCorrCell		; Measure and use voltage scale/offset correction
 		mov			R10,Rtos
 		ret
 
@@ -57,7 +57,7 @@ TranslateToCalAddr:
 
 ;
 ; Measure and possibly scale by 17/16th
-; Needed by 'v', 'b', 'o', 'O' calibrate subcommands
+; Needed by 'v, 'b, 'o, 'O calibrate subcommands
 ; The call to measure trashes R9,10
 ;
 measure17:
@@ -216,24 +216,26 @@ correctScale:
 			bis		#$200,Rsec
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
-				push.b	&interpFlags
+;				push.b	&interpFlags
 				_IF		_NN						; If high bit set
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit clear so
 					mov		#5,Rtos					; Display 5 digits
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-					bis.b	#bHexOutput,&interpFlags ; Display words in hex
+;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
-emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CMUs
+emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream CMUs
+				call	#_EMIT					; Call EMIT
+				mov		#'?',Rtos				; Question mark
 				call	#_EMIT					; Call EMIT
 				mov		#$0D,Rtos				; Carriage return
 				jmp		_EMIT					; Tail-call EMIT and return
 			_ENDIF							; Endif unrecognised
 			mov.b		#' ',Rthd			; Trailing char (space)
 			call	 	#_prettyPrint
-			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
+;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
 
 ;
@@ -401,19 +403,17 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 
 ;
-; PeeQWord - get a word (NOT to stack) and display it ( addr -- )
+; ! StoreWord - store a word (Forth !) ( n addr -- )
 ;
-			xCODE	'q',PeeQWord,_PeeQWord
-			mov.b	#' ',Rthd
-			mov.w	@Rtos,Rsec
-			mov		#5,Rtos
-			br		#_prettyPrint
+			xCODE	'!',StoreWord,_StoreWord
+			mov.w	Rsec,0(Rtos)
+			ret
 
 ;
-; stOreWord - store a word (a la Store) ( n addr -- )
+; C! StoreByte - store a byte (C for char) (Forth C!) ( ch addr -- )
 ;
-			xCODE	'O',stOreWord,_stOreWord
-			mov.w	Rsec,0(Rtos)
+			xCODE	'C'|'!' <<8,StoreByte,_StoreByte ; 'C!' collides 'Ca' 'Cc' 'Ck' 'Cs' 'C#' 'C+' 'C;'
+			mov.b	Rsec,0(Rtos)
 			ret
 
 ;
@@ -513,23 +513,6 @@ bitDelay	dec		R11
 
 
 ;
-; Measure Vcc ( -- )	; Emit the Vcc voltage in millivolts
-;
-		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
-		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
-		call	#MeasAndCorrCell		; Gives us 0-4092 in R10, for 0-1.5 V
-		mov		R10,R8
-		mov		#48047,R9				; 3000/4092*65536
-		call	#UMStar					; R10:R9 = R8 * R9
-		rla		R9						; Do rounding
-		adc		R10
-		mov		#'M'|'v' <<8,Rthd		; Type is Vcc Measurement
-		mov		R10,Rsec				; Result in millivolts
-		mov		#4,Rtos					; Print 4 digits
-		br		#_prettyPrint			; Tail-call pretty-print and return
-
-
-;
 ; Infrared Tx level ( n -- )	; Set the signal level for the infrared emitter, from 0 (off) to 4 (max)
 ;
 		xCODE	'I'|'r' <<8,IrTxLevel,_IrTxLevel ; 'Ir' collides with 'Ib' 'Ij' 'Iz' 'Qr' 'Qb' 'Qj' 'Qz'
@@ -563,3 +546,59 @@ bitDelay	dec		R11
 			_ENDCASE
 			ret
 
+; Some characters need to be translated into info flash adresses of manufacturer's calibration values
+		ALIGN	1
+ManAddressTable
+		DB		'g' , CALADC_GAIN_FACTOR	& $7F | $80	; High bit set to indicate word quantity,
+		DB		'o' , CALADC_OFFSET			& $7F | $80	; clear for byte quantity
+		DB		'r' , CALADC_15VREF_FACTOR	& $7F | $80
+		DB		'3' , CALADC_15T30			& $7F | $80
+		DB		'8' , CALADC_15T85			& $7F | $80
+; Zero must not appear in the table as it is used to represent "unrecognised".
+SizeManAddressTable	EQU	$-ManAddressTable
+
+;
+; TranslateToCalAddr ( ch -- addr )
+;
+TranslateToManAddr:
+		; Do the calibration address translations using the table above
+		mov		#SizeManAddressTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			mov.w	ManAddressTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				decd	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
+			_ELSE				; Else there is a match so
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rtos	; Substitute it for the address character
+			_ENDIF				; Endif match
+		ret
+
+;
+; Query manufacturer's calibration value ( ch --- )
+; Calibration type (e.g. 'r' for voltage reference calibration value) in ch
+			xCODE	'q',queryManValue,_queryManValue ; Note: 'q' queries worst stress in monitor
+			call 	#TranslateToManAddr
+			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
+			bic.b	#$80,Rsec
+			bis		#$1080,Rsec
+			tst.b	Rtos
+			_IF		_NZ						; If not zero (zero means "unrecognised")
+;				push.b	&interpFlags
+				_IF		_NN						; If high bit set
+					mov		#3,Rtos					; Display 3 digits
+					mov.b	@Rsec,Rsec				; Get byte sized cal value
+				_ELSE							; Else high bit clear so
+					mov		#5,Rtos					; Display 5 digits
+					mov.w	@Rsec,Rsec				; Get word sized cal value
+;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
+				_ENDIF							; Endif high bit
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		emitQmark				; Emit a question mark and return
+			_ENDIF							; Endif unrecognised
+			mov.b		#' ',Rthd			; Trailing char (space)
+			call	 	#_prettyPrint
+;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
+			ret

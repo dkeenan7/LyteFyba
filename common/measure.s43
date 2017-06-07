@@ -286,6 +286,6 @@ GetTouchV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
 			mov		#TouchVChan<<12,R8
-			jmp		MeasAndCorrBoltMi					; Tail-call MeasAndCorrBoltMi and return
+			jmp		MeasAndCorrCell						; Tail-call MeasAndCorrCell and return
 #endif // INSULATION_MONITORING
 

@@ -92,13 +92,13 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 										//	loads a different sized image to the one it is contained in.
 										//	The password may need changing too, in both BSL2 and Monitor.
 
-// Convert unfriendly TI provided indices to the addresses of the relevant constants
-// Their index names start with CAL_ADC, our pointer names start with CALADC (one less underscore)
-CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; Index vref cal off tag adr
-CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; Index off. cal off tag adr
-CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; Index gain cal off tag adr
-CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; Index temp cal off tag adr
-CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)
+; Convert unfriendly TI provided indices to the addresses of the relevant constants
+; Their index names start with CAL_ADC, our pointer names start with CALADC (one less underscore)
+CALADC_GAIN_FACTOR	 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_GAIN_FACTOR   * 2) ; $10DC
+CALADC_OFFSET		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_OFFSET		   * 2) ; $10DE
+CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; $10E0
+CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; $10E2
+CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)			; $10E4
 
 				ORG		$1004		; For compatibility with existing calibration values
 			; Calibration data

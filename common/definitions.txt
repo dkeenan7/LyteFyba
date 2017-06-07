@@ -20,8 +20,8 @@ $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 '  '  characterLiteral (tick)
 `  `  execute (tock, inverse of tick)
-?  ?  get byte (peek byte)
-!  !  store byte (poke byte)
+?  ?  get word (peek word)
+!  !  store word (poke word)
 "  "  quote (begins and ends a literal string), returns pointer and length
 -  -  change-sign (postfix negate)
 :  :  begins a Modbus/ASCII packet
@@ -37,6 +37,8 @@ A to F are hexadecimal digits after a dollar sign
 c     Charging, '1c' to include undertemp and exclude undervolt as stress.
    c  Calibrate
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
+C? C? get byte (peek Char)
+   C! store byte (poke Char)
 d  d  Decimal output
 e  e  Error. Turn on or off red LED and piezo beeper
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
@@ -58,14 +60,16 @@ l  l  LinkVoltage, abs max of volt drop at both terminals
    m  e(m)itCharacter
 Ms Ms Milliseconds delay
    Mv Measure Vcc
+n  n  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
+o  o  alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
    O  stOre wOrd (poke wOrd)
 p     status (local to each CMU, but global when BMU)
 //Pi    set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only OV.
 Pp    Send a command to a PIP (charger port)
 q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
-   q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
+   q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 Q  Q  Quiet. Stop piezo beeper coming on with error LED
 r 	  RxState (monitor only. 'r' is ReadCalValue in TestICal)
    r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
@@ -171,14 +175,17 @@ G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 
    j  JumpToSubroutine (call)
-?  ?  get byte (peek byte)
-!  !  store byte (poke byte)
+?  ?  get word (peek word)
+!  !  store word (poke word)
+C? C? get byte (peek Char)
+   C! store byte (poke Char)
    O  st(O)re word (poke word)
    q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Ms Ms Milliseconds delay
 
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
 
+   q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
    r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
    w  WriteCalValue
    c  Calibrate
@@ -206,3 +213,12 @@ with that character as address parameter.
 
 'v and 't, along with 'p for stress (pain), are also valid parameters for the max '>' and
 min '<' commands.
+
+In addition, the following character literals (character preceded by a single-quote)
+have the following meaning when used as an address parameter to a QueryManValue command in TestICal.
+
+'g ADC gain factor
+'o ADC offset
+'r 1.5 V reference scale factor
+'3 30 degC ADC value
+'8 85 degC ADC value
