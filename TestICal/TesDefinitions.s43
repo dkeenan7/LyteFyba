@@ -602,3 +602,21 @@ TranslateToManAddr:
 			call	 	#_prettyPrint
 ;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
+
+;
+; Frequency of ADC clock - put 5 s burst out on pin 5, expansion port on CMU, unused on BMU (was TouchV)
+		xCODE	'F'|'a' <<8,FreqAdc,_FreqAdc ; 'Fa' collides with 'Fc' 'Fk' 'Fs'
+			; Put the ADC10CLK out on processor pin 5 for 5 seconds so it can be measured.
+			; On a CMU this connects to the expansion port -- the pin nearest the GND (-) pin.
+			; On a BMU this is unconnected (was TouchV analog input).
+			bis.b	#1<<3,P1SEL				; Set ADC10CLK function for pin
+			bis.b	#1<<3,P1DIR				; Set as output
+			bis		#ADC10ON,&ADC10CTL0		; Turn on the ADC core
+			mov		#5000,R8				; Wait 5 seconds
+			call	#DelayMs
+			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
+			bic		#ADC10ON,&ADC10CTL0 	; Turn off the ADC core
+			bic.b	#1<<3,P1SEL				; Set GPIO function for pin
+			bic.b	#1<<3,P1DIR				; Set as input
+			ret
+
