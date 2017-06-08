@@ -46,6 +46,25 @@ MMStar:
 			_ENDIF
 			ret
 
+;
+; Multiply two unsigned FixedPoint numbers, at least one of them in FP 1.15 format, passed in R8 and R9.
+; Product is returned as another FP number in R8, with the same fixed point format as the other operand.
+; Examples: 1.15 x 1.15 -> 1.15, 1.15 x 16.0 -> 16.0, 12.2 x 15.1 -> 12.2
+; Trashes R9, R10
+FP1_15UMul:
+				call	#UMStar						; R10:R9 = R8 * R9
+				; We have 2^15 times a real number times 2^15 times a real number, resulting in
+				; 2^30 times a real product. We want the result to be 2&15 times the real product,
+				; so we need to shift the result 15 places to the right, equivalent to dividing by
+				; 2^15, so we need rounding.
+				add		#$4000,R9					; Add half the divisor for rounding
+				adc		R10
+				; Instead of shifting 15 bits right we shift 1 bit left and keep the high word only
+				rla		R9							; Get MSB to carry (actually a shift or add to self)
+				rlc		R10							; Double R10:R9, carry to LSB
+				mov		R10,R8						; Return in R8
+				ret
+
 
 ; UMSlashMod -- Unsigned mixed divide and modulo
 ; R10:R9 / R8 -> R9, remainder R10. Clears R11

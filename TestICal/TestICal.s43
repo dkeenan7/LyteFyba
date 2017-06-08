@@ -265,20 +265,25 @@ newChip:
 				; are needed: a reference voltage factor, an ADC gain factor, and an ADC offset.
 				; We combine the two factors into our default voltage factors, and add new
 				; calibration values for bolt and cell offsets.
+				; In practice, we find that the ADC gain factor is unity, and the ADC offset factor is
+				; zero. But these may change in the future, and we'll be ready for it.
+				; There is also a systematic error due to the ~90MR input resistance of the ADC port.
+				; We have measured 1129 mV from volotage dividing 3329 mV where 1131 mV is expected.
+				; So the systematic correction is 1131/1129 or 1.00177, or 32,826/32768.
 				; We want a calibraton factor in 1.15 FixedPoint that is the product of two TI given
-				; 1.15 FP values. These are all 2^15 times a real number, so we end up with 2^30 times
-				; a real number, so we have to divide by 2^15.
+				; 1.15 FP values and our systematic correction factor which is also in 1.15 FP format.
+				; All the shifting and rounding issues are taken care of in the FP1_15UMul function.
+
+				; These are all 2^15 times a real number, so we end up with 2^30 times a real number,
+				; so we have to divide by 2^15, or shift left and take the top half, with rounding.
 				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
-				call	#UMStar						; R10:R9 = R8 * R9
-				add		#$4000,R9					; Add half the divisor for rounding
-				adc		R10
-				; Instead of shifting 15 bits right we shift 1 bit left and keep the high word only
-				rla		R9							; Get MSB to carry (actually a shift)
-				rlc		R10							; Double R10:R9, carry to LSB
-				mov.w	R10,&ramCellCal				; Use this as the default cell voltage scale factor
-				mov.w	R10,&ramBoltPlCal			; and the default bolt+ voltage scale factor
-				mov.w	R10,&ramBoltMiCal			; and the default bolt- voltage scale factor
+				call	#FP1_15UMul					; R8 = R8 * R9
+				mov		#32826,R9					; = 1131/1129*32768
+				call	#FP1_15UMul					; R8 = R8 * R9
+				mov.w	R8,&ramCellCal				; Use this as the default cell voltage scale factor
+				mov.w	R8,&ramBoltPlCal			; and the default bolt+ voltage scale factor
+				mov.w	R8,&ramBoltMiCal			; and the default bolt- voltage scale factor
 				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset as default
 				rla2	R8							; Multiply it by 4 to match our oversampled 12 bits
 													; Assume it still fits in a signed byte and set as
@@ -310,7 +315,8 @@ newChip:
 				call	#UMSlashMod					; Divide; quotient to R9 in 0.16 fixed-point
 				mov		R9,&ramTempSlope			; Save as temperature/ADC-value slope
 				; The manufacturer's temp offset is calculated when needed, from CALADC_15T30
-				mov.b	#0,&ramTempOff				; Set our additional temp offset in degC to 0
+				; But it seems to result in a reading that is about 1 degree too low
+				mov.b	#-1,&ramTempOff				; Set our additional temp offset in degC to -1
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
