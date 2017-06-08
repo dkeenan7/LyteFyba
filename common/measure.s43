@@ -21,6 +21,7 @@ measure:
 			; no MSC	= single sample and conversion
 			; ADC10ON	= turn on the ADC core
 			bis			#ADC10ON,&ADC10CTL0
+;			bis			#ADC10ON|ADC10SHT_2,&ADC10CTL0		; Also use 16 clock sample
 			; INCH		= R8 has the input channel number already in the right position
 			; SHS_0		= enable software starting via the ADC10SC bit
 
@@ -30,10 +31,16 @@ measure:
 			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
 			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
 			; CONSEQ_0	= single channel single conversion
+			; The below seems to be the best compromise. ADC10OSC has too much variability; low final
+			; clock frequencies seem correlated with noisy readings
 ;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/2
-			; We find that the below distributes noise particularly from SMCLK better, for more consistent
-			; ADC readings
+			; We found years ago that the below distributes noise particularly from SMCLK better, for
+			; more consistent ADC readings. But now they seem more noisy, especially for the Bolt+
+			; reading
 			bis			#SHS_0+ADC10DIV_2+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/3
+;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/2
+;			bis			#SHS_0+ADC10DIV_1+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/2
+;			bis			#SHS_0+ADC10DIV_0+ADC10SSEL_2+CONSEQ_0,R8	;ADC10CLK = MCLK/1
 // The below seems to cause the monitor to lose transmit characters, and doesn't seem to improve jitter
 //			bis			#SHS_0+ADC10DIV_7+ADC10SSEL_0+CONSEQ_0,R8	;ADC10CLK = ADC10OSC/8
 			mov			R8,&ADC10CTL1
@@ -229,7 +236,8 @@ BoltPlV:
 Temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range -50..100
 ; Trashes: R8, R9, R11
-			mov		#TempChan<<12,R8
+				; In the below, or with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
+			mov		#TempChan<<12|ADC10DIV_7,R8
 			call	#measure				; 12.2 significant fixed-point result in R8, in 14.2
 											; This is 4 bits shifted compared to a single measurement,
 											; as stored in CAL30
@@ -260,8 +268,7 @@ BoltMiV:
 			_IF			_EQ				; If BoltMi offset calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				; In the below, add ADC10DIV_7, which forces the measurement to use slowest (/8) clock
-				mov			#BoltVMiChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for BoltMi input
+				mov			#BoltVMiChan<<12,R8	; Shifted ADC channel for BoltMi input
 				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections
 				; Bolt- voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.

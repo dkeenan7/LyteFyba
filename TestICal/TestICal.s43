@@ -401,7 +401,7 @@ newChip:
 				mov.b		#(1<<VRefPChan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
 			_ELSE
 				; Enable analog inputs and Vref+ out
-				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan)|(1<<TouchVChan),&ADC10AE0
+				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
 			_ENDIF
 
 			; Initialise ADC10
