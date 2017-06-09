@@ -52,7 +52,7 @@ MMStar:
 ; format as the other operand.
 ; Examples: 1.15 x 1.15 -> 1.15, 1.15 x 16.0 -> 16.0, 12.2 x 1.15 -> 12.2
 ; Trashes R9, R10
-FP1_15UMul:
+Fx1_15UMul:
 				call	#UMStar						; R10:R9 = R8 * R9
 				; We have 2^15 times a real number times 2^n times a real number, resulting in
 				; 2^(15+n) times a real product. We want the result to be 2^n times the real product,

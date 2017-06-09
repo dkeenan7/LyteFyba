@@ -30,7 +30,7 @@ calAddressTable
 		DB		'V' , ramBoltPlCal	& $7F | $80
 		DB		'v' , ramCellCal	& $7F | $80	; High bit set to indicate word quantity,
 		DB		't' , ramTempOff	& $7F | $00	; clear for byte quantity
-		DB		'l' , ramBoltMiOff	& $7F | $00
+		DB		'n' , ramBoltMiOff	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
@@ -127,7 +127,7 @@ voltScaleWork:
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramCellCal,R9				; Use this voltage scale for correction
-				call	#FP1_15UMul					; Correct for scale but not offset
+				call	#Fx1_15UMul					; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramCellOff
 			_ENDOF
@@ -136,7 +136,7 @@ voltScaleWork:
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
-				call	#FP1_15UMul					; Correct for scale but not offset
+				call	#Fx1_15UMul					; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
@@ -159,7 +159,7 @@ voltScaleWork:
 				mov.b	R9,&ramTempOff				; Save new temperature offset calibration value
 			_ENDOF
 
-			_OFb		#'l',Rtos				; 'l': Bolt-/Shuntx20 voltage offset. Was "link" offset
+			_OFb		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				mov.b	&ramBoltMiOff,R9			; Subtract the existing offset (signed byte)

@@ -69,7 +69,8 @@
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
 #define		INSULATION_MONITORING 1	// Can leave out the insulation monitoring code if not needed.
 #define		FAKE_NEW_CHIP	0		// 1 to force recalculation of our voltage and temperature
-									// calibration constants from the manufacturer's constants
+									// calibration constants from the manufacturer's constants.
+									// Be sure to restore it to 0 and reflash immediately after.
 
 ProductCode	EQU		'T'				; T for TestICal, R for monitoR, L for monolith, W for wmonolith
 
@@ -282,9 +283,9 @@ newChip:
 				; calibration values for bolt and cell offsets.
 				; In practice, we find that the ADC gain factor is unity, and the ADC offset factor is
 				; zero. But these may change in the future, and we'll be ready for it.
-				; There is also a systematic error due to the ~90MR input resistance of the ADC port.
+				; There is also a systematic error due to the ~90 MR input resistance of the ADC port.
 				; We have measured an average of 3323 mV from an actual 3329 mV.
-				; So the systematic correction is 3329/3323 or 1.00181, or 32,827/32768.
+				; So the systematic correction is 3329/3323 or 1.00181, or 32827/32768.
 				; We want a calibraton factor in 1.15 FixedPoint that is the product of two TI given
 				; 1.15 fixed point values and our systematic correction factor which is also in 1.15
 				; fixed point format.
@@ -292,10 +293,11 @@ newChip:
 
 				mov.w	&CALADC_15VREF_FACTOR,R8	; Get 1.5 V reference correction factor
 				mov.w	&CALADC_GAIN_FACTOR,R9		; Get ADC gain correction factor
-				call	#FP1_15UMul					; R8 = R8 * R9
+				call	#Fx1_15UMul					; R8 = R8 * R9
 				mov.w	R8,&ramBoltMiCal			; Use this as the default bolt- voltage scale factor
-				mov		#32827,R9					; = 3329/3323*32768
-				call	#FP1_15UMul					; R8 = R8 * R9
+				mov		#32827,R9					; Correction for systematic error apparently due to
+													; approx 90 MR ADC input resistance. 3329/3323*32768
+				call	#Fx1_15UMul					; R8 = R8 * R9
 				mov.w	R8,&ramCellCal				; Use this as the default cell voltage scale factor
 				mov.w	R8,&ramBoltPlCal			; and the default bolt+ voltage scale factor
 				mov.w	&CALADC_OFFSET,R8			; Use the TI provided offset as default
@@ -316,10 +318,7 @@ newChip:
 				rlc		R10
 				pop		R8
 				sub		R10,R8						; Subtract this Vref/2 offset from 4x the ADC offset
-				; There is a systematic error such that when the measured link voltage should be zero,
-				; it reads as -1. So we want 1 more in the ramBoltOffset so when we add the
-				; offset, we end up with zero instead of -1.
-				add		#1,R8						; Systematic correction
+				add		#2,R8						; Correction for systematic error, cause unknown
 													; Assume it still fits in a signed byte and set as
 				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration value.
 
@@ -332,9 +331,8 @@ newChip:
 				rra		R9
 				call	#UMSlashMod					; Divide; quotient to R9 in 0.16 fixed-point
 				mov		R9,&ramTempSlope			; Save as temperature/ADC-value slope
-				; The manufacturer's temp offset is calculated when needed, from CALADC_15T30
-				; But it seems to result in a reading that is about 1.5 degrees too high
-				mov.b	#-3,&ramTempOff				; Set our additional temp offset in degC to -3/2
+				mov.b	#-3,&ramTempOff				; Correction for systematic error, in half degrees,
+													; cause unknown
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data

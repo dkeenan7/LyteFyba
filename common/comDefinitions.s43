@@ -310,11 +310,11 @@ _emitNum3:
 #endif
 
 ;
-; Current shunt voltage x20 for BMU, Minus terminal volt drop for CMU ( -- )
+; Current shunt voltage x20 for BMU, Negative terminal volt drop for CMU ( -- )
 ; Display in signed millivolts -1500 to 1500 or 9999 for "invalid".
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
 		xCODE		'I'|'s' <<8,CurrSh,_CurrSh	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
-		xCODE		'o',CurrSh2,_CurrSh2		; 'o' alias to allow keyboard auto-repeat when testing
+		xCODE		'n',NegBolt,_NegBolt		; 'n' alias to allow keyboard auto-repeat when testing
 		call		#BoltMiV			; Return bolt- voltage in millivolts in R10
 		mov			#'I'|'s'<<8,Rthd	; Characters of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
@@ -325,7 +325,7 @@ _emitNum3:
 ; Link voltage (max abs volt drop across any terminal) for CMU, Current shunt voltage x20 for BMU ( -- )
 ; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
-		xCODE		'l',BoltMiVolt,_BoltMiVolt
+		xCODE		'l',LinkVolt,_LinkVolt
 		call		#BoltMiV			; Return bolt- or shuntx20 in mV in R10
 		cmp.b	#255,&ID
 		_IF		_EQ						; If we're a BMU
@@ -356,7 +356,7 @@ _emitNum3:
 ; Measure Vcc ( -- )	; Emit the Vcc voltage in millivolts
 ;
 		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
-		xCODE	'n',MeasVcc2,_MeasVcc2			; 'n' alias to allow keyboard auto-repeat when testing
+		xCODE	'o',MeasVcc2,_MeasVcc2			; 'o' alias to allow keyboard auto-repeat when testing
 		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
 		call	#MeasAndCorrCell		; Gives us 0-4092 in R10, for 0-1.5 V
 		mov		R10,R8
