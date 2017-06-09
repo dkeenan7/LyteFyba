@@ -234,9 +234,25 @@ InterpretInit:
 ;
 #if !FAKE_NEW_CHIP
 			_CASE
-			;_OFb	#DATAVERS-1,&infoDataVers
-				; Copy/translate stuff from previous version to RAM
-			;_ENDOF
+			_OFb	#DATAVERS-1,&infoDataVers			; Check for version 6
+				; Data version 6 is close enough to version 7 that we can get away with merely flashing
+				; the error light for a second.
+				; Should eventually translate the link calibration data
+				; Temperature calibration is translated below
+				bis.b	#ErrLed,&P2DIR				; Set error LED as output
+				ErrLedOn							; Caution!
+				mov		#$700,R8					; Link calibration data not converted!
+				call	#DelayMs					; Note that the delay is extended by FLL ints
+				ErrLedOff
+				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
+					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				mov.b	&ramTempOff,R8
+				neg		R8							; Change sign
+				rla		R8							; Convert to half degrees
+				mov.b	R8,&ramTempOff				; Save converted data
+				; For now, jump to the version 7 code
+			_ENDOF
 			_OFb	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
 				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
@@ -319,7 +335,7 @@ newChip:
 				mov		R9,&ramTempSlope			; Save as temperature/ADC-value slope
 				; The manufacturer's temp offset is calculated when needed, from CALADC_15T30
 				; But it seems to result in a reading that is about 1 degree too high
-				mov.b	#1,&ramTempOff				; Set our additional temp offset in degC to 1
+				mov.b	#-3,&ramTempOff				; Set our additional temp offset in degC to 3/2
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data

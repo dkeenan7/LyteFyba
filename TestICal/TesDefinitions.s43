@@ -143,11 +143,14 @@ voltScaleWork:
 
 			_OFb	#'t',Rtos					; 't': Temperature offset
 				call	#Temp						; Get calibrated temp in degC into R10
-				mov.b	&ramTempOff,R8					; Add back our existing offset calibration
+				rlc		R10							; Shift left to get temp in 9 bits of half degrees
+				mov.b	&ramTempOff,R8				; Subtract off our existing offset calibration
 				sxt		R8
-				add		R8,R10
-				sub		Rsec,R10					; Subtract the calibration temperature
-				mov.b	R10,&ramTempOff				; Save new temperature offset calibration value
+				sub		R8,R10
+				rla		Rsec						; Double the calibration temp to get half degrees
+				sub		R10,Rsec					; Subtract measured half degrees from calibration
+													; (expected) temperature
+				mov.b	Rsec,&ramTempOff			; Save new temperature offset calibration value
 			_ENDOF
 
 			_OFb		#'l',Rtos				; 'l': Bolt-/Shuntx20 voltage offset. Was "link" offset

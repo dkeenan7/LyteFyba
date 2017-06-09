@@ -236,6 +236,7 @@ BoltPlV:
 
 Temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range -50..100
+; Carry is also set to the first binary digit after the binary point.
 ; Trashes: R8, R9, R11
 				; In the below, or with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
 			mov		#TempChan<<12|ADC10DIV_7,R8
@@ -251,13 +252,15 @@ Temp:
 			mov		&TempSlope,R9			; R9 has slope in 0.16 fixed point
 			call	#MMStar					; R10:R9 := R8 * R9, R8 allowed to be negative
 											; R10:R9 is 14.2:16
-			add		#2,R10					; Add half divisor for rounding
-			rra2	R10						; Shift (divide by 4) to get 16.0 fixed point in R10
-			add		#30,R10					; Add 30 degC
-			mov.b	&TempOff,R8				; Subtract our offset calibration
-			sxt		R8
-			sub		R8,R10					; R10 now has temperature in degrees Celsius
-			ret
+			add		#(30<<2)+2,R10			; Add 30C as part of the formula, abd also half divisor for
+											; rounding
+			rra		R10						; Shift (divide by 2) to get 14.1 fixed point in R10
+			mov.b	&TempOff,R8				; Our offset calibration, in half degrees
+			sxt		R8						; NOTE: prior to data version 7, this was in whole degrees
+			add		R8,R10					; and was subtracted
+			clrc							; Use rotate through carry below so we can reverse the above
+			rrc		R10						; Complete the shifting to get 14.0 fixed point in R10
+			ret								; R10 now has temperature in degrees Celsius
 
 BoltMiV:
 ; Output: R10 = bolt- voltage or shunt voltage x20 calibrated in millivolts, approx range -1500 to +1500

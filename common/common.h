@@ -102,7 +102,7 @@ CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)			; $10E4
 
 				ORG		$1004		; For compatibility with existing calibration values
 			; Calibration data
-DATAVERS		EQU		6			; This is version 6 of the CMU info-flash data structure
+DATAVERS		EQU		7			; This is version 6 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
 infoBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
 infoTempSlope	ds		2			; Precomputed slope of temperature vs ADC-value curve
