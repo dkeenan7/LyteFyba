@@ -171,12 +171,7 @@ voltScaleWork:
 				pop		R10
 
 				sub		Rsec,R10					; Subtract required reading * 1.364
-				; There is a systematic error that results in the measured link voltage being zero, it
-				; would end up as -1. So we want 1 less in the ramBoltOffset so when we subtract the
-				; offset, we end up with zero instead of -1. But the neg below is an invert plus an
-				; increment, so we invert instead of negating and subtracting one.
-				;neg		R10
-				inv			R10						; Effectively negatate and subtract one
+				neg		R10
 				_COND								; Start a short-circuit conditional
 					cmp		#-$7F,R10					; Compare with -$7F
 				_IF_OR		_L						; If < -$7F
