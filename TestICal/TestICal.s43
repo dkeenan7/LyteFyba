@@ -333,8 +333,8 @@ newChip:
 				call	#UMSlashMod					; Divide; quotient to R9 in 0.16 fixed-point
 				mov		R9,&ramTempSlope			; Save as temperature/ADC-value slope
 				; The manufacturer's temp offset is calculated when needed, from CALADC_15T30
-				; But it seems to result in a reading that is about 1 degree too high
-				mov.b	#-3,&ramTempOff				; Set our additional temp offset in degC to 3/2
+				; But it seems to result in a reading that is about 1.5 degrees too high
+				mov.b	#-3,&ramTempOff				; Set our additional temp offset in degC to -3/2
 
 				; These are not actually used any more. We run an FLL off a watch crystal instead.
 				mov.b	&CALDCO_8MHZ,&ram8MHzCalD	; Copy manufacturer's 8 MHz DCO calibration data
