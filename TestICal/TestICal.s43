@@ -241,8 +241,8 @@ InterpretInit:
 				; Temperature calibration is translated below
 				bis.b	#ErrLed,&P2DIR				; Set error LED as output
 				ErrLedOn							; Caution!
-				mov		#$700,R8					; Link calibration data not converted!
-				call	#DelayMs					; Note that the delay is extended by FLL ints
+				mov		#1000,R8					; Link calibration data not converted!
+				call	#DelayMs
 				ErrLedOff
 				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
@@ -251,7 +251,6 @@ InterpretInit:
 				neg		R8							; Change sign
 				rla		R8							; Convert to half degrees
 				mov.b	R8,&ramTempOff				; Save converted data
-				; For now, jump to the version 7 code
 			_ENDOF
 			_OFb	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
@@ -320,7 +319,7 @@ newChip:
 				; There is a systematic error such that when the measured link voltage should be zero,
 				; it reads as -1. So we want 1 more in the ramBoltOffset so when we add the
 				; offset, we end up with zero instead of -1.
-;				add		#1,R8						; Systematic correction
+				add		#1,R8						; Systematic correction
 													; Assume it still fits in a signed byte and set as
 				mov.b	R8,&ramBoltMiOff			; bolt- offset calibration value.
 
