@@ -20,6 +20,15 @@ measure:
 			; Turn on ADC10
 			; no MSC	= single sample and conversion
 			; ADC10ON	= turn on the ADC core
+
+            ; Other fields are set during initialisation. In particular we need the maximum sample time
+            ; of 64 cycles to get the 38 us we need to achieve 12 bit accuracy with the 155 kR impedance
+            ; of our voltage dividers. ADC adds 2 kR and sampling capacitor is 27 pF.
+            ; Temperature measurement also requires 30 us just to get half-degree accuracy.
+            ; So ADC clock frequency should not be much greater than 64/38 us = 1.67 MHz = MCLK/2.2.
+            ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
+            ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
+
 			bis			#ADC10ON,&ADC10CTL0
 ;			bis			#ADC10ON|ADC10SHT_2,&ADC10CTL0		; Also use 16 clock sample
 			; INCH		= R8 has the input channel number already in the right position

@@ -50,8 +50,8 @@
 #endif // MASTERLESS_CHARGING
 
 ; Rx state ( -- )
-			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
-			mov		#'r',Rthd				; Type is Rx state
+			xCODE	'R'|'x' <<8,RxState,_RxState ; 'Rx' collides with 'Rp' 'R0' 'Jx' 'Jp' 'J0'
+			mov		#'R'|'x'<<8,Rthd		; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
@@ -433,3 +433,121 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 			pop			&TxBytePtr			; Set the Tx pointer back to what it was
 		_ENDIF
 		ret
+
+;
+; Write calibration value ( n ch --- )
+;
+; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
+;
+; Note: The 'fw command can affect the CPU clock in such a way that the processor
+; is no longer capable of receiving commands, and needs physical access to recover.
+; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
+; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
+;
+; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
+; divided by the capacity in amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+
+			xCODE	'w',writeCalValue,_writeCalValue
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,R10					; Convert to RAM address in R9
+			bic.b	#$80,R10
+			bis		#infoDataStart&$FF00,R10	; Set high bits
+			tst.b	Rtos
+			_IF		_NZ						; If not zero for "unrecognised"
+				_IF		_NN						; If high bit set
+					mov		#1,R9					; Indicate byte size
+				_ELSE							; Else high bit clear so
+					mov.w	#0,R9					; Indicate word sized cal value
+				_ENDIF							; Endif high bit
+				mov		Rsec,R8					; Data to be written
+#if 0
+				; If 'fw, also make the new value live
+				cmp	#info8MHzCalD,R10
+				_IF		_EQ
+					mov.b	Rsec,&DCOCTL
+					swpb	Rsec
+					mov.b	Rsec,&BCSCTL1
+				_ENDIF
+#endif
+				call	#MonoUpdFlash			; Write new value to flash
+			_ELSE 							; Else is zero for "unrecognised"
+emitQmark
+				mov		#1+1+1,R11
+				mov		#sQuestion,R10
+				br		#TxBytes			; Print \? <ret> and exit
+			_ENDIF							; Endif unrecognised
+			ret
+
+sQuestion	DB			'\\?\r'				; Use quote so downstream CMUs will ignore
+
+; Some characters need to be translated into RAM adresses of calibration values
+		ALIGN	1
+calAddressTable
+		DB		'I' , infoBoltMiCal	& $7F | $80
+		DB		's' , infoTempSlope	& $7F | $80
+		DB		'O' , infoBoltPlOff	& $7F | $00
+		DB		'o' , infoCellOff	& $7F | $00
+		DB		'c' , infoCapacity	& $7F | $80
+		DB		'r' , infoCellRes	& $7F | $80
+		DB		'V' , infoBoltPlCal	& $7F | $80
+		DB		'v' , infoCellCal	& $7F | $80	; High bit set to indicate word quantity,
+		DB		't' , infoTempOff	& $7F | $00	; clear for byte quantity
+		DB		'n' , infoBoltMiOff	& $7F | $00
+;		DB		'f' , info8MHzCalD	& $7F | $80
+		DB		'i' , infoID		& $7F | $00
+; Zero must not appear in the table as it is used to represent "unrecognised".
+sizeCalAddressTable	EQU	$-calAddressTable
+
+;
+; TranslateToCalAddr ( ch -- addr )
+;
+TranslateToCalAddr:
+		; Do the calibration address translations using the table above
+		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				decd	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
+			_ELSE				; Else there is a match so
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rtos	; Substitute it for the address character
+			_ENDIF				; Endif match
+		ret
+
+;
+; Read calibration value ( ch --- )
+; Calibration type (e.g. 'v' for cell Voltage) in ch
+			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,Rsec				; Convert to RAM address in Rsec
+			bic.b	#$80,Rsec
+			bis		#infoDataStart&$FF00,Rsec
+			tst.b	Rtos
+			_IF		_NZ						; If not zero (zero means "unrecognised")
+;				push.b	&interpFlags
+				_IF		_NN						; If high bit set
+					mov		#3,Rtos					; Display 3 digits
+					mov.b	@Rsec,Rsec				; Get byte sized cal value
+				_ELSE							; Else high bit clear so
+					mov		#5,Rtos					; Display 5 digits
+					mov.w	@Rsec,Rsec				; Get word sized cal value
+;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
+				_ENDIF							; Endif high bit
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		emitQmark
+			_ENDIF							; Endif unrecognised
+			mov.b		#' ',Rthd			; Trailing char (space)
+			call	 	#_prettyPrint
+;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
+			ret
+

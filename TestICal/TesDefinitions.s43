@@ -554,7 +554,7 @@ ManAddressTable
 SizeManAddressTable	EQU	$-ManAddressTable
 
 ;
-; TranslateToCalAddr ( ch -- addr )
+; TranslateToManAddr ( ch -- addr )
 ;
 TranslateToManAddr:
 		; Do the calibration address translations using the table above

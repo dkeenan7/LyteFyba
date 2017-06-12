@@ -631,13 +631,22 @@ InitPip:
 			_LOOP		R8
 			ret
 
+// Set only one of the below to 1, others 0
+OFFGRID		EQU		1			// An off-grid application
+ONGRIDSM	EQU		0			// On-grid, smaller battery
+ONGRIFLG	EQU		0			// On-grid, larger battery
+
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+#if	OFFGRID
 		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
-;		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for on-grid use) (Param 1)
+#endif
+#if ONGRIDSM || ONGRIDLG
+		 	DB	8,'POP02',$E2,$0B,$0D		; "SBU" (Solar, Bat, Util) priority (for on-grid use) (Param 1)
+#endif
 			DB	6,'PDa',$E3,$41,$0D			; Disable beeper (Param 18)
 			DB	6,'PDk',$42,$0B,$0D			; Disable return to default screen (Param 19)
 ;			DB	6,'PEj',$61,$1B,$0D			; Enable load-sense (Param 4)
@@ -658,10 +667,13 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc) (Param 26)
 ;			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc) (Param 27)
+#if !ONGRIDLG
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar) (Param 2)
-;			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah; Param 2)
-			DB	12,'MUCHGC020',$F3,$F1,$0D	; Maximum utility charge current 20 amps (Param 11)
-;			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
+#else
+			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah; Param 2)
+#endif
+;			DB	12,'MUCHGC020',$F3,$F1,$0D	; Maximum utility charge current 20 amps (Param 11)
+			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
 			ALIGN		1
 
@@ -1765,6 +1777,95 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			mov			R9,&socPwmAdv		; Save in the pre-computed advance variable
 			pop			R9
 			pop			R8
+			ret
+
+;
+;
+; Update info-flash
+; R8 has new info value
+; R9 is 1 for byte, 0 for word
+; R10 has address of the flash word to be written
+; Trashes R11, R12
+;
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+
+MonoUpdFlash:
+			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
+			mov		SP,R11					; Copy start of buffer to R10
+			clr		R12						; Loop counter
+			_BEGIN
+				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
+				inc		R11
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			add		SP,R10					; R10 points infoDataStart past RAM equivalent
+			tst		R9
+			_IF		_NZ
+				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
+			_ELSE
+				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
+			_ENDIF
+
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+
+			; Erase appropriate info flash segment.
+			mov		#FWKEY,&FCTL3			; Clear LOCK
+			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+
+			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
+
+			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+
+			clr		R12						; Loop counter
+			mov		SP,R10					; Point to start of RAM copy
+			_BEGIN
+				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			mov		#FWKEY,&FCTL1			; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
+			mov		#1+4+1,R11				; String length
+			_IF    _NE
+				mov		#sFail,R10
+			_ELSE
+				mov		#sDone,R10
+			_ENDIF
+			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
+			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
+			;ret
+
+sFail		db		'\\FAIL\r'
+			ALIGN	1
+sDone		db		'\\Done\r'
+			ALIGN	1
+
+;
+; Compare the ~20 bytes of calibration data at 2(SP) with what's at infoDataStart (in info-flash).
+; Returns with Z set if OK, Z clear if not.
+; Trashes R10, R12
+compareInfoFlash:
+			mov		SP,R10
+			incd	R10					; Skip return address
+			clr		R12					; Loop counter
+			_BEGIN
+				cmp.b	@R10+,infoDataStart(R12)
+				_WHILE	_EQ ; _Z
+					inc		R12
+					cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
 
 
