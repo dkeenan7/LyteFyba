@@ -634,7 +634,7 @@ InitPip:
 // Set only one of the below to 1, others 0
 OFFGRID		EQU		1			// An off-grid application
 ONGRIDSM	EQU		0			// On-grid, smaller battery
-ONGRIFLG	EQU		0			// On-grid, larger battery
+ONGRIDLG	EQU		0			// On-grid, larger battery
 
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
