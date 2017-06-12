@@ -398,3 +398,38 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		_ENDIF
 		ret
 
+
+; Send a PIP command with no CRC, e.g. "PFTY5200"1Pw  ( c-addr u u2 -- )
+		; BMU only.
+		; Send the string given by pointer c-addr and length u, out of one or both of the Chg ports,
+		; as specified by u2 values of 1 = Chg1 only, 2 = Chg2 only, 3 = both.
+		xCODE	'P'|'w' <<8,PipCmdNC,_PipCmdNC ; 'Pw' collides with 'Po' 'Pg' 'Xw' 'Xo' 'Xg'
+		cmp.b	#255,&ID
+		_IF	_EQ							; If I'm a BMU
+			; Temporarily disable the timer functions of all Chg pins
+			bic.b	#TxMiChg|TxMiChg2|RxChg|RxChg2,&ChgPortSEL
+			bit		#2,Rtos
+			_IF		_NZ
+				; Enable the timer function of the TxChg2 and RxChg2 pins
+				bis.b	#TxMiChg2|RxChg2,&ChgPortSEL
+				bis		#CCIS0,&ChgCCTLr		; Select input B for charger capture compare register
+			_ENDIF
+			bit		#1,Rtos
+			_IF		_NZ
+				; Enable the timer function of the TxChg and RxChg pins
+				; This comes last so if sending to both ports, we receive from RxChg, not RxCgh2
+				bis.b	#TxMiChg|RxChg,&ChgPortSEL
+				bic		#CCIS0,&ChgCCTLr		; Select input A for charger capture compare register
+			_ENDIF
+
+			push		&TxBytePtr			; Save the present Tx pointer
+			mov			#ChgTxByte,&TxBytePtr ; Point the Tx pointer at the charge ports
+			mov			Rthd,R10
+			mov			Rsec,R11
+			call		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
+											; No calculation or sending of CRC
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+			pop			&TxBytePtr			; Set the Tx pointer back to what it was
+		_ENDIF
+		ret
