@@ -509,6 +509,7 @@ calAddressTable
 		DB		'n' , infoBoltMiOff	& $7F | $00
 ;		DB		'f' , info8MHzCalD	& $7F | $80
 		DB		'i' , infoID		& $7F | $00
+		DB		'a' , infoAdcTimIdx & $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 

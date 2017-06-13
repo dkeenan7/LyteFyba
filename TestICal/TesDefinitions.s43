@@ -33,6 +33,7 @@ calAddressTable
 		DB		'n' , ramBoltMiOff	& $7F | $00
 		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
+		DB		'a' , ramAdcTimIdx	& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 

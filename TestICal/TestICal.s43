@@ -87,6 +87,7 @@ BoltMiCal 	EQU	ramBoltMiCal
 BoltMiOff	EQU ramBoltMiOff
 TempSlope	EQU	ramTempSlope
 TempOff		EQU	ramTempOff
+AdcTimIdx	EQU	ramAdcTimIdx
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -150,6 +151,8 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
+				DS		1			; Spare, but have to start on a word boundary
+ramAdcTimIdx	DS		1			; ADC timing table index: 0=default, 1=MCLK2, 3=ADCOSC/3
 ramBoltMiCal	DS		2			; Bolt- voltage / current scale calibration word
 ramTempSlope	DS		2			; Precomputed slope of voltage vs temperature curve
 ramBoltPlOff	DS		1			; Voltage offset calibration byte for bolt/array
@@ -362,6 +365,11 @@ newChip:
 #else
 				mov.b	&infoID,&ramID				; Preserve the existing ID
 #endif
+				cmp.b	#255,&ramID					; Test for BMU
+				_IF		_NE							; If not a BMU
+					call	#FindOptAdc					; Find the optimal ADC clock timing; save in RAM
+				_ENDIF
+
 				mov.b	#DATAVERS,&ramDataVers		; The present data version
 				call	#_updateInfoFlash			; If we're a CMU, this is the only way to tell the
 													; BSL to assume CMU hardware (e.g. ReadByte)
@@ -455,6 +463,72 @@ newChip:
 ; End of InterpInit
 ;-----------------------------------------------------------------------------------------------------
 
+
+;
+; Determine the best ADC clock value for this CMU
+; Can't be used for BMUs since V and v measure different things
+; Trashes R8-12, R15
+;
+; Local variable stack pointer offsets
+avgCellV	EQU		0
+worstThisIdx EQU	2					; Space for 4 results
+FindOptAdc:
+			sub		#2+4,SP				; Space for locals
+			clr.b	&ramAdcTimIdx		; Start with default timing
+			clr		avgCellV(SP)		; Clear sum for average cell voltage
+			_DO		#8,R12
+				call	#CellV
+				clrc
+				rrc		R10					; Unsigned shift right to avoid overflow
+				addc	R10,avgCellV(SP)	; Accumulate sum
+			_LOOP	R12
+			add		#2,avgCellV(SP)		; Rounding
+			clrc
+			rrc		avgCellV(SP)		; Average cell voltage (already shifted once above)
+			rra		avgCellV(SP)
+			clr		worstThisIdx(SP)	; Clear table of worst deviations
+			clr		worstThisIdx+2(SP)	; 2 words = 4 bytes
+			clr		R15					; R15 will range 0-3
+			_BEGIN
+				mov		R15,R8
+				inc		R8					; R8 is 1-4
+				mov.b	R8,ramAdcTimIdx		; Use this ADC timing
+				_DO		#16,R12				; Do 16 measurements
+					call	#BoltPlV			; V is the noisy measurement
+					sub		avgCellV(SP),R10	; Get deviation from average
+					abs		R10					; Don't care if pos or neg
+					mov		SP,R9
+					add		R15,R9				; Point to array entry on stack
+					cmp.b	@R9,R10				; Compare current with worst so far
+					_IF		_HS					; If current is higher or same as worst so far
+						mov.b	R10,0(R9)			; then there is a new worst
+					_ENDIF
+				_LOOP	R12
+				inc		R15					; Next index into ADC timing table
+				cmp		#4,R15
+			_UNTIL	_EQ
+			; Now find the quietest result
+			clr		R15
+			mov		#-1,R10				; Default winner
+			mov.b	#-1,R8				; Worst so far
+			_BEGIN
+				mov		SP,R9
+				add		R15,R9
+				cmp.b	@R9,R8				; Compare lowest so far with table
+				_IF		_HS					; If the lowest so far is higher than this table entry
+					mov.b	@R9,R8				; A new lowest noise
+					mov		R15,R10				; Remember the table index
+				_ENDIF
+				inc		R15
+				cmp		#4,R15
+			_UNTIL	_EQ
+
+			; The lowest noise result was with a table index of R10, corresponding to an ADC timing
+			; index of R10+1
+			add		#1,R10
+			mov.b	R10,&ramAdcTimIdx	; Use this value from now on; save to info flash soon
+			add		#2+4,SP				; Deallocate locals
+			ret
 
 ;
 ; Compare the ~16 bytes of calibration data at ramDataStart with what's at infoDataStart (in info-flash).

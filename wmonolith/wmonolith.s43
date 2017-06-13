@@ -42,6 +42,7 @@ BoltMiCal 	EQU	infoBoltMiCal
 BoltMiOff	EQU infoBoltMiOff
 TempSlope	EQU	infoTempSlope
 TempOff		EQU	infoTempOff
+AdcTimIdx	EQU	infoAdcTimIdx
 
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger

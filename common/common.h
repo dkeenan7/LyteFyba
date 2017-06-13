@@ -100,10 +100,12 @@ CALADC_15VREF_FACTOR EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15VREF_FACTOR * 2) ; $1
 CALADC_15T30		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T30 * 2) 		; $10E2
 CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + 2 + (CAL_ADC_15T85 * 2)			; $10E4
 
-				ORG		$1004		; For compatibility with existing calibration values
+				ORG		$1002		; For compatibility with existing calibration values
 			; Calibration data
 DATAVERS		EQU		7			; This is version 7 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
+				ds		1			; Spare; has to start at even address
+infoAdcTimIdx	ds		1			; ADC timing table index: 0=default, 1=MCLK2, 3=ADCOSC/3
 infoBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
 infoTempSlope	ds		2			; Precomputed slope of temperature vs ADC-value curve
 infoBoltPlOff	ds		1			; Bolt/array voltage offset calibration signed byte

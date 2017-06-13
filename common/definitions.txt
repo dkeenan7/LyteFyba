@@ -207,6 +207,7 @@ or Calibrate command in TestICal.
 'v Cell/Battery voltage scale factor
 't Temperature offset
 'n Bolt-/Shuntx20 voltage offset
+'a ADC timing index
 'f Frequency (DCO 8 MHz)
 'i ID
 The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given

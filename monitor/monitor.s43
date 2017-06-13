@@ -35,6 +35,7 @@ BoltMiCal 	EQU	infoBoltMiCal
 BoltMiOff	EQU infoBoltMiOff
 TempSlope	EQU	infoTempSlope
 TempOff		EQU	infoTempOff
+AdcTimIdx	EQU	infoAdcTimIdx
 
 
 			NAME	main			; Module name
