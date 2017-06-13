@@ -218,8 +218,16 @@ voltScaleWork:
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit clear so
 					mov		#5,Rtos					; Display 5 digits
+					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
 ;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
+					_IF		_EQ
+						mov		Rsec,R9
+						clr		R10
+						mov		#10,R8				; Divide by 10 to bring to whole Ah
+						call	#UMSlashMod
+						mov		R9,Rsec
+					_ENDIF
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
 emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream CMUs
@@ -258,7 +266,14 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R9					; Convert to RAM address in R9
 			bic.b	#$80,R9
-			bis		#$200,R9
+			bis		#$200,R9				; Start of RAM
+			cmp		#ramCapacity,R9			; Check for battery capacity
+			_IF		_EQ						; If so
+				rla		Rsec					; Multiply given value by 10
+				mov		Rsec,R8					; to bring to tenths of an Ah
+				rla2	Rsec					; *8
+				add		R8,Rsec					; *10
+			_ENDIF
 			tst.b	Rtos
 			_IF		_NZ						; If not zero for "unrecognised"
 				_IF		_NN						; If high bit set
