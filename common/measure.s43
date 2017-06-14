@@ -202,8 +202,8 @@ MeasAndCorrBoltMi:
 			add			R9,R10					; Add the offset calibration value
 			ret									; Finished
 
-BatV:
-CellV:
+GetBatV:
+GetCellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			mov		#CellVChan<<12,R8
@@ -219,9 +219,9 @@ CellV:
 			ret
 
 
-CapV:		; When used by (w)monolith to check precharge
-ArrayV:
-BoltPlV:
+GetCapV:	; When used by (w)monolith to check precharge
+GetArrayV:
+GetBoltPlV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			mov		#BoltVPlChan<<12,R8
@@ -237,7 +237,7 @@ BoltPlV:
 			ret
 
 
-Temp:
+GetTemp:
 ; Output: R10 = calibrated temperature in correctly rounded degrees Celsius, approx range -50..100
 ; Also R9 = calibrated temperature in correctly rounded half degrees.
 ; Trashes: R8, R11
@@ -269,7 +269,7 @@ Temp:
 			rra		R9						; R9 has temperature in half degrees
 			ret
 
-BoltMiV:
+GetBoltMiV:
 ; Output: R10 = bolt- voltage or shunt voltage x20 calibrated in millivolts, approx range -1500 to +1500
 ; 9999 means bolt- voltage or current not valid, ignore.
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt.

@@ -262,22 +262,22 @@ _emitNum3:
 
 
 ;
-; cellVolt ( -- )
+; GetCellVolt ( -- )
 ; Transmit the cell (strap+) voltage measurement in millivolts (0 to 4348 mV)
 ;
-		xCODE		'v',cellVolt,_cellVolt
-		call		#CellV				; Return cell voltage in millivolts in R10
+		xCODE		'v',GetCellVolt,_GetCellVolt
+		call		#GetCellV			; Return cell voltage in millivolts in R10
 		mov			#'v',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 ;
-; boltPlVolt ( -- )
+; GetBoltPlVolt ( -- )
 ; Transmit the cell (bolt+) voltage measurement in millivolts (0 to 4348 mV)
 ;
-		xCODE		'V',BoltPlVolt,_BoltPlVolt
-		call		#BoltPlV			; Return bolt+ voltage in millivolts in R10
+		xCODE		'V',GetBoltPlVolt,_GetBoltPlVolt
+		call		#GetBoltPlV			; Return bolt+ voltage in millivolts in R10
 		mov			#'V',Rthd			; Type is cell Voltage
 		mov			R10,Rsec			; Result in millivolts
 		mov			#4,Rtos				; Print 4 digits
@@ -287,8 +287,8 @@ _emitNum3:
 ; Cell temperature measurement ( -- )
 ; Transmit cell temperature in degrees C
 ;
-		xCODE		't',cellTemp,_cellTemp
-		call		#Temp				; Return temperature in degrees Celsius in R10
+		xCODE		't',GetCellTemp,_GetCellTemp
+		call		#GetTemp			; Return temperature in degrees Celsius in R10
 		mov			#'t',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). Looks like status
 		mov			R10,Rsec			; Result in degrees Celsius
@@ -300,7 +300,7 @@ _emitNum3:
 ; External thermistor temperature measurement ( -- )
 ; Transmit cell temperature in degrees C
 ;
-		xCODE		'H',extTemp,_extTemp
+		xCODE		'H',GetExtTemp,_GetExtTemp
 		call		#extT				; Return temperature in degrees Celsius in R10
 		mov			#'H',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). Looks like status
@@ -315,7 +315,7 @@ _emitNum3:
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
 		xCODE		'I'|'s' <<8,CurrSh,_CurrSh	; 'Is' collides with 'Ia' 'Ic' 'Ik' 'Qa' 'Qc' 'Qk' 'Qs'
 		xCODE		'n',NegBolt,_NegBolt		; 'n' alias to allow keyboard auto-repeat when testing
-		call		#BoltMiV			; Return bolt- voltage in millivolts in R10
+		call		#GetBoltMiV			; Return bolt- voltage in millivolts in R10
 		mov			#'I'|'s'<<8,Rthd	; Characters of command being responded to
 		mov			R10,Rsec			; Result in fifths of an amp (with a 200 A 50 mV shunt)
 		mov			#4,Rtos				; Print 4 digits
@@ -326,7 +326,7 @@ _emitNum3:
 ; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
 		xCODE		'l',LinkVolt,_LinkVolt
-		call		#BoltMiV			; Return bolt- or shuntx20 in mV in R10
+		call		#GetBoltMiV			; Return bolt- or shuntx20 in mV in R10
 		cmp.b	#255,&ID
 		_IF		_EQ						; If we're a BMU
 			mov			R10,Rsec			; Result to Rsec
@@ -397,13 +397,13 @@ _emitNum3:
 ; 470k 8, 100k 36, 6.8k 501, 2.2k 1390, 0k 9216.
 		xCODE		'J',insulationTest,_insulationTest
 		; Register definitions
-#define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
+#define RCellV R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
 #define Rmeas R14				// Max of touch measurements when any one relay is on.
 #define Rtest R15				// Touch self-test value when both relays are on.
 		cmp.b	#0,&ID				; If we're an IMU
 		_IF		_EQ
-			call	#CellV				; Return battery_voltage/109 in millivolts in R10
-			mov		R10,Rcellv
+			call	#GetCellV			; Return battery_voltage/109 in millivolts in R10
+			mov		R10,RCellV
 
 			; Positive relay only
 			bis.b	#RelayP,&P2OUT		; Turn on positive relay
@@ -437,11 +437,11 @@ _emitNum3:
 			bic.b	#RelayM,&P2OUT		; Turn off negative relay
 
 			mov.b	#$FF,R8				; If battery voltage is less than 109 * 255 mV ~= 28 V
-			cmp.w	R8,Rcellv			;  e.g. if battery contactors are off
+			cmp.w	R8,RCellV			;  e.g. if battery contactors are off
 			_IF		_LO
 				mov		#8888,R9			; Indicate an invalid test by a large distinctive value
 			_ELSE
-				mov		Rcellv,R8			; If test value is less than battery_voltage/109 / 4
+				mov		RCellV,R8			; If test value is less than battery_voltage/109 / 4
 				rra2	R8					;  e.g. because of reed relay failure
 				cmp		R8,Rtest
 				_IF		_LO
@@ -453,7 +453,7 @@ _emitNum3:
 					; We use the approximation 10000/109 ~= 92 (0.3% error).
 					; Itouch ~= (Vcell * Vmeas) / ((Vtest - 0.9961*Vmeas) * 92)
 					mov		Rmeas,R8		; R8    = Vmeas
-					mov		Rcellv,R9		; R9    = Vcellv
+					mov		RCellV,R9		; R9    = VcellV
 					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
 					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
 					_IF		_NC				; If not carry = If borrow = If Vtest < Vmeas

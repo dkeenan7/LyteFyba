@@ -195,11 +195,11 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
 			_OF #'v',Rsec
-				call	#CellV			; Get cell voltage in millivolts in R10
+				call	#GetCellV		; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
-				call	#Temp			; Get temperature in degrees Celsius in R10
+				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF #'p',Rsec
@@ -259,11 +259,11 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
 			_OF #'v',Rsec
-				call	#CellV			; Get cell voltage in millivolts in R10
+				call	#GetCellV		; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
 			_OF #'t',Rsec
-				call	#Temp			; Get temperature in degrees Celsius in R10
+				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF #'p',Rsec
@@ -439,11 +439,6 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 ;
 ; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
 ;
-; Note: The 'fw command can affect the CPU clock in such a way that the processor
-; is no longer capable of receiving commands, and needs physical access to recover.
-; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
-; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
-;
 ; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
 ; divided by the capacity in amp hours.
 ; Alternatively cell resistance can be measured as the change in battery voltage
@@ -456,9 +451,9 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 
 			xCODE	'w',writeCalValue,_writeCalValue
 			call 	#TranslateToCalAddr
-			mov.b	Rtos,R10					; Convert to RAM address in R9
+			mov.b	Rtos,R10					; Convert to info flash address in R10
 			bic.b	#$80,R10
-			bis		#infoDataStart&$FF00,R10	; Set high bits
+			bis		#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
 			cmp		#infoCapacity,R10			; Check for battery capacity
 			_IF		_EQ							; If so
 				rla		Rsec						; Multiply given value by 10
@@ -468,31 +463,21 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 			_ENDIF
 			tst.b	Rtos
 			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit set
-					mov		#1,R9					; Indicate byte size
-				_ELSE							; Else high bit clear so
-					mov.w	#0,R9					; Indicate word sized cal value
+				_IF		_NN						; If high bit clear
+					mov		#0,R9					; Indicate byte size
+				_ELSE							; Else high bit set so
+					mov.w	#1,R9					; Indicate word sized cal value
 				_ENDIF							; Endif high bit
 				mov		Rsec,R8					; Data to be written
-#if 0
-				; If 'fw, also make the new value live
-				cmp	#info8MHzCalD,R10
-				_IF		_EQ
-					mov.b	Rsec,&DCOCTL
-					swpb	Rsec
-					mov.b	Rsec,&BCSCTL1
-				_ENDIF
-#endif
 				call	#MonoUpdFlash			; Write new value to flash
 			_ELSE 							; Else is zero for "unrecognised"
 emitQmark
-				mov		#1+1+1,R11
-				mov		#sQuestion,R10
-				br		#TxBytes			; Print \? <ret> and exit
+				mov		#QuestionStr,R10
+				br		#TxString			; Print \? <ret> and exit
 			_ENDIF							; Endif unrecognised
 			ret
 
-sQuestion	DB			'\\?\r'				; Use quote so downstream CMUs will ignore
+QuestionStr	DB			3,'\\?\r'			; Use quote so downstream CMUs will ignore
 
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
@@ -507,7 +492,6 @@ calAddressTable
 		DB		'v' , infoCellCal	& $7F | $80	; High bit set to indicate word quantity,
 		DB		't' , infoTempOff	& $7F | $00	; clear for byte quantity
 		DB		'n' , infoBoltMiOff	& $7F | $00
-;		DB		'f' , info8MHzCalD	& $7F | $80
 		DB		'i' , infoID		& $7F | $00
 		DB		'a' , infoAdcTimIdx & $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
@@ -539,14 +523,14 @@ TranslateToCalAddr:
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
 			bic.b	#$80,Rsec
-			bis		#infoDataStart&$FF00,Rsec
+			bis		#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
 ;				push.b	&interpFlags
-				_IF		_NN						; If high bit set
+				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
-				_ELSE							; Else high bit clear so
+				_ELSE							; Else high bit set so
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
@@ -565,5 +549,129 @@ TranslateToCalAddr:
 			mov.b		#' ',Rthd			; Trailing char (space)
 			call	 	#_prettyPrint
 ;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
+			ret
+
+;
+;
+; Update a single word or byte into info-flash. Note that this is NOT a command definition;
+; we can't have a bare "u" command in monolith, and there are no RAM copies to update from.
+; R8 has new info value
+; R9 is 1 for word, 0 for byte
+; R10 has address of the flash word to be written
+; Trashes R11, R12
+;
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+
+MonoUpdFlash:
+			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
+			mov		SP,R11					; Copy start of buffer to R10
+			clr		R12						; Loop counter
+			_BEGIN
+				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
+				inc		R11
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			add		SP,R10					; R10 points infoDataStart past RAM equivalent
+			tst		R9
+			_IF		_NZ
+				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
+			_ELSE
+				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
+			_ENDIF
+
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+
+			; Erase appropriate info flash segment.
+			mov		#FWKEY,&FCTL3			; Clear LOCK
+			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+
+			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
+
+			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+
+			clr		R12						; Loop counter
+			mov		SP,R10					; Point to start of RAM copy
+			_BEGIN
+				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			mov		#FWKEY,&FCTL1			; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
+			mov		#1+4+1,R11				; String length
+			_IF    _NE
+				mov		#sFail,R10
+			_ELSE
+				mov		#sDone,R10
+			_ENDIF
+			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
+			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
+			;ret
+
+sFail		db		'\\FAIL\r'
+			ALIGN	1
+sDone		db		'\\Done\r'
+			ALIGN	1
+
+;
+; Compare the ~20 bytes of calibration data at 2(SP) with what's at infoDataStart (in info-flash).
+; Returns with Z set if OK, Z clear if not.
+; Trashes R10, R12
+compareInfoFlash:
+			mov		SP,R10
+			incd	R10					; Skip return address
+			clr		R12					; Loop counter
+			_BEGIN
+				cmp.b	@R10+,infoDataStart(R12)
+				_WHILE	_EQ ; _Z
+					inc		R12
+					cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
+
+;
+; setIDs ( first-ID -- )
+;
+			xCODE	'I' +'d'<<8,setIDs,_setIDs	; 'Id' collides with 'Qd' and only I, Q with punctuation
+			; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+			; and responds with the ID _after_ the last ID.
+			bit.b	#bDontEcho,&interpFlags
+			_IF		_NZ					; If the dont-echo flag is set
+				; Save our new ID to info flash
+				mov		Rtos,R8				; New ID
+				mov		#0,R9				; Byte size
+				mov		#infoID,R10			; Info flash address
+				call	#MonoUpdFlash
+
+				; Send another setIDs command with its parameter incremented by one.
+				inc		Rtos				; Increment the parameter
+				DPUSH	#3					; Use a 3 digit field width
+				call	#_emitNum			; Transmit the number as text in the current number base
+
+				mov		#'I',R8				; Transmit an "I"
+				call	#TxByteCk
+				mov		#'d',R8				; and a "d"
+				call	#TxByteCk
+				call	#TxEndOfPacket
+			_ELSE						; Else dont-echo flag is clear
+				; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
+				mov		#'?',R8				; Transmit a question mark (a no-op to downstream CMUs)
+				call	#TxByte
+				mov		#'\r',R8			; Transmit a carriage return. Checksum is deliberately bad.
+				call	#TxByte
+			_ENDIF
 			ret
 

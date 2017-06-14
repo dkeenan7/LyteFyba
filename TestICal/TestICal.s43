@@ -62,8 +62,6 @@
 
 #define INIT_CMD_STRING ''	 			// No initial command
 ; #define INIT_CMD_STRING 'ub'			// Move old cal data to new location and update BSL
-; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
-;										// Note that an update command 'u' is required to make it stick.
 
 ; Conditional assembly parameters which may be changed for special purposes
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer
@@ -470,22 +468,31 @@ newChip:
 ; Trashes R8-12, R15
 ;
 ; Local variable stack pointer offsets
-avgCellV	EQU		0
-worstThisIdx EQU	2					; Space for 4 results
+actCellV	EQU		0					; Our best guess of the actual cell voltage, which is the
+										; average of 8 measurements using GetCellV and MCLK/2
+										; The deviations from this are used to determine the noise
+sumOfDev	EQU		2
+worstThisIdx EQU	4					; Space for 4 deviation results
+
 FindOptAdc:
-			sub		#2+4,SP				; Space for locals
-			clr.b	&ramAdcTimIdx		; Start with default timing
-			clr		avgCellV(SP)		; Clear sum for average cell voltage
+			sub		#2+2+4,SP			; Space for locals
+			mov.b	#1,&ramAdcTimIdx	; Measure cell voltage with MCLK/2 timing since it has the
+										; lowest worst-case oise
+			clr		actCellV(SP)		; Clear sum for average cell voltage
 			_DO		#8,R12
-				call	#CellV
+				call	#GetCellV
 				clrc
 				rrc		R10					; Unsigned shift right to avoid overflow
-				addc	R10,avgCellV(SP)	; Accumulate sum
+				addc	R10,actCellV(SP)	; Accumulate sum
 			_LOOP	R12
-			add		#2,avgCellV(SP)		; Rounding
+			add		#2,actCellV(SP)		; Rounding
 			clrc
-			rrc		avgCellV(SP)		; Average cell voltage (already shifted once above)
-			rra		avgCellV(SP)
+			rrc		actCellV(SP)		; Average cell voltage (already shifted once above)
+			rra		actCellV(SP)
+			; We want the best average deviation from the "actual" cell voltage. We use the average
+			; rather than the worst deviation since we've observed some infrequent large errors, and
+			; others with frequent almost-as-large errors. We want to penalise the frequent errors more.
+			; Take 128 measurements, sum them in sumOfDev, and convert to an average by dividing by 128.
 			clr		worstThisIdx(SP)	; Clear table of worst deviations
 			clr		worstThisIdx+2(SP)	; 2 words = 4 bytes
 			clr		R15					; R15 will range 0-3
@@ -493,17 +500,20 @@ FindOptAdc:
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
 				mov.b	R8,ramAdcTimIdx		; Use this ADC timing
-				_DO		#16,R12				; Do 16 measurements
-					call	#BoltPlV			; V is the noisy measurement
-					sub		avgCellV(SP),R10	; Get deviation from average
+				_DO		#128,R12				; Do 128 measurements
+					call	#GetBoltPlV			; V is the noisy measurement
+					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
-					mov		SP,R9
-					add		R15,R9				; Point to array entry on stack
-					cmp.b	@R9,R10				; Compare current with worst so far
-					_IF		_HS					; If current is higher or same as worst so far
-						mov.b	R10,0(R9)			; then there is a new worst
-					_ENDIF
+					add		R10,sumOfDev(SP)	; Accumulate the sum of the deviations
 				_LOOP	R12
+				; Divide by 128 to get the average. Shift left then swap bytes to do this.
+				mov		sumOfDev(SP),R8
+				add		#64,R8				; For rounding
+				rla		R8
+				swpb	R8					; Effectively shift right 7 bits
+				mov		SP,R9
+				add		R15,R9				; Point to array entry on stack
+				mov.b	R8,0(R9)			; Save average deviation this index to array
 				inc		R15					; Next index into ADC timing table
 				cmp		#4,R15
 			_UNTIL	_EQ
@@ -527,7 +537,7 @@ FindOptAdc:
 			; index of R10+1
 			add		#1,R10
 			mov.b	R10,&ramAdcTimIdx	; Use this value from now on; save to info flash soon
-			add		#2+4,SP				; Deallocate locals
+			add		#2+2+4,SP			; Deallocate locals
 			ret
 
 ;

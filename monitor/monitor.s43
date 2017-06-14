@@ -512,7 +512,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Do cell voltage measurement
-			call	#CellV					; Get cell voltage in mV in R10
+			call	#GetCellV				; Get cell voltage in mV in R10
 			push	R10						; Save measurement for undervoltage stress calc
 
 			; Set bypass as required
@@ -561,7 +561,7 @@ DoMeasurement:
 				_ENDIF
 
 			; Do temperature measurement
-			call	#Temp					; Get temperature in degrees Celsius in R10
+			call	#GetTemp				; Get temperature in degrees Celsius in R10
 			push	R10						; Save measurement for undertemperature stress calc
 
 			; Calculate stress due to overtemperature
@@ -584,7 +584,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
-			call	#BoltMiV					; Get link voltage in mV in R10
+			call	#GetBoltMiV				; Get link voltage in mV in R10
 			cmp.b	#0,&ID					; If we're not an IMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.

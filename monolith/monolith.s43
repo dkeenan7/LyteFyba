@@ -575,14 +575,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 				call	#RxByteNoWait			; Check if received CMU data
 				_IF		_NZ
 					tst.b	R8
-					_IF		_NN
+					_IF		_NN						; If an ordinary (non status) char
 						call	#DoEcho					; Echo the command or password byte if required
 						cmp.b	#255,&ID				; Check ID
 						_IF		_NE						; If I'm not a BMU
 							call	#DoPassword				; Check for BSL password bytes from CMU port
 						_ENDIF
 						call	#ACCEPT					; Process command bytes (could be slow)
-					_ELSE								; Else was status byte
+					_ELSE							; Else was status byte
 						call	#DoStatus				; Forward possibly-updated status bytes
 					_ENDIF
 				_ELSE
@@ -713,7 +713,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Do cell voltage measurement
-			call	#CellV					; Get cell voltage in mV in R10
+			call	#GetCellV				; Get cell voltage in mV in R10
 			cmp.b	#255,&ID				; If we're a BMU
 			_IF		_EQ
 				; Multiply by 100/16 to bring the total battery voltage in tenths of a volt to
@@ -915,7 +915,7 @@ DoMeasurement:
 			_ENDIF	; not a BMU
 
 			; Do temperature measurement using internal sensor
-			call	#Temp					; Get temperature in degrees Celsius in R10
+			call	#GetTemp				; Get temperature in degrees Celsius in R10
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
@@ -944,7 +944,7 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
-			call	#BoltMiV				; Get bolt- in mV or current in fifths of an amp in R10
+			call	#GetBoltMiV				; Get bolt- in mV or current in fifths of an amp in R10
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
@@ -1341,7 +1341,7 @@ ControlContactors:
 		_ELSES							; Else
 			push	R8
 			push	R9
-			call	#CellV					; Get the PV array voltage
+			call	#GetArrayV				; Get the PV array voltage
 			pop		R9
 			pop		R8
 			cmp		#145*10,R10
@@ -1357,7 +1357,7 @@ ControlContactors:
 			cmp.b	#7,R9
 		_AND_IF	_L						; And if incoming stress is <= 6
 			push	R8
-			call	#CellV
+			call	#GetCellV
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
@@ -1457,9 +1457,9 @@ DoPrecharge:
 		_BEGIN
 			mov		#100,R8						; 100 milliseconds; placed at start
 			call	#DelayMs					;	of loop to allow ADC system to settle after reset
-			call	#CapV						; Trashes R8, R9, R11 result in R10
+			call	#GetCapV					; Trashes R8, R9, R11 result in R10
 			push	R10							; Save capacitor voltage measurement
-			call	#BatV						; Trashes R8, R9, R11 result in R10
+			call	#GetBatV					; Trashes R8, R9, R11 result in R10
 			pop		R8							; Restore cap voltage to R8
 			sub		R8,R10						; R10 = BatV - CapV
 			abs		R10							; R10 = Abs(BatV - CapV), allow for CapV > BatV
@@ -1778,95 +1778,6 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			mov			R9,&socPwmAdv		; Save in the pre-computed advance variable
 			pop			R9
 			pop			R8
-			ret
-
-;
-;
-; Update info-flash
-; R8 has new info value
-; R9 is 1 for byte, 0 for word
-; R10 has address of the flash word to be written
-; Trashes R11, R12
-;
-			; Prepare to flash-program
-			; Assumes ACCVIE = NMIIE = OFIE = 0.
-			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-
-MonoUpdFlash:
-			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
-			mov		SP,R11					; Copy start of buffer to R10
-			clr		R12						; Loop counter
-			_BEGIN
-				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
-				inc		R11
-				inc		R12
-				cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
-
-			add		SP,R10					; R10 points infoDataStart past RAM equivalent
-			tst		R9
-			_IF		_NZ
-				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
-			_ELSE
-				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
-			_ENDIF
-
-			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
-
-			; Erase appropriate info flash segment.
-			mov		#FWKEY,&FCTL3			; Clear LOCK
-			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
-
-			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
-
-			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
-
-			clr		R12						; Loop counter
-			mov		SP,R10					; Point to start of RAM copy
-			_BEGIN
-				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
-				inc		R12
-				cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
-
-			mov		#FWKEY,&FCTL1			; Done. Clear WRT
-			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
-			;
-			; Check that the flash programming worked
-			;
-			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
-			mov		#1+4+1,R11				; String length
-			_IF    _NE
-				mov		#sFail,R10
-			_ELSE
-				mov		#sDone,R10
-			_ENDIF
-			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
-			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
-			;ret
-
-sFail		db		'\\FAIL\r'
-			ALIGN	1
-sDone		db		'\\Done\r'
-			ALIGN	1
-
-;
-; Compare the ~20 bytes of calibration data at 2(SP) with what's at infoDataStart (in info-flash).
-; Returns with Z set if OK, Z clear if not.
-; Trashes R10, R12
-compareInfoFlash:
-			mov		SP,R10
-			incd	R10					; Skip return address
-			clr		R12					; Loop counter
-			_BEGIN
-				cmp.b	@R10+,infoDataStart(R12)
-				_WHILE	_EQ ; _Z
-					inc		R12
-					cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ					; Loop until we get to infoDataEnd
-				_ENDIF
-			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
 
 

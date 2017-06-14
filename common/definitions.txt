@@ -12,9 +12,9 @@ t  l  Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                           noABDEFHW#&()*+,./;=[]_|}~
-	  Initial characters not used so far in TestICal:          knoABDEFGHKPWZ#&()*+,./;=[]_|}~<>{
-	  Initial characters not used so far in Monitor etc: abjmnouwzABDEFHLMOUW#&()*+,./;=[]_|}~
+      Initial characters not used so far:                          noABDEFHW#&()*+,./;=[]_|}~
+	  Initial characters not used so far in TestICal:         knoABDEFGHKPWZ#&()*+,./;=[]_|}~<>{
+	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW#&()*+,./;=[]_|}~
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -83,7 +83,7 @@ Ty Ty Type, emit a string given pointer and length
    U  Unliven contactor (1U .. 5U)
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-   w  WriteCalValue
+w  w  WriteCalValue
 x  x  e(x)clusive   (single-CMU interaction mode)
 X  X  e(X)clude     (single-CMU ignore mode)
 y  y  b(y)pass (Yellow) (relaY- on IMU)
@@ -189,7 +189,7 @@ Ms Ms Milliseconds delay
 
    q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
    r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
-   w  WriteCalValue
+w  w  WriteCalValue
    c  Calibrate
    u  UpdateInfoFlash
 
@@ -208,9 +208,8 @@ or Calibrate command in TestICal.
 't Temperature offset
 'n Bolt-/Shuntx20 voltage offset
 'a ADC timing index
-'f Frequency (DCO 8 MHz)
 'i ID
-The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given
+The last 1 currently has no meaning for the Calibrate command, as any meaning it could be given
 at present would be equivalent to either the character as a command in itself, or a Write command
 with that character as address parameter.
 

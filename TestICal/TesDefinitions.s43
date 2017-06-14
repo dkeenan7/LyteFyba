@@ -31,7 +31,6 @@ calAddressTable
 		DB		'v' , ramCellCal	& $7F | $80	; High bit set to indicate word quantity,
 		DB		't' , ramTempOff	& $7F | $00	; clear for byte quantity
 		DB		'n' , ramBoltMiOff	& $7F | $00
-		DB		'f' , ram8MHzCalD	& $7F | $80
 		DB		'i' , ramID			& $7F | $00
 		DB		'a' , ramAdcTimIdx	& $7F | $00
 ; Zero must not appear in the table as it is used to represent "unrecognised".
@@ -143,7 +142,7 @@ voltScaleWork:
 			_ENDOF
 
 			_OFb	#'t',Rtos					; 't': Temperature offset
-				call	#Temp						; Get calibrated temp in half degC into R9
+				call	#GetTemp					; Get calibrated temp in half degC into R9
 				mov.b	&ramTempOff,R8				; Subtract off our existing offset calibration
 				sxt		R8
 				sub		R8,R9
@@ -214,10 +213,10 @@ voltScaleWork:
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
 ;				push.b	&interpFlags
-				_IF		_NN						; If high bit set
+				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
-				_ELSE							; Else high bit clear so
+				_ELSE							; Else high bit set so
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
@@ -248,11 +247,6 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 ;
 ; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
 ;
-; Note: The 'fw command can affect the CPU clock in such a way that the processor
-; is no longer capable of receiving commands, and needs physical access to recover.
-; So take great care. If the worst happens, use a JTAG programmer to load a version of TestICal
-; having an INIT_CMD_STRING that sets a typical frequency calibration value, such as '$AD90\'fw'.
-;
 ; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
 ; divided by the capacity in amp hours.
 ; Alternatively cell resistance can be measured as the change in battery voltage
@@ -277,9 +271,9 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 			_ENDIF
 			tst.b	Rtos
 			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit set
+				_IF		_NN						; If high bit clear
 					mov.b	Rsec,0(R9)				; Set byte sized cal value
-				_ELSE							; Else high bit clear so
+				_ELSE							; Else high bit set so
 					mov.w	Rsec,0(R9)				; Set word sized cal value
 				_ENDIF							; Endif high bit
 				cmp	#ram8MHzCalD,R9
@@ -388,7 +382,7 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
 				add		#512,R12				; Next segment
-			_UNTIL	_NN
+			_UNTIL	_NN						; Until the high bit is clear (wraps around to zero)
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 			mov		#jBSL,R12				; Start of BSL2 image
@@ -441,8 +435,7 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 ; f command ( -- )
 ; This outputs a fixed frequency to TxPl for 5 seconds.
 ; Used for checking clock calibration.
-; NOTE: this command can only be used (in conjunction with `fw) to make small adjustments to
-;	CPU speed, since communications will be affected!
+; Essentially obsolete now that we have a crystal
 
 			xCODE	'f',frequencyBurst,_frequencyBurst
 			bic.b	#TxPl,&P1SEL			; Change from UART function to general IO
@@ -478,9 +471,6 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 ; we need to change. For that we have settled on the acceptable range being
 ; 199.5 to 200.5 kHz at 20 degC and
 ; 200.5 to 201.5 kHz at 30 degC.
-
-; When changing the cal value with e.g. $8D80'fw, a change of one lsbit changes the
-; output frequency by about 0.5 kHz in the same direction.
 
 doBurst
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold the Watchdog Timer
@@ -599,10 +589,10 @@ TranslateToManAddr:
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
 ;				push.b	&interpFlags
-				_IF		_NN						; If high bit set
+				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
-				_ELSE							; Else high bit clear so
+				_ELSE							; Else high set clear so
 					mov		#5,Rtos					; Display 5 digits
 					mov.w	@Rsec,Rsec				; Get word sized cal value
 ;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
@@ -621,7 +611,7 @@ TranslateToManAddr:
 			; Put the ADC10CLK out on processor pin 5 for 5 seconds so it can be measured.
 			; On a CMU this connects to the expansion port -- the pin nearest the GND (-) pin.
 			; On a BMU this is unconnected (was TouchV analog input).
-			call	#CellV
+			call	#GetCellV
 			bis.b	#1<<3,P1SEL				; Set ADC10CLK function for pin
 			bis.b	#1<<3,P1DIR				; Set as output
 			bis		#ADC10ON,&ADC10CTL0		; Turn on the ADC core

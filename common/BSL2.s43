@@ -476,7 +476,7 @@ ErrorFlash:
 			mov		#16,R10						; Set bit loop counter to 16
 			_BEGIN
 				tst		R8
-				_IF		_NN
+				_IF		_NN							; If high bit is clear
 					ErrLedOff
 				_ELSE
 					ErrLedOn
