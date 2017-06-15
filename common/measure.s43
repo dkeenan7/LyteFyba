@@ -16,12 +16,13 @@
 measure:
 			; INCHx		= R8 has the channel number already in the right position
 			; For other bits, see the adcTimingTbl below
-			mov			&AdcTimIdx,R9
+			mov.b		&AdcTimIdx,R9
 			cmp			#4+1,R9						; Test the ADC timing index
 			_IF			_HS							; If not valid (not 0-4)
 				clr			R9							; Then use default timing (index = 0)
 			_ENDIF
-			bis			adcTimingTbl(R9),R8			; OR in the timing bits with given channel bits
+			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
+			bis			R9,R8						; OR in the timing bits with given channel bits
 			mov			R8,&ADC10CTL1
 
 #if !ADCBUF
@@ -121,6 +122,8 @@ measure:
 #endif
 			ret
 
+; The following table has the important timing bits for ADC10CTL1. It happens that they are
+; all in the lower 8 bits, so this is a table of bytes.
 			; SHS_0		= enable software starting via the ADC10SC bit
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
 			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
@@ -133,11 +136,12 @@ measure:
 			; more consistent ADC readings. But now they seem more noisy, especially for the Bolt+
 			; reading
 DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0
-adcTimingTbl DW		DFLT_ADC_TIMING							; value = 0, default
-			DW		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2
-			DW		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADCOSC/2 (may be too fast)
-			DW		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADCOSC/3
-			DW		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADCOSC/4
+adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADCOSC/2 (may be too fast)
+			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADCOSC/3
+			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADCOSC/4
+			align	1
 
 ; Measure and Correct routines
 ; Input:  R8  = analog channel number shifted left 12 bits.

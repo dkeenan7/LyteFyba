@@ -232,6 +232,22 @@ InterpretInit:
 			_mLOOP	#2,R8
 
 ;
+; Initialise the ADC10. We do this here because NewChip code does many measurements to optimise the
+; ADC timing, and set an info-flash byte to save this.
+;
+			; Enable analog inputs (3) and Vref+ out
+			mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
+
+			; Initialise ADC10
+			; SREF_1    = +-refs are Vref+ and AVSS
+			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temperature)
+			; REFOUT    = connect Vref+ to pin P1.4
+			; REFON		= turn on the voltage reference and reference buffer
+			; No MSC	= single sample and conversion
+			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
+			; Other ADC10 initialisation is done every time "measure" is called, to save code
+
+;
 ; Copy calibration data into RAM
 ;
 #if !FAKE_NEW_CHIP
@@ -420,28 +436,6 @@ newChip:
 
 
 ;
-; Initialise the ADC10
-;
-			cmp.b	#255,&ID					; If we're not a BMU (BMS Master Unit)
-			_IF		_NE
-				; Enable analog inputs and Vref+ out, but not TouchV
-				; Don't set P1.5 as analog input; it's not BoltVPl
-				mov.b		#(1<<VRefPChan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
-			_ELSE
-				; Enable analog inputs and Vref+ out
-				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
-			_ENDIF
-
-			; Initialise ADC10
-			; SREF_1    = +-refs are Vref+ and AVSS
-			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temperature)
-			; REFOUT    = connect Vref+ to pin P1.4
-			; REFON		= turn on the voltage reference and reference buffer
-			; No MSC	= single sample and conversion
-			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
-			; Other ADC10 initialisation is done every time "measure" is called, to save code
-
-;
 ; Miscellaneous initialisation
 ;
 ;			clr.b	TXCksum						; Clear transmit checksum
@@ -486,39 +480,39 @@ FindOptAdc:
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
 			_LOOP	R12
-			mov		actCellV(SP),R10	; Sum to R10:R9
-			mov		actCellV+2(SP),R9
+			mov		actCellV+2(SP),R10	; Sum to R10:R9
+			mov		actCellV(SP),R9
 			add		#64,R9				; Rounding
 			rla		R9					; Shift left,
-			rra		R10
+			rlc		R10
 			rra8_l	R10,R9				; Then shift right 8 bits using macro to divide by 128
 			mov		R9,actCellV(SP)		; Save average cell voltage as 12.2 FXP mV (ignore top half)
 			; We want the best average deviation from the "actual" cell voltage. We use the average
 			; rather than the worst deviation since we've observed some infrequent large errors, and
 			; others with frequent almost-as-large errors. We want to penalise the frequent errors more.
 			; Take 128 measurements, sum their deviations from actual in sumOfDev, and convert to an
-			; average deviation by dividing by 128.
-			clr		worstThisIdx(SP)	; Clear table of worst deviations
-			clr		worstThisIdx+2(SP)	; 2 words = 4 bytes
+			; average deviation by dividing.
 			clr		R15					; R15 will range 0-3
 			_BEGIN
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
-				mov.b	R8,ramAdcTimIdx		; Use this ADC timing
+				mov.b	R8,&ramAdcTimIdx		; Use this ADC timing
+				clr		sumOfDev(SP)
 				_DO		#128,R12				; Do 128 measurements
 					call	#GetBoltPlV			; V is the noisy measurement
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
 					add		R10,sumOfDev(SP)	; Accumulate the sum of the deviations
 				_LOOP	R12
-				; Divide by 128 to get the average. Shift left then swap bytes to do this.
+				; We could divide by 128 to get the average deviation in mV. But why lose that
+				; precision divide by 16 to get deviation in eights of a mV; this will still fit into
+				; a byte providing the average deviation is less than 32 mV.
 				mov		sumOfDev(SP),R8
-				add		#64,R8				; For rounding
-				rla		R8
-				swpb	R8					; Effectively shift right 7 bits
+				add		#8,R8				; For rounding
+				rra4	R8					; Divide by 16
 				mov		SP,R9
-				add		R15,R9				; Point to array entry on stack
-				mov.b	R8,0(R9)			; Save average deviation this index to array
+				add		R15,R9				; Point to array entry on stack less worstThisIdx
+				mov.b	R8,worstThisIdx(R9)	; Save scaled average deviation this index to array
 				inc		R15					; Next index into ADC timing table
 				cmp		#4,R15
 			_UNTIL	_EQ
@@ -529,9 +523,9 @@ FindOptAdc:
 			_BEGIN
 				mov		SP,R9
 				add		R15,R9
-				cmp.b	@R9,R8				; Compare lowest so far with table
+				cmp.b	worstThisIdx(SP),R8	; Compare lowest so far with table
 				_IF		_HS					; If the lowest so far is higher than this table entry
-					mov.b	@R9,R8				; A new lowest noise
+					mov.b	worstThisIdx(R9),R8	; A new lowest noise
 					mov		R15,R10				; Remember the table index
 				_ENDIF
 				inc		R15
