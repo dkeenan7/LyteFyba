@@ -625,3 +625,29 @@ TranslateToManAddr:
 			bic.b	#1<<3,P1DIR				; Set as input
 			ret
 
+;
+; Debugging: call FindOptAdc to get the average deviation for four possible ADC timings
+;
+		xCODE	'A'|'d' <<8,AdcClkDev,_AdcClkDev ; 'Ad' collides with 'Yd' 'Al' 'At'
+
+			call	#FindOptAdc				; 4 results in R8 R9 R10 R11
+			push	R11
+			push	R10
+			push	R9
+			mov		#'A'|'d'<<8,Rthd
+			mov		R8,Rsec
+			mov		#5,Rtos
+			call	#_prettyPrint
+			mov		#'A'|'d'<<8,Rthd
+			pop		Rsec
+			mov		#5,Rtos
+			call	#_prettyPrint
+			mov		#'A'|'d'<<8,Rthd
+			pop		Rsec
+			mov		#5,Rtos
+			call	#_prettyPrint
+			mov		#'A'|'d'<<8,Rthd
+			pop		Rsec
+			mov		#5,Rtos
+			call	#_prettyPrint
+			ret

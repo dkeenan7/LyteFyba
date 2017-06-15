@@ -172,6 +172,7 @@ MeasAndCorrCell:
 
 ; As above, using the separate bolt calibration factor and offset
 ; Used for PV array voltage measurement, or Capacitor measurement during precharge, in a BMU
+; Trashes R8-11
 MeasAndCorrBoltPl:
 			call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9

@@ -459,11 +459,11 @@ newChip:
 ;
 ; Determine the best ADC clock value for this CMU
 ; Can't be used for BMUs since V and v measure different things
-; Trashes R8-12, R15
+; Trashes R8-12, R13, R15
 ;
 ; Local variable stack pointer offsets
 actCellV	EQU		0					; Our best guess of the actual cell voltage, which is the
-										; average of 128 measurements using GetCellV and MCLK/2
+										; average of 256 measurements using GetCellV and MCLK/2
 										; Also used as a 32-bit sum of these values to find the average
 										; The deviations from this are used to determine the noise
 devThisIdx EQU	4						; Array of 4 total deviation word-sized results
@@ -477,53 +477,49 @@ FindOptAdc:
 			_LOOP	R12
 			mov.b	#1,&ramAdcTimIdx	; Measure cell voltage with MCLK/2 timing since it has the
 										; lowest worst-case noise
-			clr		actCellV(SP)		; Clear sum for average cell voltage
-			clr		actCellV+2(SP)		; as 32-bit quantity
-			_DO		#128,R12
+			_DO		#256,R12
 				call	#GetCellV
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
 			_LOOP	R12
 			mov		actCellV+2(SP),R10	; Sum to R10:R9
 			mov		actCellV(SP),R9
-			add		#64,R9				; Rounding
-			rla		R9					; Shift left,
-			rlc		R10
-			rra8_l	R10,R9				; Then shift right 8 bits using macro to divide by 128
-			mov		R9,actCellV(SP)		; Save average cell voltage as 12.2 FXP mV (ignore top half)
+			add		#128,R9				; Rounding
+			rra8_l	R10,R9				; Then shift right 8 bits using macro to divide by 256
+			mov		R9,actCellV(SP)		; Save average cell voltage as the actual word value in mV
 			; We want the best total deviation from the "actual" cell voltage. We use the total
 			; rather than the worst deviation since we've observed some infrequent large errors, and
 			; others with frequent almost-as-large errors. We want to penalise the frequent errors more.
-			; Take 128 measurements, and sum their deviations from actual in sumOfDev. We don't bother
-			; dividing by 128, so there won't be an overflow of 16 bits unless the average error is
-			; 512 mV or more.
+			; Take 256 measurements, and sum their deviations from actual in sumOfDev. We don't bother
+			; dividing by 256, so there won't be an overflow of 16 bits unless the average error is
+			; 256 mV or more.
 			clr		R15						; R15 will range 0-3
+			mov		SP,R13
+			add		#devThisIdx,R13			; R13 points to the start of the devThisIdx array
 			_BEGIN
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
 				mov.b	R8,&ramAdcTimIdx		; Use this ADC timing
-				_DO		#128,R12				; Do 128 measurements
+				_DO		#256,R12				; Do 128 measurements
 					call	#GetBoltPlV			; V is the noisy measurement
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
-					mov		SP,R9
-					add		R15,R9
-					add		R15,R9				; R9 has index into word array, less devThisIdx
-					add		R10,devThisIdx(R9)	; Accumulate the sum of the deviations
+					add		R10,0(R13)			; Accumulate the sum of the deviations into the array
 				_LOOP	R12
-				inc		R15					; Next index into ADC timing table
+				incd	R13					; Point to next array entry
+				inc		R15					; Next index
 				cmp		#4,R15
 			_UNTIL	_EQ
 			; Now find the quietest result
 			clr		R15
 			mov		#-1,R10				; Default winner
-			mov		#-1,R8				; Worst so far
-			mov		SP,R9
-			add		#devThisIdx,R9		; R9 points to start of devThisIdx array
+			mov		#$FFFF,R8			; Worst so far
+			mov		SP,R13
+			add		#devThisIdx,R13		; R13 points to start of devThisIdx array
 			_BEGIN
-				cmp		@R9+,R8				; Compare lowest so far with table
+				cmp		@R13+,R8			; Compare lowest so far with table
 				_IF		_HS					; If the lowest so far is higher than this table entry
-					mov		-2(R9),R8			; A new lowest noise
+					mov		-2(R13),R8			; A new lowest noise
 					mov		R15,R10				; Remember the table index
 				_ENDIF
 				inc		R15
@@ -534,6 +530,10 @@ FindOptAdc:
 			; index of R10+1
 			add		#1,R10
 			mov.b	R10,&ramAdcTimIdx	; Use this value from now on; save to info flash soon
+			mov		devThisIdx(SP),R8	; Save the deviations for debugging
+			mov		devThisIdx+2(SP),R9
+			mov		devThisIdx+4(SP),R10
+			mov		devThisIdx+6(SP),R11
 			add		#4+8,SP				; Deallocate locals
 			ret
 

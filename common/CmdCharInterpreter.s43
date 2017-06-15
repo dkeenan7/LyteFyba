@@ -13,16 +13,9 @@
 #define		Rw		R8		// Working register - temporary - anyone can use
 
 ; Macros for 3-register interpreter data stack
-; Not sure which choice of registers is best
-#if 1
 	#define 	Rtos	R7		// Top element of data stack
 	#define 	Rsec	R4		// Second element from top
 	#define 	Rthd	R13		// Third element from top
-#else
-	#define 	Rtos	R8		// Top element of data stack
-	#define 	Rsec	R9		// Second element from top
-	#define 	Rthd	R10		// Third element from top
-#endif
 
 DPUSH		MACRO	arg
 			mov		Rsec,Rthd
