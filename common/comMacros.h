@@ -163,11 +163,9 @@ rla8_l		MACRO	hi,lo
 			swpb	lo
 			ENDM
 
-#if 0		// ? Mot an allowed label?
-or			MACRO	src,dest
+or_w		MACRO	src,dest
 			bis		src,dest			; Badly named mnemonic at times
 			ENDM
 or_b		MACRO	src,dest
 			bis.b	src,dest			; Badly named mnemonic at times
 			ENDM
-#endif

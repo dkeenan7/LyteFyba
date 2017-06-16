@@ -33,6 +33,7 @@ calAddressTable
 		DB		'n' , ramBoltMiOff	& $7F | $00
 		DB		'i' , ramID			& $7F | $00
 		DB		'a' , ramAdcTimIdx	& $7F | $00
+		DB		'd' , ramDataVers	& $7F | $00	; Data vers is not for writing
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -190,6 +191,29 @@ voltScaleWork:
 				_ENDIF
 				mov.b	R10,&ramBoltMiOff			; Save the bolt-/current offset calibration value
 			_ENDOF
+			_OF		#'a',Rtos					; 'a': optimal ADC timing, with debug display
+				call	#FindOptAdc					; 4 results in R8 R9 R10 R11
+				push	R11
+				push	R10
+				push	R9
+				mov		#'M'|'2'<<8,Rthd		; M2 for MCLK/2
+				mov		R8,Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+				mov		#'O'|'2'<<8,Rthd		; O2 for ADCOSC/2
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+				mov		#'O'|'3'<<8,Rthd		; O3 for ADCOSC/3
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+				mov		#'O'|'4'<<8,Rthd		; O4 for ADCOSC/4
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+				; Fall through to readCalValue to display the winner
+			_ENDOF
 ;
 ; Default case
 				jmp		emitQmark					; Unknown calibration type character
@@ -209,7 +233,7 @@ voltScaleWork:
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,Rsec				; Convert to RAM address in Rsec
 			bic.b	#$80,Rsec
-			bis		#$200,Rsec
+			or_w	#$200,Rsec				; $200 is start of RAM
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
 ;				push.b	&interpFlags
@@ -258,6 +282,10 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 ; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			xCODE	'w',writeCalValue,_writeCalValue
+			cmp		#'d',Rtos
+			_IF		_EQ
+				jmp		emitQmark				; Makes no sense to change data version, I think
+			_ENDIF
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R9					; Convert to RAM address in R9
 			bic.b	#$80,R9
@@ -625,29 +653,4 @@ TranslateToManAddr:
 			bic.b	#1<<3,P1DIR				; Set as input
 			ret
 
-;
-; Debugging: call FindOptAdc to get the average deviation for four possible ADC timings
-;
-		xCODE	'A'|'d' <<8,AdcClkDev,_AdcClkDev ; 'Ad' collides with 'Yd' 'Al' 'At'
 
-			call	#FindOptAdc				; 4 results in R8 R9 R10 R11
-			push	R11
-			push	R10
-			push	R9
-			mov		#'A'|'d'<<8,Rthd
-			mov		R8,Rsec
-			mov		#5,Rtos
-			call	#_prettyPrint
-			mov		#'A'|'d'<<8,Rthd
-			pop		Rsec
-			mov		#5,Rtos
-			call	#_prettyPrint
-			mov		#'A'|'d'<<8,Rthd
-			pop		Rsec
-			mov		#5,Rtos
-			call	#_prettyPrint
-			mov		#'A'|'d'<<8,Rthd
-			pop		Rsec
-			mov		#5,Rtos
-			call	#_prettyPrint
-			ret

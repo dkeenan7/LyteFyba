@@ -356,29 +356,32 @@ newChip:
 				mov.b	&CALBC1_8MHZ,&ram8MHzCalB
 				bis.b	#XT2OFF | DIVA_3,&ram8MHzCalB ; Set ACLK = watch crystal / 8
 
-#if !FAKE_NEW_CHIP
-				; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
-				; Only BMUs have 28 pin chips so port 3 comes out on pins, and they will always have
-				; a load or an external pullup or pulldown on at least one pin, so that pin will not be
-				; pushed around by mere internal pullups or pulldowns.
-				mov.b	#0,&P3DIR					; Set Port 3 as all inputs
-				mov.b	#$FF,&P3REN					; Enable all pullup/pulldown resistors
-				_COND								; Begin a short-circuit conditional
-					mov.b	#$FF,&P3OUT					; Pull them all up with resistors
-					cmp.b	#$FF,&P3IN					; Check if they are all high
-				_AND_IF _EQ							; If they all got pulled high
-					mov.b	#0,&P3OUT					; Pull them all down with resistors
-					cmp.b	#0,&P3IN					; Check if they are all low
-				_AND_IF	_EQ							; And if they all got pulled low
-					mov.b	#0,&ramID					; Set ID = 0 (un-IDed CMU)
-				_ELSES
-					mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
+				cmp.b	#255,infoID					; Does the flash say we're a BMU?
+				_IF		_EQ							; If so, it might actually be a CMU with its flash
+					; erased by some accident (it has happened). So do the test and if we really are a
+					; BMU, we get ID 255. If actually a CMU, then set ID to 0.
+					; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
+					; Only BMUs have 28 pin chips so port 3 comes out on pins, and they will always have
+					; a load or an external pullup or pulldown on at least one pin, so that pin will not be
+					; pushed around by mere internal pullups or pulldowns.
+					mov.b	#0,&P3DIR					; Set Port 3 as all inputs
+					mov.b	#$FF,&P3REN					; Enable all pullup/pulldown resistors
+					_COND								; Begin a short-circuit conditional
+						mov.b	#$FF,&P3OUT					; Pull them all up with resistors
+						cmp.b	#$FF,&P3IN					; Check if they are all high
+					_AND_IF _EQ							; If they all got pulled high
+						mov.b	#0,&P3OUT					; Pull them all down with resistors
+						cmp.b	#0,&P3IN					; Check if they are all low
+					_AND_IF	_EQ							; And if they all got pulled low
+						mov.b	#0,&ramID					; Set ID = 0 (un-IDed CMU)
+					_ELSES
+						mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
+					_ENDIF
+					mov.b	#$00,&P3REN					; Disable all pullup/pulldown resistors
+														; Leaving them on causes problems for outputs
+				_ELSE								; Else ID != 255
+					mov.b	&infoID,&ramID				; Preserve the existing CMU ID
 				_ENDIF
-				mov.b	#$00,&P3REN					; Disable all pullup/pulldown resistors
-													; Leaving them on causes problems for outputs
-#else
-				mov.b	&infoID,&ramID				; Preserve the existing ID
-#endif
 				cmp.b	#255,&ramID					; Test for BMU
 				_IF		_NE							; If not a BMU
 					call	#FindOptAdc					; Find the optimal ADC clock timing; save in RAM

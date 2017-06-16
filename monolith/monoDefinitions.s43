@@ -17,6 +17,7 @@
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 
+#if 0		// Not used now, and clashes with calibrate command
 ; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
 			; This lets the CMU include undertemperature and exclude undervoltage as stress when charging,
 			; and when masterless-charging is enabled via the 'o' command, this command
@@ -25,6 +26,7 @@
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
+#endif
 
 #if MASTERLESS_CHARGING
 ; ChargerC(o)ntrol ( voltMin voltMax -- )
@@ -356,7 +358,7 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		mov		&avgCellVoltX256+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
 		mov.b	&avgCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
-		bis		R9, R8				; R8 has old value = HM = 0HML >> 8
+		or_w	R9, R8				; R8 has old value = HM = 0HML >> 8
 		mov		R8, Rsec
 		mov		#'a',Rthd			; Command being responded to is 'a'
 		mov		#4,Rtos				; Use 4 digits
@@ -450,10 +452,17 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 ; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			xCODE	'w',writeCalValue,_writeCalValue
+		_COND
+			cmp.b	#'i',Rtos					; Write an ident ?
+		_OR_ELSE	_EQ
+			cmp.b	#'r',Rtos					; Cell internal resistance
+		_OR_ELSE	_EQ
+			cmp.b	#'c',Rtos					; Battery capacity
+		_OR_IFS 	_EQ
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R10					; Convert to info flash address in R10
 			bic.b	#$80,R10
-			bis		#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
+			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
 			cmp		#infoCapacity,R10			; Check for battery capacity
 			_IF		_EQ							; If so
 				rla		Rsec						; Multiply given value by 10
@@ -469,15 +478,18 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 					mov.w	#1,R9					; Indicate word sized cal value
 				_ENDIF							; Endif high bit
 				mov		Rsec,R8					; Data to be written
-				call	#MonoUpdFlash			; Write new value to flash
+				call	#UpdFlash			; Write new value to flash
 			_ELSE 							; Else is zero for "unrecognised"
 emitQmark
 				mov		#QuestionStr,R10
 				br		#TxString			; Print \? <ret> and exit
 			_ENDIF							; Endif unrecognised
 			ret
+		_ELSE							; Not a valid ch for monolith 'w' command
+				jmp		emitQmark
+		_ENDIF
 
-QuestionStr	DB			3,'\\?\r'			; Use quote so downstream CMUs will ignore
+QuestionStr	DB			3,'\\?\r'		; Initial \ because '?' is a peek command
 
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
@@ -494,6 +506,7 @@ calAddressTable
 		DB		'n' , infoBoltMiOff	& $7F | $00
 		DB		'i' , infoID		& $7F | $00
 		DB		'a' , infoAdcTimIdx & $7F | $00
+		DB		'd' , infoDataVers	& $7F | $00	; Data vers is not for writing
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
 
@@ -517,13 +530,96 @@ TranslateToCalAddr:
 		ret
 
 ;
+; Calibrate ( n ch --- )
+; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+; For the voltage scale and offset calibrations, we want to apply the other correction (i.e. scale if
+; we are calibrating offset, and vice versa) to get the best correction so far. This also allows for
+; successive improvement calibration if that turns out to be useful.
+;
+			xCODE	'c',calibrate,_calibrate
+			_CASE
+
+			_OFb		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
+				mov		#BoltVMiChan<<12,R8
+				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
+				mov.b	&BoltMiOff,R9				; Subtract the existing offset (signed byte)
+				sxt		R9
+				sub		R9,R10
+				sub		#2046,R10					; Zero volts is a 2046 reading
+
+				; Multiply Rsec (signed) by 1.364
+				push 	R10
+				mov		Rsec,R8
+				mov		#44696,R9					; ~= 1.364 * 2^15
+				call	#MMStar						; Signed R10:R9 = signed R8 * unsigned R9
+				add		#$4000,R9					; Add half the divisor for rounding
+				adc		R10
+				rla		R9							; To divide by 2^15, mult by 2 and keep the hi word
+				rlc		R10
+				mov		R10,Rsec
+				pop		R8
+
+				sub		Rsec,R8						; Subtract required reading * 1.364
+				neg		R8
+				_COND								; Start a short-circuit conditional
+					cmp		#-$7F,R8					; Compare with -$7F
+				_IF_OR		_L						; If < -$7F
+					cmp		#$80,R8					; Compare with $80
+				_OR_IFS		_GE						; or >= $80
+					mov		#$80,R8					; Use $80 to indicate "not calibrated"
+				_ENDIF
+				mov			#0,R9				; Save the bolt-/current offset calibration value
+				mov			#infoBoltMiOff,R10
+				call		#UpdFlash
+			_ENDOF
+
+			_OFb	#'i',Rtos
+				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+				; and responds with the ID _after_ the last ID.
+				bit.b	#bDontEcho,&interpFlags
+				_IF		_NZ					; If the dont-echo flag is set
+					; Save our new ID to info-flash
+					mov.b	Rsec,R8				; New value
+					mov		#0,R9				; Size = byte
+					mov		#infoID,R10			; Address of info-flash item
+					call	#UpdFlash
+
+					; Send another setIDs command with its parameter incremented by one.
+					mov		Rsec,Rtos
+					inc		Rtos				; Increment the parameter
+					DPUSH	#3					; Use a 3 digit field width
+					call	#_emitNum			; Transmit the number as text in the current number base
+
+					mov		#TickIC,R10			; Transmit a "'ic"
+					call	#TxStringCk
+					call	#TxEndOfPacket
+				_ELSE						; Else dont-echo flag is clear
+					; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
+					jmp		emitQmark
+				_ENDIF
+				ret			; Don't fall through to _readCalValue
+			_ENDOF
+;
+; Default case
+				jmp		emitQmark					; Unknown calibration type character
+
+			_ENDCASE
+
+			;jmp		_readCalValue			; Display the value just calibrated and return
+												;	(by falling through)
+			;
+			; Keep 'c' command (above) and 'r' command (below) together
+			; That is, don't insert a new command here
+			;
+;
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
 			bic.b	#$80,Rsec
-			bis		#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
+			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
 ;				push.b	&interpFlags
@@ -551,6 +647,9 @@ TranslateToCalAddr:
 ;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
 
+TickIC		DB			3,'\'ic'			; 'ic command to send downstream
+
+
 ;
 ;
 ; Update a single word or byte into info-flash. Note that this is NOT a command definition;
@@ -564,7 +663,7 @@ TranslateToCalAddr:
 			; Assumes ACCVIE = NMIIE = OFIE = 0.
 			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
 
-MonoUpdFlash:
+UpdFlash:
 			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
 			mov		SP,R11					; Copy start of buffer to R10
 			clr		R12						; Loop counter
@@ -654,7 +753,7 @@ compareInfoFlash:
 				mov		Rtos,R8				; New ID
 				mov		#0,R9				; Byte size
 				mov		#infoID,R10			; Info flash address
-				call	#MonoUpdFlash
+				call	#UpdFlash
 
 				; Send another setIDs command with its parameter incremented by one.
 				inc		Rtos				; Increment the parameter
