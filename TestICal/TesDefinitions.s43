@@ -212,6 +212,7 @@ voltScaleWork:
 				pop		Rsec
 				mov		#5,Rtos
 				call	#_prettyPrint
+				mov.b	#'a',Rtos
 				; Fall through to readCalValue to display the winner
 			_ENDOF
 ;
