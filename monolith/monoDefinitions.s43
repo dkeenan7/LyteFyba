@@ -577,6 +577,10 @@ TranslateToCalAddr:
 				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
 				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 				; and responds with the ID _after_ the last ID.
+				cmp.b	#255,&ID
+				_IF		_EQ					; But if we're a BMU,
+					ret							; silently ignore; BMUs have to stay ID=255
+				_ENDIF
 				bit.b	#bDontEcho,&interpFlags
 				_IF		_NZ					; If the dont-echo flag is set
 					; Save our new ID to info-flash
