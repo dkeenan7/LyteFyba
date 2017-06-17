@@ -671,8 +671,9 @@ TxEndOfModbusPacket:
 				bis.b	#Piezo,&P1SEL			; Make the piezo squeal
 			_ENDIF
 		_ENDIF
-
-;		pop		Rtos				; Remove operand
+		mov		#50,R8					; Delay for 50 ms so this is visible/audible even when
+		call	#DelayMs				; under automatic control, as in monolith.
+;		pop		Rtos					; Remove operand
 		ret
 
 ;

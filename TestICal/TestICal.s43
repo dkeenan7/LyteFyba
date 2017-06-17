@@ -433,27 +433,27 @@ newChip:
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.
 			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
-			bic.b	#TxMiScu,&ScuPortOUT		; Set Tx low
-			bis.b	#TxMiScu,&ScuPortDIR		; Set Tx as output
+			bic.b	#TxMiScu,&ScuPortOUT	; Set Tx low
+			bis.b	#TxMiScu,&ScuPortDIR	; Set Tx as output
 			; Default settings of P3SEL are OK. No timer comms in TestICal.
 
 
 ;
 ; Miscellaneous initialisation
 ;
-;			clr.b	TXCksum						; Clear transmit checksum
+;			clr.b	TXCksum					; Clear transmit checksum
 
 ;
 ; Initialise the command character interpreter
 ;
-;			clr.b	&RXCksum					; Clear the receive checksum
+;			clr.b	&RXCksum				; Clear the receive checksum
 			clr.b	&interpFlags
 			mov		#TIB,&ToIN				; Packet pointer
 
-			mov		#InitCmdString,Rip			; Interpret the init string as commands
+			mov		#InitCmdString,Rip		; Interpret the init string as commands
 			call	#_ENTER
 
-			ret									; Return to the BSL
+			ret								; Return to the BSL
 
 ; End of InterpInit
 ;-----------------------------------------------------------------------------------------------------
@@ -496,14 +496,14 @@ FindOptAdc:
 			; Take 256 measurements, and sum their deviations from actual in sumOfDev. We don't bother
 			; dividing by 256, so there won't be an overflow of 16 bits unless the average error is
 			; 256 mV or more.
-			clr		R15						; R15 will range 0-3
+			clr		R15					; R15 will range 0-3
 			mov		SP,R13
-			add		#devThisIdx,R13			; R13 points to the start of the devThisIdx array
+			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
 			_BEGIN
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
-				mov.b	R8,&ramAdcTimIdx		; Use this ADC timing
-				_DO		#256,R12				; Do 128 measurements
+				mov.b	R8,&ramAdcTimIdx	; Use this ADC timing
+				_DO		#256,R12			; Do 128 measurements
 					call	#GetBoltPlV			; V is the noisy measurement
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
