@@ -432,7 +432,10 @@ ACCEPT:
 		_ENDOF					; EndOf backspace
 
 		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
-			bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
+			cmp.b	#255,&ID					; If we're not a BMU
+			_IF		_NE
+				bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
+			_ENDIF
 		_ENDOF					; EndOf XON
 
 		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode

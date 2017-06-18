@@ -555,8 +555,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 					; inject commands such as Z, G and i as required.
 					call	#ScuRxByteNW			; Try to read a character from the SCU
 					_IF		_NZ						; If there was one
-						call	#CmuTxByte				; Send it to the CMUs. Preserves R8
-						call	#DoPassword				; Check for BSL password bytes from SCU port
+;						tst.b	R8						; Check if the high bit is set
+;						_IF		_NN						; If the high bit is not set (not a status byte)
+							call	#CmuTxByte				; Send it to the CMUs. Preserves R8
+							call	#DoPassword				; Check for BSL password bytes from SCU port
+;						_ENDIF
 					_ELSE							; Else there was no character
 						clr		R8						; Indicate to Master that no char is avail
 					_ENDIF

@@ -436,61 +436,6 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		_ENDIF
 		ret
 
-;
-; Write calibration value ( n ch --- )
-;
-; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
-;
-; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
-; divided by the capacity in amp hours.
-; Alternatively cell resistance can be measured as the change in battery voltage
-; divided by the step change in current that caused it, divided by the number of cells.
-; To obtain "HiTempCellRes", the measured cell resistance should be divided by
-; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
-; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
-; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
-; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
-
-			xCODE	'w',writeCalValue,_writeCalValue
-		_COND
-			cmp.b	#'i',Rtos					; Write an ident ?
-		_OR_ELSE	_EQ
-			cmp.b	#'r',Rtos					; Cell internal resistance
-		_OR_ELSE	_EQ
-			cmp.b	#'c',Rtos					; Battery capacity
-		_OR_IFS 	_EQ
-			call 	#TranslateToCalAddr
-			mov.b	Rtos,R10					; Convert to info flash address in R10
-			bic.b	#$80,R10
-			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
-			cmp		#infoCapacity,R10			; Check for battery capacity
-			_IF		_EQ							; If so
-				rla		Rsec						; Multiply given value by 10
-				mov		Rsec,R9						; to bring to tenths of an Ah
-				rla2	Rsec						; *8
-				add		R9,Rsec						; *10
-			_ENDIF
-			tst.b	Rtos
-			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit clear
-					mov		#0,R9					; Indicate byte size
-				_ELSE							; Else high bit set so
-					mov.w	#1,R9					; Indicate word sized cal value
-				_ENDIF							; Endif high bit
-				mov		Rsec,R8					; Data to be written
-				call	#UpdFlash			; Write new value to flash
-			_ELSE 							; Else is zero for "unrecognised"
-emitQmark
-				mov		#QuestionStr,R10
-				br		#TxString			; Print \? <ret> and exit
-			_ENDIF							; Endif unrecognised
-			ret
-		_ELSE							; Not a valid ch for monolith 'w' command
-				jmp		emitQmark
-		_ENDIF
-
-QuestionStr	DB			3,'\\?\r'		; Initial \ because '?' is a peek command
-
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
@@ -595,18 +540,18 @@ TranslateToCalAddr:
 					DPUSH	#3					; Use a 3 digit field width
 					call	#_emitNum			; Transmit the number as text in the current number base
 
-					mov		#TickIC,R10			; Transmit a "'ic"
+					mov		#TickIcStr,R10			; Transmit a 'ic
 					call	#TxStringCk
 					call	#TxEndOfPacket
 				_ELSE						; Else dont-echo flag is clear
-					; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
-					jmp		emitQmark
+					; Send \? to remind user that Ctrl-S needs to be sent before an 'ic command.
+					jmp		EmitQmark
 				_ENDIF
 				ret			; Don't fall through to _readCalValue
 			_ENDOF
 ;
 ; Default case
-				jmp		emitQmark					; Unknown calibration type character
+				jmp		EmitQmark					; Unknown calibration type character
 
 			_ENDCASE
 
@@ -619,14 +564,13 @@ TranslateToCalAddr:
 ;
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
-			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
+			xCODE	'r',readCalValue,_readCalValue
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
 			bic.b	#$80,Rsec
 			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
-;				push.b	&interpFlags
 				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
@@ -634,7 +578,6 @@ TranslateToCalAddr:
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
 					_IF		_EQ
 						mov		Rsec,R9
 						clr		R10
@@ -644,14 +587,68 @@ TranslateToCalAddr:
 					_ENDIF
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
-				jmp		emitQmark
+EmitQmark
+				mov		#QuestionStr,R10
+				br		#TxString			; Print \? <ret> and exit
 			_ENDIF							; Endif unrecognised
-			mov.b		#' ',Rthd			; Trailing char (space)
+			mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
 			call	 	#_prettyPrint
-;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
 
-TickIC		DB			3,'\'ic'			; 'ic command to send downstream
+QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
+TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
+
+
+;
+; Write calibration value ( n ch --- )
+;
+; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
+;
+; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
+; divided by the capacity in amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+
+			xCODE	'w',writeCalValue,_writeCalValue
+		_COND
+			cmp.b	#'i',Rtos					; Write an ID ?
+		_OR_ELSE	_EQ
+			cmp.b	#'r',Rtos					; Cell internal resistance
+		_OR_ELSE	_EQ
+			cmp.b	#'c',Rtos					; Battery capacity
+		_OR_IFS 	_EQ
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,R10					; Convert to info flash address in R10
+			bic.b	#$80,R10
+			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
+			cmp		#infoCapacity,R10			; Check for battery capacity
+			_IF		_EQ							; If so
+				rla		Rsec						; Multiply given value by 10
+				mov		Rsec,R9						; to bring to tenths of an Ah
+				rla2	Rsec						; *8
+				add		R9,Rsec						; *10
+			_ENDIF
+			tst.b	Rtos
+			_IF		_NZ						; If not zero for "unrecognised"
+				_IF		_NN						; If high bit clear
+					mov		#0,R9					; Indicate byte size
+				_ELSE							; Else high bit set so
+					mov.w	#1,R9					; Indicate word sized cal value
+				_ENDIF							; Endif high bit
+				mov		Rsec,R8					; Data to be written
+				call	#UpdFlash			; Write new value to flash
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		EmitQmark
+			_ENDIF							; Endif unrecognised
+			ret
+		_ELSE							; Not a valid ch for monolith 'w' command
+			jmp		EmitQmark
+		_ENDIF
 
 
 ;
@@ -742,39 +739,5 @@ compareInfoFlash:
 			_UNTIL	_EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
-			ret
-
-;
-; setIDs ( first-ID -- )
-;
-			xCODE	'I' +'d'<<8,setIDs,_setIDs	; 'Id' collides with 'Qd' and only I, Q with punctuation
-			; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
-			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
-			; and responds with the ID _after_ the last ID.
-			bit.b	#bDontEcho,&interpFlags
-			_IF		_NZ					; If the dont-echo flag is set
-				; Save our new ID to info flash
-				mov		Rtos,R8				; New ID
-				mov		#0,R9				; Byte size
-				mov		#infoID,R10			; Info flash address
-				call	#UpdFlash
-
-				; Send another setIDs command with its parameter incremented by one.
-				inc		Rtos				; Increment the parameter
-				DPUSH	#3					; Use a 3 digit field width
-				call	#_emitNum			; Transmit the number as text in the current number base
-
-				mov		#'I',R8				; Transmit an "I"
-				call	#TxByteCk
-				mov		#'d',R8				; and a "d"
-				call	#TxByteCk
-				call	#TxEndOfPacket
-			_ELSE						; Else dont-echo flag is clear
-				; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
-				mov		#'?',R8				; Transmit a question mark (a no-op to downstream CMUs)
-				call	#TxByte
-				mov		#'\r',R8			; Transmit a carriage return. Checksum is deliberately bad.
-				call	#TxByte
-			_ENDIF
 			ret
 

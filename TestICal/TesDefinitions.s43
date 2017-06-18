@@ -191,6 +191,36 @@ voltScaleWork:
 				_ENDIF
 				mov.b	R10,&ramBoltMiOff			; Save the bolt-/current offset calibration value
 			_ENDOF
+
+			_OFb	#'i',Rtos
+				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+				; and responds with the ID _after_ the last ID.
+				cmp.b	#255,&ID
+				_IF		_EQ					; But if we're a BMU,
+					ret							; silently ignore; BMUs have to stay ID=255
+				_ENDIF
+				bit.b	#bDontEcho,&interpFlags
+				_IF		_NZ					; If the dont-echo flag is set
+					; Save our new ID to RAM
+					mov.b	Rtos,&ramID
+
+					; Send another setIDs command with its parameter incremented by one.
+					mov		Rsec,Rtos
+					inc		Rtos				; Increment the parameter
+					DPUSH	#3					; Use a 3 digit field width
+					call	#_emitNum			; Transmit the number as text in the current number base
+
+					mov		#TickIcStr,R10			; Transmit a 'ic
+					call	#TxStringCk
+					call	#TxEndOfPacket
+				_ELSE						; Else dont-echo flag is clear
+					; Send \? to remind user that Ctrl-S needs to be sent before an 'ic command.
+					jmp		EmitQmark
+				_ENDIF
+				ret			; Don't fall through to _readCalValue
+			_ENDOF
+
 			_OF		#'a',Rtos					; 'a': optimal ADC timing, with debug display
 				call	#FindOptAdc					; 4 results in R8 R9 R10 R11
 				push	R11
@@ -217,7 +247,7 @@ voltScaleWork:
 			_ENDOF
 ;
 ; Default case
-				jmp		emitQmark					; Unknown calibration type character
+				jmp		EmitQmark					; Unknown calibration type character
 
 			_ENDCASE
 
@@ -230,14 +260,13 @@ voltScaleWork:
 ;
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
-			xCODE	'r',readCalValue,_readCalValue ; Note: 'r' prints Rx state in monitor
+			xCODE	'r',readCalValue,_readCalValue
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,Rsec				; Convert to RAM address in Rsec
 			bic.b	#$80,Rsec
-			or_w	#$200,Rsec				; $200 is start of RAM
+			or_w	#ramDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
-;				push.b	&interpFlags
 				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
@@ -245,7 +274,6 @@ voltScaleWork:
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
 					_IF		_EQ
 						mov		Rsec,R9
 						clr		R10
@@ -255,17 +283,17 @@ voltScaleWork:
 					_ENDIF
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
-emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream CMUs
-				call	#_EMIT					; Call EMIT
-				mov		#'?',Rtos				; Question mark
-				call	#_EMIT					; Call EMIT
-				mov		#$0D,Rtos				; Carriage return
-				jmp		_EMIT					; Tail-call EMIT and return
+EmitQmark
+				mov		#QuestionStr,R10
+				br		#TxString			; Print \? <ret> and exit
 			_ENDIF							; Endif unrecognised
-			mov.b		#' ',Rthd			; Trailing char (space)
+			mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
 			call	 	#_prettyPrint
-;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
+
+QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
+TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
+
 
 ;
 ; Write calibration value ( n ch --- )
@@ -283,9 +311,9 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 ; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
 
 			xCODE	'w',writeCalValue,_writeCalValue
-			cmp		#'d',Rtos
+			cmp		#'d',Rtos				; Don't allow data version to be changed like this
 			_IF		_EQ
-				jmp		emitQmark				; Makes no sense to change data version, I think
+				jmp		EmitQmark
 			_ENDIF
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R9					; Convert to RAM address in R9
@@ -311,38 +339,8 @@ emitQmark:		mov		#'\\',Rtos				; So question mark will be ignored by downstream 
 					mov.b	@R9,&BCSCTL1
 				_ENDIF
 			_ELSE 							; Else is zero for "unrecognised"
-				jmp		emitQmark
+				jmp		EmitQmark
 			_ENDIF							; Endif unrecognised
-			ret
-
-
-;
-; setIDs ( first-ID -- )
-;
-			xCODE	'i',setIDs,_setIDs
-			; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
-			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
-			; and responds with the ID _after_ the last ID.
-			bit.b	#bDontEcho,&interpFlags
-			_IF		_NZ					; If the dont-echo flag is set
-				; Save our new ID to RAM
-				mov.b	Rtos,&ramID
-
-				; Send another setIDs command with its parameter incremented by one.
-				inc		Rtos				; Increment the parameter
-				DPUSH	#3					; Use a 3 digit field width
-				call	#_emitNum			; Transmit the number as text in the current number base
-
-				mov		#'i',R8				; Transmit an "i"
-				call	#TxByteCk
-				call	#TxEndOfPacket
-			_ELSE						; Else dont-echo flag is clear
-				; Send '?' to remind user that Ctrl-S needs to be sent before an 'i' command.
-				mov		#'?',R8				; Transmit a question mark (a no-op to downstream CMUs)
-				call	#TxByte
-				mov		#'\r',R8			; Transmit a carriage return. Checksum is deliberately bad.
-				call	#TxByte
-			_ENDIF
 			ret
 
 
@@ -617,21 +615,18 @@ TranslateToManAddr:
 			bis		#$1080,Rsec
 			tst.b	Rtos
 			_IF		_NZ						; If not zero (zero means "unrecognised")
-;				push.b	&interpFlags
 				_IF		_NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high set clear so
 					mov		#5,Rtos					; Display 5 digits
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-;					bis.b	#bHexOutput,&interpFlags ; Display words in hex
 				_ENDIF							; Endif high bit
 			_ELSE 							; Else is zero for "unrecognised"
-				jmp		emitQmark				; Emit a question mark and return
+				jmp		EmitQmark				; Emit a question mark and return
 			_ENDIF							; Endif unrecognised
-			mov.b		#' ',Rthd			; Trailing char (space)
+			mov.b		#'q',Rthd			; Command type
 			call	 	#_prettyPrint
-;			popBits_B	#bHexOutput,&interpFlags ; Restore output number base
 			ret
 
 ;
