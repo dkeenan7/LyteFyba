@@ -549,78 +549,6 @@ TranslateToCalAddr:
 				_ENDIF
 				ret			; Don't fall through to _readCalValue
 			_ENDOF
-
-// SPECIAL ONE-OFF CODE
-			_OFb	#'s',Rtos		; Calibrate the temperature slope, and other things
-				cmp.b	#7,&infoDataVers		; Check data version
-				_IF		_EQ
-					mov		#Seven,R10			; Send \ 7 <cr>
-					br		#TxStringCk			; to indicate already data version 7
-					; And return, not falling through to the 'r' command.
-				_ELSE
-					; Precalculate the slope of the temperature vs ADC-value curve
-					; = (85-30)/(CAL85-CAL30) stored as a 0.16 fixed point number
-					mov		&CALADC_15T85,R8		; ADC value for 85C
-					sub		&CALADC_15T30,R8		; CAL85-CAL30 = divisor in R8 in 16.0 fixed-point
-					mov		#(85-30),R10			; Dividend in R10:R9 in 16.16 fixed-point
-					mov		R8,R9					; Add half the divisor to the dividend, for rounding
-					rra		R9
-					call	#UMSlashMod				; Divide; quotient to R9 in 0.16 fixed-point
-					mov		R9,R8					; Save as temperature/ADC-value slope
-					mov		#1,R9					; Word size
-					mov		#infoTempSlope,R10
-					call	#UpdFlash
-					;
-					mov.b	#-3,R8					; Correction for systematic error, in half degrees,
-													; cause unknown
-					mov		#0,R9					; Byte size
-					mov		#infoTempOff,R10
-					call	#UpdFlash
-					;
-					mov		&infoCellCal,R8			; Copy the cell scale calibration value
-					mov		#1,R9					; A word size
-					mov		#infoBoltMiCal,R10		; To the Bolt- scale calibration value
-					call	#UpdFlash
-					;
-					; Calculate infoBoltMiOff using the new-chip method from TestICal
-					mov.w	&CALADC_OFFSET,R8		; Use the TI provided offset as default
-					rla2	R8						; Multiply it by 4 to match our oversampled 12 bits
-													; Assume it still fits in a signed byte and set as
-					; BoltMiOffset needs further correction because it is a bipolar input where
-					; Vref/2 corresponds to zero.
-					push R8
-					mov		&CALADC_15VREF_FACTOR,R8
-					sub		#$8000,R8				; Vref_factor - 1 in R8
-					mov		#2046,R9				; The middle count (of our effective 12 bits) in R9
-					call	#MMStar					; Signed R10:R9 = signed R8 * unsigned R9
-					add		#$4000,R9				; Add half the divisor for rounding
-					adc		R10
-					rla		R9						; Divide by 2^15 by mult'ing by 2 and taking hi word
-					rlc		R10
-					pop		R8
-					sub		R10,R8					; Subtract this Vref/2 offset from 4x the ADC offset
-					add		#2,R8					; Correction for systematic error, cause unknown
-													; Assume it still fits in a signed byte and set as
-					mov		#0,R9					; bolt- offset calibration value.
-					mov		#infoBoltMiOff,R10
-					call	#UpdFlash
-					;
-					mov		#0,R8
-					mov		#0,R9
-					mov		#infoAdcTimIdx,R10		; Clear the ADC timing index (so it uses default)
-					call	#UpdFlash
-					;
-					mov.b	#7,R8					; Now data version 7
-					mov		#0,R9					; Byte size
-					mov		#infoDataVers,R10
-					call	#UpdFlash
-					;
-					mov		#Slash,R10			; Send \ / <cr>
-					br	#TxStringCk				; to indicate success
-					; And return, don't fall through. Else could be too much output from 16 CMUs
-				_ENDIF
-			_ENDOF
-// END SPECIAL ONE-OFF CODE
 ;
 ; Default case
 				jmp		EmitQmark					; Unknown calibration type character
@@ -669,8 +597,6 @@ EmitQmark
 
 QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
 TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
-Seven		DB			3,'\\7\r'			; \ 7 <cr> to indicate we are already at data version 7
-Slash		DB			3,'\\/\r'			; \ / <cr> (a crude tick) to indicate success
 
 
 ;
@@ -787,10 +713,6 @@ UpdFlash:
 				mov		#sFail,R10
 			_ELSE
 				mov		#sDone,R10
-	// SPECIAL CASE
-	add		#infoDataEnd-infoDataStart,SP
-	ret		; Silently return. The 'sc command would output too much otherwise
-	// END SPECIAL CASE
 			_ENDIF
 			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
 			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
