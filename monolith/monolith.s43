@@ -233,7 +233,7 @@ avgCellVoltX256	DS		4			; Low pass filtered average cell voltage shifted left 8 
 restedCounter	DS		2			; Counter of how many measurements the battery qualifies as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
-smoothStressX8	DS		2			; Low pass filtered stress used by BMU to control contactors
+smoothStressX4	DS		1			; Low pass filtered stress used by BMU to control contactors
 lastChgChanged	DS		1			; True (non zero) if lastBulk or lastFloat changed
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 
@@ -1300,16 +1300,16 @@ ControlContactors:
 		_ENDIF								;   (it will be smoothed)
 
 		; Calculate smoothed stress for controlling contactors and charge voltages
-		rla3	R9						; Multiply the incoming stress by 8
-		mov		&smoothStressX8,R10		; Get the previous smoothed stress times 8 into R10
-		rla3	R10						; R10 = previous*8*8
-		sub		&smoothStressX8,R10		; R10 = previous*7*8
-		add		R10,R9					; R9 = 8*incoming + 7*8*previous
-		add		#4,R9					; Add 4 for rounding
-		rra3	R9						; Divide by 8 to get new smoothed stress times 8
-		mov		R9,&smoothStressX8		; Save it for next time
-		add		#3,R9					; Add 3 for rounding (don't add 4 or it won't descend fully)
-		rra3	R9						; Divide by 8 to get smoothed stress
+		rla2	R9						; Quadruple the incoming stress
+		mov.b	&smoothStressX4,R10		; Get the previous smoothed stress times 4 into R10
+		add		R10,R9
+		add		R10,R9
+		add		R10,R9					; R9 = 4*incoming + 3*4*previous
+		incd	R9						; Add 2 for rounding
+		rra2	R9						; Divide by 4 to get new smoothed stress times 4
+		mov.b	R9,&smoothStressX4		; Save it for next time
+		inc		R9						; Add 1 for rounding (don't add 2 or it won't descend fully)
+		rra2	R9						; Divide by 4 to get smoothed stress
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
