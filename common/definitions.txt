@@ -12,9 +12,9 @@ t  l  Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                          noABDEFHW#&()*+,./;=[]_|}~
-	  Initial characters not used so far in TestICal:         knoABDEFGHKPWZ#&()*+,./;=[]_|}~<>{
-	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW#&()*+,./;=[]_|}~
+      Initial characters not used so far:                          noABDEFHW&()*+,./;=[]_|}~
+	  Initial characters not used so far in TestICal:         knoABDEFGHKPWZ&()*+,./;=[]_|}~<>{
+	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW&()*+,./;=[]_|}~
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -71,9 +71,9 @@ Pp    Send a command to a PIP (charger port)
 q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
    q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 Q  Q  Quiet. Stop piezo beeper coming on with error LED
-r 	  RxState (monitor only. 'r' is ReadCalValue in TestICal)
-   r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
+r  r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
 R  R  query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
+Rx 	  RxState (number of ticks since last Rx)
 s  s  select
 S  S  deSelect
 t  t  Temperature
@@ -134,7 +134,7 @@ Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 l  l  LinkVoltage, abs max of volt drop at both terminals
 t  t  Temperature
-r     RxState (monitor only. 'r' is ReadCalValue in TestICal)
+Rx    RxState (number of ticks since last Rx)
 p     Stress level (Pain) (local to each CMU)
 
 Pi    set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Presently only OV.
@@ -188,7 +188,7 @@ Ms Ms Milliseconds delay
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
 
    q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
-   r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
+r  r  ReadCalValue
 w  w  WriteCalValue
    c  Calibrate
    u  UpdateInfoFlash
