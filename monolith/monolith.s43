@@ -94,7 +94,7 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 2 degree C above 33C, to a max of 15 at >= 63degC
-// OT setpoint is ?? to ?? degC. Alarm at 57 degC. Dropout source contactors at 57 degC.
+// OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout source contactors at 57 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
@@ -265,10 +265,10 @@ ScuRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 2
 ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
-scuRxBuf		DS		RxSz		; Receive queue buffer
+scuRxBuf		DS		ScuRxSz		; Receive queue buffer
 scuRxWr			DS		1			; Receive queue write index
 scuRxRd			DS		1			; Receive queue read index
-scuTxBuf		DS		RxSz		; Transmit queue buffer
+scuTxBuf		DS		ScuRxSz		; Transmit queue buffer
 scuTxWr			DS		1			; Transmit queue write index
 scuTxRd			DS		1			; Transmit queue read index
 
@@ -286,21 +286,21 @@ ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 2
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 									; 4 is sufficient to reduce dropped status to less than one a minute
 				ALIGNRAM 1
-chgRxBuf		DS		RxSz		; Receive queue buffer
+chgRxBuf		DS		ChgRxSz		; Receive queue buffer
 chgRxWr			DS		1			; Receive queue write index
 chgRxRd			DS		1			; Receive queue read index
-chgTxBuf		DS		RxSz		; Transmit queue buffer
+chgTxBuf		DS		ChgRxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 #endif
-
-; Command Character Interpreter variables
 
 rxCksum			DS		1			; Received packet xor checksum
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
+ticksSinceLastBypass DS	2			; Ticks since last bypass
+beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
@@ -850,9 +850,25 @@ DoMeasurement:
 ;				sub			&ovStep,R9			; 6 * ovStep
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+
+				; Update the beenBypassing flag used by the OT stress calculation
+				_IF		_HS						; If bypassing (Note: _HS = _C)
+					clr		&ticksSinceLastBypass	; ticksSinceLastBypass := 0
+					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
+				_ELSE							; Else not bypassing
+					tst.b	&beenBypassing			; ticksSinceLastBypass += 1
+					_IF		_NZ						; If been bypassing in last 5 minutes
+						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
+						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
+						_IF		_HS						; If 5 minutes or more since last bypass
+							clr.b	&beenBypassing			; beenBypassing := FALSE
+						_ENDIF							; End if
+					_ENDIF							; End if been bypassing in last 5 minutes
+				_ENDIF							; End else not bypassing
+
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
-												; Calculate the full (coulomb-counter reset) threshold
-;				add			&ovStep,R9			;	One level above bypass (cf. one below for monitor)
+				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
+												;	One level above bypass (cf. one below for monitor)
 				cmp			R9,R10				; Compare cell voltage (R10) to the full threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_FULL,&localStatus ; Move only All-Full bits from R8 to localStatus
@@ -886,6 +902,13 @@ DoMeasurement:
 			_IF		_NE						; If we're not an IMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
+
+				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
+				tst.b	&beenBypassing
+				_IF		_NZ						; If we've been bypassing in the last 5 minutes
+						sub		#10,R10				; Subtract 10 degC from the temp used for OT stress
+				_ENDIF							; End if
+
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
 				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress
