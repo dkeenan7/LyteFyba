@@ -1169,9 +1169,9 @@ ControlContactors:
 			_ENDIF							; Endif >= 1 amp discharge
 		_ENDIF							; Endif >= 1 amp charge
 
-		; Treat ignorable stress as 7 and comms error as 15, for contactor control (will be smoothed)
+		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#7,R9					; Treat it as stress 7 (neutral) for contactor control
+			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9

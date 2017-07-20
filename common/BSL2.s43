@@ -305,17 +305,17 @@ WriteByte:
 				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 										; Note: R11 must be guaranteed clear in advance
 				xor.b	&P1OUT,R11		; (3) Determine if Tx bits need toggling
-#if	G2553
-				and.b	#TxPl,R11 		; (2) Ensure only TxPl can be toggled below
+#if	G2553								; 1 cycle below because TxPl is a CG constant
+				and.b	#TxPl,R11 		; (1) Ensure only TxPl can be toggled below
 #else
-				and.b	#TxPl|TxMi,R11	; (2) Ensure only Tx bits can be toggled below
+				and.b	#TxPl|TxMi,R11	; (2 alt) Ensure only Tx bits can be toggled below
 #endif
 				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
 				_BEGIN
-					dec		R11				; (1) Note: Clearing of R11 here is assumed by subc.b above
-				_UNTIL	_Z					; (2)
+					dec		R11				; (1n) Note: Clearing of R11 here is assumed by subc.b above
+				_UNTIL	_Z					; (2n)
 
 				dec		R10				; (1) Decrement the bit counter
 			_UNTIL	_NC				; (2) Loop until -1
