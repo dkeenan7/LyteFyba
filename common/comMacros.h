@@ -177,3 +177,10 @@ abs			MACRO	dest
 				inc		dest
 			_ENDIF
 			ENDM
+
+or_w		MACRO	src,dest
+			bis		src,dest			; Badly named mnemonic at times
+			ENDM
+or_b		MACRO	src,dest
+			bis.b	src,dest			; Badly named mnemonic at times
+			ENDM

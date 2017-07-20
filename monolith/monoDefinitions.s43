@@ -51,8 +51,8 @@
 
 #if PROG_START < $F800		// Commented out if need to save space
 ; Rx state ( -- )
-			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
-			mov		#'r',Rthd				; Type is Rx state
+			xCODE	'&',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
+			mov		#'&',Rthd				; Type is ticks &ince last Rx
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
@@ -392,3 +392,218 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 SelectIMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1
+
+; Some characters need to be translated into RAM adresses of calibration values
+		ALIGN	1
+calAddressTable
+		DB		'c' , infoCapacity	& $7F | $80
+		DB		'r' , infoCellRes	& $7F | $80
+		DB		'V' , infoBoltPlCal	& $7F | $80
+		DB		'v' , infoVoltCal	& $7F | $80	; High bit set to indicate word quantity,
+		DB		't' , infoTempCal	& $7F | $00	; clear for byte quantity
+		DB		'i' , infoID		& $7F | $00
+		DB		'd' , infoDataVers	& $7F | $00	; Data vers is not for writing
+; Zero must not appear in the table as it is used to represent "unrecognised".
+sizeCalAddressTable	EQU	$-calAddressTable
+
+;
+; TranslateToCalAddr ( ch -- addr )
+;
+TranslateToCalAddr:
+		; Do the calibration address translations using the table above
+		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				decd	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
+			_ELSE				; Else there is a match so
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rtos	; Substitute it for the address character
+			_ENDIF				; Endif match
+		ret
+
+;
+; Read calibration value ( ch --- )
+; Calibration type (e.g. 'v' for cell Voltage) in ch
+			xCODE	'r',readCalValue,_readCalValue
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
+			bic.b	#$80,Rsec
+			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
+			tst.b	Rtos
+			_IF		_NZ						; If not zero (zero means "unrecognised")
+				_IF		_NN						; If high bit clear
+					mov		#3,Rtos					; Display 3 digits
+					mov.b	@Rsec,Rsec				; Get byte sized cal value
+				_ELSE							; Else high bit set so
+					mov		#5,Rtos					; Display 5 digits
+					cmp		#infoCapacity,Rsec		; Test for battery capacity
+					mov.w	@Rsec,Rsec				; Get word sized cal value
+					_IF		_EQ
+						mov		Rsec,R9
+						clr		R10
+						mov		#10,R8				; Divide by 10 to bring to whole Ah
+						call	#UMSlashMod			; R10:R9 / R8 -> R9
+						mov		R9,Rsec
+					_ENDIF
+				_ENDIF							; Endif high bit
+			_ELSE 							; Else is zero for "unrecognised"
+EmitQmark
+				mov		#QuestionStr,R10
+				br		#TxString			; Print \? <ret> and exit
+			_ENDIF							; Endif unrecognised
+			mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
+			call	 	#_prettyPrint
+			ret
+
+QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
+TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
+
+
+;
+; Write calibration value ( n ch --- )
+;
+; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
+;
+; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
+; divided by the capacity in amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+
+			xCODE	'w',writeCalValue,_writeCalValue
+		_COND
+			cmp.b	#'i',Rtos					; Write an ID ?
+		_OR_ELSE	_EQ
+			cmp.b	#'r',Rtos					; Cell internal resistance
+		_OR_ELSE	_EQ
+			cmp.b	#'c',Rtos					; Battery capacity
+		_OR_IFS 	_EQ
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,R10					; Convert to info flash address in R10
+			bic.b	#$80,R10
+			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
+			cmp		#infoCapacity,R10			; Check for battery capacity
+			_IF		_EQ							; If so
+				rla		Rsec						; Multiply given value by 10
+				mov		Rsec,R9						; to bring to tenths of an Ah
+				rla2	Rsec						; *8
+				add		R9,Rsec						; *10
+			_ENDIF
+			tst.b	Rtos
+			_IF		_NZ						; If not zero for "unrecognised"
+				_IF		_NN						; If high bit clear
+					mov		#0,R9					; Indicate byte size
+				_ELSE							; Else high bit set so
+					mov.w	#1,R9					; Indicate word sized cal value
+				_ENDIF							; Endif high bit
+				mov		Rsec,R8					; Data to be written
+				call	#UpdFlash			; Write new value to flash
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		EmitQmark
+			_ENDIF							; Endif unrecognised
+			ret
+		_ELSE							; Not a valid ch for monolith 'w' command
+			jmp		EmitQmark
+		_ENDIF
+
+
+; These are actually locals to the BSL2 macro
+MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
+MckPerFTGck EQU     (MClock+165000)/330000  ; MCLK cycles per Flash Timing Generator cycle
+;
+; Update a single word or byte into info-flash. Note that this is NOT a command definition;
+; we can't have a bare "u" command in monolith, and there are no RAM copies to update from.
+; R8 has new info value
+; R9 is 1 for word, 0 for byte
+; R10 has address of the flash word to be written
+; Trashes R11, R12
+;
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+
+UpdFlash:
+			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
+			mov		SP,R11					; Copy start of buffer to R10
+			clr		R12						; Loop counter
+			_BEGIN
+				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
+				inc		R11
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			add		SP,R10					; R10 points infoDataStart past RAM equivalent
+			tst		R9
+			_IF		_NZ
+				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
+			_ELSE
+				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
+			_ENDIF
+
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+
+			; Erase appropriate info flash segment.
+			mov		#FWKEY,&FCTL3			; Clear LOCK
+			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+
+			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
+
+			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+
+			clr		R12						; Loop counter
+			mov		SP,R10					; Point to start of RAM copy
+			_BEGIN
+				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			mov		#FWKEY,&FCTL1			; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
+			mov		#1+4+1,R11				; String length
+			_IF    _NE
+				mov		#sFail,R10
+			_ELSE
+				mov		#sDone,R10
+			_ENDIF
+			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
+			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
+			;ret
+
+sFail		db		'\\FAIL\r'
+			ALIGN	1
+sDone		db		'\\Done\r'
+			ALIGN	1
+
+;
+; Compare the ~20 bytes of calibration data at 2(SP) with what's at infoDataStart (in info-flash).
+; Returns with Z set if OK, Z clear if not.
+; Trashes R10, R12
+compareInfoFlash:
+			mov		SP,R10
+			incd	R10					; Skip return address
+			clr		R12					; Loop counter
+			_BEGIN
+				cmp.b	@R10+,infoDataStart(R12)
+				_WHILE	_EQ ; _Z
+					inc		R12
+					cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
+
