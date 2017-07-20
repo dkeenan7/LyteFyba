@@ -78,8 +78,8 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 // UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
 UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62 degC
-// OT setpoint is 46 to 48 degC. Alarm at 56 degC. Dropout bat contactors at 62 degC.
+// OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
+// OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 57 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6 degC
@@ -292,6 +292,8 @@ rxCksum			DS		1			; Received packet xor checksum
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
+ticksSinceLastBypass DS	2			; Ticks since last bypass
+beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
 				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
@@ -684,6 +686,22 @@ DoMeasurement:
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
+
+				; Update the beenBypassing flag used by the OT stress calculation
+				_IF		_HS						; If bypassing (Note: _HS = _C)
+					clr		&ticksSinceLastBypass	; ticksSinceLastBypass := 0
+					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
+				_ELSE							; Else not bypassing
+					tst.b	&beenBypassing			; ticksSinceLastBypass += 1
+					_IF		_NZ						; If been bypassing in last 5 minutes
+						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
+						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
+						_IF		_HS						; If 5 minutes or more since last bypass
+							clr.b	&beenBypassing			; beenBypassing := FALSE
+						_ENDIF							; End if
+					_ENDIF							; End if been bypassing in last 5 minutes
+				_ENDIF							; End else not bypassing
+
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
 				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
 												;	One level above bypass (cf. one below for monitor)
@@ -720,6 +738,13 @@ DoMeasurement:
 			_IF		_NE						; If we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
+
+				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
+				tst.b	&beenBypassing
+				_IF		_NZ						; If we've been bypassing in the last 5 minutes
+						sub		#10,R10				; Subtract 10 degC from the temp used for OT stress
+				_ENDIF							; End if
+
 				push	R10						; Measurement for overtemperature stress calc
 				push	#OT_STEP				; For every OT_STEP (degrees Celsius)
 				push	#OT_ZERO				;	over OT_ZERO, we add one level of stress

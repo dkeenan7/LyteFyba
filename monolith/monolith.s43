@@ -82,8 +82,8 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 // UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
 UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-// OT = Over Temperature: One stress unit for every 1 degree C above 32C, to a max of 15 at >= 62 degC
-// OT setpoint is 46 to 48 degC. Alarm at 56 degC. Dropout bat contactors at 62 degC.
+// OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
+// OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6 degC
