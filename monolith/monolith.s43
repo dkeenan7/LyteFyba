@@ -138,6 +138,8 @@ MinContStress EQU	12			; Minimum stress to drop out source or load contactors (I
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
+ZeroCurrentTicks EQU 9			; Minimum ticks without receiving an 'i' (current) command before
+								;	assuming current is zero (if ID not 255)
 
 ; Status byte bit masks - Used for localStatus in RAM as well as RXed and TXed status bytes
 COM_ERR		EQU		1<<6			; Communications error
@@ -199,7 +201,8 @@ bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
-ticksSinceLastRx DS		1			; Timer overflow events since last valid status received
+ticksSinceLastRx DS		1			; Ticks since last valid status received
+ticksSinceLastI DS		1			; Ticks since last 'i' (current) command received
 statusFreqCtr	DS		1			; To time various infrequent tasks in DoMeasurement. Allowed to wrap
 ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
@@ -777,6 +780,18 @@ DoMeasurement:
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
 			_IF		_C						; If unsigned overflow
 				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
+			_ENDIF
+			inc.b	&ticksSinceLastI		; Cleared whenever an 'i' (current) command is received
+			_IF		_C						; If unsigned overflow
+				mov.b	#$FF,&ticksSinceLastI	; Saturate at $FF
+			_ENDIF
+
+			cmp.b	#255,&ID				; Check ID
+			_IF		_NE						; If we're not a BMU
+				cmp.b	#ZeroCurrentTicks,&ticksSinceLastI ; Check ticks since last 'i' command
+				_IF		_HS 					; if too many ticks since last 'i' (current) command
+					mov		#0,&current				; Assume current is zero
+				_ENDIF
 			_ENDIF
 
 			; Do cell voltage measurement
