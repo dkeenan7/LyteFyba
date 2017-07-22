@@ -319,6 +319,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_IF	_NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
+		clr.b	&ticksSinceLastI		; Zero ticks since last 'i' command
 		ret
 
 ; Store discharge counter high word (dischargeHi -- )

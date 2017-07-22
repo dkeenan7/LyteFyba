@@ -50,8 +50,8 @@
 #endif // MASTERLESS_CHARGING
 
 ; Rx state ( -- )
-			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
-			mov		#'r',Rthd				; Type is Rx state
+			xCODE	'R'|'x' <<8,RxState,_RxState ; 'Rx' collides with 'Rp' 'R0' 'Jx' 'Jp' 'J0'
+			mov		#'R'|'x'<<8,Rthd		; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
@@ -318,6 +318,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_IF	_NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
+		clr.b	&ticksSinceLastI		; Zero ticks since last 'i' command
 		ret
 
 ; Store discharge counter high word (dischargeHi -- )

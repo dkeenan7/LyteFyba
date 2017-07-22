@@ -694,9 +694,9 @@ TxEndOfModbusPacket:
 		ret
 
 ; Query the reset-log ( maxResetsToShow -- )
-			xCODE	'R',queryResetLog,_queryResetLog
+			xCODE	'R'|'l' <<8,queryResetLog,_queryResetLog ; 'Rl' collides with 'Rd' 'Rt' 'Jl' 'Jd' 'Jt'
 			push	Rtos					; Save maxResetsToShow
-			mov.b	#'R',Rthd				; Type is reset-log query
+			mov		#'R'|'l' <<8,Rthd		; Type is reset-log query
 			mov		&resetCounter,Rsec		; Result
 			call	#_prettyPrint3			; Pretty-print of 3 digits
 
@@ -724,7 +724,7 @@ TxEndOfModbusPacket:
 				tst		R8
 			_WHILE	_NZ
 				push	R8
-				mov.b	#'R',Rthd				; Type is reset-log query
+				mov		#'R'|'l' <<8,Rthd		; Type is reset-log query
 				dec		R9
 				cmp		#resetBuffer,R9
 				_IF		_LO
