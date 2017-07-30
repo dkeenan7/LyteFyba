@@ -34,8 +34,7 @@ $ $ dollarHex (set number input mode to hex for next literal)
 A to F are hexadecimal digits
   a ADCScaled or r(A)wVoltage (TestICal only)
   b update Bootstrap loader (BSL2)
-c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.
-  c Calibrate
+c c Calibrate
 d d Decimal output
 e e Error. Turn on or off red LED and piezo beeper
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
@@ -170,9 +169,9 @@ G   Get high word of fuel-gauge discharge accumulator (monoliths only)
 
   f FrequencyBurst (between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC)
 
-  r ReadCalValue (TestICal only. 'r' is RxState in monitor)
-  w WriteCalValue
-  c Calibrate
+r r ReadCalValue
+w w WriteCalValue
+c c Calibrate
   o change Octave of piezo alarm
   u UpdateInfoFlash
 
@@ -185,11 +184,9 @@ or Calibrate command in TestICal.
 'H Hotness (Temperature via external thermistor)
 'l Link voltage
 'g fuel (g)auge
-'f Frequency (DCO 8 MHz)
 'i ID
-The last 2 currently have no meaning for the Calibrate command, as any meaning they could be given
-at present would be equivalent to either the character as a command in itself, or a Write command
-with that character as address parameter.
+'f Frequency (DCO 8 MHz)
+The last one currently has no meaning for the Calibrate command.
 
 The first 2, along with 'p for stress (pain), are also valid parameters for the max '>' and
 min '<' commands.

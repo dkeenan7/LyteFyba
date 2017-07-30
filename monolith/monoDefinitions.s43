@@ -17,6 +17,7 @@
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 
+#if 0		// Not used now, and clashes with calibrate command
 ; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
 			; This lets the CMU include undertemperature and exclude undervoltage as stress when charging,
 			; and when masterless-charging is enabled via the 'o' command, this command
@@ -25,6 +26,7 @@
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
+#endif
 
 #if MASTERLESS_CHARGING
 ; ChargerC(o)ntrol ( voltMin voltMax -- )
@@ -426,6 +428,59 @@ TranslateToCalAddr:
 			_ENDIF				; Endif match
 		ret
 
+;
+; Calibrate ( n ch --- )
+; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+; For the voltage scale and offset calibrations, we want to apply the other correction (i.e. scale if
+; we are calibrating offset, and vice versa) to get the best correction so far. This also allows for
+; successive improvement calibration if that turns out to be useful.
+;
+			xCODE	'c',calibrate,_calibrate
+			_CASE
+
+			_OFb	#'i',Rtos
+				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+				; and responds with the ID _after_ the last ID.
+				cmp.b	#255,&ID
+				_IF		_EQ					; But if we're a BMU,
+					ret							; silently ignore; BMUs have to stay ID=255
+				_ENDIF
+				bit.b	#bDontEcho,&interpFlags
+				_IF		_NZ					; If the dont-echo flag is set
+					; Save our new ID to info-flash
+					mov.b	Rsec,R8				; New value
+					mov		#0,R9				; Size = byte
+					mov		#infoID,R10			; Address of info-flash item
+					call	#UpdFlash
+
+					; Send another setIDs command with its parameter incremented by one.
+					mov		Rsec,Rtos
+					inc		Rtos				; Increment the parameter
+					DPUSH	#3					; Use a 3 digit field width
+					call	#_emitNum			; Transmit the number as text in the current number base
+
+					mov		#TickIcStr,R10			; Transmit a 'ic
+					call	#TxStringCk
+					call	#TxEndOfPacket
+				_ELSE						; Else dont-echo flag is clear
+					; Send \? to remind user that Ctrl-S needs to be sent before an 'ic command.
+					jmp		EmitQmark
+				_ENDIF
+				ret			; Don't fall through to _readCalValue
+			_ENDOF
+;
+; Default case
+				jmp		EmitQmark					; Unknown calibration type character
+
+			_ENDCASE
+
+			;jmp		_readCalValue			; Display the value just calibrated and return
+												;	(by falling through)
+			;
+			; Keep 'c' command (above) and 'r' command (below) together
+			; That is, don't insert a new command here
+			;
 ;
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
