@@ -618,6 +618,10 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			xCODE	'w',writeCalValue,_writeCalValue
 		_COND
 			cmp.b	#'i',Rtos					; Write an ID ?
+			_IF		_EQ
+				cmp.b	#255,&ID					; BMUs have to stay ID=255
+				bit		#1,SR						; Invert the Z (EQ) bit (can't use xor)
+			_ENDIF
 		_OR_ELSE	_EQ
 			cmp.b	#'r',Rtos					; Cell internal resistance
 		_OR_ELSE	_EQ
