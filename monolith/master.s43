@@ -23,8 +23,7 @@ Master:
 				_AND_IF	_NE
 					bis.b	#bBlocked,&masterFlags	; We're now blocked
 					mov.b	&ticks,R9				; Get the medium speed counter
-					; FIXME: was 2 seconds below
-					add.b	#12*StatusFreq,R9		;	two seconds later. Check what can be tolerated!
+					add.b	#12*StatusFreq,R9		; Get twelve seconds after that
 					mov.b	R9,&masterUnblockTicks	; Save that time
 				_ENDIFS
 			_ELSE						; Presently blocked. A carriage return will unblock

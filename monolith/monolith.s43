@@ -193,13 +193,12 @@ masterFlags		DS		1			; Master (command injector) flags; bitmask definitions foll
 bBlocked		EQU		1<<0		; 1 if blocked.
 bSendZ			EQU		1<<1		; 1 if Z command is due to be sent
 bSendi			EQU		1<<2		; 1 if 'i' command is due
-bSendInit		EQU		1<<3		; 1 if initialisation string should be sent
+bSendInit		EQU		1<<3		; 1 if CMU initialisation string should be sent
 bTimeout		EQU		1<<4		; 1 if unblocked via timeout; may or may not have to send a CR to
 									;	clear a stalled command if we have something to inject (may not
 									;	be ready now, hence we need this separate bit)
 masterUnblockTicks DS	1			; When the master is blocked, this field indicates what the tick
 									; counter will read when the timeout expires
-
 localStatus		DS		1			; Bits 0-3 stress, 4 ignore-on-dis, 5 ignore-on-chg, 6 comms error
 globalStatus	DS		1			; BMU only. For SCUs that don't accept status bytes but use 'p' cmd
 ticksSinceLastRx DS		1			; Ticks since last valid status received
@@ -212,6 +211,7 @@ passWordState	DS		1			; State machine for password recogniser
 shutdownTimer	DS		1			; To allow time for charging to start, when restarting
 									;   after a low voltage shutdown.
 				ALIGNRAM 1
+pipInitPtr		DS		2			; Pointer to next PIP init string to send, or zero (NULL) if none
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
 ;piPrevOutput	DS		2			; State of PI controller
@@ -219,8 +219,10 @@ chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' 
 prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 ;lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
-uPipInitCtr		DS		2			; Counts timer overflows till the PIP is ready to receive commands
-PipWait			EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
+pipInitCtr		DS		1			; Counts ticks till the PIP is ready to receive commands
+PipWait			EQU		3*StatusFreq ; Number of the above that will be required (3 seconds)
+pipCmdCtr		DS		1			; Counts ticks till it's time to send the next init str
+PipCmdWait		EQU		2*StatusFreq ; Number of the above that will be required (2 seconds)
 AllFullDod		EQU		0			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;AllFullDod		EQU		250			; DoD in tenths of a percent, to reset discharge counter to when all considered full
 ;ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a volt.
@@ -530,6 +532,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#4,&passWordState		; Waiting for first byte of bootstrap loader password
 			mov		#(3300*256)&$FFFF,&avgCellVoltX256	; Initialise the low pass filter for the
 			mov		#(3300*256)>>16,&avgCellVoltX256+2	;	average cell voltage to 3300 mV
+			mov		#PipInitTbl,&pipInitPtr	; Point to the first init string
 
 			eint							; Enable interrupts now that all initialisation is complete
 
@@ -617,25 +620,17 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 
 ;
-; Initialise the PIP4048MS inverter with various non-default settings
+; Call this repeatedly to initialise the PIP4048MS inverter with various non-default settings
 ;
 InitPip:
-			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#15,R8				; Number of initialisation strings,
-;			_DO			#3,R8				; Number of initialisation strings,
-											; including initial CR
-				push		R8					; Save loop counter
-				push.b		@R10				; Push length byte
-				call		#ChgTxString		; Send one command
-
-				; Base the following delay on the length of the preceding command (heuristic)
-				pop.b		R8					; Pop length byte
-				swpb		R8					; Mult by 256
-				rra			R8					; 128 ms per byte
-				add			#500,R8				; plus 500 ms
-				call		#DelayMs			; Allow time for PIP to Ack or Nak
-				pop			R8					; Restore loop counter
-			_LOOP		R8
+			mov			&pipInitPtr,R10		; Point to the current initialisation string
+			call		#ChgTxString		; Send one command
+			mov			R10,&pipInitPtr		; Update the pointer
+			tst.b		0(R10)				; Check the next length byte
+			_IF			_Z					; If it's zero, this is the end of the table
+				clr			&pipInitPtr				; For tidiness
+				bis.b		#bDonePipInit,&monFlags	; Tell DoMeasurement that we're done
+			_ENDIF
 			ret
 
 // Set only one of the below to 1, others 0
@@ -646,7 +641,7 @@ ON_GRID_LG	EQU		0			// On-grid, larger battery
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
-PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+PipInitTbl 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
 #if	OFF_GRID
 		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
@@ -684,6 +679,7 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 ;			DB	12,'MUCHGC020',$F3,$F1,$0D	; Maximum utility charge current 20 amps (Param 11)
 			DB	12,'MUCHGC030',$C0,$C0,$0D	; Maximum utility charge current 30 amps
 ;			DB	12,'MUCHGC040',$59,$57,$0D	; Maximum utility charge current 40 amps
+			DB	0							; Zero length at end of table
 			ALIGN		1
 
 
@@ -701,12 +697,17 @@ DoMeasurement:
 			_IF		_EQ						; If we're a BMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
 				_IF		_Z
-					cmp.w	#PipWait, &uPipInitCtr
-					_IF		_EQ
-						call	#InitPip		; Send the PIP initialisation strings
-						bis.b	#bDonePipInit,&monFlags
+					cmp.b	#PipWait, &pipInitCtr
+					_IF		_NE
+						inc.b	&pipInitCtr	; Wait till the PIP is ready to receive commands
 					_ELSE
-						inc		&uPipInitCtr	; Wait till the PIP is ready to receive commands
+						cmp.b	#PipCmdWait, &pipCmdCtr
+						_IF		_NE
+							inc.b	&pipCmdCtr		; Wait the delay before each init string
+						_ELSE
+							clr.b	&pipCmdCtr
+							call	#InitPip		; Send the next PIP initialisation string
+						_ENDIF
 					_ENDIF
 				_ENDIF
 			_ENDIF
