@@ -1,4 +1,4 @@
-			COL		154				; Wide listings
+			COL		154			; Wide listings
 ; 14/Dec/2014: split off from monitor.s43
 
 ; Ensure you set the FET Debugger download options to erase main memory _only_,
@@ -17,6 +17,13 @@
 ;
 ; "Monolith" is the standard solar power system operating software for our Cell Management Unit (CMU)
 ; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+
+;-----------------------------------------------------------------------------------------------------
+; Commonly changed conditional assembly -- defaults are for LBS
+#define		CONFIG			OFF_GRID	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
+#define		QUIET			1			// 1 for BMU to tell CMUs not to beep
+#define 	LOW_LOW_CUTOFF	1			// 1 for 2.8 V cutoff (2% SoC), 0 for 3.08 V cutoff (5% SoC)
+;-----------------------------------------------------------------------------------------------------
 
 #define MONOLITH				// For some conditional assembly in otherwise common code.
 								// Changes StatusFreq from 16 Hz to 2 Hz.
@@ -55,8 +62,7 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
 
 ; Conditional assembly
-#define		QUIET		1			// 1 for BMU to tell CMUs not to beep
-#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging)
+#define		WATCHDOG	1			// True if watchdog timer is to be used (only turn off for debugging
 #define		ADCBUF		0			// 0 for no ADC sample buffer; 1 for buffer.
 									// Buffered ADC is mainly useful for debugging.
 
@@ -78,16 +84,16 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
-#if 1
-// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
-// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
-UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
-#else // Greg wanted to try a 2.8 V cutoff
+#if LOW_LOW_CUTOFF			// 2.8 V cutoff for Greg -- about 2% SoC
 // UV = Under Voltage: One stress unit for each 40 mV below 3.40 V, to a maximum of 15 at <= 2.80 V
 // UV setpoint is 3.080 to 3.120 V (around 5% SoC). Alarm at 2.92 V. Drop out bat contactor at 2.80.
 UV_ZERO		EQU		3400		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+#else 						// 3.08 V cutoff for the rest of us -- about 5% SoC
+// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
+// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
+UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 #endif
 // OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
 // OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
@@ -640,16 +646,16 @@ InitPip:
 			_ENDIF
 			ret
 
-// Set only one of the below to 1, others 0
-OFF_GRID	EQU		1			// An off-grid application
-ON_GRID_SM	EQU		0			// On-grid, smaller battery
-ON_GRID_LG	EQU		0			// On-grid, larger battery
+
+#define		OFF_GRID 		1
+#define		ON_GRID_SMALL	2
+#define		ON_GRID_LARGE	3
 
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
 PipInitTbl 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
-#if	OFF_GRID
+#if	CONFIG == OFF_GRID
 		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
 #else
@@ -669,7 +675,7 @@ PipInitTbl 	DB	1,$0D						; In case PIP has already received junk. Will cause a 
 			DB	11,'PSDV50.8',$8A,$CC,$0D	; Battery low cutoff voltage 50.8 V (3.175 Vpc) (Param 29)
 ;			DB	11,'PSDV48.0',$D4,$D1,$0D	; Battery low cutoff voltage 48.0 V (3.00 Vpc)
 			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V (Param 12)
-#if OFF_GRID
+#if CONFIG == OFF_GRID
 			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved (Param 13)
 #else
 ;			DB	11,'PBDV52.0',$EA,$BE,$0D	; Stop charging from utility when bat rises to 52 V (Param 13)
@@ -678,7 +684,7 @@ PipInitTbl 	DB	1,$0D						; In case PIP has already received junk. Will cause a 
 			DB	11,'PCVV55.2',$66,$C9,$0D	; Set bulk/absorb voltage to 55.2 V (3.45 Vpc) (Param 26)
 ;			DB	11,'PBFT53.8',$93,$45,$0D	; Set float voltage to 53.8 V (3.3625 Vpc)
 			DB	11,'PBFT53.7',$62,$AA,$0D	; Set float voltage to 53.7 V (3.35625 Vpc) (Param 27)
-#if !ON_GRID_LG
+#if CONFIG != ON_GRID_LARGE
 			DB	13,'MNCHGC0100',$16,$3A,$0D	; Maximum charge current 100 amps (utility plus solar) (Param 2)
 #else
 			DB	13,'MNCHGC0120',$70,$58,$0D	; Maximum charge current 120 amps (if battery >= 200 Ah; Param 2)
