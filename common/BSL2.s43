@@ -110,10 +110,16 @@ BSL:		; Initialisation
 	; Initialise the interpreter flags
 	clr.b	&interpFlags				; The bDontEcho bit is read by the BSL in some modes
 
-	; We've been reset, so send a break to reset the next guy
-	; This doesn't result in an endlessly circulating break, because a BMU is only reset by
+	; We've been reset, so if we're not a BMU, send a break to reset the next guy
+	; This doesn't result in the BMU being reset, because a BMU is only reset by
 	; a break on its SCU input, not its CMU input.
-	call	#WriteBreak-jBSL+BSL2_START	; Send a 27 ms break
+	; We no longer reset the CMUs on every BMU reset, to preserve the backed-up SoC in CMU 1.
+	; See the 'Z' and 'G' commands.
+	; If you need to reset the CMUs, send a 'Br' command to the BMU.
+	cmp.b	#255,&infoID
+	_IF		_NE				; If we're not a BMU
+		call	#WriteBreak-jBSL+BSL2_START	; Send a 27 ms break
+	_ENDIF
 
 	ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
 

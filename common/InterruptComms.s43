@@ -195,7 +195,7 @@ SocPwmIsr:
 ;-------------------------------------------------------------------------------
 	; These interrupts should only be enabled on BMUs
 #ifdef MONOLITH
-		push		R9					; (?) Save R9
+		push	R9						; (?) Save R9
 		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
 		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 		_IF		_Z						; (2) If now set,

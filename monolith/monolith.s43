@@ -536,8 +536,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontEcho,&interpFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
 
-; PWM initialisation
-			call	#UpdateSoC					; Initialise the pre-computed counter advance value
+; SoC initialisation
+			clr		&discharge				; Initialise the SoC to 100%
+			clr		&discharge+2			; BMU will retrieve SoC from CMU 1
+			call	#UpdateSoC				; Initialise the pre-computed counter advance value
 
 ;
 ; Miscellaneous initialisation
