@@ -78,10 +78,17 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ;// OV setpoint is 3.353 to 3.356 V. Alarm at 3.365 V. Drop out source contactors at 3.368 V.
 ;OV_ZERO		EQU		3332		; Threshold in mV between OV stress levels -1 and 0
 ;OV_STEP		EQU		3			; mV difference between one OV stress level and the next
+#if 1
 // UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
 // UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
 UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
+#else // Greg wanted to try a 2.8 V cutoff
+// UV = Under Voltage: One stress unit for each 40 mV below 3.40 V, to a maximum of 15 at <= 2.80 V
+// UV setpoint is 3.080 to 3.120 V (around 5% SoC). Alarm at 2.92 V. Drop out bat contactor at 2.80.
+UV_ZERO		EQU		3400		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
+#endif
 // OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
 // OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
