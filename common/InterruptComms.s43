@@ -449,8 +449,8 @@ DoEcho:		_COND							; Begin short circuit conditional
 
 DoPassword:
 ;
-; Check for a bootstrap-loading password character in R8. Trunk password sequence is $05 $05 $03 $01.
-; If the rev61 password sequence is received ($05 $05 $03 $02) then we do a "fake rev61 download"
+; Check for a bootstrap-loading password character in R8. Trunk password sequence is $05 $04 $03 $01.
+; If the rev61 password sequence is received ($05 $04 $03 $02) then we do a "fake rev61 download"
 ; so we don't attempt to interpret it as commands. This allows a system with mixed hardware revisions.
 ; After decrementing passWordState below, 3 = waiting for 1st pwd byte, 2 = waiting for 2nd pwd byte,
 ; 1 = waiting for 3rd pwd byte, 0 = waiting for last pwd byte and erase if received.
