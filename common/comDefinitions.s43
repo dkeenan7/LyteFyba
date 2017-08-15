@@ -933,16 +933,16 @@ GetContactorBitmask:
 			_OFb	#1,Rtos				; Precharge
 				mov.b	#PreCtor,Rtos
 			_ENDOF
-			_OFb	#2,Rtos				; Battery
+			_OFb	#2,Rtos				; Battery pos
 				mov.b	#BatPosCtor,Rtos
 			_ENDOF
-			_OFb	#3,Rtos				; Charge sources
+			_OFb	#3,Rtos				; Battery neg
 				mov.b	#BatNegCtor,Rtos
 			_ENDOF
-			_OFb	#4,Rtos				; Discharge / Discretionary loads
+			_OFb	#4,Rtos				; Left charge sources
 				mov.b	#AcLfPvCtor,Rtos
 			_ENDOF
-			_OFb	#5,Rtos				; Normal loads
+			_OFb	#5,Rtos				; Right charge source(s)
 				mov.b	#RtPvCtor,Rtos
 			_ENDOF
 			_ENDCASE
