@@ -626,6 +626,8 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			cmp.b	#'r',Rtos					; Cell internal resistance
 		_OR_ELSE	_EQ
 			cmp.b	#'c',Rtos					; Battery capacity
+		_OR_ELSE	_EQ
+			cmp.b	#'n',Rtos					; Shunt offset
 		_OR_IFS 	_EQ
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R10					; Convert to info flash address in R10
