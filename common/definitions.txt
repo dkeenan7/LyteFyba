@@ -15,6 +15,7 @@ t  l  Name or description
       Initial characters not used so far:                          noABDEFHW&()*+,./;=[]_|}~
 	  Initial characters not used so far in TestICal:         knoABDEFGHKPWZ&()*+,./;=[]_|}~<>{
 	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW&()*+,./;=[]_|}~
+#  #  revision numbers of main program, bootstrap loader and hardware
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
@@ -162,6 +163,7 @@ X  X  e(X)clude     (single-CMU ignore mode)
 \  \  exit or comment
 k     chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 K     KillStatusSending, 1K to kill status sending, 0K to restore it
+#  #  revision numbers of main program, bootstrap loader and hardware
 
 q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 {     resetWorstStress :-{
