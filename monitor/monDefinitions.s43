@@ -44,7 +44,7 @@
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 				mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600 (default)
 			_ELSE
-				bis.b	#ChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
+				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
 				mov		#BitTime24,&txBitTime		; Set transmit baud rate to 2400
 				mov		Rsec,&chargerVoltLim
 			_ENDIF
