@@ -247,8 +247,8 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
-avgCellVoltX256	DS		4			; Low pass filtered average cell voltage shifted left 8 bits
-restedCounter	DS		2			; Counter of how many measurements the battery qualifies as "rested"
+avgCellVoltX256	DS		4			; Smoothed IR-compensated average cell voltage, shifted left 8 bits
+restedCounter	DS		2			; Count of measurements since the battery qualified as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
 smoothStressX4	DS		1			; Low pass filtered stress used by BMU to control contactors
@@ -843,7 +843,7 @@ DoMeasurement:
 			cmp.b	#255,&ID				; If a BMU
 			_IF		_EQ
 				; Check for low rested average cell voltage and update of SoC
-				; First calculate the smoothed average cell voltage.
+				; First calculate the smoothed IR-compensated average cell voltage.
 				; Use (255/256) * old + (1/256) * new
 				; = (old << 8 - old + new) >> 8
 				; Label avgCellVoltX256 as 0HML (Zero High Middle Low bytes)

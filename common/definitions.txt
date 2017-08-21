@@ -12,8 +12,8 @@ t  l  Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                          noABDEFHW&()*+,./;=[]_|}~
-	  Initial characters not used so far in TestICal:         knoABDEFGHKPWZ&()*+,./;=[]_|}~<>{
+      Initial characters not used so far:                          ABDEFHW&()*+,./;=[]_|}~
+	  Initial characters not used so far in TestICal:         kABDEFGHKPWZ&()*+,./;=[]_|}~<>{
 	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW&()*+,./;=[]_|}~
 #  #  revision numbers of main program, bootstrap loader and hardware
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
@@ -65,11 +65,11 @@ n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard a
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
 o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
-   O  stOre wOrd (poke wOrd)
+O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 p     status (local to each CMU, but global when BMU)
 //Pi    set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only OV.
 Pp    Send a command to a PIP (charger port)
-q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
+q     QueryWorstStress (monitor only. 'q' is Query Manufacturer's calibration values in TestICal)
    q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 Q  Q  Quiet. Stop piezo beeper coming on with error LED
 r  r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
@@ -131,6 +131,7 @@ v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    Mv Measure Vcc
 o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
+O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 l  l  LinkVoltage, abs max of volt drop at both terminals
@@ -165,7 +166,7 @@ k     chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective
 K     KillStatusSending, 1K to kill status sending, 0K to restore it
 #  #  revision numbers of main program, bootstrap loader and hardware
 
-q     QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
+q     QueryWorstStress (monitor only. 'q' is Query Manufacturer's calibration values in TestICal)
 {     resetWorstStress :-{
 
 Rl Rl query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
@@ -183,8 +184,6 @@ G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 !  !  store word (poke word)
 C? C? get byte (peek Char)
    C! store byte (poke Char)
-   O  st(O)re word (poke word)
-   q  pee(Q)Word (peek word) (TestICal only. 'q' is QueryWorstStress in monitor)
 Ms Ms Milliseconds delay
 
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
