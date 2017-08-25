@@ -401,7 +401,7 @@ WriteBreak:
 
 ; WriteByte ( R8 -- R9 R10 R11 )
 ; Write the low byte of R8 to CMU serial output.
-; Trashes R9 R10 R11 (if BMU via WriteScuByte). Preserves R8.
+; Trashes R9 R10 R11. Preserves R8.
 WriteByte:
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 	mov.b	R8,&UCA0TXBUF		; Send byte
