@@ -373,7 +373,7 @@ newChip:
 						mov.b	#0,&P3OUT					; Pull them all down with resistors
 						cmp.b	#0,&P3IN					; Check if they are all low
 					_AND_IF	_EQ							; And if they all got pulled low
-						mov.b	#0,&ramID					; Set ID = 0 (un-IDed CMU)
+						mov.b	#1,&ramID					; Set ID = 1 (CMU) to avoid comms error
 					_ELSES
 						mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
 					_ENDIF

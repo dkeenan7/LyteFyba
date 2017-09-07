@@ -44,6 +44,7 @@ d  d  Decimal output
 e  e  Error. Turn on or off red LED and piezo beeper
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
 f     (f)uel gauge. State of charge in tenths of a percent. (wmonolith only)
+   Fa Frequency of ADC clock. On expansion P1.3 for 5 seconds. Too fast to measure with Fluke. Use DSO.
 g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 h  h  Hex output
@@ -187,6 +188,7 @@ C? C? get byte (peek Char)
 Ms Ms Milliseconds delay
 
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
+   Fa Frequency of ADC clock. On expansion P1.3 for 5 seconds. Too fast to measure with Fluke. Use DSO.
 
    q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 r  r  ReadCalValue
