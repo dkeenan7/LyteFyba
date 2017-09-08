@@ -321,11 +321,8 @@ _emitNum3:
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
-;
-; Link voltage (max abs volt drop across any terminal) for CMU, Current shunt voltage x20 for BMU ( -- )
-; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
-; Corresponds to fifths of an amp with a 200 A 50 mV shunt
-		xCODE		'l',LinkVolt,_LinkVolt
+
+GetLinkV:
 		call		#GetBoltMiV			; Return bolt- or shuntx20 in mV in R10
 		cmp.b	#255,&ID
 		_IF		_EQ						; If we're a BMU
@@ -346,8 +343,17 @@ _emitNum3:
 			_IF			_LO					; If 0(SP) < R10
 				mov			R10,0(SP)			; Replace it with R10
 			_ENDIF
-			pop			Rsec				; Worst result to Rsec
+			pop			R10					; Worst result to R10
 		_ENDIF
+		ret
+
+;
+; Link voltage (max abs volt drop across any terminal) for CMU, Current shunt voltage x20 for BMU ( -- )
+; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
+; Corresponds to fifths of an amp with a 200 A 50 mV shunt
+		xCODE		'l',LinkVolt,_LinkVolt
+		call		#GetLinkV			; Get the worst link voltage
+		mov			R10,Rsec			; To Rsec for display
 		mov			#'l',Rthd			; Type is Link voltage
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return

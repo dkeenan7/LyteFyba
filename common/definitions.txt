@@ -57,7 +57,7 @@ J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255,
    j  JumpToSubroutine (call)
 k     chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
-l  l  LinkVoltage, abs max of volt drop at both terminals
+l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
    L  Liven contactor (1L .. 5L)
    m  e(m)itCharacter
 Ms Ms Milliseconds delay
@@ -135,7 +135,7 @@ o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
 O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
-l  l  LinkVoltage, abs max of volt drop at both terminals
+l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
 t  t  Temperature
 Rx    RxState (number of ticks since last Rx)
 p     Stress level (Pain) (local to each CMU)

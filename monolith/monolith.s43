@@ -106,7 +106,7 @@ UT_STEP		EQU		-2			; Degrees C difference between one UT stress level and the ne
 // AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
 // Plan to implement positive and negative bolt voltages in future.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
+AL_STEP		EQU		6			; mV difference between one AL stress level and the next
 
 #else
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
@@ -128,7 +128,7 @@ UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the ne
 // AL = Absolute Link voltage: One stress unit for every 20 mV above 0 mV, to a max of 15 at >= 300 mV
 // AL setpoint is 140 to 160 mV. Alarm at 220 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
+AL_STEP		EQU		3			; mV difference between one AL stress level and the next
 #endif
 
 ; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
@@ -980,10 +980,9 @@ DoMeasurement:
 			_ENDIF
 
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
-			call	#GetBoltMiV				; Get bolt- in mV or current in fifths of an amp in R10
+			call	#GetLinkV				; Get worst link voltage in mV
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
-#if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
 				_IF		_NE						; Only calculate link stress if not this value
 					; Calculate stress due to excessive absolute link voltage
@@ -998,7 +997,6 @@ DoMeasurement:
 					push	#5						; Type of measurement
 					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress due to AL
 				_ENDIF
-#endif
 			_ELSE	; BMU
 				; We have a 200 A 50 mV shunt,
 				; and the diffamp has a gain of 10, so the linkV result should be
@@ -1076,14 +1074,14 @@ DoMeasurement:
 							cmp		#4,Rtype
 						_OR_IFS	_EQ						; or if type is UnderTemperature
 							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_AF bit
-						_ELSE							; Else
-							clr		R8						; Clear both type bits
+						_ELSE							; Else type is OT (3) or AL (5)
+							clr		R8						; Clear both type bits (never ignore)
 						_ENDIF
 					_ENDIF
 					movBits_B R8,#S_TYPE,&localStatus ; Record type for later, presrve other status bits
 				_ENDIF
 
-				; Update worst stress for trip so far
+				; Update worst stress since last reset thereof
 				cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
 				_IF		_HS
 					tst.b	Rstrs					; and it's an actual, nonzero stress
