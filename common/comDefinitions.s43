@@ -655,11 +655,7 @@ TxEndOfModbusPacket:
 			br		#TxByte					; Tail-call TxByte and return
 ;			ret
 
-
-;
-; Turn on or off the error LED and piezo beeper (bool -- )
-;
-		xCODE	'e',errorLed,_errorLed
+ErrorLed:
 		tst		Rtos
 		_IF		_Z
 			ErrLedOff						; Turn off the error LED
@@ -671,6 +667,13 @@ TxEndOfModbusPacket:
 				bis.b	#Piezo,&P1SEL			; Make the piezo squeal
 			_ENDIF
 		_ENDIF
+		ret
+
+;
+; Turn on or off the error LED and piezo beeper (bool -- )
+;
+		xCODE	'e',errorLedCmd,_errorLedCmd
+		call	#ErrorLed
 		mov		#50,R8					; Delay for 50 ms so this is visible/audible even when
 		call	#DelayMs				; under automatic control, as in monolith.
 ;		pop		Rtos					; Remove operand

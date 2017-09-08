@@ -1099,7 +1099,7 @@ DoMeasurement:
 				bit.b		#bBadInsulation,&monFlags
 				CtoAllBits	R8
 				bis			R8,Rtos				; or if the last insulation test failed (BMU only)
-				call		#_errorLed			; Use this function so it optionally turns on piezo as well
+				call		#ErrorLed			; Use this function so it optionally turns on piezo as well
 			_ENDIF	; Not a BMU
 
 			; Check for comms error and send local status if required
@@ -1504,7 +1504,7 @@ DoPrecharge:
 				dec		R12
 		_UNTIL	_Z
 				mov		#1,Rtos						; Fall thru to here on timeout
-				call	#_errorLed					; We who are about to die beep at you
+				call	#ErrorLed					; We who are about to die beep at you
 				bic.b	#PreCtor,&CtorPortOUT		; Turn off the Precharge contactor to save resistor
 				bic.b	#BatNegCtor,&CtorPortOUT 	; Turn off the battery negative contactor
 				br		#Halt						; Endless loop, but check for BSL password

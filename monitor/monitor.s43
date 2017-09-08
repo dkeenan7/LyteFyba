@@ -642,7 +642,7 @@ DoMeasurement:
 			bit.b		#bBadInsulation,&monFlags
 			CtoAllBits	R8
 			bis			R8,Rtos				; or if the last insulation test failed (IMU only)
-			call		#_errorLed			; Use this function so it optionally turns on piezo as well
+			call		#ErrorLed			; Use this function so it optionally turns on piezo as well
 
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
