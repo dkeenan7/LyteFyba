@@ -39,8 +39,10 @@ TxEndOfPacket:
 
 TxString: _DOb	@R10+,R11
 TxBytes:								; Alternative entry point with length in R11
+				push	R11
 				mov.b	@R10+,R8
 				call	#TxByte
+				pop		R11
 			_LOOPb	R11
 			ret
 
@@ -52,8 +54,10 @@ TxBytes:								; Alternative entry point with length in R11
 ;-------------------------------------------------------------------------------
 
 TxStringCk: _DOb	@R10+,R11
+				push	R11
 				mov.b	@R10+,R8
 				call	#TxByteCk
+				pop		R11
 			_LOOPb	R11
 			ret
 

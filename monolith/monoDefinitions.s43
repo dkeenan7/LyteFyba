@@ -609,8 +609,9 @@ UpdFlash:
 				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
 			_ENDIF
 
-			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+			call	#WaitTxComplete			; Ensure chars not corrupted by delays due to flash operations
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 
 			; Erase appropriate info flash segment.
 			mov		#FWKEY,&FCTL3			; Clear LOCK
@@ -630,6 +631,8 @@ UpdFlash:
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+
 			;
 			; Check that the flash programming worked
 			;
