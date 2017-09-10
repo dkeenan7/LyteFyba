@@ -351,9 +351,8 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			; Prepare to flash-program
 			; Assumes ACCVIE = NMIIE = OFIE = 0.
 			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-
-			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
 
 			; Erase appropriate info flash segment.
 			mov		#FWKEY,&FCTL3			; Clear LOCK
@@ -372,6 +371,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
 			;
 			; Check that the flash programming worked
 			;
