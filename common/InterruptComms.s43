@@ -355,3 +355,70 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 				ret
 
+
+; Wait for a byte to be received
+; Trashes R9
+RxByte:
+				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
+				_BEGIN
+					call	#RxByteNoWait		; Check for a received byte
+				_UNTIL	_NZ					; Repeat until received
+				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
+				ret
+
+
+DoPassword:
+;
+; Check for a password character in R8
+; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
+; 0 = waiting for ^D and erase if received. We should not receive any negative value
+; Trashes R9
+;
+			dec.b	&passWordState
+			jn		resetFSM			; This should never happen! Just reset FSM and
+										; process as an ordinary command
+
+			; Check for a continuing password match
+			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02
+			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
+			cmp.b	R9,R8				; Check for a match
+			jne		resetFSM			; If mismatch, jump and reset FSM
+			tst.b	&passWordState		; Are we now at state 0?
+			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
+										;	Just exit this callback and wait for more
+			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
+			;	without using interrupts.
+			; May be important: it could be bad to have receive interrupts sending stress bytes after
+			;	this last password byte goes out; it could be interpreted as a byte to flash program!
+			clr		&CCTLr				; Clear at least the CCIE RX interrupt enable bit
+			; Important: wait for the last password byte to be echoed before disabling interrupts!
+			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
+
+			dint
+			clr		&TACTL				; Disable the timer completely; may use less power
+			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
+			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
+			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
+			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
+			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
+			mov		#InitSP,SP			; Give the BSL maximum stack
+			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
+
+resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
+
+exitOnRx	ret
+; End of DoPassword
+
+
+Halt:
+		; We need an endless loop at various times, but still want to check for the BSL password.
+		; An IMU may still be powered up by the inverter capacitors, or some charge source.
+		; So getting out of this loop may require the red button to be pushed to remove power from the
+		; IMU to reset it. After which, releasing the red button may be sufficient to restart,
+		; or you may also have to push the green button.
+		; Sending a break will also reset it.
+		_BEGIN							; Begin loop
+			call	#RxByte					; Wait for a byte
+			call	#TxByte					; Echo it
+			call	#DoPassword				; Check for a BSL password
+		_AGAIN							; Loop forever

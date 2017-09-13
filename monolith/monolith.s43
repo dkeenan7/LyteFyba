@@ -29,6 +29,8 @@
 								// Causes ID 255 (instead of ID 0) to respond to fuel gauge commands
 								// 'f' (SoC) and 'g' (DoD).
 
+ShutdownTime	EQU		15*StatusFreq	; Shut down after approx 15 seconds of stress 15.
+
 #define	HELIDON					// Defined for the prototype black monolith at Helidon
 								// which uses a modified IMU and reads negative battery and array
 								// voltages up to 203.1 V.
@@ -140,7 +142,7 @@ OV_UT		EQU		1<<4			; Stress type is OverVoltage or UnderTemp (ignore on discharg
 ALL_FULL	EQU		1<<4 | 1<<5		; When both type bits are set it means All considered Full
 									;   (reset to 0% DoD) as well as OverVoltage (ignore on discharge)
 									; When both type bits are clear it means OverTemp (never ignore)
-TYPE		EQU		$30				; Stress type field mask. Bits 4-5
+S_TYPE		EQU		$30				; Stress type field mask. Bits 4-5
 STRESS		EQU		$0F				; Stress level field mask. Bits 0-3
 
 SourceCont	EQU		RelayM			; Source contactor MOSFET and yellow LED
@@ -183,6 +185,8 @@ passWordState	DS		1			; State machine for password recogniser
 ; Charger controller variables
 
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
+shutdownTimer	DS		1			; To allow time for charging to start, when restarting
+									;   after a low voltage shutdown.
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
@@ -505,7 +509,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#16,R8				; Number of initialisation strings,
+			_DO			#15,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -536,7 +540,6 @@ PipInit: 	DB	1,$0D						; In case PIP has already received junk. Will cause a NA
 			DB	6,'PEu',$82,$C5,$0D			; Enable OL-restart (Param 6)
 			DB	6,'PEv',$B2,$A6,$0D			; Enable OT-restart (Param 7)
 			DB	6,'PDy',$70,$78,$0D			; Disable beeps when primary charge source interrupted (Param 22)
-			DB	6,'PEz',$73,$2A,$0D			; Enable fault-recording (Param 25)
 			DB	8,'PBT02',$07,$4C,$0D		; Battery type "User" (Param 5)
 ;			DB	8,'PGR01',$39,$CA,$0D		; AC input range "UPS" (170 to 280 Vac) Doesn't work with genset (Param 3)
 ;			DB	11,'PSDV52.0',$65,$A4,$0D	; Battery low cutoff voltage 52.0 V (3.25 Vpc)
@@ -862,7 +865,7 @@ DoMeasurement:
 
 				; Update local present stress type if not already set to "all considered full" above.
 				mov.b	&localStatus,R10
-				and		#TYPE,R10
+				and		#S_TYPE,R10
 				cmp		#ALL_FULL,R10
 				_IF		_NE						; If stress type is not already All considered Full
 					cmp		#2,Rtype
@@ -875,14 +878,14 @@ DoMeasurement:
 							cmp		#4,Rtype
 						_OR_IFS	_EQ						; or if type is UnderTemperature
 							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_AF bit
-						_ELSE							; Else
-							clr		R8						; Clear both type bits
+						_ELSE							; Else type is OT (3) or AL (5)
+							clr		R8						; Clear both type bits (never ignore)
 						_ENDIF
 					_ENDIF
-					movBits_B R8,#TYPE,&localStatus ; Record type for later, preserving other status bits.
+					movBits_B R8,#S_TYPE,&localStatus ; Record type for later, preserving other status bits.
 				_ENDIF
 
-				; Update worst stress for trip so far
+				; Update worst stress since last reset thereof
 				cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
 				_IF		_HS
 					tst.b	Rstrs					; and it's an actual, nonzero stress
@@ -927,8 +930,8 @@ DoMeasurement:
 					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for IMU.
 					_IF		_Z							; If we're not in charge control mode
 						call	#TxByte						; Send the status byte. Wait buffer not full
-					_ELSE								; Else we're in charger control mode
-						call	#ControlCharger				; Control a charger
+					_ELSE								; Else we're an IMU or we're a CMU in charger control mode
+						call	#ControlContactors			; Control a charger
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -979,9 +982,9 @@ meas	EQU		8				; The measurement
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step, clears R11
-			cmp		R9,Rstrs				; Is this stress worse than present stress calculated so far?
-			_IF		_LO
-				mov		R9,Rstrs				; Yes, new present stress
+			cmp		R9,Rstrs
+			_IF		_LO						; If this stress worse than present stress calculated so far
+				mov		R9,Rstrs				; Make it the new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
 			_ENDIF
@@ -1021,13 +1024,13 @@ DoStatus:
 				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
 					mov		R8,R9					; Make a copy of incoming status for tests below
 					mov.b	&localStatus,R10		; Get local status to R10
-					movBits_B	R10,#STRESS|TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
+					movBits_B	R10,#STRESS|S_TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
 					_COND
-						and		#TYPE,R9
+						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
 					_AND_IF	_NE						; If incoming was not all considered full
 						mov.b	&localStatus,R10
-						and		#TYPE,R10
+						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
 					_AND_IF	_EQ						; and if local is in bypass
 						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
@@ -1035,20 +1038,20 @@ DoStatus:
 				_ELSE							; Else incoming stress is not less than ours
 					_IF		_EQ						; If incoming stress is equal to ours
 						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
-						and		#TYPE,R10				; which won't go away when sources dropped, and
+						and		#S_TYPE,R10				; which won't go away when sources dropped, and
 						cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
 						_IF		_EQ						; If local is undervoltage
-							movBits_B	R10,#TYPE,R8		; Replace incoming type with ours (trashes R10)
+							movBits_B	R10,#S_TYPE,R8		; Replace incoming type with ours (trashes R10)
 						_ENDIF
 					_ENDIF
 					; Incoming stress not less than ours
 					mov		R8,R9					; Make a copy of incoming status for tests below
 					_COND
-						and		#TYPE,R9
+						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
 					_AND_IF	_EQ						; If incoming is all considered full
 						mov.b	&localStatus,R10
-						and		#TYPE,R10
+						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
 					_AND_IF	_NE						; and if local is not in bypass
 						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
@@ -1063,19 +1066,32 @@ DoStatus:
 				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
 				_IF		_Z							; If we're not in charge control mode
 					call	#TxByte						; Send the status byte. Wait buffer not full
-				_ELSE								; Else we're in charger control mode
-					call	#ControlCharger				; Control a charger
+				_ELSE								; Else we're an IMU or were a CMU in charger control mode
+					call	#ControlContactors
 				_ENDIF
 			_ELSE							; Else we're an IMU
-				; Process incoming status for IMU. Stress in R9, complete status in R8.
-				call	#ControlCharger			; Control PIP charging
+				; If all considered full (and no comms error), reset the coulomb counter
+				_COND							; Start short-circuit conditional
+					bit		#COM_ERR,R8				; Test the comms error bit
+				_AND_IF	_Z						; If no comms error
+					mov		R8,R10					; Make a copy of the status byte in R10
+					and		#S_TYPE,R10				; Extract the stress type bits
+					cmp		#ALL_FULL,R10
+				_AND_IF	_EQ						; And If all cells are considered full
+					; Set the discharge counter to a DoD of 0.
+					mov		#0,&discharge		; Lo word
+					mov		#0,&discharge+2		; Hi word
+					call	#UpdateSoC			; Update the pre-computed PWM counter advance value
+				_ENDIFS ; All Considered Full and no comms error
+
+				call	#ControlContactors
 			_ENDIF							; End else IMU
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
 
-ControlCharger:
+ControlContactors:
 ;
 ; Status byte is in R8. Use it to control contactors, and as input to a PI controller to control charging
 ;
@@ -1083,7 +1099,7 @@ ControlCharger:
 		push	R10
 
 		; Check if the stress type can be ignored, based on the direction of the current.
-		; But if the source contactors are off, treat it as if we are still charging, and so ignore only
+		; But if the source contactors are off, treat it as if we are charging, and so ignore only
 		; undervoltage stress.
 		mov		R8,R9					; Take a copy of the status byte in R9
 		_COND							; Begin a short-circuit conditional
@@ -1091,7 +1107,7 @@ ControlCharger:
 		_OR_ELSE _GE						; If there's 1 amp or more of charge current (positive)
 			bit.b	#SourceCont,&ContPortOUT ; Check the state of the source contactors
 		_OR_IFS	_Z						; Or if the AC and left PV source contactors are off
-			and		#TYPE,R9				; Isolate the two stress-type bits
+			and		#S_TYPE,R9				; Isolate the two stress-type bits
 			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
 		_ELSE							; Else not charging
 			cmp		#-9,&current			; Check the current, which is in tenths of an amp
@@ -1105,7 +1121,7 @@ ControlCharger:
 
 		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#5,R9					; Treat it as stress 7 (< neutral) for contactor control
+			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9
@@ -1129,8 +1145,20 @@ ControlCharger:
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
 		_IF		_GE
-			bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
+			inc.b	&shutdownTimer
+			cmp.b	#ShutdownTime,&shutdownTimer
+			_IF		_HS						; And enough time has passed
+				bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
 											; and hence also the battery contactor
+				; We need an endless loop here in case the BMU doesn't lose power.
+				; It may still be powered up by the inverter capacitors, or some charge source.
+				; This will require the red button to be pushed to remove power from the BMU
+				; to reset it. After which, releasing the red may be sufficient to restart,
+				; or you may also have to push the green.
+				br		#Halt			; Also check for BSL password
+			_ENDIF
+		_ELSE							; Else
+			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
 		; If not OV_UT && not charging && stress >= 12
@@ -1158,7 +1186,7 @@ ControlCharger:
 		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
 		;	turn off charging/source contactors
 		mov		R8,R10					; Make a copy of the status byte in R10
-		and		#TYPE,R10				; Extract the two stress type bits
+		and		#S_TYPE,R10				; Extract the two stress-type bits
 		_COND							; Begin short circuit conditional
 			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
 		_AND_IF	_NE						; If the stress is not due to UnderVoltage
@@ -1179,39 +1207,20 @@ ControlCharger:
 			_ENDIF
 		_ENDIF
 
-		; If (UV || stress <= 5) && array voltage < 140 V
+		; If stress <= 5 && array voltage < 140 V
 		;	turn on charging/source contactors
 		; We need to let it go down to stress 5 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
-		_OR_ELSE _EQ					; If the stress is due to UnderVoltage
 			cmp.b	#6,R9
-		_OR_IFS	_L						; Or incoming stress is 5 or less
+		_AND_IF	_L						; Or incoming stress is 5 or less
 			push	R8
 			call	#cellV
 			pop		R8
 			cmp		#140*10,R10
-			_IF	_LO						; And if PV array voltage is less than 140 volts
-				bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
-			_ENDIF
-		_ENDIF
+		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
+			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
+		_ENDIFS
 
-		; If all considered full (and no comms error), reset the coulomb counter
-		_COND
-			bit		#COM_ERR,R8
-		_AND_IF	_Z
-			mov		R8,R10					; Make a copy of the status byte in R10
-			and		#TYPE,R10				; Extract the stress type bits
-			cmp		#ALL_FULL,R10
-		_AND_IF	_EQ						; If all cells are considered full
-			; Set the discharge counter to the required DoD (usually 0).
-			; This was to allow for possible floating at the 25.0% DoD point where there is a
-			; step in the SoC vs voltage curve for LiFePO4. But this proved too difficult.
-			; It performs the inverse calculation to that used in the fuelGauge 'g' command.
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)<<10)&$FFFF,&discharge	; Lo word
-			mov		#(((BatCapacity*AllFullDod*StatusFreq)/607)>> 6)      ,&discharge+2 ; Hi word
-			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
-		_ENDIFS ; All Considered Full and no comms error
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
@@ -1231,7 +1240,7 @@ ControlCharger:
 				_ELSE
 					; If stress is due to undervoltage, treat it as stress 0 for charging purposes
 					mov		R8,R9					; Make a copy of the status byte in R9
-					and		#TYPE,R9				; Extract the stress type bits
+					and		#S_TYPE,R9				; Extract the stress type bits
 					cmp		#UV_AF,R9
 					_IF		_EQ						; If stress type is UnderVoltage
 						clr		R8						; Treat as a stress of zero for charging
@@ -1248,7 +1257,7 @@ ControlCharger:
 		pop		R10
 		pop		R9
 		ret
-; End of ControlCharger
+; End of ControlContactors
 
 
 PiController:
@@ -1479,48 +1488,6 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			pop			R8
 			ret
 
-
-DoPassword:
-;
-; Check for a password character in R8
-; After decrementing passWordState below, 3 = waiting for ^G, 2 = waiting for ^F, 1 = waiting for ^E,
-; 0 = waiting for ^D and erase if received. We should not receive any negative value
-; Trashes R9
-;
-			dec.b	&passWordState
-			jn		resetFSM			; This should never happen! Just reset FSM and
-										; process as an ordinary command
-
-			; Check for a continuing password match
-			mov.b	&passWordState,R9	; Password is $05 $04 $03 $02
-			add.b	#2,R9				; Expected password char is equal to &passWordState with 2 added
-			cmp.b	R9,R8				; Check for a match
-			jne		resetFSM			; If mismatch, jump and reset FSM
-			tst.b	&passWordState		; Are we now at state 0?
-			jnz		exitOnRx			; If not, this was a valid password byte, but not the last.
-										;	Just exit this callback and wait for more
-			; Jump to the code in the BSL which will erase main flash memory and wait for more bytes
-			;	without using interrupts.
-			; May be important: it could be bad to have receive interrupts sending stress bytes after
-			;	this last password byte goes out; it could be interpreted as a byte to flash program!
-			clr		&CCTLr				; Clear at least the CCIE RX interrupt enable bit
-			; Important: wait for the last password byte to be echoed before disabling interrupts!
-			call	#WaitTxComplete		; Wait for all transmission on all ports to complete
-
-			dint
-			clr		&TACTL				; Disable the timer completely; may use less power
-			mov.b	#TxPl+ActLed,&P1OUT	; Set Tx to idle, (inverted) activity LED off
-			clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
-			clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
-			bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
-			clr		&bsl2state			; Set BSL2's state variable as if it has just recognised password
-			mov		#InitSP,SP			; Give the BSL maximum stack
-			br		#jBSLErase			; Jump into BSL2 to flash erase and continue the download
-
-resetFSM	mov.b	#4,&passWordState	; No password match; reset state machine
-
-exitOnRx	ret
-; End of DoPassword
 
 			EVEN
 
