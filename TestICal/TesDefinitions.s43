@@ -252,9 +252,9 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ; Prepare to flash-program
 ; Assumes ACCVIE = NMIIE = OFIE = 0.
 ; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
-			call	#WaitTxComplete			; Ensure chars not corrupted by delays due to flash operations
-			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+;			call	#WaitTxComplete			; Ensure chars not corrupted by delays due to flash operations
 			mov		#FWKEY+FSSEL_1+FN0*(12-1),&FCTL2 ; For 4 MHz MCLK
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
 
 ; Erase appropriate info flash segment.
 			mov		#FWKEY,&FCTL3			; Clear LOCK

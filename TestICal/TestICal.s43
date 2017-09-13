@@ -60,6 +60,8 @@
 ;	They use no interrupts, since the interrupt vectors will be reprogrammed.
 ;	They use no timer; timer use requires too many 6-byte instructions.
 
+#define FAKE_NEW_CHIP 0
+
 //#define KINGSCLIFF_DCM			// Defined if for the prototype Genevo DCM at Kingsclff TAFE
 								// which uses external thermistor temperature sensors on modified CMUs.
 								// Assumes a hardware mod as described in measure.s43 ExtT: routine.
@@ -76,7 +78,7 @@
 
 #define INIT_CMD_STRING ''	 			// No initial command
 ; #define INIT_CMD_STRING 'ub'			// Move old cal data to new location and update BSL
-; #define INIT_CMD_STRING '$AD90\'fwf'	// Write a new frequency cal value then let us measure it.
+; #define INIT_CMD_STRING '$AD90\'fw'	// Write a new frequency cal value then let us measure it.
 ;										// Note that an update command 'u' is required to make it stick.
 
 ; Conditional assembly parameters which may be changed for special purposes
@@ -259,23 +261,30 @@ InterpretInit:
 ;
 ; Copy calibration data into RAM
 ;
+#if !FAKE_NEW_CHIP
 			_CASE
 			;_OFb	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
 			;_ENDOF
+#if 1
 			_OFb	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
 				; The RAM image has the same layout as current version data, so we use a block move
 				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
+#endif
 			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
-					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
+				_DO		#infoDataEnd-infoVoltCal,R8 ; Prepare to move ~8 bytes
+					mov.b	oldInfoDataStart-1(R8),ramVoltCal-1(R8) ; Move 1 byte
 				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				mov.w	#1800,&ramCapacity			; 180 amp-hours
+				mov.w	#740,&ramCellRes			; 740 micro-ohms
+				call	#_updateInfoFlash
 			_ENDOF
 			_OFb	#$FF,&infoDataVers
+#endif
 				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
 				; version number (way < $80).
@@ -295,6 +304,8 @@ newChip:
 #ifdef	KINGSCLIFF_DCM
 				mov.b	#$00,&ramThermCal
 #endif
+				call	#_updateInfoFlash
+#if !FAKE_NEW_CHIP
 			_ENDOF
 			; default action if none of the above apply
 #if !G2553
@@ -309,6 +320,7 @@ newChip:
 				mov		#b'01010101,rERR			; 4 flashes
 				call	ErrorFlash					; Infinite loop, never returns
 			_ENDCASE
+#endif
 
 
 #if G2553
