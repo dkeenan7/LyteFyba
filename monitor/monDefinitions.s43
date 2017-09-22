@@ -6,7 +6,7 @@
 												; and TestICal
 
 ; checKsumming ( -- )						; Toggle bChecksumming
-			; kk to turn checksumming off, k to turn it on (irrespective of current state)
+			; kk to turn checksumming off, k to turn it on (irrespective of present state)
 			xCODE	'k',checksumming,_checksumming
 			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
 			ret
@@ -17,16 +17,43 @@
 			movBits_B	Rtos,#bNotSendStatus,&monFlags ; Move only bNotSendStatus from Rtos to monFlags
 			ret
 
+#if 0		// Not used now, and clashes with calibrate command
 ; Charging ( boolean -- )				; 1 when charging or regenning, 0 when driving
-			; This lets the CMU include undertemp and exclude undervoltage as stress when charging
+			; This lets the CMU include undertemperature and exclude undervoltage as stress when charging,
+			; and when masterless-charging is enabled via the 'o' command, this command
+			; start and stops charging.
 			xCODE	'c',Charging,_Charging
 			allBitsIfNZ	Rtos,Rtos			; IF Rtos is zero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#bCharging,&monFlags ; Move only bCharging from Rtos to monFlags
 			ret
+#endif
+
+#if MASTERLESS_CHARGING
+; ChargerC(o)ntrol ( voltMin voltMax -- )
+			; This command only makes sense for the last CMU/BMU in the string, with an adapter
+			; from its fibre-optic output to the serial input of a PIP inverter/charger.
+			; If voltMax is non-zero, whenever you get a '1c' command, run a PI controller on stress
+			; to control a PIP inverter/charger at 2400 baud.
+			; If voltMax is zero, disable charger control and go back to status sending at 9600 baud.
+			; voltMin is minimum charger voltage in tenths of a volt.
+			; voltMax is maximum charger voltage in tenths of a volt.
+			; e.g. 480 584o<cr> for charger control between 48.0 and 58.4 volts, the PIP's maximum range
+			; 0o<cr> to go back to status sending.
+			xCODE	'o',ChargerControl,_ChargerControl
+			mov		Rtos,&chargerVoltMax		; Set the maximum charger voltage
+			tst		Rtos
+			_IF		_Z							; If the maximum is zero
+				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
+			_ELSE
+				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
+				mov		Rsec,&chargerVoltMin		; Set the minimum charger voltage
+			_ENDIF
+			ret
+#endif // MASTERLESS_CHARGING
 
 ; Rx state ( -- )
-			xCODE	'r',RxState,_RxState 	; Note: 'r' is read calibration value in TestICal
-			mov		#'r',Rthd				; Type is Rx state
+			xCODE	'R'|'x' <<8,RxState,_RxState ; 'Rx' collides with 'Rp' 'R0' 'Jx' 'Jp' 'J0'
+			mov		#'R'|'x'<<8,Rthd		; Type is Rx state
 			mov.b	&ticksSinceLastRx,Rsec	; Result in ticks
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
@@ -39,15 +66,29 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			br		#_prettyPrint			; Tail-call pretty-print and return
 
 ; Stress ( -- )								; Report local stress
-			xCODE	'p',Stress,_Stress		; 'p' for pain since we've already used 's' for select
-			mov		#'p',Rthd				; Type is stress
+			xCODE	'j',Stress,_Stress		; 'j' for just local stress (not the full status)
+			mov		#'j',Rthd				; Type is stress
 			mov.b	&localStatus,Rsec		; Get local status
-			bit.b	#bModbusOutput,&interpFlags
-			_IF		_Z						; If not modbus
-				and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
-			_ENDIF
+			and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+
+; Status ( -- )								; Report global status if a BMU, else local status
+			xCODE	'p',Status,_Status		; 'p' for pain since we've already used 's' for select
+			push.b	&interpFlags			; Save present number base
+			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
+			mov		#'p',Rthd				; Type is stress
+			cmp.b	#255,&ID
+			_IF		_EQ						; If BMU
+				mov.b	&globalStatus,Rsec		; Get global status
+			_ELSE
+				mov.b	&localStatus,Rsec		; Get local status
+			_ENDIF
+			and.b	#$7F,Rsec				; Clear the high bit
+;			mov		#3,Rtos					; Print 3 digits
+			call	#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
+			ret
 
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
@@ -55,7 +96,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			_IF		_LO
 				ret
 			_ENDIF
-			push.b	&interpFlags				; Save current number base
+			push.b	&interpFlags				; Save present number base
 			bic.b	#bHexOutput,&interpFlags	; Set to decimal output
 
 			DELAY_IF_NEEDED					; Allow time for CR to be echoed upstream if needed
@@ -121,7 +162,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 
 			call	#TxEndOfPacket
 
-			pop.b	&interpFlags			; Restore number base
+			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
 ColonQspace	DB		3, ':q '				; First byte is length of following string
 			ALIGN	1
@@ -180,9 +221,9 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 
 		mov		Rthd,Rsec			; Put ID into Rsec
 ;		mov		#3,Rtos				; Use a 3 digit field width
-		call	#_emitNum3			; Transmit the ID as text in the current number base
+		call	#_emitNum3			; Transmit the ID as text in the present number base
 
-		mov		#'\'',R8			; Transmit a tick
+		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'
@@ -193,7 +234,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 
 		pop		Rsec				; Pop the min value
 		pop		Rtos				; Pop the field width
-		call	#_emitNum			; Transmit the value as text in the current number base
+		call	#_emitNum			; Transmit the value as text in the present number base
 
 		mov		#'<',R8				; Transmit a "<"
 		call	#TxByteCk
@@ -222,7 +263,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 			_ENDOF
 			_OF #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
-				and.b	#$0F,R10
+				and.b	#STRESS,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF #'q',Rsec
@@ -243,10 +284,9 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		push	Rsec				; Save type
 
 		mov		Rthd,Rsec			; Put ID into Rsec
-;		mov		#3,Rtos				; Use a 3 digit field width
-		call	#_emitNum3			; Transmit the ID as text in the current number base
+		call	#_emitNum3			; Transmit the ID as text in the present number base
 
-		mov		#'\'',R8			; Transmit a tick
+		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
 
 		pop		R8					; Pop and transmit the type, 'v' or 't'
@@ -257,10 +297,324 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 
 		pop		Rsec				; Pop the max value
 		pop		Rtos				; Pop the field width
-		call	#_emitNum			; Transmit the value as text in the current number base
+		call	#_emitNum			; Transmit the value as text in the present number base
 
 		mov		#'>',R8				; Transmit a ">"
 		call	#TxByteCk
 
 		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;		ret
+
+
+; Some characters need to be translated into RAM adresses of calibration values
+		ALIGN	1
+calAddressTable
+		DB		'I' , infoBoltMiCal	& $7F | $80
+		DB		's' , infoTempSlope	& $7F | $80
+		DB		'O' , infoBoltPlOff	& $7F | $00
+		DB		'o' , infoCellOff	& $7F | $00
+		DB		'c' , infoCapacity	& $7F | $80
+		DB		'r' , infoCellRes	& $7F | $80
+		DB		'V' , infoBoltPlCal	& $7F | $80
+		DB		'v' , infoCellCal	& $7F | $80	; High bit set to indicate word quantity,
+		DB		't' , infoTempOff	& $7F | $00	; clear for byte quantity
+		DB		'n' , infoBoltMiOff	& $7F | $00
+		DB		'i' , infoID		& $7F | $00
+		DB		'a' , infoAdcTimIdx & $7F | $00
+		DB		'd' , infoDataVers	& $7F | $00	; Data vers is not for writing
+; Zero must not appear in the table as it is used to represent "unrecognised".
+sizeCalAddressTable	EQU	$-calAddressTable
+
+;
+; TranslateToCalAddr ( ch -- addr )
+;
+TranslateToCalAddr:
+		; Do the calibration address translations using the table above
+		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
+		_BEGIN				; Begin loop
+			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
+			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
+			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+				decd	R9			; Decrement loop-counter/table-index by 2
+		_UNTIL	_Z			; Until loop counter is zero
+		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
+			_ELSE				; Else there is a match so
+				swpb	R10			; Get the high byte from the table
+				mov.b	R10,Rtos	; Substitute it for the address character
+			_ENDIF				; Endif match
+		ret
+
+;
+; Calibrate ( n ch --- )
+; Perform a calibration whose type is ch ('v for voltage etc) and value is n
+; For the voltage scale and offset calibrations, we want to apply the other correction (i.e. scale if
+; we are calibrating offset, and vice versa) to get the best correction so far. This also allows for
+; successive improvement calibration if that turns out to be useful.
+;
+			xCODE	'c',calibrate,_calibrate
+			_CASE
+
+			_OFb		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
+				mov		#BoltVMiChan<<12,R8
+				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
+				mov.b	&BoltMiOff,R9				; Subtract the existing offset (signed byte)
+				sxt		R9
+				sub		R9,R10
+				sub		#2046,R10					; Zero volts is a 2046 reading
+
+				; Multiply Rsec (signed) by 1.364
+				push 	R10
+				mov		Rsec,R8
+				mov		#44696,R9					; ~= 1.364 * 2^15
+				call	#MMStar						; Signed R10:R9 = signed R8 * unsigned R9
+				add		#$4000,R9					; Add half the divisor for rounding
+				adc		R10
+				rla		R9							; To divide by 2^15, mult by 2 and keep the hi word
+				rlc		R10
+				mov		R10,Rsec
+				pop		R8
+
+				sub		Rsec,R8						; Subtract required reading * 1.364
+				neg		R8
+				_COND								; Start a short-circuit conditional
+					cmp		#-$7F,R8					; Compare with -$7F
+				_IF_OR		_L						; If < -$7F
+					cmp		#$80,R8					; Compare with $80
+				_OR_IFS		_GE						; or >= $80
+					mov		#$80,R8					; Use $80 to indicate "not calibrated"
+				_ENDIF
+				mov			#0,R9				; Save the bolt-/current offset calibration value
+				mov			#infoBoltMiOff,R10
+				call		#UpdFlash
+			_ENDOF
+
+			_OFb	#'i',Rtos
+				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
+				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
+				; and responds with the ID _after_ the last ID.
+				cmp.b	#255,&ID
+				_IF		_EQ					; But if we're a BMU,
+					ret							; silently ignore; BMUs have to stay ID=255
+				_ENDIF
+				bit.b	#bDontEcho,&interpFlags
+				_IF		_NZ					; If the dont-echo flag is set
+					; Save our new ID to info-flash
+					mov.b	Rsec,R8				; New value
+					mov		#0,R9				; Size = byte
+					mov		#infoID,R10			; Address of info-flash item
+					call	#UpdFlash
+
+					; Send another setIDs command with its parameter incremented by one.
+					mov		Rsec,Rtos
+					inc		Rtos				; Increment the parameter
+					DPUSH	#3					; Use a 3 digit field width
+					call	#_emitNum			; Transmit the number as text in the current number base
+
+					mov		#TickIcStr,R10			; Transmit a 'ic
+					call	#TxStringCk
+					call	#TxEndOfPacket
+				_ELSE						; Else dont-echo flag is clear
+					; Send \? to remind user that Ctrl-S needs to be sent before an 'ic command.
+					jmp		EmitQmark
+				_ENDIF
+				ret			; Don't fall through to _readCalValue
+			_ENDOF
+;
+; Default case
+				jmp		EmitQmark					; Unknown calibration type character
+
+			_ENDCASE
+
+			;jmp		_readCalValue			; Display the value just calibrated and return
+												;	(by falling through)
+			;
+			; Keep 'c' command (above) and 'r' command (below) together
+			; That is, don't insert a new command here
+			;
+;
+; Read calibration value ( ch --- )
+; Calibration type (e.g. 'v' for cell Voltage) in ch
+			xCODE	'r',readCalValue,_readCalValue
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
+			bic.b	#$80,Rsec
+			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
+			tst.b	Rtos
+			_IF		_NZ						; If not zero (zero means "unrecognised")
+				_IF		_NN						; If high bit clear
+					mov		#3,Rtos					; Display 3 digits
+					mov.b	@Rsec,Rsec				; Get byte sized cal value
+				_ELSE							; Else high bit set so
+					mov		#5,Rtos					; Display 5 digits
+					cmp		#infoCapacity,Rsec		; Test for battery capacity
+					mov.w	@Rsec,Rsec				; Get word sized cal value
+					_IF		_EQ
+						mov		Rsec,R9
+						clr		R10
+						mov		#10,R8				; Divide by 10 to bring to whole Ah
+						call	#UMSlashMod			; R10:R9 / R8 -> R9
+						mov		R9,Rsec
+					_ENDIF
+				_ENDIF							; Endif high bit
+			_ELSE 							; Else is zero for "unrecognised"
+EmitQmark
+				mov		#QuestionStr,R10
+				br		#TxString			; Print \? <ret> and exit
+			_ENDIF							; Endif unrecognised
+			mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
+			call	 	#_prettyPrint
+			ret
+
+QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
+TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
+
+
+;
+; Write calibration value ( n ch --- )
+;
+; n is value to write. ch is calibration type (e.g. 'v for cell Voltage).
+;
+; Note: For the 'rw command, a ballpark estimate of LiFePO4 resistance in microohms would be 144000
+; divided by the capacity in amp hours.
+; Alternatively cell resistance can be measured as the change in battery voltage
+; divided by the step change in current that caused it, divided by the number of cells.
+; To obtain "HiTempCellRes", the measured cell resistance should be divided by
+; 1 + 2^(1-T/10) where T is the cell temperature at which the measurement was made.
+; e.g. at 20 degC, divide the measurement by 1.5 to obtain HiTempCellRes.
+; e.g. at 25 degC, divide the measurement by 1.35 to obtain HiTempCellRes.
+; e.g. at 30 degC, divide the measurement by 1.25 to obtain HiTempCellRes.
+
+			xCODE	'w',writeCalValue,_writeCalValue
+		_COND
+			cmp.b	#'i',Rtos					; Write an ID ?
+			_IF		_EQ
+				cmp.b	#255,&ID					; BMUs have to stay ID=255
+				bit		#2,SR						; Invert the Z (EQ) bit (can't use xor)
+			_ENDIF
+		_OR_ELSE	_EQ
+			cmp.b	#'r',Rtos					; Cell internal resistance
+		_OR_ELSE	_EQ
+			cmp.b	#'c',Rtos					; Battery capacity
+		_OR_ELSE	_EQ
+			cmp.b	#'n',Rtos					; Bolt- or Shunt offset
+		_OR_IFS 	_EQ
+			call 	#TranslateToCalAddr
+			mov.b	Rtos,R10					; Convert to info flash address in R10
+			bic.b	#$80,R10
+			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
+			cmp		#infoCapacity,R10			; Check for battery capacity
+			_IF		_EQ							; If so
+				rla		Rsec						; Multiply given value by 10
+				mov		Rsec,R9						; to bring to tenths of an Ah
+				rla2	Rsec						; *8
+				add		R9,Rsec						; *10
+			_ENDIF
+			tst.b	Rtos
+			_IF		_NZ						; If not zero for "unrecognised"
+				_IF		_NN						; If high bit clear
+					mov		#0,R9					; Indicate byte size
+				_ELSE							; Else high bit set so
+					mov.w	#1,R9					; Indicate word sized cal value
+				_ENDIF							; Endif high bit
+				mov		Rsec,R8					; Data to be written
+				call	#UpdFlash			; Write new value to flash
+			_ELSE 							; Else is zero for "unrecognised"
+				jmp		EmitQmark
+			_ENDIF							; Endif unrecognised
+			ret
+		_ELSE							; Not a valid ch for monolith 'w' command
+			jmp		EmitQmark
+		_ENDIF
+
+
+;
+;
+; Update a single word or byte into info-flash. Note that this is NOT a command definition;
+; we can't have a bare "u" command in monolith, and there are no RAM copies to update from.
+; R8 has new info value
+; R9 is 1 for word, 0 for byte
+; R10 has address of the flash word to be written
+; Trashes R11, R12
+;
+			; Prepare to flash-program
+			; Assumes ACCVIE = NMIIE = OFIE = 0.
+			; FSSEL: 1=MCLK FN: 2=divide by 3, 11=divide by 12. Must end up in the range 257-476 kHz
+
+UpdFlash:
+			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
+			mov		SP,R11					; Copy start of buffer to R10
+			clr		R12						; Loop counter
+			_BEGIN
+				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
+				inc		R11
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			add		SP,R10					; R10 points infoDataStart past RAM equivalent
+			tst		R9
+			_IF		_NZ
+				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
+			_ELSE
+				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
+			_ENDIF
+
+			mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Hold Watchdog Timer
+			mov		#FWKEY+FSSEL_1+FN0*(MckPerFTGck-1),&FCTL2 ; Divides MCLK by FN+1
+
+			; Erase appropriate info flash segment.
+			mov		#FWKEY,&FCTL3			; Clear LOCK
+			mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
+
+			rra		&infoDataStart			; Dummy write: Start of cal data in info-flash
+
+			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
+
+			clr		R12						; Loop counter
+			mov		SP,R10					; Point to start of RAM copy
+			_BEGIN
+				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
+				inc		R12
+				cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ						; Loop until ramDataEnd
+
+			mov		#FWKEY,&FCTL1			; Done. Clear WRT
+			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
+			mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Clear and restart watchdog timer
+			;
+			; Check that the flash programming worked
+			;
+			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
+			mov		#1+4+1,R11				; String length
+			_IF    _NE
+				mov		#sFail,R10
+			_ELSE
+				mov		#sDone,R10
+			_ENDIF
+			add		#infoDataEnd-infoDataStart,SP ; Deallocate stack buffer; OK to modify flags
+			br		#TxBytes			; Send string pointed to by R10, len R11. Trashes R8-R11
+			;ret
+
+sFail		db		'\\FAIL\r'
+			ALIGN	1
+sDone		db		'\\Done\r'
+			ALIGN	1
+
+;
+; Compare the ~20 bytes of calibration data at 2(SP) with what's at infoDataStart (in info-flash).
+; Returns with Z set if OK, Z clear if not.
+; Trashes R10, R12
+compareInfoFlash:
+			mov		SP,R10
+			incd	R10					; Skip return address
+			clr		R12					; Loop counter
+			_BEGIN
+				cmp.b	@R10+,infoDataStart(R12)
+				_WHILE	_EQ ; _Z
+					inc		R12
+					cmp		#infoDataEnd-infoDataStart,R12
+			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+				_ENDIF
+			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
+
