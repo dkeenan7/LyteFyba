@@ -14,6 +14,7 @@ _CS5	SET 0
 _CS6	SET 0
 _CS7	SET 0
 _CS8	SET 0
+_CS_COUNT SET 0
 
 _CS_PUSH MACRO arg
 _CS8	SET _CS7
@@ -24,6 +25,7 @@ _CS4	SET _CS3
 _CS3	SET _CS2
 _CS2	SET _CS_TOP
 _CS_TOP SET arg
+_CS_COUNT SET _CS_COUNT + 1
 		ENDM
 
 _CS_DROP MACRO
@@ -35,12 +37,21 @@ _CS5	SET _CS6
 _CS6	SET _CS7
 _CS7	SET _CS8
 _CS8	SET 0
+_CS_COUNT SET _CS_COUNT-1
 		ENDM
 
 _CS_SWAP MACRO
 _CS_TOP SET _CS_TOP^_CS2
 _CS2	SET _CS_TOP^_CS2
 _CS_TOP SET _CS_TOP^_CS2
+		ENDM
+
+; Check that the control flow stack is empty and has not underflowed.
+; Use at end of program, or anywhere thatcontrol flow structures are all complete.
+_CS_CHECK MACRO
+#if	_CS_COUNT != 0
+#error "Control flow stack is unbalanced"
+#endif
 		ENDM
 
 ; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.

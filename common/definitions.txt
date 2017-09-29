@@ -19,7 +19,7 @@ t l Name or description
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral (tick)
-# # Echo the SVN revision numbers
+# # revision numbers of main program, bootstrap loader and hardware
 & 	RxState Ticks since (&ince?) last received char. Rx in trunk
 ` ` execute (tock, inverse of tick)
 ? ? get byte (peek byte)
@@ -148,7 +148,7 @@ X X e(X)clude     (single-CMU ignore mode)
 \ \ exit or comment
 k   chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
 K   KillStatusSending, 1K to kill status sending, 0K to restore it
-# # Echo the SVN revision numbers
+# # revision numbers of main program, bootstrap loader and hardware
 
 q   QueryWorstStress (monitor only. 'q' is Pee(Q)Word in TestICal)
 {   resetWorstStress :-{

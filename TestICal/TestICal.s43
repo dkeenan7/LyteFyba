@@ -501,7 +501,7 @@ PizTiovIsr:
 ; ----------------------------------------------------------------------------
 ; Inactive copy of bootstrap loader (BSL2b)
 ;---------------------------------------------------------------------------------
-#include "../common/BSL2.s43"				// Include macro for bootstrap-loader and interrupt vectors
+#include "BSL2Macro.s43"				// Include macro for bootstrap-loader and interrupt vectors
 ; This copy will be relocated to the end of main-flash at $FE00-$FFFF by the 'b' command (updateBSL2).
 ; Instantiate this copy of the BSL2 macro with different external labels from the main copy at $FE00.
 				BSL2MACRO	jBSLb, jBSLEraseb, jReadByteb, jWriteByteb, jBslRevisionb
@@ -550,8 +550,10 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ; Active copy of BSL2 in the last main-flash segment, not sent when bootstrap loaded, only when JTAGed.
 ; Updated by TestICal 'b' command, or by JTAGing.
 				ORG			BSL2_START		; Start of last main-flash segment
-; Instantiate the BSL2 macro with the standard external labels
-				BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte, jBslRevision
+; Instantiate the BSL2 with the standard external labels
+#include "../common/BSL2.s43"			// Include the bootstrap-loader and the interrupt vectors
 				ORG		$FFFE			; The reset vector
 				DW		jBSL
+
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END

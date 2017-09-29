@@ -575,9 +575,6 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 		_ENDIF
 
 
-; These are actually locals to the BSL2 macro
-MClock		EQU		4000000			; MCLK (CPU clock) frequency in hertz (=DCOCLK/2)
-MckPerFTGck EQU     (MClock+165000)/330000  ; MCLK cycles per Flash Timing Generator cycle
 ;
 ; Update a single word or byte into info-flash. Note that this is NOT a command definition;
 ; we can't have a bare "u" command in monolith, and there are no RAM copies to update from.
