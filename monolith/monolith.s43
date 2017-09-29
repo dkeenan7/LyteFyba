@@ -55,6 +55,7 @@ LinkCal		EQU	infoLinkCal
 			NAME	main		; Module name
 			PUBLIC	main		; Make the "main" label visible for IAR debugger
 
+ProductCode	EQU		'L'				; T for TestICal, R for monitoR, L for monoLith, W for Wmonolith
 
 ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 									; commands. TestICal uses the ram copy
@@ -1527,11 +1528,11 @@ ProgChecksum	DB		$FF				; Placeholder for checksum added by CMUsend or SendProg
 ;---------------------------------------------------------------------------------
 ; Bootstrap loader, in the last main-flash segment
 ;---------------------------------------------------------------------------------
-#include "../common/BSL2.s43"	// Include the macro for the bootstrap-loader and the interrupt vectors
 				ORG		$FE00			; Start of last main-flash segment
-; Instantiate the BSL2 macro with the standard external labels
-BSL2:			BSL2MACRO	jBSL, jBSLErase, jReadByte, jWriteByte
+; Include the bootstrap loader
+#include "../common/BSL2.s43"			// Include the bootstrap-loader and the interrupt vectors
 				ORG		$FFFE			; The reset vector
 				DW		jBSL			; Reset to BSL2 in case there is a crash
 
+				_CS_CHECK				; Check that the control-flow stack is balanced
 				END
