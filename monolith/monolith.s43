@@ -23,6 +23,7 @@
 #define		CONFIG			OFF_GRID	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
 #define		QUIET			1			// 1 for BMU to tell CMUs not to beep
 #define 	LOW_LOW_CUTOFF	1			// 1 for 2.8 V cutoff (2% SoC), 0 for 3.08 V cutoff (5% SoC)
+#define		chargerCurrMax	60			// 60 or 80 A charger limit, depending on PIP-4048 model
 ;-----------------------------------------------------------------------------------------------------
 
 #define MONOLITH				// For some conditional assembly in otherwise common code.
@@ -227,8 +228,8 @@ shutdownTimer	DS		1			; To allow time for charging to start, when restarting
 pipInitPtr		DS		2			; Pointer to next PIP init string to send, or zero (NULL) if none
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
 chargerVoltMax	DS		2			; Charger voltage maximum (tenths of a volt). Set by 'o' command.
-;piPrevOutput	DS		2			; State of PI controller
-;piPrevError	DS		2			; State of PI controller
+piPrevOutput	DS		2			; State of PI controller
+piPrevError		DS		2			; State of PI controller
 prevBulk		DS		2			; Previous Bulk/Absorb voltage (tenths of a volt) sent to PIP.
 prevFloat		DS		2			; Previous Float voltage (tenths of a volt) sent to PIP.
 ;lastWasFloat	DS		2			; True (nonzero) if last voltage command sent to PIP was for float.
@@ -1433,9 +1434,11 @@ ControlContactors:
 						and		#STRESS,R8				; Use the given stress value (0-15)
 					_ENDIF
 				_ENDIF
-				; Disabled until a version can be written without so much busy-waiting
-				; call	#ChgController			; Call charger controller with R8 as input
-				; call	#SendChargerPackets		; Send packets to charger to set voltage
+#if 0			// Untested code
+				;call	#ChgController			; Call charger controller with R8 as input
+				call	#PiController			; Call PI charger controller with R8 as input
+				call	#SendChargerPackets		; Send packets to charger to set voltage
+#endif
 			_ENDIF ; Every fourth tick
 		_ENDIF ; bCharging
 #endif
@@ -1530,7 +1533,7 @@ DoPrecharge:
 #if 0
 PiController:
 ;
-; A PI controller whose input and output are in R8
+; A PI voltage controller whose input and output are in R8
 ; Input range is 0 to 15 (stress levels). Setpoint is 7.
 ; Output range is chargerVoltMin to chargerVoltMax (tenths of a volt).
 ;
@@ -1559,6 +1562,52 @@ PiController:
 				mov		R9,Routput
 			_ELSE
 				mov		&chargerVoltMax,R9
+				rla2	R9						; For effective reduction of Kp and Ki
+				cmp		R9,Routput
+				_IF		_GE
+					mov		R9,Routput
+				_ENDIF
+			_ENDIF
+
+			mov		Rerror,&piPrevError		; prev_error = error
+			mov		Routput,&piPrevOutput	; prev_output = output
+			rra2	Routput					; For effective reduction of Kp and Ki
+			ret
+; End of PiController
+#endif
+
+#if 1
+PiController:
+;
+; A PI curent controller whose input and output are in R8
+; Input range is 0 to 15 (stress levels). Setpoint is 7.
+; Output range is 0 to #chargerCurrMax (whole amps).
+;
+#define Rerror R10			// Error register
+#define Rderiv R9			// Derivative register
+#define Routput R8			// Output register
+			mov		#7,Rerror				; error = setpoint - measurement
+			sub		R8,Rerror
+			mov		Rerror,Rderiv			; deriv = error - prev_error
+			sub		&piPrevError,Rderiv
+
+			mov		&piPrevOutput,Routput	; output = prev_output + Kp * deriv + Ki * error
+			; Insert rla Rderiv here to change Kp
+			rla3	Rderiv					; Kp = 4
+			add		Rderiv,Routput
+			mov		Rerror,R9				; Overwrites unused Rderiv
+			; Insert rla R9 here to change Ki
+			add		R9,Routput				; Ki = 1
+
+			mov		#0,R9					; Minimum output current. Keep like the voltage version
+			rla2	R9						; The combination of this rla2, the rla2 below,
+											; and the rra2 at the end, have the effect of dividing
+											; bit Kp and Ki by 4. So they are effectively 1 and 1/4.
+			cmp		R9,Routput				; Clamp output between chargerVoltMin and chargerVoltMax
+			_IF		_L
+				mov		R9,Routput
+			_ELSE
+				mov		#chargerCurrMax,R9
 				rla2	R9						; For effective reduction of Kp and Ki
 				cmp		R9,Routput
 				_IF		_GE
@@ -1618,7 +1667,7 @@ ChgController:
 			_ENDIF
 			ret
 
-#if 0			// This is the version that goes with the PI controller
+#if 0			// This is the version that goes with the PI voltage controller
 SendChargerPackets:
 ;
 ; Send charger float and bulk command packets (in the right order)
@@ -1716,10 +1765,7 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 			call	#DelayMs
 
 			ret
-
 ; End of SendChargerPackets
-#endif
-
 
 SendChargerPackets:
 			tst.b	&lastChgChanged
@@ -1743,6 +1789,7 @@ BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
 
 
+; Needed by the PI voltage controller
 SendPipPacket:
 ;
 ; Send a PIP command packet`
@@ -1790,6 +1837,67 @@ SendPipPacket:
 			ClearWatchdog
 
 			ret
+
+
+#endif
+
+#if 1			// This is the version that goes with the PI current controller
+SendChargerPackets:
+;
+; Send charger dynamic MNCHGC command packets
+; with current from R8 (in whole amps)
+;
+; Trashes R8 thru R11
+;
+; Send PBFTvv.v<crc16><cr> and PCVVww.w<crc16><cr>
+;	where vv.v is the Float voltage and ww.w is the Bulk voltage.
+; Send PBFT0ccc<crc16><cr> where ccc is the desired current plus 500
+
+			mov			#MunchCmd,R10		; Send a MNCHGC current packet
+			; Send the PIP command
+			push		R8					; Save the current (in whole amps) on the stack
+			call		#TxStringCrc		; Send string pointed to by R10. Trashes R8 thru R11
+
+			ClearWatchdog
+
+			mov			#0,R10
+			pop			R9					; Pop current to R9
+			add			#500, R9			; Add 500 to make it dynamic
+			mov			#100,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov			R9,R8
+			add			#'0',R8
+			push		R10					; Save remainder
+			call		#TxByteCrc			; Send the hundreds digit of argument (trashes R8 thru R10)
+
+			pop			R9					; Remainder to R9
+			mov			#0,R10
+			mov			#10,R8
+			call		#UMSlashMod 		; R10:R9 / R8 -> R9, remainder R10. Clears R11
+			mov.b		R9,R8
+			add.b		#'0',R8
+			push		R10					; Save remainder
+			call		#TxByteCrc			; Send the tens digit of argument (trashes R8 thru R10)
+
+			ClearWatchdog
+
+			pop			R8					; Remainder to R8
+			add.b		#'0',R8
+			call		#TxByteCrc			; Send the units digit of argument (trashes R8 thru R10)
+
+			call		#TxCrc				; Send the two bytes of CRC and clear it
+			mov.b		#$0D,R8
+			call		#TxByte				; Send the carriage return without accumulating CRC
+
+			ClearWatchdog
+
+			ret
+
+MunchCmd	db			7, 'MNCHGC0'		; Always send to the master for now
+
+; End of SendChargerPackets
+#endif
+
 
 ;
 ; Update the SoC meter's advance value (so the SoC meter will reflect a change made to the discharge
