@@ -963,7 +963,8 @@ GetContactorBitmask:
 ;
 			xCODE	'L',liven,_liven
 			call	#GetContactorBitmask
-			bis.b	Rtos,&P3OUT
+			bis.b	Rtos,&P3DIR		; Restore automatic control
+			bis.b	Rtos,&P3OUT		; Turn it on (possibly only momentarily)
 			ret
 
 ;
@@ -972,7 +973,8 @@ GetContactorBitmask:
 ;
 			xCODE	'U',unliven,_unliven
 			call	#GetContactorBitmask
-			bic.b	Rtos,&P3OUT
+			bic.b	Rtos,&P3OUT		; Turn it off
+			bic.b	Rtos,&P3DIR		; Prevent automatic control from turning it back on
 			ret
 
 ;
