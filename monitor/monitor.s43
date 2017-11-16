@@ -73,6 +73,7 @@ UV_STEP		EQU		-80		; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
+BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
@@ -95,6 +96,7 @@ UV_STEP		EQU		-50			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
+BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
@@ -617,7 +619,7 @@ DoMeasurement:
 				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
 				tst.b	&beenBypassing
 				_IF		_NZ						; If we've been bypassing in the last 5 minutes
-						sub		#10,R10				; Subtract 10 degC from the temp used for OT stress
+						sub		#BypTempQuota,R10	; Subtract 12 degC from the temp used for OT stress
 				_ENDIF							; End if
 
 				push	R10						; Measurement for overtemperature stress calc
