@@ -97,6 +97,7 @@ UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout source contactors at 57 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
+BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
 // UT setpoint is 10 to 8 degC. Alarm at 2 degC. Source contactor dropout at 0 degC.
 UT_ZERO		EQU		24			; Threshold in degrees C between UT stress levels -1 and 0
@@ -119,6 +120,7 @@ UV_STEP		EQU		-50			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
+BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
@@ -129,8 +131,8 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #endif
 
-; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
-									;	3408 mV. Stress 6/7 threshold
+; FULLLEV	EQU	OV_ZERO+8*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
+									;	3448 mV. Stress 7/8 threshold
 ; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
 
 MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
@@ -938,7 +940,7 @@ DoMeasurement:
 				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
 				tst.b	&beenBypassing
 				_IF		_NZ						; If we've been bypassing in the last 5 minutes
-						sub		#10,R10				; Subtract 10 degC from the temp used for OT stress
+						sub		#BypTempQuota,R10	; Subtract 10 degC from the temp used for OT stress
 				_ENDIF							; End if
 
 				push	R10						; Measurement for overtemperature stress calc
@@ -1306,9 +1308,9 @@ ControlContactors:
 			_ENDIF							; Endif >= 1 amp discharge
 		_ENDIF							; Endif >= 1 amp charge or source contactors off
 
-		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
+		; Treat ignorable stress as 6 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
+			mov		#6,R9					; Treat it as stress 6 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9
@@ -1379,12 +1381,12 @@ ControlContactors:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 5 && array voltge < 140 V
+		; If stress <= 6 && array voltge < 140 V
 		;	turn on charging/source contactors
         ; We need to let it go down to stress 6 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#6,R9
-		_AND_IF	_L						; And if incoming stress is normal
+			cmp.b	#7,R9
+		_AND_IF	_L						; And if incoming stress is < 7
 			push	R8
 			call	#cellV
 			pop		R8
