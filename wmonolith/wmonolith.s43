@@ -79,7 +79,7 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
-// OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 57 degC.
+// OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
 BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
@@ -116,9 +116,9 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3000		; mV difference between one AL stress level and the next
 #endif
 
-; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
-									;	3408 mV. Stress 6/7 threshold
-; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
+; FULLLEV	EQU	OV_ZERO+8*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
+									;	3448 mV. Stress 7/8 threshold
+; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
 
 MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
 MinContStress EQU	12			; Minimum stress to drop out source or load contactors (BMU only)
@@ -222,7 +222,7 @@ ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a 
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
-smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
+smoothStressX4	DS		1			; Low pass filtered stress used by BMU to control contactors
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
@@ -357,14 +357,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			mov.w	#InitSP,SP				; Initialize stackpointer, likely not necessary
 
-			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
+			; Clear all variables in RAM except resetBuffer and BMU's fuel-gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
 			; In other words: erase from comNoEraseEnd up to but not including eraseEnd
 			_DO		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
 			_mLOOP	#2,R8
 
-			; Don't initialise system clock registers. BSL2 and the FFL have set them.
+			; Don't initialise system clock registers. BSL2 and the FLL have set them.
 
 			cmp.b	#255,&ID					; Is this a BMU?
 			_IF		_EQ
@@ -504,7 +504,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontEcho,&interpFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
 
-; PWM initialisation
+; SoC initialisation
 			call	#UpdateSoC					; Initialise the pre-computed counter advance value
 
 ;
@@ -550,7 +550,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				call	#RxByteNoWait			; Check if received CMU data
 				_IF		_NZ
 					tst.b	R8
-					_IF		_NN
+					_IF		_NN						; If an ordinary (non status) char
 						call	#DoEcho					; Echo the command or password byte if required
 						cmp.b	#255,&ID				; Check ID
 						_IF		_NE						; If I'm not a BMU
@@ -564,8 +564,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 					call	#UpdateRtc					; Update "real time clock" if needed
 
 					; Check if time to measure. The FLL interrupt (happens 4096 times per second) is
-					;	incrementing &measureCount. We want to know if this count has advanced more than
-					;	4096/StatusFreq since the last measure (when &measureCount was saved as
+					;	incrementing &measureCount. We want to know if this count has advanced by
+					;	4096/StatusFreq or more since the last measure (when &measureCount was saved as
 					;	&oldMeasureCount)
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
@@ -574,7 +574,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer before sleeping CPU
 				;		bis		#CPUOFF+GIE,SR				; Turn off CPU and ensure interrupts still enabled
 					_ELSE								; Else time to measure
-						mov		&measureCount,&oldMeasureCount ; Remember this count for next measure
+						add		#(4096/StatusFreq),&oldMeasureCount ; Set the count for the next measure
 						call	#DoMeasurement			; May transmit status
 					_ENDIF
 				_ENDIF
@@ -697,9 +697,8 @@ DoMeasurement:
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9
-				rla3		R9					; = ovZero + 6*ovStep
-				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep - ovStep
-				sub			&ovStep,R9
+				rla3		R9					; = ovZero + 7*ovStep
+				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
@@ -709,7 +708,7 @@ DoMeasurement:
 					clr		&ticksSinceLastBypass	; ticksSinceLastBypass := 0
 					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
 				_ELSE							; Else not bypassing
-					tst.b	&beenBypassing			; ticksSinceLastBypass += 1
+					tst.b	&beenBypassing
 					_IF		_NZ						; If been bypassing in last 5 minutes
 						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
 						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
@@ -846,7 +845,7 @@ DoMeasurement:
 				_IF		_EQ						; If type is undertemperature
 					mov		#MinContStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
 				_ENDIF
-				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
+				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes R8
 				cmp		R9,R8					; If the stress is not less than the maximum allowed
 				_IF		_HS
 					mov		R9,R8					; Use the maximum allowed
@@ -1099,9 +1098,9 @@ ControlContactors:
 			_ENDIF							; Endif 1 amp discharge
 		_ENDIF							; Endif >= 1 amp charge or source contactors off
 
-		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
+		; Treat ignorable stress as 6 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
+			mov		#6,R9					; Treat it as stress 6 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9
