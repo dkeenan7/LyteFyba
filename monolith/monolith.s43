@@ -134,9 +134,9 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		3			; mV difference between one AL stress level and the next
 #endif
 
-; FULLLEV	EQU	OV_ZERO+7*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
-									;	3408 mV. Stress 6/7 threshold
-; BYPLEV	EQU	OV_ZERO+6*OV_STEP	; Bypass threshold 3368 mV. Corresp. to stress 5/6 threshold
+; FULLLEV	EQU	OV_ZERO+8*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
+									;	3448 mV. Stress 7/8 threshold
+; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
 
 MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
 MinContStress EQU	12			; Minimum stress to drop out source or load contactors (BMU only)
@@ -898,9 +898,8 @@ DoMeasurement:
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		_NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9
-				rla3		R9					; = ovZero + 6*ovStep
-				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep - ovStep
-				sub			&ovStep,R9
+				rla3		R9					; = ovZero + 7*ovStep
+				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep
 				sub			&ovStep,R9
 				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
@@ -1324,7 +1323,7 @@ ControlContactors:
 
 		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
 		_IF		_EQ						; If we can ignore this stress
-			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
+			mov		#6,R9					; Treat it as stress 6 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9
@@ -1388,12 +1387,12 @@ ControlContactors:
 			_ENDIF
 		_ENDIF
 
-		; If stress <= 5 && array voltage < 140 V
+		; If stress <= 6 && array voltage < 140 V
 		;	turn on charging/source contactors
 		; We need to let it go down to stress 6 so that balancing can occur.
 		_COND							; Begin short circuit conditional
-			cmp.b	#6,R9
-		_AND_IF	_L						; And if incoming stress is <= 6
+			cmp.b	#7,R9
+		_AND_IF	_L						; And if incoming stress is < 7
 			push	R8
 			call	#GetCellV
 			pop		R8
