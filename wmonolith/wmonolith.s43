@@ -1137,7 +1137,7 @@ ControlContactors:
 				; This will require the red button to be pushed to remove power from the BMU
 				; to reset it. After which, releasing the red may be sufficient to restart,
 				; or you may also have to push the green.
-				br		#Halt
+				br		#Halt			; Also check for BSL password
 			_ENDIF
 		_ELSE							; Else
 			clr.b	&shutdownTimer			; Clear the shutdown timer

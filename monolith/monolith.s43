@@ -640,13 +640,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Call this repeatedly to initialise the PIP4048MS inverter with various non-default settings
 ;
 InitPip:
-			mov			&pipInitPtr,R10		; Point to the current initialisation string
-			call		#ChgTxString		; Send one command
-			mov			R10,&pipInitPtr		; Update the pointer
-			tst.b		0(R10)				; Check the next length byte
-			_IF			_Z					; If it's zero, this is the end of the table
-				clr			&pipInitPtr				; For tidiness
-				bis.b		#bDonePipInit,&monFlags	; Tell DoMeasurement that we're done
+			mov		&pipInitPtr,R10		; Point to the current initialisation string
+			call	#ChgTxString		; Send one command
+			mov		R10,&pipInitPtr		; Update the pointer
+			tst.b	0(R10)				; Check the next length byte
+			_IF		_Z					; If it's zero, this is the end of the table
+				clr		&pipInitPtr				; For tidiness
+				bis.b	#bDonePipInit,&monFlags	; Tell DoMeasurement and ControlContactors that we're done
 			_ENDIF
 			ret
 
@@ -658,7 +658,8 @@ InitPip:
 ; PIP 4048MS inverter/charger initialisation strings. First byte is length.
 ; CRCs are precomputed using http://www.lammertbies.nl/comm/info/crc-calculation.html
 ; CRC-CCITT (XModem), except $0D, $0A and $28 bytes in the CRC must be incremented. See crc.s43.
-PipInitTbl 	DB	1,$0D						; In case PIP has already received junk. Will cause a NAK
+PipInitTbl 	DB	1,$0D						; First send a CR in case PIP has already received junk.
+											; This will cause an initial NAK.
 #if	CONFIG == OFF_GRID
 		 	DB	8,'POP00',$C2,$48,$0D		; Utility priority (default) (for off-grid use) (Param 1)
 ;		 	DB	8,'POP01',$D2,$69,$0D		; Solar priority (Param 1)
@@ -1363,7 +1364,7 @@ ControlContactors:
 			clr.b	&shutdownTimer			; Clear the shutdown timer
 		_ENDIF							; Endif
 
-		; If (not UV && charging && stress >= 12) || (array voltage >= 145 V)
+		; If (not UV && charging && stress >= 12 && bDonePipInit) || (array voltage >= 145 V)
 		;	turn off charging/source contactors
 		mov		R8,R10					; Make a copy of the status byte in R10
 		and		#S_TYPE,R10				; Extract the two stress-type bits
@@ -1374,6 +1375,8 @@ ControlContactors:
 		_AND_IF	_NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
 		_AND_IF	_GE						; And if incoming stress is alarming
+			bit.b	#bDonePipInit,&monFlags
+		_AND_IF	_NZ						; And if we haven't just started up (CMU breaks look like stress)
 			bic.b	#RtPvCtor|AcLfPvCtor,&CtorPortOUT ; Drop out the source contactors (grn, white LEDs)
 		_ELSES							; Else
 			push	R8
@@ -1398,15 +1401,23 @@ ControlContactors:
 			pop		R8
 			cmp		#140*10,R10
 		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
-			; The following test is required to avoid waiting 560 ms every time around the main loop
+			; The following test is required to avoid waiting 700 ms every time around the main loop
 			; and thereby slowing communications between BMU ports to a crawl.
-			bit.b	#AcLfPvCtor,&CtorPortOUT
-			_IF		_Z							; If the AC and left PV source contactors aren't on
+			; The 140 ms delay before turning the first one back on, was found necessary to avoid
+			; overloading the 12 V DC-DC converter and shutting down the whole system, in the case where
+			; these contactors had only just been turned off.
+			_COND								; Begin short-circuit conditional
+				bit.b	#AcLfPvCtor,&CtorPortOUT
+			_IF_OR		_Z						; If the AC and left PV source contactors are off
+				bit.b	#RtPvCtor,&CtorPortOUT
+			_OR_IFS		_Z						; Or the right PV source contactors are off
+				mov		#140,R8						; 140 milliseconds
+				call	#DelayMs					; Wait in case they have only just been turned off
 				bis.b	#AcLfPvCtor,&CtorPortOUT	; Turn on the AC and left PV source contactors
 				mov		#560,R8						; 560 milliseconds
 				call	#DelayMs					; Wait for last economiser to reduce coil current
+				bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
 			_ENDIF
-			bis.b	#RtPvCtor,&CtorPortOUT		; Turn on the right PV source contactors
 		_ENDIFS
 
 #if 1
