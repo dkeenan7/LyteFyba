@@ -537,8 +537,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 				_IF		_EQ
 					call	#ScuRxByteNW			; Check if received SCU data
 					_IF		_NZ
-						call	#CmuTxByte				; Echo to CMU Tx port; preserves R8
-						call	#DoPassword				; Check for BSL password bytes from SCU port
+						tst.b	R8						; Check if the high bit is set
+						_IF		_NN						; If the high bit is not set (not a status byte)
+							call	#CmuTxByte				; Send it to the CMUs. Preserves R8
+							call	#DoPassword				; Check for BSL password bytes from SCU port
+						_ENDIF
 					_ELSE
 						clr		R8						; Indicate to AccMaster that no char is avail
 					_ENDIF
