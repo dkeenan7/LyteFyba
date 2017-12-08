@@ -211,7 +211,13 @@ InitCmdString
 InterpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
 			ClearWatchdog					; Clear and restart Watchdog Timer 32k cyc. BSL sets 64 cyc.
-			call	#ACCEPT					; Process R8 as part of a command to be interpreted
+			_COND
+				cmp.b	#255,&ID
+			_OR_ELSE _NE					; If we're not a BMU
+				cmp.b	#$13,R8
+			_OR_IFS _NE						; Or it's not an XOFF (ctrl-S) character
+				call	#ACCEPT					; Process R8 as part of a command to be interpreted
+			_ENDIF
 			ClearWatchdog
 			ret								; Return to the BSL
 
