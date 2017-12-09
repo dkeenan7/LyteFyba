@@ -211,6 +211,9 @@ InitCmdString
 InterpretByte:
 main:										; For IAR Embedded Workbench IDE debugger
 			ClearWatchdog					; Clear and restart Watchdog Timer 32k cyc. BSL sets 64 cyc.
+			; Because a BMU ignores Ctrl-Q (XON) (as required by Monolith), then when running TestICal
+			; it must never get a Ctrl-S (XOFF) or it will be permanently stuck with no echo.
+			; So we must ignore XOFFs when running in a BMU.
 			_COND
 				cmp.b	#255,&ID
 			_OR_ELSE _NE					; If we're not a BMU
@@ -441,7 +444,10 @@ newChip:
 			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
 			bic.b	#TxMiScu,&ScuPortOUT	; Set Tx low
 			bis.b	#TxMiScu,&ScuPortDIR	; Set Tx as output
-			; Default settings of P3SEL are OK. No timer comms in TestICal.
+			bic.b	#RxScu|TxMiScu,&ScuPortSEL	; Select gpio functions for Rx and Tx pins
+			; Can't rely on default zero setting of P3SEL because programs other than TestICal
+			; use the timer functions of these pins for comms, and we may have been bootstrap-loaded
+			; over one of them, in which case we wouldn't have had a proper reset.
 
 
 ;
