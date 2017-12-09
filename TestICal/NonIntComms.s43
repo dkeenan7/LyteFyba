@@ -15,14 +15,14 @@ DELAY_IF_NEEDED MACRO		; Delay for one character time to allow the downstream CM
 							mov.b	&UCA0RXBUF,R8		; Get CMU byte
 							call 	#WriteScuByte-jBSL+BSL2_START ; Send the byte to the SCU port
 							pop		R8					; Restore R8
-							add		#(MClock*104/100000, R9 ; Add a whole character time, so we're done
+							add		#(MClock*104/100000), R9 ; Add a whole character time, so we're done
 						_ENDIF
-						add		#9‚ R9			; Add 9 cycles
+						add		#9, R9			; Add 9 cycles
 					_ENDIF
-					add		#9‚ R9			; Add 9 cycles
+					add		#9, R9			; Add 9 cycles
 				_ENDIF
-				add		#16‚ R9			; Add 16 cycles (includes cmp and UNTIL below)
-				cmp		#(MClock*104/100000, R9
+				add		#16, R9			; Add 16 cycles (includes cmp and UNTIL below)
+				cmp		#(MClock*104/100000), R9
 			_UNTIL	_HS					; Until at least 1.04 ms has passed
 			ENDM
 			LSTOUT+
