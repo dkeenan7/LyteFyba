@@ -465,36 +465,39 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Don't initialise the UART. Everything is already set up from BSL, except for interrupts.
 			; But we don't want to enable TX ints before anything is in the circular buffer.
-			bis.b		#UCA0RXIE, &IE2
+			bis.b		#UCA0RXIE, &IE2			; Enable UART receive interrupts
 
-			; Initialise the Timers if we are a BMU
+			; Initialise the Timers
 			cmp.b	#255,&ID					; If we're a BMU
 			_IF		_EQ
-				; TA0CTL is set up correctly by the BSL
+				; TA0CTL is set up correctly by the BSL as it is used for the Frequency Locked Loop.
 				; Initialise timer TA1
 				; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 				; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
 				; MC: 2 = continuous mode 1 = up mode
 				; TAIE = interrupt enable (for timer overflow)
 				mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
-				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise transmit capture/compare register
+
+				; Initialise TA0 CCRs
+				mov.w	#OUTMOD_5, &ScuCCTLt		; Initialise SCU transmit capture/compare register
 				mov.w	#BitTime96,&scuBitTime		; Set the SCU bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
-				mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
+				; Initialise TA1 CCRs
+				mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise charger transmit capture/compare register
 				mov.w	#BitTime24,&chgBitTime		; Set the charger bit time for 2400 baud
 				mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
 
-				mov.w	#CCIE, &MeasCCTL			; Enable interrupts for the measurements
-			_ELSE
-				mov.w	#CCIE, &TA0CCTL2			; For CMUs, enable timer 0 CCTL2 interrupt for measurements
-			_ENDIF
+				mov.w	#CCIE, &MeasCCTL			; Enable measurement interrupts on a BMU (TA1CCTL0)
+			_ELSE									;  in compare mode.
+				mov.w	#CCIE, &ScuCCTLr			; Enable measurement interrupts on a CMU (TA0CCTL2)
+			_ENDIF									;  in compare mode.
 
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the Tx and Rx queue indexes
@@ -551,8 +554,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b		R9, chanList(R8)			; Store timing data
 				incd		R8							; Next word
 				cmp			#6, R8						; Repeat for 4 words (index 0-6 step 2)
-			_UNTIL	_Z
-			bis.b		#ADC10DIV_7, chanList+6			; Use the slowest (/8) timing, temperature measurement only
+			_UNTIL	_EQ
+			bis.b		#ADC10DIV_7, chanList+6			; Use the slowest clock for temperature only
 			; MSB of the chanList contains only the channel number in the 4 MSBits
 			mov.b		#BoltVPlChan<<4,&chanList+1+0
 			mov.b		#BoltVMiChan<<4,&chanList+1+2

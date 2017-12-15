@@ -1,37 +1,39 @@
-; Suitable usage at appropriate part of assembly file: #include ../common/IntMeasure.s43
+; Suitable usage at appropriate part of assembly file: #include IntMeasure.s43
 
 ; MeasureIsr - measurement interrupt service routine.
-; Called as a timer capture-compare register interrupt.
-; CMU: TA0CCR2 (ScuRx on BMU), BMU: TA1CCR0 (was SocPWM)
-; Perform an analogue measurement 1600 times a seconds.
+; Called as a timer compare-register interrupt.
+; CMU: TA0CCR2 (ScuRx on BMU), BMU: TA1CCR0 (was SocPWM).
+; Perform an analogue measurement 1600 times a second.
 
 ; If we need to do an analog SoC meter in future, we can do it at 16 Hz with a resolution of 100
-; in this interrupt routine
+; in this interrupt routine.
 
 MeasureIsr:
-			push	R8
+			push	R8						; (3)
+			add		#MClock/1600, &MeasCCR	; (5) Ensure we are called at 1600 Hz
+
 			; Read and accumulate the result from the previous conversion
-			add		&ADC10MEM, &partialSum	; Add the conversion result to the partial sum
-			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other ctl bits can be changed
-			mov.b	&sampIndex, R8			; Increment the sample index modulo 16
-			inc		R8
-			and		#$F, R8
-			mov.b	R8, &sampIndex
-			_IF		_Z						; If the sample index is now zero
-				mov.b	&chanIndex, R8
-				mov		&partialSum, rawMeasures(R8) ; Save the sum as the appropriate raw measurement
-				clr		&partialSum				; Clear for next set of 16
-				incd	R8						; Increment the channel index modulo 4 words
-				and		#$7, R8
-				mov.b	R8, &chanIndex
-				mov		chanList(R8), &ADC10CTL1 ; Set the ADC channel number and clock
+			add		&ADC10MEM, &partialSum	; (6) Add the conversion result to the partial sum
+			bic		#ENC,&ADC10CTL0 		; (4) Must turn off ENC bit before ctl bits can be changed
+			mov.b	&sampIndex, R8			; (3) Increment the sample index modulo 16
+			inc		R8						; (1)
+			and		#$F, R8					; (2)
+			mov.b	R8, &sampIndex			; (4)
+			_IF		_Z						; (2) If the sample index is now zero
+				mov.b	&chanIndex, R8			; (3)
+				mov		&partialSum, rawMeasures(R8) ; (6) Save the sum as the channel's raw measurement
+				clr		&partialSum				; (4) Clear for next set of 16 conversions
+				incd	R8						; (1) Increment the channel index modulo 4 words
+				and		#$7, R8					; (2)
+				mov.b	R8, &chanIndex			; (4)
+				mov		chanList(R8), &ADC10CTL1 ; (6) Set the ADC channel number and clock
 			_ENDIF
 
 			; Initiate the next conversion
-			bis		#ENC|ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
-			pop		R8
+			bis		#ENC|ADC10SC,&ADC10CTL0	; (4) Start conversion. ADC10SC is reset automatically
+			pop		R8						; (2)
 
-			reti
+			reti							; (11 for call and return) Max total 73 cycles (3% of CPU)
 
 
 ; The following table has the important timing bits for ADC10CTL1. It happens that they are
@@ -56,7 +58,6 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 			align	1
 
 ; Measure and Correct routines
-; Input:  R8  = analog channel number shifted left 12 bits.
 ; Output: R10 = 12-bit measurement result with scale calibration applied.
 ; Trashes: R8, R9, R11
 ;
@@ -123,7 +124,6 @@ GetBatV:
 GetCellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
-			mov		#CellVChan<<12,R8
 			call	#MeasAndCorrCell
 			cmp.b	#255,&ID
 			_IF		_NE			; If not a BMU then
@@ -141,7 +141,6 @@ GetArrayV:
 GetBoltPlV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
-			mov		#BoltVPlChan<<12,R8
 			call	#MeasAndCorrBoltPl
 			cmp.b	#255,&ID
 			_IF		_NE			; If not a BMU then
@@ -194,7 +193,6 @@ GetBoltMiV:
 			_IF			_EQ				; If BoltMi offset calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				mov			#BoltVMiChan<<12,R8	; Shifted ADC channel for BoltMi input
 				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections
 				; Bolt- voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.

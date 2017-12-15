@@ -41,23 +41,23 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 ; Timer register definitions
 	; CMU comms uses UART
 	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
-	; If you swap these, don't forget to swap the nterrupt vectors too.
+	; If you swap these, don't forget to swap the interrupt vectors too.
 	; System Control Unit comms and Frequency locked loop
 ScuTAR		EQU			TA0R		; SCU timer register
 ScuTAIV		EQU			TA0IV		; SCU timer interrupt subvector
 ScuCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as Scu Rx and Tx
-;FllCCTLp	EQU			TA0CCTL0	; FLL capture/compare control register. Handled by BSL
-;FllCCRp	EQU			TA0CCR0		; FLL capture/compare register. Handled by BSL
+;FllCCTL	EQU			TA0CCTL0	; FLL capture/compare control register. Handled by BSL
+;FllCCR		EQU			TA0CCR0		; FLL capture/compare register. Handled by BSL
 ScuCCTLt	EQU			TA0CCTL1	; SCU Transmit capture/compare control register
 ScuCCRt		EQU			TA0CCR1		; SCU Transmit compare register
-ScuCCTLr	EQU			TA0CCTL2	; SCU Receive capture/compare control register
-ScuCCRr		EQU			TA0CCR2		; SCU Receive capture/compare register
-	; Charger/inverter comms and SoC meter PWM
+ScuCCTLr	EQU			TA0CCTL2	; SCU Receive capture/compare control register (Measurement on a CMU)
+ScuCCRr		EQU			TA0CCR2		; SCU Receive capture/compare register (Measurement on a CMU)
+	; Charger/inverter comms and Measurement
 ChgTAR		EQU			TA1R		; Charger/inverter timer register
 ChgTAIV		EQU			TA1IV		; Charger/inverter timer interrupt subvector
 ChgCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as Chg Rx and Tx
-MeasCCTL	EQU			TA1CCTL0	; Int driven measurements capture/compare control register (BMU)
-MeasCCR		EQU			TA1CCR0		; Measurement capture/compare register
+MeasCCTL	EQU			TA1CCTL0	; Measurement capture/compare control register (BMU only)
+MeasCCR		EQU			TA1CCR0		; Measurement compare register (BMU only)
 ChgCCTLt	EQU			TA1CCTL1	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA1CCR1		; Charger/inverter Transmit compare register
 ChgCCTLr	EQU			TA1CCTL2	; Charger/inverter Receive capture/compare control register

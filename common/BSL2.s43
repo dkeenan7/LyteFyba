@@ -61,7 +61,8 @@ BSL:		; Initialisation
 	mov		#CM0 | CCIS0 | SCS | CAP | CCIE, &TA0CCTL0
 
 	; For CMUs only, initialise timer A1 to generate the 57.6 kHz carrier for infrared transmission.
-	; BMUs don't have IR, and use TA1 for comms on the charger port; initialised in the main program.
+	; BMUs don't have IR, and use TA1 for measurement and for comms on the charger port.
+	; Initialised in the main program.
 	cmp.b	#255,&infoID
 	_IF		_NE				; If we're not a BMU
 		; Use TA1 and TA1CCR0/TA1CCR1 to generate the 57.6 kHz clock on P2.1 and P2.2 (TA1.1)
@@ -530,7 +531,7 @@ TA0FllIsr:
 	_ENDIF
 	inc		&measureCount	; (4) Increment counter used to initiate measurement
 	pop		R8				; (2)
-	reti					; Max 34 cycles (the interrupt call and return add another 11 cycles)
+	reti					; (11 for call and return) Max total 45 cycles (5% of CPU))
 	; Note: Using more registers to reduce RAM accesses won't save any cycles
 	; unless a reg is dedicated to oldFllTime, because the push/pop of the reg costs 5 cycles
 	; and changing a RAM access to a reg access only saves 2 cycles.
