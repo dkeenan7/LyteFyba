@@ -56,8 +56,8 @@ ScuCCRr		EQU			TA0CCR2		; SCU Receive capture/compare register
 ChgTAR		EQU			TA1R		; Charger/inverter timer register
 ChgTAIV		EQU			TA1IV		; Charger/inverter timer interrupt subvector
 ChgCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as Chg Rx and Tx
-SocCCTLp	EQU			TA1CCTL0	; SoC meter PWM capture/compare control register
-SocCCRp		EQU			TA1CCR0		; SoC meter PWM capture/compare register
+MeasCCTL	EQU			TA1CCTL0	; Int driven measurements capture/compare control register (BMU)
+MeasCCR		EQU			TA1CCR0		; SoC meter PWM capture/compare register
 ChgCCTLt	EQU			TA1CCTL1	; Charger/inverter Transmit capture/compare control register
 ChgCCRt		EQU			TA1CCR1		; Charger/inverter Transmit compare register
 ChgCCTLr	EQU			TA1CCTL2	; Charger/inverter Receive capture/compare control register
@@ -189,6 +189,9 @@ WaitTxComplete:
 		_UNTIL	_Z					; Until it is cleared
 		ret
 
+#if 0					// The CCR for this function is now needed for measurements
+						// We leave this code here in case we need to drive Helidon's
+						// SOC meter in future, by adapting this code
 ;-------------------------------------------------------------------------------
 SocPwmIsr:
 ; PWM (timerA1 capture/compare 0) interrupt service routine
@@ -209,6 +212,7 @@ SocPwmIsr:
 		pop		R9						; (2) Restore R9
 #endif // MONOLITH
 		reti							; (5) Return from interrupt
+#endif
 
 ;-------------------------------------------------------------------------------
 TxIsrUartMacro	MACRO	txBuf, txRd, txWr, TxSz
@@ -373,7 +377,11 @@ TxSubIsr:	; Compare match for Tx
 TxIsr:		TxIsrUartMacro		txBuf, txRd, txWr, TxSz
 RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
-ScuTxRxIsr:	TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ScuTxRxIsr:	cmp.b	#255, &ID
+			_IF		_NE						; If not a BMU,
+				br		#MeasureIsr				; Then this is actually a measurement interrupt
+			_ENDIF
+			TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 
 
 ;

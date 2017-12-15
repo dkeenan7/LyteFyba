@@ -41,7 +41,7 @@ ShutdownTime	EQU		15*StatusFreq	; Shut down after approx 15 seconds of stress 15
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
 			LSTOUT+
 
-; Some definitions so the measure.s43 code will work
+; Some definitions so the IntMeasure.s43 code will work
 ; TestICal defines these as their RAM counterparts instead of info-flash
 CellCal 	EQU	infoCellCal
 CellOff		EQU infoCellOff
@@ -331,6 +331,19 @@ ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 ticksSinceLastBypass DS	2			; Ticks since last bypass
 beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
+; The following variables are for interrupt driven measurement code
+				ALIGNRAM 1
+sampIndex   	DS  	1    		; Cycles from 0 to 15
+chanIndex   	DS  	1    		; Cycles from 0 to 3
+chanList    	DS  	2*4    		; Initialised to channel selections and timing, for ADC10CTL1
+partialSum  	DS  	2
+rawMeasures
+boltVPlRaw		DS  	2			; Raw measurement results (sum of 16 measurements)
+boltVMiRaw		DS  	2
+cellVRaw		DS  	2
+temperatureRaw	DS  	2
+
+
 				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
 
@@ -477,6 +490,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+				
+				mov.w	#CCIE, &MeasCCTL			; Enable interrupts for the measurements
+			_ELSE
+				mov.w	#CCIE, &TA0CCTL2			; For CMUs, enable timer 0 CCTL2 interrupt for measurements
 			_ENDIF
 
 			; Already cleared by loop above
@@ -518,8 +535,30 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT	= connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
-			mov			#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
+			; ADC10ON	= power on the measurement system (now on all the time)
+			mov			#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
 			; Other ADC10 initialisation is done every time "measure" is called, to save code space
+			; But we precalculate the values for ADC10CTL1, to save time in the frequenyly-called
+			; interrupt routine
+			mov.b		&AdcTimIdx,R9
+			cmp			#4+1,R9						; Test the ADC timing index
+			_IF			_HS							; If not valid (not 0-4)
+				clr			R9							; Then use default timing (index = 0)
+			_ENDIF
+			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
+													; we are not waiting for the conversion to complete
+			clr			R8
+			_BEGIN
+				mov.b		R9, chanList(R8)			; Store timing data
+				incd		R8							; Next word
+				cmp			#6, R8						; Repeat for 4 words (index 0-6 step 2)
+			_UNTIL	_Z
+			bis.b		#ADC10DIV_7, chanList+6			; Use the slowest (/8) timing, temperature measurement only
+			; MSB of the chanList contains only the channel number in the 4 MSBits
+			mov.b		#BoltVPlChan<<4,&chanList+1+0
+			mov.b		#BoltVMiChan<<4,&chanList+1+2
+			mov.b		#CellVChan<<4,	&chanList+1+4
+			mov.b		#TempChan<<4,	&chanList+1+6
 
 ;
 ; Initialise the command character interpreter
