@@ -531,7 +531,7 @@ TA0FllIsr:
 	_ENDIF
 	inc		&measureCount	; (4) Increment counter used to initiate measurement
 	pop		R8				; (2)
-	reti					; (11 for call and return) Max total 45 cycles (5% of CPU))
+	reti					; (11 for call and return) Max total 45 cycles (5.0% of CPU))
 	; Note: Using more registers to reduce RAM accesses won't save any cycles
 	; unless a reg is dedicated to oldFllTime, because the push/pop of the reg costs 5 cycles
 	; and changing a RAM access to a reg access only saves 2 cycles.

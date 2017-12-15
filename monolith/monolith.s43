@@ -1996,7 +1996,7 @@ jUCA0RxIsr		br		#RxIsr			; UART receive
 
 jTA1TxRxIsr		br		#ChgTxRxIsr		; Combined TA1 CCR1 & CCR2
 										; (BMU only: Chg transmit & receive capture/compare)
-jTA1MeasureIsr	br		#MeasureIsr		; Timer A1 CCR0
+jTA1MeasureIsr	br		#MeasureBmuIsr	; Timer A1 CCR0
 										; (BMU only: Measurement compare)
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
