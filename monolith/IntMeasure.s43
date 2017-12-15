@@ -8,12 +8,16 @@
 ; If we need to do an analog SoC meter in future, we can do it at 16 Hz with a resolution of 100
 ; in this interrupt routine.
 
-MeasureCmuIsr:				; TA0CCR2
-			mov		&TAIV, R3				; (4) Access interrupt sub-vector to clear interrupt flag
-MeasureBmuIsr:				; TA1CCR0		;     Don't use cmp or tst as this will clear 2 int flags
+MeasureCmuIsr:				; ScuCCRr = TA0CCR2
 			push	R8						; (3)
-			add		#MClock/1600, &MeasCCR	; (5) Ensure we are called at 1600 Hz
-
+			mov		&ScuTAIV, R8			; (3) Access interrupt sub-vector to clear interrupt flag
+											;     Don't use cmp or tst as this will clear 2 int flags
+			add		#MClock/1600, &ScuCCRr	; (5) Ensure we are called at 1600 Hz
+			_IF		_NEVER					; (2)
+MeasureBmuIsr:				; MeasCCR = TA1CCR0
+				push	R8						; (3)
+				add		#MClock/1600, &MeasCCR	; (5) Ensure we are called at 1600 Hz
+			_ENDIF
 			; Read and accumulate the result from the previous conversion
 			add		&ADC10MEM, &partialSum	; (6) Add the conversion result to the partial sum
 			bic		#ENC,&ADC10CTL0 		; (4) Must turn off ENC bit before ctl bits can be changed
@@ -35,7 +39,7 @@ MeasureBmuIsr:				; TA1CCR0		;     Don't use cmp or tst as this will clear 2 int
 			bis		#ENC|ADC10SC,&ADC10CTL0	; (4) Start conversion. ADC10SC is reset automatically
 			pop		R8						; (2)
 
-			reti							; (11 for call and return) Max total 77 cycles (3.2% of CPU)
+			reti							; (11 for call and return) Max total 76 cycles (3.2% of CPU)
 
 
 ; The following table has the important timing bits for ADC10CTL1. It happens that they are
