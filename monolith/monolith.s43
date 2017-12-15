@@ -537,7 +537,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; REFON		= turn on the voltage reference and reference buffer
 			; ADC10ON	= power on the measurement system (now on all the time)
 			mov			#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
-			; We precalculate the values for ADC10CTL1, to save time in the frequenyly-called
+			; We precalculate the values for ADC10CTL1, to save time in the frequently-called
 			; interrupt routine
 			mov.b		&AdcTimIdx,R9
 			cmp			#4+1,R9						; Test the ADC timing index

@@ -9,24 +9,27 @@
 ; in this interrupt routine
 
 MeasureIsr:
+			push	R8
 			; Read and accumulate the result from the previous conversion
 			add		&ADC10MEM, &partialSum	; Add the conversion result to the partial sum
-			mov		&sampIndex, R8			; Increment the sample index modulo 16
+			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other ctl bits can be changed
+			mov.b	&sampIndex, R8			; Increment the sample index modulo 16
 			inc		R8
 			and		#$F, R8
-			mov		R8, &sampIndex
+			mov.b	R8, &sampIndex
 			_IF		_Z						; If the sample index is now zero
-				mov		&chanIndex, R8
+				mov.b	&chanIndex, R8
 				mov		&partialSum, rawMeasures(R8) ; Save the sum as the appropriate raw measurement
+				clr		&partialSum				; Clear for next set of 16
 				incd	R8						; Increment the channel index modulo 4 words
 				and		#$7, R8
-				mov		R8, &chanIndex
+				mov.b	R8, &chanIndex
 				mov		chanList(R8), &ADC10CTL1 ; Set the ADC channel number and clock
 			_ENDIF
 
 			; Initiate the next conversion
-			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bis		#ENC|ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
+			pop		R8
 
 			reti
 
