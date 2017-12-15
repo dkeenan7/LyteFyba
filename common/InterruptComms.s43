@@ -196,7 +196,7 @@ SocPwmIsr:
 	; These interrupts should only be enabled on BMUs
 #ifdef MONOLITH
 		push	R9						; (?) Save R9
-		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
+		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output
 		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
 		_IF		_Z						; (2) If now set,
 			mov		&socPwmAdv,R9			; (3) then just get advance value to R9
@@ -204,7 +204,7 @@ SocPwmIsr:
 			mov		#1000,R9				; (2)
 			sub		&socPwmAdv,R9			; (3) = 1000 (PWM period) - pwmAdv
 		_ENDIF
-		add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
+		add		R9,&SocCCRp				; (4) Advance TA1CCR0 by this amount
 		; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
 		pop		R9						; (2) Restore R9
 #endif // MONOLITH

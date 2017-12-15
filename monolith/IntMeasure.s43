@@ -1,0 +1,247 @@
+; Suitable usage at appropriate part of assembly file: #include ../common/IntMeasure.s43
+
+; MeasureIsr - measurement interrupt service routine.
+; Called as a timer capture-compare register interrupt.
+; CMU: TA0CCR1 (ScuTx on BMU), BMU: TA1CCR0 (was SocPWM)
+; Perform an analogue measurement 1600 times a seconds.
+
+MeasureIsr:
+			; INCHx		= R8 has the channel number already in the right position
+			; For other bits, see the adcTimingTbl below
+			mov.b		&AdcTimIdx,R9
+			cmp			#4+1,R9						; Test the ADC timing index
+			_IF			_HS							; If not valid (not 0-4)
+				clr			R9							; Then use default timing (index = 0)
+			_ENDIF
+			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
+			bis			R9,R8						; OR in the timing bits with given channel bits
+			mov			R8,&ADC10CTL1
+
+			; This is the standard version, which doesn't use any RAM.
+
+			; Turn on ADC10
+			; no MSC	= single sample and conversion
+			; ADC10ON	= turn on the ADC core
+
+            ; Other fields are set during initialisation. In particular we need the maximum sample time
+            ; of 64 cycles to get the 38 us we need to achieve 12 bit accuracy with the 155 kR impedance
+            ; of our voltage dividers. ADC adds 2 kR and sampling capacitor is 27 pF.
+            ; Temperature measurement also requires 30 us just to get half-degree accuracy.
+            ; So ADC clock frequency should not be much greater than 64/38 us = 1.67 MHz = MCLK/2.2.
+            ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
+            ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
+
+			bis			#ADC10ON,&ADC10CTL0
+			; INCH		= R8 has the input channel number already in the right position
+			; SHS_0		= enable software starting via the ADC10SC bit
+
+
+			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
+			_DO			#NumSamples,R9			; Sample counter
+				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
+
+				ClearWatchdog
+
+				_BEGIN								; Busy wait for conversion to complete
+					bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
+				_UNTIL		_Z
+				add			&ADC10MEM,R8			; Add a result
+			_LOOP		R9
+			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
+			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
+
+			reti
+
+measure: ret ; Temporary just so it assembles
+
+
+; The following table has the important timing bits for ADC10CTL1. It happens that they are
+; all in the lower 8 bits, so this is a table of bytes.
+			; SHS_0		= enable software starting via the ADC10SC bit
+			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
+			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
+            ; ADC10DIV_7 = divide input clock by 8 for ADC10CLK
+			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
+			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
+			; CONSEQ_0	= single channel single conversion
+
+			; We found years ago that ADCOSAC/3 distributes noise particularly from SMCLK better, for
+			; more consistent ADC readings. But now they seem more noisy, especially for the Bolt+
+			; reading
+DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0
+adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADCOSC/2 (may be too fast)
+			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADCOSC/3
+			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADCOSC/4
+			align	1
+
+; Measure and Correct routines
+; Input:  R8  = analog channel number shifted left 12 bits.
+; Output: R10 = 12-bit measurement result with scale calibration applied.
+; Trashes: R8, R9, R11
+;
+; Correct the value for scale by multiplying the sum-of-samples by the voltage calibration scale factor
+; in info flash, and correct it for offset by adding another value from info flash.
+; The sum-of-samples, when considered as a single oversampled-and-decimated reading,
+; is an unsigned 12.2 bit fixed-point number of millivolts.
+; The calibration scale factor is an unsigned 1.15 bit fixed-point number.
+; We want a 12 bit integer result in millivolts.
+; That means we have to shift the product 17 bits to the right, which is equivalent to
+; throwing away the lo word and shifting the high word one bit to the right.
+;
+; Used for battery voltage measurement in a BMU
+MeasAndCorrCell:
+			call		#measure				; 12.2 fixed-point result in R8
+			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+			mov.b		&CellOff,R9				; Get the cell voltage offset as signed byte
+			sxt			R9						; Convert to signed word
+			add			R9,R10					; Add the offset calibration value
+			ret									; Finished
+
+; As above, using the separate bolt calibration factor and offset
+; Used for PV array voltage measurement, or Capacitor measurement during precharge, in a BMU
+; Trashes R8-11
+MeasAndCorrBoltPl:
+			call		#measure				; 12.2 fixed-point result in R8
+			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
+			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
+			_IF			_EQ						; If it doesn't exist
+				mov.w		&CellCal,R9				; Use the cell voltage scale factor instead
+			_ENDIF								; Endif
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+			mov.b		&BoltPlOff,R9			; Get the bolt+ voltage offset as signed byte
+			sxt			R9						; Convert to signed word
+			add			R9,R10					; Add the offset calibration value
+			ret									; Finished
+
+; As above, using the separate bolt calibration factor and offset
+; Used for current measurements in a BMU
+MeasAndCorrBoltMi:
+			call		#measure				; 12.2 fixed-point result in R8
+			mov.w		&BoltMiCal,R9			; Get bolt- voltage scale factor as multiplicand in R9
+			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
+			_IF			_EQ						; If it doesn't exist
+				mov.w		&CellCal,R9				; Use the cell voltage scale factor instead
+			_ENDIF								; Endif
+												; Multiplier is sum-of-samples, already in R8
+			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
+			inc			R10						; For correct rounding
+			rra			R10						; Shift product hi word right one bit
+			mov.b		&BoltMiOff,R9			; Get the bolt-/current voltage offset as signed byte
+			sxt			R9						; Convert to signed word
+			add			R9,R10					; Add the offset calibration value
+			ret									; Finished
+
+GetBatV:
+GetCellV:
+; Trashes: R8, R9, R11
+; Output: R10 = calibrated in millivolts, approx range 0 to 4348
+			mov		#CellVChan<<12,R8
+			call	#MeasAndCorrCell
+			cmp.b	#255,&ID
+			_IF		_NE			; If not a BMU then
+				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+				mov		R10,R8		; Copy the value
+				add		#8,R8		; Add half the divisor for rounding
+				rra4	R8			; Divide by 16
+				add		R8,R10		; Add back to the original
+			_ENDIF
+			ret
+
+
+GetCapV:	; When used by (w)monolith to check precharge
+GetArrayV:
+GetBoltPlV:
+; Trashes: R8, R9, R11
+; Output: R10 = calibrated in millivolts, approx range 0 to 4348
+			mov		#BoltVPlChan<<12,R8
+			call	#MeasAndCorrBoltPl
+			cmp.b	#255,&ID
+			_IF		_NE			; If not a BMU then
+				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+				mov		R10,R8		; Copy the value
+				add		#8,R8		; Add half the divisor for rounding
+				rra4	R8			; Divide by 16
+				add		R8,R10		; Add back to the original
+			_ENDIF
+			ret
+
+
+GetTemp:
+; Output: R10 = calibrated temperature in correctly rounded degrees Celsius, approx range -50..100
+; Also R9 = calibrated temperature in correctly rounded half degrees.
+; Trashes: R8, R11
+				; In the below, or with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
+			mov		#TempChan<<12|ADC10DIV_7,R8
+			call	#measure				; 12.2 significant fixed-point result in R8, in 14.2
+											; This is 4 bits shifted compared to a single measurement,
+											; as stored in CAL30
+			add		#2,R8					; For rounding
+			rra2	R8						; Now 12.2 in 14.2 fixed point, still 2 bits shifted left
+			; Want (meas-CAL30) * SLOPE + 30 (see FUG 24.2.2.1)
+			mov		&CALADC_15T30,R9		; CAL30 10.0 significant in 16.0 fixed point
+			rla2	R9						; CAL30 10.0 significant in 14.2 fixed point
+			sub		R9,R8					; R8 has (meas-CAL30); could be negative
+			mov		&TempSlope,R9			; R9 has slope in 0.16 fixed point
+			call	#MMStar					; R10:R9 := R8 * R9, R8 allowed to be negative
+											; R10:R9 is 14.2:16 (quarter degrees)
+			add		#30<<2,R10				; Add 30 degC in quarter degrees as part of the formula
+			mov.b	&TempOff,R8				; Our offset calibration, in half degrees
+			sxt		R8						; NOTE: prior to data version 7, this was in whole degrees
+											; and was subtracted
+			rla		R8						; Turn it into quarter degrees
+			add		R8,R10					; Add our offset
+			mov		R10,R9					; Keep a copy of pre (shifted and rounded) value
+			add		#2,R10					; Add half divisor for full degree rounding
+			rra2	R10						; Shift (divide by 4) to get 14.0 fixed point in R10
+											; R10 now has temperature in whole degrees Celsius
+			add		#1,R9					; Rounding for divide by 2
+			rra		R9						; R9 has temperature in half degrees
+			ret
+
+GetBoltMiV:
+; Output: R10 = bolt- voltage or shunt voltage x20 calibrated in millivolts, approx range -1500 to +1500
+; 9999 means bolt- voltage or current not valid, ignore.
+; Corresponds to fifths of an amp with a 200 A 50 mV shunt.
+; Trashes: R8, R9, R11
+			mov.b		&BoltMiOff,R8	; Bolt- / current shunt offset calibration
+			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
+			_IF			_EQ				; If BoltMi offset calibration value is $80
+				mov		#9999,R10			; then use special value
+			_ELSE
+				mov			#BoltVMiChan<<12,R8	; Shifted ADC channel for BoltMi input
+				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections
+				; Bolt- voltage measurement in mV
+				; Circuit has 2:1 voltage divider with Vref at the bottom.
+				; So measure M = 1.5 - (1.5 - Vin)/2 = 0.75 + Vin/2.
+				; Reading = 2046 + (Vin/2)(4092/1.5)
+				; R = 2046 + Vin * 1364 (Vin in volts)
+				; R = 2046 + Vin * 1.364 (Vin in mV)
+				; Vin = (R - 2046)/1.364 mV
+				; To divide by 1.364, multiply by 65536/1.364 = 48047 and keep the top half
+				sub			#2046,R10		; A corrected reading of 2046 represents zero
+				mov			R10,R8
+				mov			#48047,R9
+				call		#MMStar			; Signed R10:R9 = signed R8 * unsigned R9
+				add			#$8000,R9		; Do rounding
+				adc			R10
+				; Result is in R10
+			_ENDIF
+			ret
+
+#if INSULATION_MONITORING
+GetTouchV:
+; Trashes: R8, R9, R11
+; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
+			mov		#TouchVChan<<12,R8
+			jmp		MeasAndCorrCell						; Tail-call MeasAndCorrCell and return
+#endif // INSULATION_MONITORING
+

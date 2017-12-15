@@ -556,12 +556,12 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 		DW		jUCA0RxIsr		; UART receive
 
 								; $FFF0, Timer A0 Vectors
-		DW		jTA0TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
+		DW		jTA0TxRxIsr		; Combined CC1,2IFG (transmit/receive capture/compare) & TAIFG (oveflow)
 		DW		TA0FllIsr-jBSL+BSL2_START; Timer A CC0IFG (freq lock loop). In BSL, not main prg
 		DW		$FFFF, $FFFF	; FFF4, FFF6 unused.
 								; $FFF8, Timer A1 Vectors
-		DW		jTA1TxRxIsr		; Combined CC1,2IFG (receive capture/compare) & TAIFG (overflow)
-		DW		jTA1PwmIsr		; Timer A CC0IFG (transmit compare)
+		DW		jTA1TxRxIsr		; Combined Timer A1 CC1,2IFG (transmit/receive capture/compare) & TAIFG (overflow)
+		DW		jTA1MeasureIsr	; Timer A1 CC0IFG (measurement compare)
 
 								; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.

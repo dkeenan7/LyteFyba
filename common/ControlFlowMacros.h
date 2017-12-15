@@ -561,11 +561,11 @@ _count  SET _CS_TOP		; Copy the _OF-count
 ;	_mLOOP src2,dest
 
 ;	_qDO src,dest
-;		<do_stuff>		; dest = src down to 0
+;		<do_stuff>		; dest = src down to 1
 ;	_qLOOP dest
 
 ;	_qDO src,dest
-;		<do_stuff>		; dest = src down to 0 in steps of src2
+;		<do_stuff>		; dest = src down to 1 in steps of src2
 ;	_qmLOOP src2,dest
 
 _DO	 MACRO src,dest
