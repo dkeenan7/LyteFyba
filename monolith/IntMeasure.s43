@@ -2,57 +2,33 @@
 
 ; MeasureIsr - measurement interrupt service routine.
 ; Called as a timer capture-compare register interrupt.
-; CMU: TA0CCR1 (ScuTx on BMU), BMU: TA1CCR0 (was SocPWM)
+; CMU: TA0CCR2 (ScuRx on BMU), BMU: TA1CCR0 (was SocPWM)
 ; Perform an analogue measurement 1600 times a seconds.
 
+; If we need to do an analog SoC meter in future, we can do it at 16 Hz with a resolution of 100
+; in this interrupt routine
+
 MeasureIsr:
-			; INCHx		= R8 has the channel number already in the right position
-			; For other bits, see the adcTimingTbl below
-			mov.b		&AdcTimIdx,R9
-			cmp			#4+1,R9						; Test the ADC timing index
-			_IF			_HS							; If not valid (not 0-4)
-				clr			R9							; Then use default timing (index = 0)
+			; Read and accumulate the result from the previous conversion
+			add		&ADC10MEM, &partialSum	; Add the conversion result to the partial sum
+			mov		&sampIndex, R8			; Increment the sample index modulo 16
+			inc		R8
+			and		#$F, R8
+			mov		R8, &sampIndex
+			_IF		_Z						; If the sample index is now zero
+				mov		&chanIndex, R8
+				mov		&partialSum, rawMeasures(R8) ; Save the sum as the appropriate raw measurement
+				incd	R8						; Increment the channel index modulo 4 words
+				and		#$7, R8
+				mov		R8, &chanIndex
+				mov		chanList(R8), &ADC10CTL1 ; Set the ADC channel number and clock
 			_ENDIF
-			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
-			bis			R9,R8						; OR in the timing bits with given channel bits
-			mov			R8,&ADC10CTL1
 
-			; This is the standard version, which doesn't use any RAM.
-
-			; Turn on ADC10
-			; no MSC	= single sample and conversion
-			; ADC10ON	= turn on the ADC core
-
-            ; Other fields are set during initialisation. In particular we need the maximum sample time
-            ; of 64 cycles to get the 38 us we need to achieve 12 bit accuracy with the 155 kR impedance
-            ; of our voltage dividers. ADC adds 2 kR and sampling capacitor is 27 pF.
-            ; Temperature measurement also requires 30 us just to get half-degree accuracy.
-            ; So ADC clock frequency should not be much greater than 64/38 us = 1.67 MHz = MCLK/2.2.
-            ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
-            ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
-
-			bis			#ADC10ON,&ADC10CTL0
-			; INCH		= R8 has the input channel number already in the right position
-			; SHS_0		= enable software starting via the ADC10SC bit
-
-
-			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
-			_DO			#NumSamples,R9			; Sample counter
-				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
-
-				ClearWatchdog
-
-				_BEGIN								; Busy wait for conversion to complete
-					bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
-				_UNTIL		_Z
-				add			&ADC10MEM,R8			; Add a result
-			_LOOP		R9
-			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
-			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
+			; Initiate the next conversion
+			bic		#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
+			bis		#ENC|ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
 
 			reti
-
-measure: ret ; Temporary just so it assembles
 
 
 ; The following table has the important timing bits for ADC10CTL1. It happens that they are
@@ -92,7 +68,7 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 ;
 ; Used for battery voltage measurement in a BMU
 MeasAndCorrCell:
-			call		#measure				; 12.2 fixed-point result in R8
+			mov			&cellVRaw, R8			; 12.2 fixed-point result in R8
 			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
@@ -107,7 +83,7 @@ MeasAndCorrCell:
 ; Used for PV array voltage measurement, or Capacitor measurement during precharge, in a BMU
 ; Trashes R8-11
 MeasAndCorrBoltPl:
-			call		#measure				; 12.2 fixed-point result in R8
+			mov			&boltVPlRaw, R8			; 12.2 fixed-point result in R8
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
 			_IF			_EQ						; If it doesn't exist
@@ -125,7 +101,7 @@ MeasAndCorrBoltPl:
 ; As above, using the separate bolt calibration factor and offset
 ; Used for current measurements in a BMU
 MeasAndCorrBoltMi:
-			call		#measure				; 12.2 fixed-point result in R8
+			mov			&boltVMiRaw, R8			; 12.2 fixed-point result in R8
 			mov.w		&BoltMiCal,R9			; Get bolt- voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
 			_IF			_EQ						; If it doesn't exist
@@ -179,9 +155,7 @@ GetTemp:
 ; Output: R10 = calibrated temperature in correctly rounded degrees Celsius, approx range -50..100
 ; Also R9 = calibrated temperature in correctly rounded half degrees.
 ; Trashes: R8, R11
-				; In the below, or with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
-			mov		#TempChan<<12|ADC10DIV_7,R8
-			call	#measure				; 12.2 significant fixed-point result in R8, in 14.2
+			mov		&temperatureRaw, R8		; 12.2 significant fixed-point result in R8, in 14.2
 											; This is 4 bits shifted compared to a single measurement,
 											; as stored in CAL30
 			add		#2,R8					; For rounding

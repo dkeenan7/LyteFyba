@@ -490,7 +490,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
-				
+
 				mov.w	#CCIE, &MeasCCTL			; Enable interrupts for the measurements
 			_ELSE
 				mov.w	#CCIE, &TA0CCTL2			; For CMUs, enable timer 0 CCTL2 interrupt for measurements
@@ -537,8 +537,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; REFON		= turn on the voltage reference and reference buffer
 			; ADC10ON	= power on the measurement system (now on all the time)
 			mov			#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
-			; Other ADC10 initialisation is done every time "measure" is called, to save code space
-			; But we precalculate the values for ADC10CTL1, to save time in the frequenyly-called
+			; We precalculate the values for ADC10CTL1, to save time in the frequenyly-called
 			; interrupt routine
 			mov.b		&AdcTimIdx,R9
 			cmp			#4+1,R9						; Test the ADC timing index
@@ -560,6 +559,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b		#CellVChan<<4,	&chanList+1+4
 			mov.b		#TempChan<<4,	&chanList+1+6
 
+			mov			&chanList, &ADC10CTL1			; Ready for the first conversions
 ;
 ; Initialise the command character interpreter
 ;
