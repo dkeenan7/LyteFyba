@@ -379,7 +379,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Initialise clocks. SMCLK is only used by comms timer and watchdog timer.
 			; DIVS_1 => SMCLK = DCOCLK/2	DIVS_2 -> SMCK = DOCLK/4
 			; DIVM_1 => MCLK = DCOCLK/2
-			mov.b	#DIVM_1+LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
+			mov.b	#DIVM_1|LOG2(DCOckPerSMck)*DIVS_1, &BCSCTL2
 			mov.b	&info8MHzCalB,&BCSCTL1	; 8 MHz DCO cal data
 			mov.b	&info8MHzCalD,&DCOCTL
 
@@ -440,8 +440,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
 			; MC: 2 = continuous mode 1 = up mode
 			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TA0CTL
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2, &TA1CTL
+			mov		#TASSEL_2 | LOG2(SMckPerTAck)*ID_1 | MC_2 | TAIE, &TA0CTL
+			mov		#TASSEL_2 | LOG2(SMckPerTAck)*ID_1 | MC_2, &TA1CTL
 
 			mov.w	#OUTMOD_4|CCIE,&PizCCTLp	; Piezo CCR in Compare mode, "toggle" output mode
 
@@ -450,14 +450,15 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 			mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
 ;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
+			mov.w	#CM_2|CCIS_0|SCS|CAP|CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
 			mov.w	#OUTMOD_5, &ChgCCTLt		; Initialise transmit capture/compare register
 			mov.w	#BitTime96,&chgTxBitTime	; Set the bit time for 9600 baud
 			mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 			mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
 ;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+			mov.w	#CM_2|CCIS_0|SCS|CAP|CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
+			mov.w	#CCIE, &MeasCCTLp			; Enable measurement compare interrupts (TA1CCTL1)
 #else // G2452
 ;
 ;	Initialise io ports
@@ -482,13 +483,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;	Initialise timer and interrupt comms
 ;
-			mov.b	#Rx+TxMi,&P1SEL				; Select timer functions CCI1A and TA0 (not I/O port)
+			mov.b	#Rx|TxMi,&P1SEL				; Select timer functions CCI1A and TA0 (not I/O port)
 
 			; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
 			; ID: 3 = /8; 2 = /4; 1 = /2; 0 = /1
 			; MC: 2 = continuous mode 1 = up mode
 			; TAIE = interrupt enable (for timer overflow)
-			mov		#TASSEL_2 + LOG2(SMckPerTAck)*ID_1 + MC_2 + TAIE, &TACTL
+			mov		#TASSEL_2 | LOG2(SMckPerTAck)*ID_1 | MC_2 | TAIE, &TACTL
 
 			; Set up differential timer outputs for transmit data.
 			; Tricky way of getting inverted TA0 to appear on P1.5 automatically
@@ -497,8 +498,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; to invert TA0 and put it out as SCLK, in SPI master mode.
 			; We don't use the shift register of the USI because there is
 			; no way to get differential outputs from that without external hardware.
-			mov.b	#USIPE5 + USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
-			mov.b	#USIDIV_0 + USISSEL_5 + USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
+			mov.b	#USIPE5 | USIMST, &USICTL0	; SCLK out on P1.5, SPI Master mode, remove SW Reset
+			mov.b	#USIDIV_0 | USISSEL_5 | USICKPL, &USICKCTL ; SCLK source is TA0, div by 1, inverted
 			mov.b	#8, &USICNT					; To clear USIIFG so SCLK will not be held
 
 			; Make TA0 (output of Timer-A capture/compare unit 0) appear on P1.1
@@ -507,7 +508,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov		&TAR,&CCRt					; Make an output event
 			add		#4,&CCRt					;	happen in a dozen or so instructions
 			; NOTE: the above has to be enough to get past setting of OUTMOD_5 for TACCTLt below
-			mov.w	#OUTMOD_0 + OUT, &CCTLt		; TA0=1 Space; seems necessary to "wake up" SCLK divider
+			mov.w	#OUTMOD_0 | OUT, &CCTLt		; TA0=1 Space; seems necessary to "wake up" SCLK divider
 			mov.w	#OUTMOD_5, &CCTLt			; When the compare happens, set TA0=0 Idle or Mark
 
 			mov.w	#BitTime96,&txBitTime		; Set the bit time for 9600 baud
@@ -515,13 +516,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 												;	idle bit)
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
 ;			clr.b	txCksum						; Clear transmit checksum. Already cleared by loop above
-			mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&CCTLr ; Falling edge, Input A, Sync, Capture (TA0CCTL1)
+			mov.w	#CM_2|CCIS_0|SCS|CAP|CCIE,&CCTLr ; Falling edge, Input A, Sync, Capture (TA0CCTL1)
 			mov.w	#CCIE, &MeasCCTLp			; Enable measurement compare interrupts (TA0CCTL2)
 
 ; Prepare ACLK for piezo drive -- 3 kHz square wave
 			bis.b	#LFXT1S_2,&BCSCTL3		; Select VLOCLK (~12 kHz) as source for ACLK divider
 
-#endif
+#endif // G2452
+
 			; Already cleared by loop above
 ;			clr.b	&rxWr						; Initialise the TX and RX queue indexes
 ;			clr.b	&rxRd
@@ -564,7 +566,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT	= connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
-			mov		#SREF_1+ADC10SHT_3+REFOUT+REFON,&ADC10CTL0
+			mov		#SREF_1|ADC10SHT_3|REFOUT|REFON|ADC10ON,&ADC10CTL0
 			; We precalculate the values for ADC10CTL1, to save time in the frequently-called
 			; interrupt routine.
             ; We need the above maximum sample time of 64 cycles to get the 38 us we need to achieve
@@ -650,8 +652,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 						bis.b	#bNotMeasureTime,&monFlags	; Reset the time-to-measure flag
 						call	#DoMeasurement			; May transmit status
 					_ELSE
-						mov.w	#WDTPW+WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
-						bis		#CPUOFF+GIE,SR			; Turn off CPU and ensure interrupts still enabled
+						mov.w	#WDTPW|WDTHOLD,&WDTCTL	; Stop Watchdog Timer before sleeping CPU
+						bis		#CPUOFF|GIE,SR			; Turn off CPU and ensure interrupts still enabled
 					_ENDIF
 				_ENDIF
 

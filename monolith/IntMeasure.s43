@@ -77,7 +77,7 @@ temp:
 ; Output: R10 = temperature calibrated in degrees Celsius, approx range ???
 ; Trashes: R8, R9, R11
 			mov		&temperatureRaw,R8
-			call	Scale
+			call	#Scale
 			; Scale it back to degrees Celsius. Typically, T = (V-0.986)/.00355
 			; But the measurement M is 4092* V/1.5 = 2728*V.
 			; So T = (M/2728 - 0.986)*281.7 = M/9.684 - 277.7
