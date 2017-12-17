@@ -70,6 +70,7 @@ BSL:		; Initialisation
 
 			ClearWatchdog			; Clear and restart the Watchdog Timer (32k)
 
+mainLoop2:
 			; Log the reason for the reset, as the contents of IFG1.
 			; $A = RST pin (break), $6 = power on, $3 = watchdog, $2 = other bad stuff or JTAG.
 			; It's a shame there's no way to tell a JTAG reset from a non-watchdog abnormal reset,
@@ -81,7 +82,6 @@ BSL:		; Initialisation
 			mov.b		&IFG1,resetBuffer(R8)
 			inc			&resetCounter
 
-mainLoop2:
 			; Check for abnormal reset (watchdog, bad flash key, SFR instr fetch or JTAG reset)
 			; or main program not present.
 			; When JTAG debuging you need to write 4 or more to IFG1 ($0002) here,
@@ -90,7 +90,7 @@ mainLoop2:
 	#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
 			bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
 			_IF		_Z				; If a non-watchdog abnormal reset (which may only be a JTAG reset)
-				mov.b	#PORIFG,&IFG1	; Fake a Vcc power-up reset for the code below
+				mov.b	#RSTIFG,&IFG1	; Fake a /RST pin reset for the code below
 			_ENDIF
 #endif
 			_COND					; Begin a short-circuit conditional
