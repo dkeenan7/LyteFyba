@@ -106,7 +106,7 @@ TranslateToCalAddr:
 			_ENDOF
 
 			_OFb		#'l',Rtos				; 'l': link voltage
-				mov		#LinkVChan<<12,R8
+				mov		#BoltVMiChan<<12,R8
 				call	#measAndScale
 				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
 				;sub		Rsec,R10				; Subtract required reading (usually 0)

@@ -221,8 +221,7 @@ linkV:
 			_IF			_EQ				; If link calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				; In the below, add ADC10DIV_7, which forces the link measurement to use the slowest (/8) clock
-				mov			#LinkVChan<<12+ADC10DIV_7,R8	; Shifted ADC channel for link voltage divider
+				mov			#BoltVMiChan<<12,R8	; Shifted ADC channel for bolt- voltage divider
 				call		#measAndScale
 				; Link voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.
@@ -253,7 +252,7 @@ linkV:
 			_ENDIF
 			ret
 
-#if INSULATION_MONITORING
+#if INSULATION_MONITORING & G2553
 touchV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4095
@@ -261,3 +260,5 @@ touchV:
 			jmp		measAndScale				; Tail-call measAndScale and return
 #endif // INSULATION_MONITORING
 
+
+MeasureSubIsr: ret			; So wmonolith will assemble

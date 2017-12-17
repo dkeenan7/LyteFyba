@@ -1,7 +1,7 @@
 ;
 ; Branch: Rev61
-; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
-; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system (CMUs only),
+; CMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
+; As used in Mike's solar (24 V and 48 V) (CMUs only), Helidon off-grid solar power system (CMUs only),
 ; Kingscliff Demand Charge Management system, Kingscliff off-grid solar power system.
 ; The Helidon BMU is really a modified IMU and so its code is in the Rev58 branch.
 ;
@@ -54,7 +54,7 @@ BitTime24	EQU		(TAfreq+1200)/2400	; 416.68 us bit length in timer clock periods 
 #if G2553	// MSP430G2553 processor
 	; CMU comms uses UART
 	; Note that the CMU constants have no prefix while the others have "Scu" and "Chg".
-	; Charger/inverter comms and SoC meter PWM
+	; Charger/inverter comms and Piezo 4.2 kHz square wave
 ChgTAR		EQU			TA0R		; Charger/inverter timer register
 ChgTAIV		EQU			TA0IV		; Charger/inverter timer interrupt subvector
 ChgCCTLt	EQU			TA0CCTL0	; Charger/inverter Transmit capture/compare control register
@@ -64,26 +64,26 @@ PizCCR0		EQU			TA0CCR0		; Capture/compare register zero on the same timer as pie
 PizCCRp		EQU			TA0CCR1		; Piezo 4.2 kHz square wave capture/compare register
 ChgCCTLr	EQU			TA0CCTL2	; Charger/inverter Receive using CCI2
 ChgCCRr		EQU			TA0CCR2		; Charger/inverter Receive capture/compare register
-	; SCU comms and Piezo 4.2 kHz square wave
+	; SCU comms and Measurement
 ScuTAR		EQU			TA1R		; SCU timer register
 ScuTAIV		EQU			TA1IV		; SCU timer interrupt subvector
 ScuCCTLt	EQU			TA1CCTL0	; SCU Transmit capture/compare control register
 ScuCCRt		EQU			TA1CCR0		; SCU Transmit compare register
-SocCCTLp	EQU			TA1CCTL1	; SoC meter PWM capture/compare control register (BMU only)
-SocCCR0		EQU			TA1CCR0		; Capture/compare register zero on the same timer as SoC meter
-SocCCRp		EQU			TA1CCR1		; SoC meter PWM capture/compare register (BMU only)
+MeasCCTLp	EQU			TA1CCTL1	; Measurement capture/compare control register (BMU only)
+MeasCCR0	EQU			TA1CCR0		; Capture/compare register zero on the same timer as measurement
+MeasCCRp	EQU			TA1CCR1		; Measurement compare register (BMU only)
 ScuCCTLr	EQU			TA1CCTL2	; SCU Receive capture/compare control register
 ScuCCRr		EQU			TA1CCR2		; SCU Receive capture/compare register
 
 #else // Older MSP430G2452 processor
-	; CMU comms and SoC meter PWM
+	; CMU comms and Measurement
 CCTLt		EQU			TACCTL0		; CMU Transmit capture/compare control register
 CCRt		EQU			TACCR0		; CMU Transmit capture/compare register
 CCTLr		EQU			TACCTL1		; CMU Receive capture/compare control register
 CCRr		EQU			TACCR1		; CMU Receive capture/compare register
-SocCCTLp	EQU			TACCTL2		; SoC meter PWM capture/compare control register (IMU only)
-SocCCR0		EQU			TACCR0		; Capture/compare register zero on the same timer as SoC meter
-SocCCRp		EQU			TACCR2		; SoC meter PWM capture/compare register (IMU only)
+MeasCCTLp	EQU			TACCTL2		; Measurement capture/compare control register
+MeasCCR0	EQU			TACCR0		; Capture/compare register zero on the same timer as Measurement
+MeasCCRp	EQU			TACCR2		; Measurement compare register
 #endif
 
 
@@ -356,7 +356,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 
 ;-------------------------------------------------------------------------------
 RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
-				LOCAL	TiovSubIsr, RxSubIsr, PwmSubIsr, WakeExit
+				LOCAL	TiovSubIsr, RxSubIsr, MeasPizSubIsr, WakeExit
 ; Combined Receive (timer capture/compare 1) & timer overflow interrupt service routine
 ;-------------------------------------------------------------------------------
 			; Warning: Do not be tempted to replace the two instructions below: mov &TAIV,R9 ; cmp #2,R9
@@ -370,9 +370,9 @@ RxTiovIsrTimerMacro	MACRO	TAIV, CCRt, CCRr, CCTLr, CCR0, CCRp, rxData, bitCntRx,
 											; (6) cycles for interrupt accepted
 			push	R9						; (3) Save R9 (needed for queue use on last data bit anyway)
 			mov		&TAIV,R9				; (3) Read the Timer-A interrupt sub-vector (one access only!)
-			cmp		#CCRp-CCR0,R9			; (1) Was it a PWM interrupt
-			jeq		PwmSubIsr
-			cmp		#CCRr-CCRt,R9			; (1) Was it a receive interrupt
+			cmp		#CCRp-CCR0,R9			; (1) Was it a measurement or piezo interrupt
+			jeq		MeasPizSubIsr
+			cmp		#CCRr-CCR0,R9			; (1) Was it a receive interrupt
 			jeq		RxSubIsr				; (2) Yes, jump to receive interrupt service routine
 			; Otherwise fall thru to timer overflow interrupt service routine
 ;
@@ -416,21 +416,12 @@ WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 			pop		R9						; (2) Restore R9
 			reti							; (5) Return from interrupt
 
-PwmSubIsr:	; Compare match for PWM
-#if CCRp = SocCCRp							// Specialise this sub-ISR to SoC meter PWM versus piezo
-	; These interrupts should only be enabled on BMUs or IMUs with ID 255 running monolith, not monitor
+MeasPizSubIsr:	; Compare match for measurement or piezo
+#if CCRp = MeasCCRp							// Specialise this sub-ISR to measurement versus piezo
 	#ifdef MONOLITH
-			xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output. We assume it stays in step with R9!
-			bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
-			_IF		_Z						; (2) If now set,
-				mov		&socPwmAdv,R9			; (3) then just get advance value to R9
-			_ELSE							; (2) But if now zero, need to calculate low time
-				mov		#1000,R9				; (2)
-				sub		&socPwmAdv,R9			; (3) = 1000 (PWM period) - pwmAdv
-			_ENDIF
-			add		R9,&SocCCRp				; (4) Advance TACCR2 by this amount
-			; Note: no clear of the CPUOFF bit here, to save time. Not needed anyway.
-	#endif // MONOLITH
+			; These interrupts should only be enabled on CMUs or BMUs running monolith, not monitor
+			call	#MeasureSubIsr
+	#endif
 #else										// Else this is piezo PWM
 	#if	G2553
 			; We want the piezo to run at 4.2 kHz, or 1000/4.2 = 238 us period, or
@@ -442,13 +433,14 @@ PwmSubIsr:	; Compare match for PWM
 			reti							; (5) Return from interrupt
 			ENDM
 
+
 #if	G2553
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxIsr:			RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
-ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, SocCCR0, SocCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
+ScuRxTiovIsr:	RxTiovIsrTimerMacro	ScuTAIV, ScuCCRt, ScuCCRr, ScuCCTLr, MeasCCR0, MeasCCRp, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
 ChgRxTiovIsr:	RxTiovIsrTimerMacro	ChgTAIV, ChgCCRt, ChgCCRr, ChgCCTLr, PizCCR0, PizCCRp, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 #else
-RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, SocCCR0, SocCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
+RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, MeasCCR0, MeasCCRp, rxData, bitCntRx, rxBuf, rxRd, rxWr, RxSz
 #endif
 
 
@@ -568,7 +560,7 @@ DoPassword:
 					bic.b	#Rx|TxPl,&P1SEL		; Restore CMU comms pins to GPIO function
 					bic.b	#Rx|TxPl,&P1SEL2
 #else
-					clr.b	&P2OUT				; Set bypass and error LED off (relays off if IMU)
+					clr.b	&P2OUT				; Set bypass and error LED off
 					clr.b	&P1SEL				; Make Piezo (P1.1) ordinary I/O now
 					bic.b	#USIPE5,&USICTL0	; Make TxPl (P1.5) ordinary I/O also
 #endif

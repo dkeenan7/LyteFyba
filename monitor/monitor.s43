@@ -286,10 +286,10 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 				ORG		PROG_START	; In main-flash
 ;-------------------------------------------------------------------------------
 
+#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/InterruptComms.s43" // Comms routines
 #include "../common/ComComms.s43"	// Common comms functions, e.g. TxCksum
 #include "../common/measure.s43"	// ADC measurement functions
-#include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"		// Multiply and divide routines
 #include "monDefinitions.s43"		// Command character definitions
 
@@ -471,14 +471,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the ADC10
 ;
-			cmp.b	#0,&ID						; If we're not an IMU (Insulation Monitoring Unit)
-			_IF		_NE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ELSE
-				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ENDIF
+			; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
+			mov.b		#(1<<CellVChan)|(1<<BoltVMiChan)|(1<<4),&ADC10AE0
 			; Initialise ADC10
 			; SREF_1	= +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)

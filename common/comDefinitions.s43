@@ -281,7 +281,7 @@ _emitNum3:
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 
-#if INSULATION_MONITORING
+#if INSULATION_MONITORING & G2553
 ;
 ; TouchValue ( -- )
 ; Transmit the raw touch value (0 to 4092 mV).
@@ -289,7 +289,7 @@ _emitNum3:
 ; times R17 (120R), scaled to 4096 counts for 1500 mV (ADC reference).
 ;
 		xCODE		'T',touchValue,_touchValue
-		cmp.b	#0,&ID					; If we're an IMU
+		cmp.b	#255,&ID				; If we're a BMU
 		_IF		_EQ
 			call		#touchV				; Return touch value (0 to 4092) in R10
 			mov			#'T',Rthd			; Type is touch value
@@ -311,7 +311,7 @@ _emitNum3:
 #define Rcellv R12				// Battery voltage divided by 109 (in mV). Average cell voltage.
 #define Rmeas R14				// Max of touch measurements when any one relay is on.
 #define Rtest R15				// Touch self-test value when both relays are on.
-		cmp.b	#0,&ID				; If we're an IMU
+		cmp.b	#255,&ID			; If we're a BMU
 		_IF		_EQ
 			call	#cellV				; Return battery_voltage/109 in millivolts in R10
 			mov		R10,Rcellv
@@ -447,25 +447,11 @@ DelayMs:
 		ret
 
 
-;
-; RelayPlus ( bool -- ) Turn on or off relay+ on IMU
-;
-		xCODE	'Y',relayP,_relayP
-		tst.b	&ID
-		_IF		_Z					; If we're an IMU (would operate the error LED on a CMU)
-			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
-			movBits_B	Rtos,#RelayP,&P2OUT ; Move only the #RelayP bit from Rtos to &P2OUT. Trashs Rtos
-		_ENDIF
-;		pop		Rtos				; Remove operand
-		ret
-
-
 #if PROG_START < $F800	// Commented out if need to save space
 ;
-; Bypass or RelayMinus ( bool -- ) Turn on or off bypass resistors (or relay- if this is an IMU)
+; Bypass ( bool -- ) Turn on or off bypass resistors
 ;
 		xCODE	'y',bypass,_bypass
-_relayM	EQU		_bypass				; An alias for use in IMU code
 		allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 		movBits_B	Rtos,#Bypass,&P2OUT ; Move only the #Bypass bit from Rtos to &P2OUT. Trashes Rtos.
 ;		pop		Rtos				; Remove operand
@@ -772,7 +758,7 @@ DepthOfDischarge:
 
 
 		xCODE	'%',resetFuelGauge,_resetFuelGauge
-		; Only IMUs care about this, but no harm if CMUs do it too
+		; Only BMUs care about this, but no harm if CMUs do it too
 		clr		&discharge				; Clear low word of discharge accumulator
 		clr		&discharge+2			; Clear high word of discharge accumulator
 		ret
@@ -783,7 +769,7 @@ DepthOfDischarge:
 		; $A4 $CB80 a -- should correspond to 100.0% (of 40 Ah)
 		; $52 $65C0 a -- should correspond to 50.0% (of 40 Ah)
 		xCODE	'a',setFuelGauge,_setFuelGauge
-		; Only IMUs care about this, but no harm if CMUs do it too
+		; Only BMUs care about this, but no harm if CMUs do it too
 		mov		Rtos,&discharge				; Set low word of discharge accumulator
 		mov		Rsec,&discharge+2			; Set high word of discharge accumulator
 		call	#UpdateSoC					; For monolith only: update variable for SoC meter

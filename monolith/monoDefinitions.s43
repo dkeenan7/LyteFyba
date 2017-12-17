@@ -30,7 +30,7 @@
 
 #if MASTERLESS_CHARGING
 ; ChargerC(o)ntrol ( voltMin voltMax -- )
-			; This command only makes sense for the last CMU/IMU in the string, with an adapter
+			; This command only makes sense for the last CMU in the string, with an adapter
 			; from its fibre-optic output to the serial input of a PIP inverter/charger.
 			; If voltMax is non-zero, whenever you get a '1c' command, run a PI controller on stress
 			; to control a PIP inverter/charger at 2400 baud.
@@ -355,28 +355,29 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_ENDIF
 		ret
 
-; Current (tenths-of-an-amp -- ) // Sent by IMU to CMUs
+; Current (tenths-of-an-amp -- ) // Sent by BMU to CMUs
 		xCODE	'i',Current,_Current
 		cmp.b	#255,&ID
-		_IF	_NE							; If we're not an IMU
+		_IF	_NE							; If we're not an BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		clr.b	&ticksSinceLastI		; Zero ticks since last 'i' command
 		ret
 
 ; Store discharge counter high word (dischargeHi -- )
-		; Sent periodically by IMU to CMU 1, and sent by CMU 1 to IMU on receiving a 'G' command.
-		; The IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge so
-		; it can restore it after the monolith has been shut down and hence IMU has been powered down.
+		; Sent periodically by BMU/IMU to CMU 1, and sent by CMU 1 to BMU/IMU on receiving a 'G' command
+		; The BMU/IMU uses the CMU as battery-backed-up RAM to store the approximate depth of discharge
+		; so it can restore it after the monolith has been shut down and hence BMU/IMU has been powered
+		; down.
 		xCODE	'Z',ZtoreDischarge,_ZtoreDischarge
 		mov		Rtos,&discharge+2		; Set the discharge counter high word to the received value
 		ret
 
 ; Get discharge counter high word ( -- )
-		; Sent by IMU to CMU 1 when IMU is reset. Sends a 'Z' command back to the IMU with the
-		; high byte of the discharge counter.
+		; Sent by BMU/IMU to CMU 1 when BMU/IMU is reset. Sends a 'Z' command back to the BMU/IMU with
+		; the high byte of the discharge counter.
 		xCODE	'G',GetDischarge,_GetDischarge
-		mov		#SelectIMU,R10			; Transmit "255s" to select the IMU only
+		mov		#SelectBMU,R10			; Transmit "255s" to select the BMU/IMU only
 		call	#TxStringCk
 		ClearWatchdog
 
@@ -393,7 +394,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		br		#TxEndOfPacket			; Tail-call TxEndOfPacket and return
 ;		ret
 
-SelectIMU	DB	4, '255s'				; First byte is length of following string
+SelectBMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1
 
 ; Some characters need to be translated into RAM adresses of calibration values

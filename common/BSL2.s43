@@ -1,7 +1,7 @@
 ;
 ; Branch: Rev61
-; CMUs and IMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
-; As used in Mike's solar (24 V and 48 V), Helidon off-grid solar power system (CMUs only),
+; CMUs use MSP430G2452 microcontroller, BMUs use MSP430G2553.
+; As used in Mike's solar (24 V and 48 V) (CMUs only), Helidon off-grid solar power system (CMUs only),
 ; Kingscliff Demand Charge Management system, Kingscliff off-grid solar power system.
 ; The Helidon BMU is really a modified IMU and so its code is in the Rev58 branch.
 ;

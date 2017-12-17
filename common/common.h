@@ -21,8 +21,8 @@ BypPortSEL	EQU		P1SEL
 BypPortOUT	EQU		P1OUT
 
 ; Port 2 bit masks
-RelayM		EQU		1<<0			; IMU relay for HazV- test on P2.0
-RelayP		EQU		1<<1			; IMU relay for HazV+ test on P2.1
+RelayM		EQU		1<<0			; BMU relay for HazV- test on P2.0
+RelayP		EQU		1<<1			; BMU relay for HazV+ test on P2.1
 Spare0		EQU		1<<2			; Unused P2.2
 TxMiScu		EQU		1<<3			; Transmit- to SCU (TA1.0 output) on P2.3
 RxScu		EQU		1<<4			; Receive from SCU (TA1.2 input) on P2.4
@@ -58,7 +58,7 @@ ArrayV_BoltVPl_Chan	EQU	$5			; PV Array voltage (BMU) Bolt+ voltage (CMU)
 ShuntV_BoltVMi_Chan	EQU	$6			; Current shunt voltage (BMU), Bolt- voltage (CMU)
 BatV_StrapVPl_Chan 	EQU	$7			; Battery voltage (BMU), Strap+ (cell) voltage (CMU)
 TempChan	EQU		$A				; Temperature
-LinkVChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
+BoltVMiChan	EQU		ShuntV_BoltVMi_Chan	; Aliases for code that's common to newer and older devices
 CellVChan	EQU		BatV_StrapVPl_Chan
 BoltVPlChan EQU		ArrayV_BoltVPl_Chan
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
@@ -68,6 +68,7 @@ NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)
 ; leaving us with n bits of additional information.
 
 #define		PROG_START	$E000		// Start of program image in flash memory. Ends at $FDFF
+#define		TRUNK_PROG_ST $C000		// Equivalent start of program image for trunk images
 
 #else							// Else using the older MSP430G2452 processor
 
@@ -101,10 +102,9 @@ BypPortSEL	EQU		P2SEL
 BypPortOUT	EQU		P2OUT
 
 ; ADC channel numbers
-TouchVChan	EQU		$3				; Touch (insulation test) voltage (IMU only)
 BoltVPlChan	EQU		$3				; Bolt+ voltage (CMU only)
 VRefPChan	EQU		$4				; Vref+ out
-LinkVChan	EQU		$6				; Link voltage
+BoltVMiChan	EQU		$6				; Bolt- voltage (CMU only)
 CellVChan	EQU		$7				; Cell voltage
 TempChan	EQU		$A				; Temperature
 NumSamples	EQU		16				; Number of ADC over-samples (typ. 4 or 16)

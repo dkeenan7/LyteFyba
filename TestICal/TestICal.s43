@@ -375,23 +375,11 @@ newChip:
 ; Initialise the ADC10
 ;
 #if G2553
-			cmp.b	#255,&ID					; If we're not a BMU (BMS Master Unit)
-			_IF		_NE
-				; Enable analog inputs and Vref+ out, but not TouchV
-				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
-			_ELSE
-				; Enable analog inputs and Vref+ out
-				mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan)|(1<<TouchVChan),&ADC10AE0
-			_ENDIF
+			; Enable analog inputs and Vref+ out (TouchVChan not used)
+			mov.b		#(1<<VRefPChan)|(1<<ArrayV_BoltVPl_Chan)|(1<<ShuntV_BoltVMi_Chan)|(1<<BatV_StrapVPl_Chan),&ADC10AE0
 #else
-			cmp.b	#0,&ID					; If we're not an IMU (Insulation Monitoring Unit)
-			_IF		_NE
-				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ELSE
-				; Enable touchV, cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
-				mov.b		#(1<<TouchVChan)|(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
-			_ENDIF
+			; Enable analog inputs and Vref+ out
+			mov.b		#(1<<VRefPChan)|(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan),&ADC10AE0
 #endif // G2553
 
 			; Initialise ADC10
@@ -412,10 +400,10 @@ newChip:
 ; Initialise the command character interpreter
 ;
 ;			clr.b	&RXCksum					; Clear the receive checksum
-;			bic.b	#bHexOutput,&interpFlags		; Decimal output mode by default
+;			bic.b	#bHexOutput,&interpFlags	; Decimal output mode by default
 ;			bic.b	#bChecksumming,&interpFlags	; Checksumming of packets, off by default
-;			bic.b	#bDontInterpret,&interpFlags	; Interpret
-			mov		#TIB,&ToIN				; Packet pointer
+;			bic.b	#bDontInterpret,&interpFlags ; Interpret
+			mov		#TIB,&ToIN					; Packet pointer
 
 			mov		#InitCmdString,Rip			; Interpret the init string as commands
 			call	#_ENTER
