@@ -444,7 +444,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
-			; Don't change the state of contactor outputs unless this is a power-on reset
+			; Don't change the state of contactor outputs (or SoC) unless this is a power-on reset
 			; or you might cut off your own power.
 			mov		&resetCounter,R8
 			dec		R8
@@ -453,6 +453,10 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bit.b	#PORIFG,R8				; Check for power-on reset
 			_IF		_NZ						; If it was a power-on
 				mov.b	#0,&P3OUT				; Turn off all contactors
+				; SoC initialisation
+				clr		&discharge				; Initialise the SoC to 100%
+				clr		&discharge+2			; BMU will retrieve SoC from CMU 1
+				call	#UpdateSoC				; Initialise the pre-computed counter advance value
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.
 			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
@@ -585,11 +589,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontInterpret,&interpFlags ; Do interpret
 ;			bic.b	#bDontEcho,&interpFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
-
-; SoC initialisation
-			clr		&discharge				; Initialise the SoC to 100%
-			clr		&discharge+2			; BMU will retrieve SoC from CMU 1
-			call	#UpdateSoC				; Initialise the pre-computed counter advance value
 
 ;
 ; Miscellaneous initialisation
