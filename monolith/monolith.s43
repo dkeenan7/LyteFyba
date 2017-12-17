@@ -541,7 +541,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; ADC10ON	= power on the measurement system (now on all the time)
 			mov			#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
 			; We precalculate the values for ADC10CTL1, to save time in the frequently-called
-			; interrupt routine
+			; interrupt routine.
+            ; We need the above maximum sample time of 64 cycles to get the 38 us we need to achieve
+			; 12 bit accuracy with the 155 kR impedance of our voltage dividers.
+			; ADC adds 2 kR and sampling capacitor is 27 pF.
+            ; Temperature measurement also requires 30 us just to get half-degree accuracy.
+            ; So ADC clock frequency should not be much greater than 64/38 us = 1.67 MHz.
+            ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
+            ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
 			mov.b		&AdcTimIdx,R9
 			cmp			#4+1,R9						; Test the ADC timing index
 			_IF			_HS							; If not valid (not 0-4)

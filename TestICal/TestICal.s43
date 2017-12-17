@@ -614,7 +614,7 @@ jUCA0RxIsr		reti					; UART receive not used
 
 jTA1TxRxIsr		reti					; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
 				nop
-jTA1PwmIsr		reti					; Timer A1 CCR0 (SoC PWM compare)
+jTA1MeasureIsr	reti					; Timer A1 CCR0 (BMU Measure compare)
 				nop
 
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START

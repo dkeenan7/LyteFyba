@@ -562,7 +562,7 @@ freeSpaceBSL2	EQU		jBSL+($FFEC-BSL2_START) - $ ; Number of bytes spare in the BS
 		DW		$FFFF, $FFFF	; FFF4, FFF6 unused.
 								; $FFF8, Timer A1 Vectors
 		DW		jTA1TxRxIsr		; Combined Timer A1 CC1,2IFG (transmit/receive capture/compare) & TAIFG (overflow)
-		DW		jTA1MeasureIsr	; Timer A1 CC0IFG (measurement compare)
+		DW		jTA1MeasureIsr	; Timer A1 CC0IFG (BMU measurement compare)
 
 								; $FFFC, Unused NMI vector location
 BSL2presence	DB		$08				; No longer used. BSL1 used to check this before calling BSL2.

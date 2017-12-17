@@ -1354,8 +1354,8 @@ jUCA0TxIsr		br		#TxIsr			; UART transmit
 jUCA0RxIsr		br		#RxIsr			; UART receive
 
 jTA1TxRxIsr		br		#ChgTxRxIsr		; Combined TA1 CCR1 & CCR2 (transmit & receive capture/compare)
-jTA1PwmIsr		br		#SocPwmIsr		; Timer A1 CCR0 (SoC PWM compare)
-
+jTA1MeasureIsr	reti					; Timer A1 CCR0 (BMU measurement compare)
+				nop
 jInterpretInit	br		#InterpretInit	; A branch to InterpretInit, independent of PROG_START
 
 jTA0TxRxIsr		br		#ScuTxRxIsr		; Combined TA0 CCR1 & CCR2 (transmit & receive capture/compare)

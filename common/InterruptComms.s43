@@ -377,7 +377,8 @@ TxSubIsr:	; Compare match for Tx
 TxIsr:		TxIsrUartMacro		txBuf, txRd, txWr, TxSz
 RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
-ScuTxRxIsr:	cmp.b	#255, &ID
+ScuTxRxIsr:
+			cmp.b	#255, &ID
 			_IF		_NE						; If not a BMU,
 				br		#MeasureCmuIsr			; Then this is actually a measurement interrupt
 			_ENDIF

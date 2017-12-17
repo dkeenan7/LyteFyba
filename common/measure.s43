@@ -132,15 +132,15 @@ measure:
 			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
 			; CONSEQ_0	= single channel single conversion
 
-			; We found years ago that ADCOSAC/3 distributes noise particularly from SMCLK better, for
+			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better, for
 			; more consistent ADC readings. But now they seem more noisy, especially for the Bolt+
 			; reading
 DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0
 adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2
-			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADCOSC/2 (may be too fast)
-			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADCOSC/3
-			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADCOSC/4
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)
+			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADC10OSC/3
+			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADC10OSC/4
 			align	1
 
 ; Measure and Correct routines
@@ -312,3 +312,5 @@ GetTouchV:
 			jmp		MeasAndCorrCell						; Tail-call MeasAndCorrCell and return
 #endif // INSULATION_MONITORING
 
+; Allow Monitor and WMonolith to assemble without interrupt-driven measurement
+MeasureCmuIsr: reti
