@@ -11,7 +11,7 @@ of the step it failed.
    Use the Fluke 87 III multimeter to monitor supply voltage by plugging its leads
    into the white connector on the test jig.
    Set oscilloscope to 1 V/div, 100 us/div, normal trigger, trigger at about 1.7 V.
-   Launch the IAR Workbench software. Open its celltopbmu.eww workspace and
+   Launch the IAR Workbench software. Open its LyteFyba.eww workspace and
    choose the TestICal project and connect the Launch Pad programming device to the
    right hand USB port.
    Launch TeraTerm and connect the Novus RS485 device to the left hand USB port.

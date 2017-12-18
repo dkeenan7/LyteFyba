@@ -61,7 +61,7 @@ l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
    L  Liven contactor (1L .. 5L)
    m  e(m)itCharacter
 Ms Ms Milliseconds delay
-   Mv Measure Vcc
+   Mv Measure Vcc (CMU only)
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
@@ -130,7 +130,7 @@ In In Display input port value
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
-   Mv Measure Vcc
+   Mv Measure Vcc (CMU only)
 o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
 O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU

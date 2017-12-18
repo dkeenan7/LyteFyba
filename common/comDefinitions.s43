@@ -994,9 +994,9 @@ GetContactorBitmask:
 		_ELSE
 			mov		#0,Rsec					; Else set Rsec to 0
 		_ENDIF
-		mov		'P',Rthd				; Type is inPut Port
+		mov		#'I'|'n'<<8,Rthd			; Type In put Port
 		mov		#1,Rtos					; One digit: 0 or 1
-		call	#_prettyPrint
+		br		#_prettyPrint
 
 
 ;
