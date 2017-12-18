@@ -472,8 +472,9 @@ newChip:
 
 
 ;
-; Determine the best ADC clock value for this CMU
-; Can't be used for BMUs since V and v measure different things
+; Determine the best ADC clock value for this CMU.
+; Assumes the CMU is bolted to a cell carrying no current so v and V measure the same solid voltage.
+; Can't be used for BMUs unless v and V (HazBat & HazArr) are arranged to measure the same thing.
 ; Trashes R8-12, R13, R15
 ;
 ; Local variable stack pointer offsets
@@ -493,6 +494,8 @@ FindOptAdc:
 			mov.b	#1,&ramAdcTimIdx	; Measure cell voltage with MCLK/2 timing since it has the
 										; lowest worst-case noise
 			_DO		#256,R12
+				; We use CellV here because it is a less noisy measurement than BoltVPl,
+				; because its track on a CMU has a more shielded route.
 				call	#GetCellV
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
@@ -516,6 +519,8 @@ FindOptAdc:
 				inc		R8					; R8 is 1-4
 				mov.b	R8,&ramAdcTimIdx	; Use this ADC timing
 				_DO		#256,R12			; Do 128 measurements
+					; We use BoltPlV here because it is a noiser measurement than CellV,
+					; because its track on a CMU runs parallel to some noisy other tracks.
 					call	#GetBoltPlV			; V is the noisy measurement
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg

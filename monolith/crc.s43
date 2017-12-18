@@ -22,7 +22,7 @@ TxStringCrc: mov.b	@R10+,R11
 			; Fall through to TxStringCrcS
 
 ;-------------------------------------------------------------------------------
-; TxStringCrc ; Transmit string pointed to by R10 with length in R11 while accumulating checksum.
+; TxStringCrcS ; Transmit string pointed to by R10 with length in R11 while accumulating checksum.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------

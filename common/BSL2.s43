@@ -400,9 +400,9 @@ WriteBreak:
 	mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 	ret
 
-; WriteByte ( R8 -- R9 R10 R11 )
+; WriteByte ( R8 -- R9 R11 )
 ; Write the low byte of R8 to CMU serial output.
-; Trashes R9 R10 R11. Preserves R8.
+; Trashes R9 R11. Preserves R8 R10.
 WriteByte:
 	mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
 	mov.b	R8,&UCA0TXBUF		; Send byte
@@ -426,10 +426,11 @@ WriteByte:
 	ret					; Return from WriteByte
 
 
-; WriteScuByte ( R8 -- R9 R10 R11 )
+; WriteScuByte ( R8 -- R9 R11 )
 ; Write the low byte of R8 to the SCU output (BMU only) -- Uses bit banging with timed busy-wait loops
-; Trashes R9 R10 R11. Preserves R8.
+; Trashes R9 R11. Preserves R8 R10.
 WriteScuByte:
+			push	R10
 			clr		R11
 			mov		R8,R9			; Allow R8 to be preserved for password compare
 
@@ -459,6 +460,7 @@ WriteScuByte:
 			; to allow any preceding CMU's BSL time to both read and echo the byte.
 
 			pop		SR
+			pop		R10
 			ret
 
 

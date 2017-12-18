@@ -91,3 +91,9 @@ of the step it failed.
    the Novus device may be pumping up the supply.
 11) Load Monitor or monolith or wmonolith.
 12) First disconnect the CMU board from the test jig, then turn off the power supply.
+
+
+Notes for BMUs:
+To set the current shunt offset you need to connect the two shunt inputs together and connect them to HazCom.
+
+TestICal does not automatically choose the optimum ADC clock for a new chip in a BMU, like it does in a CMU. But you can do this manually with a 'ac command if you connect HazBat and HazArr together and connect them to a source of 30 volts or more relative to HazCom. Don't forget a u command to save the result.

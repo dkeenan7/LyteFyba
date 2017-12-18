@@ -730,6 +730,8 @@ PipInitTbl 	DB	1,$0D						; First send a CR in case PIP has already received jun
 			DB	11,'PBCV51.0',$7B,$AF,$0D	; Start charging from util (if avail) when bat falls to 51 V (Param 12)
 #if CONFIG == OFF_GRID
 			DB	11,'PBDV00.0',$38,$9B,$0D	; Stop charging from utility when "FUL", i.e. float achieved (Param 13)
+											; The $9B above acts as an ESC for TeraTerm so don't be
+											; fooled by the fact that you don't see the next 3 commands.
 #else
 ;			DB	11,'PBDV52.0',$EA,$BE,$0D	; Stop charging from utility when bat rises to 52 V (Param 13)
 			DB	11,'PBDV53.0',$DD,$8E,$0D	; Stop charging from utility when bat rises to 53 V (Param 13)
