@@ -42,7 +42,7 @@
 			xCODE	'o',ChargerControl,_ChargerControl
 			mov		Rtos,&chargerVoltMax		; Set the maximum charger voltage
 			tst		Rtos
-			_IF		_Z							; If the maximum is zero
+			_IF		Z							; If the maximum is zero
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 			_ELSE
 				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
@@ -79,7 +79,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
 			mov		#'p',Rthd				; Type is stress
 			cmp.b	#255,&ID
-			_IF		_EQ						; If BMU
+			_IF		EQ						; If BMU
 				mov.b	&globalStatus,Rsec		; Get global status
 			_ELSE
 				mov.b	&localStatus,Rsec		; Get local status
@@ -93,7 +93,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
 			cmp.b	Rtos,&worstStress
-			_IF		_LO
+			_IF		LO
 				ret
 			_ENDIF
 			push.b	&interpFlags				; Save present number base
@@ -211,7 +211,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		_ENDCASE
 
 		cmp		Rtos,R10			; Find min of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new min, update ID
 		_ENDIF
@@ -275,7 +275,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_ENDCASE
 
 		cmp		R10,Rtos			; Find max of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new max, update ID
 		_ENDIF
@@ -309,7 +309,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; Current (tenths-of-an-amp -- ) // Sent by BMU to CMUs
 		xCODE	'i',Current,_Current
 		cmp.b	#255,&ID
-		_IF	_NE							; If we're not a BMU
+		_IF	NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		clr.b	&ticksSinceLastI		; Zero ticks since last 'i' command
@@ -369,17 +369,17 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		; as specified by u2 values of 1 = Chg1 only, 2 = Chg2 only, 3 = both.
 		xCODE	'P'|'p' <<8,PipCommmand,_PipCommand ; 'Pp' collides with 'Ph' 'Px' 'Xh' 'Xp' 'Xx'
 		cmp.b	#255,&ID
-		_IF	_EQ							; If I'm a BMU
+		_IF	EQ							; If I'm a BMU
 			; Temporarily disable the timer functions of all Chg pins
 			bic.b	#TxMiChg|TxMiChg2|RxChg|RxChg2,&ChgPortSEL
 			bit		#2,Rtos
-			_IF		_NZ
+			_IF		NZ
 				; Enable the timer function of the TxChg2 and RxChg2 pins
 				bis.b	#TxMiChg2|RxChg2,&ChgPortSEL
 				bis		#CCIS0,&ChgCCTLr		; Select input B for charger capture compare register
 			_ENDIF
 			bit		#1,Rtos
-			_IF		_NZ
+			_IF		NZ
 				; Enable the timer function of the TxChg and RxChg pins
 				; This comes last so if sending to both ports, we receive from RxChg, not RxCgh2
 				bis.b	#TxMiChg|RxChg,&ChgPortSEL
@@ -405,17 +405,17 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		; as specified by u2 values of 1 = Chg1 only, 2 = Chg2 only, 3 = both.
 		xCODE	'P'|'w' <<8,PipCmdNC,_PipCmdNC ; 'Pw' collides with 'Po' 'Pg' 'Xw' 'Xo' 'Xg'
 		cmp.b	#255,&ID
-		_IF	_EQ							; If I'm a BMU
+		_IF	EQ							; If I'm a BMU
 			; Temporarily disable the timer functions of all Chg pins
 			bic.b	#TxMiChg|TxMiChg2|RxChg|RxChg2,&ChgPortSEL
 			bit		#2,Rtos
-			_IF		_NZ
+			_IF		NZ
 				; Enable the timer function of the TxChg2 and RxChg2 pins
 				bis.b	#TxMiChg2|RxChg2,&ChgPortSEL
 				bis		#CCIS0,&ChgCCTLr		; Select input B for charger capture compare register
 			_ENDIF
 			bit		#1,Rtos
-			_IF		_NZ
+			_IF		NZ
 				; Enable the timer function of the TxChg and RxChg pins
 				; This comes last so if sending to both ports, we receive from RxChg, not RxCgh2
 				bis.b	#TxMiChg|RxChg,&ChgPortSEL
@@ -459,12 +459,12 @@ sizeCalAddressTable	EQU	$-calAddressTable
 TranslateToCalAddr:
 		; Do the calibration address translations using the table above
 		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
-		_BEGIN				; Begin loop
+		_DO				; Begin loop
 			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
-			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
 				decd	R9			; Decrement loop-counter/table-index by 2
-		_UNTIL	_Z			; Until loop counter is zero
+		_UNTIL	Z			; Until loop counter is zero
 		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
 			_ELSE				; Else there is a match so
 				swpb	R10			; Get the high byte from the table
@@ -482,7 +482,7 @@ TranslateToCalAddr:
 			xCODE	'c',calibrate,_calibrate
 			_CASE
 
-			_OFb		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
+			_OF_B		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				mov.b	&BoltMiOff,R9				; Subtract the existing offset (signed byte)
@@ -506,9 +506,9 @@ TranslateToCalAddr:
 				neg		R8
 				_COND								; Start a short-circuit conditional
 					cmp		#-$7F,R8					; Compare with -$7F
-				_IF_OR		_L						; If < -$7F
+				_OR_ELSE	L						; If < -$7F
 					cmp		#$80,R8					; Compare with $80
-				_OR_IFS		_GE						; or >= $80
+				_OR_IFS		GE						; or >= $80
 					mov		#$80,R8					; Use $80 to indicate "not calibrated"
 				_ENDIF
 				mov			#0,R9				; Save the bolt-/current offset calibration value
@@ -516,16 +516,16 @@ TranslateToCalAddr:
 				call		#UpdFlash
 			_ENDOF
 
-			_OFb	#'i',Rtos
+			_OF_B	#'i',Rtos
 				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
 				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 				; and responds with the ID _after_ the last ID.
 				cmp.b	#255,&ID
-				_IF		_EQ					; But if we're a BMU,
+				_IF		EQ					; But if we're a BMU,
 					ret							; silently ignore; BMUs have to stay ID=255
 				_ENDIF
 				bit.b	#bDontEcho,&interpFlags
-				_IF		_NZ					; If the dont-echo flag is set
+				_IF		NZ					; If the dont-echo flag is set
 					; Save our new ID to info-flash
 					mov.b	Rsec,R8				; New value
 					mov		#0,R9				; Size = byte
@@ -568,15 +568,15 @@ TranslateToCalAddr:
 			bic.b	#$80,Rsec
 			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
-			_IF		_NZ						; If not zero (zero means "unrecognised")
-				_IF		_NN						; If high bit clear
+			_IF		NZ						; If not zero (zero means "unrecognised")
+				_IF		NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit set so
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-					_IF		_EQ
+					_IF		EQ
 						mov		Rsec,R9
 						clr		R10
 						mov		#10,R8				; Divide by 10 to bring to whole Ah
@@ -615,31 +615,31 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			xCODE	'w',writeCalValue,_writeCalValue
 		_COND
 			cmp.b	#'i',Rtos					; Write an ID ?
-			_IF		_EQ
+			_IF		EQ
 				cmp.b	#255,&ID					; BMUs have to stay ID=255
 				bit		#2,SR						; Invert the Z (EQ) bit (can't use xor)
 			_ENDIF
-		_OR_ELSE	_EQ
+		_OR_ELSE	EQ
 			cmp.b	#'r',Rtos					; Cell internal resistance
-		_OR_ELSE	_EQ
+		_OR_ELSE	EQ
 			cmp.b	#'c',Rtos					; Battery capacity
-		_OR_ELSE	_EQ
+		_OR_ELSE	EQ
 			cmp.b	#'n',Rtos					; Bolt- or Shunt offset
-		_OR_IFS 	_EQ
+		_OR_IFS 	EQ
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R10					; Convert to info flash address in R10
 			bic.b	#$80,R10
 			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
 			cmp		#infoCapacity,R10			; Check for battery capacity
-			_IF		_EQ							; If so
+			_IF		EQ							; If so
 				rla		Rsec						; Multiply given value by 10
 				mov		Rsec,R9						; to bring to tenths of an Ah
 				rla2	Rsec						; *8
 				add		R9,Rsec						; *10
 			_ENDIF
 			tst.b	Rtos
-			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit clear
+			_IF		NZ						; If not zero for "unrecognised"
+				_IF		NN						; If high bit clear
 					mov		#0,R9					; Indicate byte size
 				_ELSE							; Else high bit set so
 					mov.w	#1,R9					; Indicate word sized cal value
@@ -672,16 +672,16 @@ UpdFlash:
 			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
 			mov		SP,R11					; Copy start of buffer to R10
 			clr		R12						; Loop counter
-			_BEGIN
+			_DO
 				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
 				inc		R11
 				inc		R12
 				cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
+			_UNTIL	EQ						; Loop until ramDataEnd
 
 			add		SP,R10					; R10 points infoDataStart past RAM equivalent
 			tst		R9
-			_IF		_NZ
+			_IF		NZ
 				mov.w	R8,-infoDataStart(R10)		; Copy new info word to RAM equivalent
 			_ELSE
 				mov.b	R8,-infoDataStart(R10)		; Copy new info byte to RAM equivalent
@@ -700,11 +700,11 @@ UpdFlash:
 
 			clr		R12						; Loop counter
 			mov		SP,R10					; Point to start of RAM copy
-			_BEGIN
+			_DO
 				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
 				cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
+			_UNTIL	EQ						; Loop until ramDataEnd
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
@@ -714,7 +714,7 @@ UpdFlash:
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
 			mov		#1+4+1,R11				; String length
-			_IF    _NE
+			_IF    NE
 				mov		#sFail,R10
 			_ELSE
 				mov		#sDone,R10
@@ -736,12 +736,12 @@ compareInfoFlash:
 			mov		SP,R10
 			incd	R10					; Skip return address
 			clr		R12					; Loop counter
-			_BEGIN
+			_DO
 				cmp.b	@R10+,infoDataStart(R12)
-				_WHILE	_EQ ; _Z
+				_WHILE	EQ ; Z
 					inc		R12
 					cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+			_UNTIL	EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret

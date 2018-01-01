@@ -77,7 +77,7 @@ TxByteNWUartMacro	MACRO	TxSz, txBuf, txRd, txWr
 			inc.b	R9						; Increment a copy of the write index
 			and.b	#TxSz-1,R9				;	modulo the queue size
 			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
-			_IF		_NE
+			_IF		NE
 				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 				bis.b	#UCA0TXIE,&IE2		; Enable transmit interrupts
 				clrz						; Indicate char was accepted
@@ -97,13 +97,13 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 			inc.b	R9						; Increment a copy of the write index
 			and.b	#TxSz-1,R9				;	modulo the queue size
 			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
-			_IF		_NE
+			_IF		NE
 				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 
 				; If transmit interrupts are disabled, set up the timer for a new start bit
 				; and enable transmit compare interrupts.
 				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
-				_IF		_Z					; If transmit interrupts disabled
+				_IF		Z					; If transmit interrupts disabled
 					mov.b	#10,&bitCntTx		; Load bit transition counter: 10 bits
 					; Ensure a predictable delay between reading timer and setting
 					; compare time and output mode for a start bit.
@@ -118,9 +118,9 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					add		&TAR,R9				; (4) R9 := timer value + setup time
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&CCTLt		; (5) Test transmit compare interrupt flag
-					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
+					_OR_ELSE	NZ				; (2) If previous stop bit has not completed Or Else
 						cmp		&CCRt,R9			; (4) Test (TAR+setup) - CCRt
-					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
+					_OR_IFS		NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
 					eint						; (1) Enable interrupts. Next instruction still protected
@@ -145,7 +145,7 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	dest
-			_BEGIN
+			_DO
 				ClearWatchdog
 #if ALL_TO_ALL
 				call	#ScuTxByteNoWait
@@ -154,7 +154,7 @@ TxByteMacro	MACRO	dest
 #else
 				call	#dest
 #endif
-			_UNTIL	_NZ
+			_UNTIL	NZ
 			ret
 			ENDM
 
@@ -181,12 +181,12 @@ ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accu
 ; Called before changing baud rate in monolith.
 ;
 WaitTxComplete:
-		_BEGIN						; Begin loop
+		_DO						; Begin loop
 			ClearWatchdog
 			mov.b	&ScuCCTLt,R8
 			bis.b	&ChgCCTLt,R8	; or.b
 			and.b	#CCIE,R8		; Test the transmit interrupts enabled bits
-		_UNTIL	_Z					; Until it is cleared
+		_UNTIL	Z					; Until it is cleared
 		ret
 
 #if 0					// The CCR for this function is now needed for measurements
@@ -201,7 +201,7 @@ SocPwmIsr:
 		push	R9						; (?) Save R9
 		xor.b	#SocMeter,&SocPortOUT	; (4) Toggle SoC output
 		bit.b	#SocMeter,&SocPortOUT	; (3) Test the bit
-		_IF		_Z						; (2) If now set,
+		_IF		Z						; (2) If now set,
 			mov		&socPwmAdv,R9			; (3) then just get advance value to R9
 		_ELSE							; (2) But if now zero, need to calculate low time
 			mov		#1000,R9				; (2)
@@ -232,7 +232,7 @@ TxIsrUartMacro	MACRO	txBuf, txRd, txWr, TxSz
 			and.b 	#TxSz-1,R9				;	modulo the queue size.
 			mov.b 	R9,&txRd				; Update the read index
 			cmp.b 	&txWr,&txRd				; Test if TX queue is empty
-			_IF		_EQ						; If TX queue is empty
+			_IF		EQ						; If TX queue is empty
 				bic.b	#UCA0TXIE,&IE2		; Disable Tx interrupts
 				nop							; Wait because the above doesn't take effect immediately
 			_ENDIF							; Endif TX queue is not empty
@@ -254,7 +254,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		inc.b	R9						; Increment a copy of the write index
 		and.b	#RxSz-1,R9				;  modulo the queue size
 		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-		_IF		_NE						; If queue not full
+		_IF		NE						; If queue not full
 			mov.b	R9,&rxWr				; Update write index so char is properly in queue
 			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 		_ENDIF							; Endif queue not full
@@ -296,7 +296,7 @@ TiovSubIsr: ; FIX ME or REPLACE ME with a pop R9; reti
 ;
 RxSubIsr:	add		&bitTime,&CCRr			; (6) Time to next bit
 			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
-			_IF		_NZ						; (2) If start bit edge
+			_IF		NZ						; (2) If start bit edge
 				bic		#CAP,&CCTLr				; (5) Switch to compare mode
 				mov		&bitTime,R9				; (3)
 				rra		R9						; (1) Half bit time
@@ -305,7 +305,7 @@ RxSubIsr:	add		&bitTime,&CCRr			; (6) Time to next bit
 				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
 				rrc.b	&rxData					; (4) Store received bit
 				dec.b	&bitCntRx				; (4) All bits RXed?
-				_IF		_Z						; (2) If this is the last data bit
+				_IF		Z						; (2) If this is the last data bit
 					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
 					bis		#CAP,&CCTLr				; Set back to capture mode
 
@@ -317,7 +317,7 @@ RxSubIsr:	add		&bitTime,&CCRr			; (6) Time to next bit
 					inc.b	R9						; Increment a copy of the write index
 					and.b	#RxSz-1,R9				;  modulo the queue size
 					cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-					_IF		_NE						; If queue not full
+					_IF		NE						; If queue not full
 						mov.b	R9,&rxWr				; Update write index so char is properly in queue
 WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 					_ENDIF							; Endif queue not full
@@ -337,10 +337,10 @@ TxSubIsr:	; Compare match for Tx
 											; (6) cycles for interrupt accepted
 			add.w	&bitTime,&CCRt			; (6) Set timer compare reg for when next transition is due
 			dec.b	&bitCntTx				; (4) Decrement bit counter
-			_IF		_NZ						; (2) If not Stop bit initiated
+			_IF		NZ						; (2) If not Stop bit initiated
 
 				cmp.b	#9,&bitCntTx			; (5) Test if start bit just started
-				_IF		_EQ						; (2) If start bit just started
+				_IF		EQ						; (2) If start bit just started
 					push	R9
 					mov.b 	&txRd,R9				; Get read index in R9
 					mov.b	txBuf(R9),&txData		; Get next char from queue into txData
@@ -354,14 +354,14 @@ TxSubIsr:	; Compare match for Tx
 				_ENDIF							; Endif start bit just started
 				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always
 												; so stop and idle bits are always treated like data 1s
-				_IF		_NC						; (2) If bit is 0
+				_IF		NC						; (2) If bit is 0
 					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) then set TxMi = TAx.0 output high
 				_ELSE							; (2) Else bit is 1
 					mov		#OUTMOD_5+CCIE,&CCTLt	; (5) Else clear TxMi = TAx.0 output low
 				_ENDIF							; Endif bit is 1
 			_ELSE							; Else Stop bit initiated
 				cmp.b 	&txWr,&txRd				; Test if Tx queue is empty
-				_IF		_EQ						; If Tx queue is empty
+				_IF		EQ						; If Tx queue is empty
 					bic.w	#CCIE,&CCTLt			; (5) Disable Tx interrupts
 				_ELSE							; Else Tx queue is not empty
 					mov.b	#10,&bitCntTx			; Load bit transition counter: 10 bits
@@ -379,7 +379,7 @@ RxIsr:		RxIsrUartMacro		rxBuf, rxRd, rxWr, RxSz
 ChgTxRxIsr:	TxRxIsrTimerMacro	ChgTAIV, ChgCCR0, ChgCCRt, ChgCCTLt, chgTxData, chgBitCntTx, chgTxBuf, chgTxRd, chgTxWr, ChgTxSz, chgBitTime, ChgCCRr, ChgCCTLr, chgRxData, chgBitCntRx, chgRxBuf, chgRxRd, chgRxWr, ChgRxSz
 ScuTxRxIsr:
 			cmp.b	#255, &ID
-			_IF		_NE						; If not a BMU,
+			_IF		NE						; If not a BMU,
 				br		#MeasureCmuIsr			; Then this is actually a measurement interrupt
 			_ENDIF
 			TxRxIsrTimerMacro	ScuTAIV, ScuCCR0, ScuCCRt, ScuCCTLt, scuTxData, scuBitCntTx, scuTxBuf, scuTxRd, scuTxWr, ScuTxSz, scuBitTime, ScuCCRr, ScuCCTLr, scuRxData, scuBitCntRx, scuRxBuf, scuRxRd, scuRxWr, ScuRxSz
@@ -393,7 +393,7 @@ ScuTxRxIsr:
 RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 			mov.b 	&rxRd,R9			; Get the read index into R9
 			cmp.b 	&rxWr,R9			; Equal if queue empty
-			_IF		_NE
+			_IF		NE
 				mov.b	rxBuf(R9),R8	; Read char from queue
 				inc.b 	R9				; Increment the read index
 				and.b 	#RxSz-1,R9		;	modulo the queue size
@@ -405,7 +405,7 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 	#if ALL_TO_ALL
-				_IF		_NZ
+				_IF		NZ
 					ret			; Return if CMU  byte received, else *fall through*,
 								; so we can return NZ if other comms received
 				_ENDIF
@@ -414,7 +414,7 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 	#endif
 ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
 	#if ALL_TO_ALL
-				_IF		_NZ
+				_IF		NZ
 					ret			; Return if SCU byte received, else fall through again
 				_ENDIF
 	#else
@@ -428,9 +428,9 @@ ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr
 ; Trashes R9
 RxByte:
 				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-				_BEGIN
+				_DO
 					call	#RxByteNoWait		; Check for a received byte
-				_UNTIL	_NZ					; Repeat until received
+				_UNTIL	NZ					; Repeat until received
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 				ret
 
@@ -438,18 +438,18 @@ RxByte:
 ; Trashes R9
 ScuRxByte:
 				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-				_BEGIN
+				_DO
 					call	#ScuRxByteNW		; Check for a received byte
-				_UNTIL	_NZ					; Repeat until received
+				_UNTIL	NZ					; Repeat until received
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 				ret
 
 
 DoEcho:		_COND							; Begin short circuit conditional
 				cmp.b	#$11,R8
-			_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character OR Else
+			_OR_ELSE	EQ					; If it's an XON (ctrl-Q) character OR Else
 				bit.b	#bDontEcho,&interpFlags
-			_OR_IFS		_Z					; Or If the dont-echo flag is clear
+			_OR_IFS		Z					; Or If the dont-echo flag is clear
 				call	#TxByte					; Echo the character
 			_ENDIF
 			ret
@@ -467,32 +467,32 @@ DoPassword:
 ;
 			dec.b	&passWordState
 			; Check for a continuing password match
-			_IF		_NZ					; If not the final password character
+			_IF		NZ					; If not the final password character
 				mov.b	&passWordState,R9	; Passwords are $05 $04 $03 $01-or-$02
 				add.b	#2,R9				; Expected password char is &passWordState plus 2
 				cmp.b	R9,R8				; Check for a match
-				_IF		_NE					; If not a match
+				_IF		NE					; If not a match
 					mov.b	#4,&passWordState	; Go back to waiting for first password character
 				_ENDIF
 			_ELSE						; Else the final character
 				; No matter what happens now, we want to begin a new password match after we return
 				mov.b	#4,&passWordState	; Go back to waiting for first password character
 				_CASE
-				_OFb	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
+				_OF_B	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
-					_DO		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
+					_FOR		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
 						cmp.b	#255,&ID			; Check my ID
-						_IF		_EQ					; If I'm a BMU
+						_IF		EQ					; If I'm a BMU
 							call	#ScuRxByte			; Wait for a byte from the SCU port
 						_ELSE
 							call	#RxByte				; Wait for a byte from the CMU port
 						_ENDIF
 						call	#CmuTxByte				; Echo it to the CMU port
-					_LOOP 	R12
+					_NEXT_DEC 	R12
 					; The last byte read could look like a command char.  Ensure it doesn't.
 					mov.b	#2,R8				; Restore last password character, ignored by ACCEPT
 				_ENDOF						; End of fake download case
-				_OFb	#1,R8				; If matched complete real download pwd 05 04 03 01
+				_OF_B	#1,R8				; If matched complete real download pwd 05 04 03 01
 					; Start a real download
 					; Jump to the code in the BSL which will erase main flash memory and wait for bytes
 					;	to flash program without using interrupts.
@@ -530,9 +530,9 @@ Halt:
 		; BMU to reset it. After which, releasing the red button may be sufficient to restart,
 		; or you may also have to push the green button.
 		; Sending a break to a BMU's SCU port will also reset it.
-		_BEGIN							; Begin loop
+		_DO							; Begin loop
 			cmp.b	#255,&ID			; Check my ID
-			_IF		_EQ					; If I'm a BMU
+			_IF		EQ					; If I'm a BMU
 				call	#ScuRxByte			; Wait for a byte from the SCU port
 			_ELSE
 				call	#RxByte				; Wait for a byte from the CMU port

@@ -13,7 +13,7 @@ MeasureCmuIsr:				; ScuCCRr = TA0CCR2
 			mov		&ScuTAIV, R8			; (3) Access interrupt sub-vector to clear interrupt flag
 											;     Don't use cmp or tst as this will clear 2 int flags
 			add		#(TAfreq+800)/1600, &ScuCCRr ; (5) Ensure we are called at 1600 Hz
-			_IF		_NEVER					; (2)
+			_IF		NEVER					; (2)
 MeasureBmuIsr:				; MeasCCR = TA1CCR0
 				push	R8						; (3)
 				add		#(TAfreq+800)/1600, &MeasCCR ; (5) Ensure we are called at 1600 Hz
@@ -25,7 +25,7 @@ MeasureBmuIsr:				; MeasCCR = TA1CCR0
 			inc		R8						; (1)
 			and		#$F, R8					; (2)
 			mov.b	R8, &sampIndex			; (4)
-			_IF		_Z						; (2) If the sample index is now zero
+			_IF		Z						; (2) If the sample index is now zero
 				mov.b	&chanIndex, R8			; (3)
 				mov		&partialSum, rawMeasures(R8) ; (6) Save the sum as the channel's raw measurement
 				clr		&partialSum				; (4) Clear for next set of 16 conversions
@@ -96,7 +96,7 @@ MeasAndCorrBoltPl:
 			mov			&boltVPlRaw, R8			; 12.2 fixed-point result in R8
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
-			_IF			_EQ						; If it doesn't exist
+			_IF			EQ						; If it doesn't exist
 				mov.w		&CellCal,R9				; Use the cell voltage scale factor instead
 			_ENDIF								; Endif
 												; Multiplier is sum-of-samples, already in R8
@@ -114,7 +114,7 @@ MeasAndCorrBoltMi:
 			mov			&boltVMiRaw, R8			; 12.2 fixed-point result in R8
 			mov.w		&BoltMiCal,R9			; Get bolt- voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
-			_IF			_EQ						; If it doesn't exist
+			_IF			EQ						; If it doesn't exist
 				mov.w		&CellCal,R9				; Use the cell voltage scale factor instead
 			_ENDIF								; Endif
 												; Multiplier is sum-of-samples, already in R8
@@ -132,7 +132,7 @@ GetCellV:
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrCell
 			cmp.b	#255,&ID
-			_IF		_NE			; If not a BMU then
+			_IF		NE			; If not a BMU then
 				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
 				mov		R10,R8		; Copy the value
 				add		#8,R8		; Add half the divisor for rounding
@@ -149,7 +149,7 @@ GetBoltPlV:
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrBoltPl
 			cmp.b	#255,&ID
-			_IF		_NE			; If not a BMU then
+			_IF		NE			; If not a BMU then
 				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
 				mov		R10,R8		; Copy the value
 				add		#8,R8		; Add half the divisor for rounding
@@ -196,7 +196,7 @@ GetBoltMiV:
 ; Trashes: R8, R9, R11
 			mov.b		&BoltMiOff,R8	; Bolt- / current shunt offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
-			_IF			_EQ				; If BoltMi offset calibration value is $80
+			_IF			EQ				; If BoltMi offset calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
 				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections

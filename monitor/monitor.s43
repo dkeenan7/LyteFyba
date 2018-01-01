@@ -312,14 +312,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Clear all variables in RAM except resetBuffer and BMU's fuel-gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
 			; In other words: erase from comNoEraseEnd up to but not including eraseEnd
-			_DO		#eraseEnd-comNoEraseEnd,R8
+			_FOR		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
-			_mLOOP	#2,R8
+			_NEXT_DECD	R8
 
 			; Don't initialise system clock registers. BSL2 and the FLL have set them.
 
 			cmp.b	#255,&ID					; Is this a BMU?
-			_IF		_EQ
+			_IF		EQ
 				mov		#ScuTxByte,&TxBytePtr		; By default, TxByte goes to the SCU port for a BMU
 			_ELSE
 				mov		#CmuTxByte,&TxBytePtr		; In other cases, particularly CMUs, TxByte goes to
@@ -339,7 +339,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			bis.b	#RxChg|TxMiChg_57k6B,&ChgPortSEL	; Select timer functions for Rx and Tx pins
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 			cmp.b	#255,&ID
-			_IF		_NE							; If we're not a BMU
+			_IF		NE							; If we're not a BMU
 				bis.b	#Bypass,&BypPortDIR 		; Set Bypass as output
 			_ENDIF
 
@@ -347,7 +347,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Don't change the state or direction of any BMU contactor outputs or you might cut off
 			; power to the BMU.
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're a CMU
+			_IF		NE						; If we're a CMU
 				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
@@ -358,7 +358,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			and		#$0F,R8
 			mov.b	resetBuffer(R8),R8
 			bit.b	#PORIFG,R8				; Check for power-on reset
-			_IF		_NZ						; If it was a power-on
+			_IF		NZ						; If it was a power-on
 				mov.b	#0,&P3OUT				; Turn off all contactors
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.
@@ -376,7 +376,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Initialise the Timers if we are a BMU
 			cmp.b	#255,&ID					; If we're a BMU
-			_IF		_EQ
+			_IF		EQ
 				; TA0CTL is set up correctly by the BSL
 				; Initialise timer TA1
 				; TASSEL: 1 = ACLK clock source, 2 = SMCLK (sub master clock)
@@ -438,7 +438,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ;			clr.b	&rxCksum				; Received packet xor checksum already cleared by loop above
 			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
 			_ELSE
 				mov.b	#bChecksumming | bDontEcho | bEchoResponses,&interpFlags ; Don't want to echo
@@ -460,17 +460,17 @@ main:										; For IAR Embedded Workbench IDE debugger
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Main loop
-			_BEGIN
+			_DO
 				; If we're a BMU (ID = 255) handle SCU and Charger communication.
 				cmp.b	#255,&ID				; Check my ID
-				_IF		_EQ						; If I'm a BMU
+				_IF		EQ						; If I'm a BMU
 					; Check for a character from the SCU Rx port, and send it to the CMU Tx port.
 					; Also pass it to the "Master" function, so it knows when it is safe for it to
 					; inject commands such as Z, G and i as required.
 					call	#ScuRxByteNW			; Try to read a character from the SCU
-					_IF		_NZ						; If there was one
+					_IF		NZ						; If there was one
 ;						tst.b	R8						; Check if the high bit is set
-;						_IF		_NN						; If the high bit is not set (not a status byte)
+;						_IF		NN						; If the high bit is not set (not a status byte)
 							call	#CmuTxByte				; Send it to the CMUs. Preserves R8
 							call	#DoPassword				; Check for BSL password bytes from SCU port
 ;						_ENDIF
@@ -480,7 +480,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 					; Check for a character from the Chg Rx port, and send it to the SCU Tx port.
 					call	#ChgRxByteNW			; Try to read a character from the charger (PIP)
-					_IF		_NZ						; If there was one
+					_IF		NZ						; If there was one
 						bic.b	#$80,R8					; Clear hi bit so doesn't look like status byte
 						call	#ScuTxByte				; Send it to the SCU
 					_ENDIF
@@ -489,13 +489,13 @@ main:										; For IAR Embedded Workbench IDE debugger
 				; Check for a command or status character from the CMU port
 				; For both CMUs and the BMU, read from CMU Rx
 				call	#RxByteNoWait			; Check if received CMU data
-				_IF		_NZ
+				_IF		NZ
 					tst.b	R8
-					_IF		_NN						; If an ordinary (non status) char
+					_IF		NN						; If an ordinary (non status) char
 						call	#DoEcho					; Echo the command or password byte if required
 						; Check for a BSL password
 						cmp.b	#255,&ID				; Check ID
-						_IF		_NE						; If I'm not a BMU
+						_IF		NE						; If I'm not a BMU
 							call	#DoPassword				; Check for BSL password bytes from CMU port
 						_ENDIF
 						call	#ACCEPT					; Process command bytes (could be slow)
@@ -510,7 +510,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					mov		&oldMeasureCount,R8
 					add		#(4096/StatusFreq),R8		; Where it will be at measure time (minimum)
 					sub		&measureCount,R8			; Subtract where it is now
-					_IF		_NN							; If this is nonnegative, it is not time to measure
+					_IF		NN							; If this is nonnegative, it is not time to measure
 				;		mov.w	#WDTPW+WDTHOLD,&WDTCTL		; Stop Watchdog Timer before sleeping CPU
 				;		bis		#CPUOFF+GIE,SR				; Turn off CPU and ensure interrupts still enabled
 					_ELSE								; Else time to measure
@@ -539,7 +539,7 @@ DoMeasurement:
 			clr		Rtype					; Init type of measurement causing zero stress to zero
 
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
-			_IF		_C						; If unsigned overflow
+			_IF		C						; If unsigned overflow
 				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
 			_ENDIF
 
@@ -548,7 +548,7 @@ DoMeasurement:
 
 			; Set bypass as required
 			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9
 				rla3		R9					; = ovZero + 6*ovStep
 				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep - ovStep
@@ -558,15 +558,15 @@ DoMeasurement:
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 
 				; Update the beenBypassing flag used by the OT stress calculation
-				_IF		_HS						; If bypassing (Note: _HS = _C)
+				_IF		HS						; If bypassing (Note: HS = C)
 					clr		&ticksSinceLastBypass	; ticksSinceLastBypass := 0
 					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
 				_ELSE							; Else not bypassing
 					tst.b	&beenBypassing
-					_IF		_NZ						; If been bypassing in last 5 minutes
+					_IF		NZ						; If been bypassing in last 5 minutes
 						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
 						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
-						_IF		_HS						; If 5 minutes or more since last bypass
+						_IF		HS						; If 5 minutes or more since last bypass
 							clr.b	&beenBypassing			; beenBypassing := FALSE
 						_ENDIF							; End if
 					_ENDIF							; End if been bypassing in last 5 minutes
@@ -583,7 +583,7 @@ DoMeasurement:
 			_ENDIF
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not a BMU
+			_IF		NE						; If we're not a BMU
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
 				push	R10						; OCV for overvoltage stress calc
@@ -594,9 +594,9 @@ DoMeasurement:
 
 				; Calculate stress due to undervoltage if required
 				cmp		#100,0(sp)				; Compare voltage; value saved on stack earlier
-				_IF		_HS						; If voltage is not less than 100 mV (unbolted CMU)
+				_IF		HS						; If voltage is not less than 100 mV (unbolted CMU)
 					bit.b	#bCharging,&monFlags	; And we're not charging (incl. not regen braking)
-					_IF		_Z
+					_IF		Z
 														; Measurement saved on stack earlier
 						push	#UV_STEP				; For every UV_STEP (millivolts)
 						push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
@@ -612,13 +612,13 @@ DoMeasurement:
 			call	#GetTemp				; Get temperature in degrees Celsius in R10
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not a BMU
+			_IF		NE						; If we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 
 				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
 				tst.b	&beenBypassing
-				_IF		_NZ						; If we've been bypassing in the last 5 minutes
+				_IF		NZ						; If we've been bypassing in the last 5 minutes
 						sub		#BypTempQuota,R10	; Subtract 12 degC from the temp used for OT stress
 				_ENDIF							; End if
 
@@ -630,7 +630,7 @@ DoMeasurement:
 
 				; Calculate stress due to undertemperature if required
 				bit.b	#bCharging,&monFlags	; If charging (including regen braking)
-				_IF		_NZ
+				_IF		NZ
 													; Measurement saved on stack earlier
 					push	#UT_STEP				; For every UT_STEP (degrees Celsius)
 					push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
@@ -644,12 +644,12 @@ DoMeasurement:
 			; Calculate stress due to link voltage (current shunt measurement for a BMU)
 			call	#GetLinkV				; Get worst link voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				cmp		#9999,R10				; Special "invalid" value?
-				_IF		_NE						; Only calculate link stress if not this value
+				_IF		NE						; Only calculate link stress if not this value
 					; Calculate stress due to excessive absolute link voltage
 					tst		R10						; Get absolute value of link voltage
-					_IF		_L
+					_IF		L
 						inv		R10
 						inc		R10
 					_ENDIF
@@ -669,24 +669,24 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
-				_IF		_NN							; Clamp negative values to zero
-				_ELSE								; There is no true _IF _N with the MSP430
+				_IF		NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF N with the MSP430
 					clr		&discharge
 					clr		&discharge+2
 				_ENDIF
 			_ENDIF ; BMU current measurement
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not a BMU
+			_IF		NE						; If we're not a BMU
 				; Clamp local present stress to a maximum value
 				mov		#15,R9					; Default clamp value is 15
 				cmp		#4,Rtype
-				_IF		_EQ						; If type is undertemperature
+				_IF		EQ						; If type is undertemperature
 					mov		#MinContStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
 				_ENDIF
 				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes R8
 				cmp		R9,R8					; If the stress is not less than the maximum allowed
-				_IF		_HS
+				_IF		HS
 					mov		R9,R8					; Use the maximum allowed
 				_ENDIF
 
@@ -696,9 +696,9 @@ DoMeasurement:
 
 				; Update worst stress since last reset thereof
 				cmp.b	&worstStress,Rstrs		; If stress high or same as worstStress for trip so far
-				_IF		_HS
+				_IF		HS
 					tst.b	Rstrs					; and it's an actual, nonzero stress
-					_IF	_NZ
+					_IF	NZ
 						mov.b	Rstrs,&worstStress		; Update worstStress
 						mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 					_ENDIF
@@ -716,17 +716,17 @@ DoMeasurement:
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
 			bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
-			_IF		_Z
+			_IF		Z
 				cmp.b	#ComErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
-				_IF		_HS
+				_IF		HS
 					; If our ID is not 0 (IMU) or 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
 					; every 256 status bytes (approx every 17 seconds).
 					cmp.b	#2,&ID
-					_IF		_HS
+					_IF		HS
 						bis.b	#COM_ERR,&localStatus
 						tst.b	&ticks
-						_IF	_Z
+						_IF	Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
 					_ENDIF
@@ -737,7 +737,7 @@ DoMeasurement:
 
 					; Send status
 					cmp.b	#255,&ID
-					_IF		_NE						; If we're a CMU
+					_IF		NE						; If we're a CMU
 						call	#TxByte					; Send the status byte. Wait buffer not full
 					_ELSE							; Else we're a BMU, in charger control mode
 						call	#ScuTxByte				; Send status to the SCU. Wait buffer not full
@@ -768,15 +768,15 @@ meas	EQU		8				; The measurement
 			rla		R10
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
-			_IF		_GE
+			_IF		GE
 				cmp		worstStress(R10),R9
-				_IF		_GE						; If this is a worse measurement of this type
+				_IF		GE						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				sub		zero(SP),R9				; Get meas - zero in R9
 			_ELSE
 				cmp		worstStress(R10),R9
-				_IF		_L						; If this is a worse measurement of this type
+				_IF		L						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				inv		R8						; Get absolute value of step in R8
@@ -786,13 +786,13 @@ meas	EQU		8				; The measurement
 				add		step(SP),R9
 				sub		#1,R9
 			_ENDIF
-			_IF		_L
+			_IF		L
 				clr		R9						; Min of 0
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step, clears R11
 			cmp		R9,Rstrs
-			_IF		_LO						; If this stress worse than present stress calculated so far
+			_IF		LO						; If this stress worse than present stress calculated so far
 				mov		R9,Rstrs				; Make it the new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
@@ -819,20 +819,20 @@ DoStatus:
 		and.b	#STRESS,R9				; Only stress bits in R9
 		and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
 		cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
-		_IF		_EQ
+		_IF		EQ
 			clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
 			; This will eliminate any comms error next time through DoMeasurement
 
 			; Check if DoMeasurement may have just sent a status byte, due to a comms error
 			bit.b	#COM_ERR,&localStatus
-			_IF		_Z						; If no comms error
+			_IF		Z						; If no comms error
 				cmp.b	#255,&ID
-				_IF		_NE						; If we're a CMU
+				_IF		NE						; If we're a CMU
 					; Do MAX of local and incoming stress, and handle stress type and all considered full
 					mov.b	&localStatus,R10		; Get local status to R10
 					and.b	#STRESS,R10				; Extract stress bits
 					cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
-					_IF		_LO						; If incoming stress (R9) is less than ours (R10)
+					_IF		LO						; If incoming stress (R9) is less than ours (R10)
 						mov.b	stressTable(R10),R10	; Get encoded local stress to R10
 						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours (trashes R10)
 					_ENDIF							; Endif we are worse
@@ -852,7 +852,7 @@ DoStatus:
 					; Process incoming status for BMU. Stress in R9, complete status in R8.
 					mov.b	R8,&globalStatus		; Put it where can be read by '255sp' (or modbus equiv)
 					bit.b	#bNotSendStatus,&monFlags
-					_IF		_Z 						; If sending status, and so expecting to receive it
+					_IF		Z 						; If sending status, and so expecting to receive it
 						call	#ScuTxByte				; Send status byte to the SCU. Wait buffer not full
 					_ENDIF
 				_ENDIF							; End else BMU

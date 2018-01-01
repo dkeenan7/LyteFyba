@@ -96,14 +96,14 @@ AdcTimIdx	EQU	ramAdcTimIdx
 ; Use these macros to safely clear and set it.
 CLRLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			_IF		_NZ					; Currently locked?
+			_IF		NZ					; Currently locked?
 				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, unlock
 			_ENDIF
 			ENDM
 
 SETLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			_IF		_Z					; Currently unlocked?
+			_IF		Z					; Currently unlocked?
 				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, lock
 			_ENDIF
 			ENDM
@@ -216,9 +216,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; So we must ignore XOFFs when running in a BMU.
 			_COND
 				cmp.b	#255,&ID
-			_OR_ELSE _NE					; If we're not a BMU
+			_OR_ELSE NE					; If we're not a BMU
 				cmp.b	#$13,R8
-			_OR_IFS _NE						; Or it's not an XOFF (ctrl-S) character
+			_OR_IFS NE						; Or it's not an XOFF (ctrl-S) character
 				call	#ACCEPT					; Process R8 as part of a command to be interpreted
 			_ENDIF
 			ClearWatchdog
@@ -236,9 +236,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 InterpretInit:
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
-			_DO		#eraseEnd-comNoEraseEnd,R8
+			_FOR		#eraseEnd-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
-			_mLOOP	#2,R8
+			_NEXT_DECD	R8
 
 ;
 ; Initialise the ADC10. We do this here because NewChip code does many measurements to optimise the
@@ -261,7 +261,7 @@ InterpretInit:
 ;
 #if !FAKE_NEW_CHIP
 			_CASE
-			_OFb	#DATAVERS-1,&infoDataVers			; Check for version 6
+			_OF_B	#DATAVERS-1,&infoDataVers			; Check for version 6
 				; Data version 6 is close enough to version 7 that we can get away with merely flashing
 				; the error light for a second.
 				; Should eventually translate the link calibration data
@@ -271,27 +271,27 @@ InterpretInit:
 				mov		#1000,R8					; Link calibration data not converted!
 				call	#DelayMs
 				ErrLedOff
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
+				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 				mov.b	&ramTempOff,R8
 				neg		R8							; Change sign
 				rla		R8							; Convert to half degrees
 				mov.b	R8,&ramTempOff				; Save converted data
 			_ENDOF
-			_OFb	#DATAVERS,&infoDataVers		; Check at the present address
+			_OF_B	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
+				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
-			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
+			_OF_B	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
+				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
-			_OFb	#$FF,&infoDataVers
+			_OF_B	#$FF,&infoDataVers
 #endif
 				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
@@ -366,7 +366,7 @@ newChip:
 				bis.b	#XT2OFF | DIVA_3,&ram8MHzCalB ; Set ACLK = watch crystal / 8
 
 				cmp.b	#255,infoID					; Does the flash say we're a BMU?
-				_IF		_EQ							; If so, it might actually be a CMU with its flash
+				_IF		EQ							; If so, it might actually be a CMU with its flash
 					; erased by some accident (it has happened). So do the test and if we really are a
 					; BMU, we get ID 255. If actually a CMU, then set ID to 0.
 					; Set ID to 0 (CMU) if we're in a 20 pin package (Port 3 not connected)
@@ -378,10 +378,10 @@ newChip:
 					_COND								; Begin a short-circuit conditional
 						mov.b	#$FF,&P3OUT					; Pull them all up with resistors
 						cmp.b	#$FF,&P3IN					; Check if they are all high
-					_AND_IF _EQ							; If they all got pulled high
+					_AND_IF EQ							; If they all got pulled high
 						mov.b	#0,&P3OUT					; Pull them all down with resistors
 						cmp.b	#0,&P3IN					; Check if they are all low
-					_AND_IF	_EQ							; And if they all got pulled low
+					_AND_IF	EQ							; And if they all got pulled low
 						mov.b	#1,&ramID					; Set ID = 1 (CMU) to avoid comms error
 					_ELSES
 						mov.b	#$FF,&ramID					; Set ID = 255 (BMU)
@@ -392,7 +392,7 @@ newChip:
 					mov.b	&infoID,&ramID				; Preserve the existing CMU ID
 				_ENDIF
 				cmp.b	#255,&ramID					; Test for BMU
-				_IF		_NE							; If not a BMU
+				_IF		NE							; If not a BMU
 					call	#FindOptAdc					; Find the optimal ADC clock timing; save in RAM
 				_ENDIF
 
@@ -418,7 +418,7 @@ newChip:
 			bis.b	#TxMiChg_57k6B|TxMiChg2_RlyP_57k6A,&ChgPortDIR ; Set Txs as outputs
 												; Do not disturb bits 6, 7 (XIN, XOUT)
 			cmp.b	#255,&ID
-			_IF		_NE							; If we're not a BMU
+			_IF		NE							; If we're not a BMU
 				bis.b	#Bypass,&BypPortDIR 		; Set Bypass as output
 			_ENDIF
 
@@ -426,7 +426,7 @@ newChip:
 			; Don't change the state or direction of any BMU contactor outputs or you might cut off
 			; power to the BMU.
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're a CMU
+			_IF		NE						; If we're a CMU
 				mov.b	#$FF,&P3REN				; Enable pullup/pulldown resistors to save power, for
 												;   any pin which may remain a floating input in a CMU.
 			_ENDIF
@@ -437,7 +437,7 @@ newChip:
 			and		#$0F,R8
 			mov.b	resetBuffer(R8),R8
 			bit.b	#PORIFG,R8				; Check for power-on reset
-			_IF		_NZ						; If it was a power-on
+			_IF		NZ						; If it was a power-on
 				mov.b	#0,&P3OUT				; Turn off all contactors
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.
@@ -487,19 +487,19 @@ devThisIdx EQU	4						; Array of 4 total deviation word-sized results
 FindOptAdc:
 			sub		#4+8,SP				; Space for locals
 			mov		SP,R9
-			_DO		#6,R12				; 6 words (2+4)
+			_FOR		#6,R12				; 6 words (2+4)
 				clr		0(R9)				; Clear locals
 				incd	R9
-			_LOOP	R12
+			_NEXT_DEC	R12
 			mov.b	#1,&ramAdcTimIdx	; Measure cell voltage with MCLK/2 timing since it has the
 										; lowest worst-case noise
-			_DO		#256,R12
+			_FOR		#256,R12
 				; We use CellV here because it is a less noisy measurement than BoltVPl,
 				; because its track on a CMU has a more shielded route.
 				call	#GetCellV
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
-			_LOOP	R12
+			_NEXT_DEC	R12
 			mov		actCellV+2(SP),R10	; Sum to R10:R9
 			mov		actCellV(SP),R9
 			add		#128,R9				; Rounding
@@ -514,37 +514,37 @@ FindOptAdc:
 			clr		R15					; R15 will range 0-3
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
-			_BEGIN
+			_DO
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
 				mov.b	R8,&ramAdcTimIdx	; Use this ADC timing
-				_DO		#256,R12			; Do 128 measurements
+				_FOR		#256,R12			; Do 128 measurements
 					; We use BoltPlV here because it is a noiser measurement than CellV,
 					; because its track on a CMU runs parallel to some noisy other tracks.
 					call	#GetBoltPlV			; V is the noisy measurement
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
 					add		R10,0(R13)			; Accumulate the sum of the deviations into the array
-				_LOOP	R12
+				_NEXT_DEC	R12
 				incd	R13					; Point to next array entry
 				inc		R15					; Next index
 				cmp		#4,R15
-			_UNTIL	_EQ
+			_UNTIL	EQ
 			; Now find the quietest result
 			clr		R15
 			mov		#-1,R10				; Default winner
 			mov		#$FFFF,R8			; Worst so far
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to start of devThisIdx array
-			_BEGIN
+			_DO
 				cmp		@R13+,R8			; Compare lowest so far with table
-				_IF		_HS					; If the lowest so far is higher than this table entry
+				_IF		HS					; If the lowest so far is higher than this table entry
 					mov		-2(R13),R8			; A new lowest noise
 					mov		R15,R10				; Remember the table index
 				_ENDIF
 				inc		R15
 				cmp		#4,R15
-			_UNTIL	_EQ
+			_UNTIL	EQ
 
 			; The lowest noise result was with a table index of R10, corresponding to an ADC timing
 			; index of R10+1
@@ -563,12 +563,12 @@ FindOptAdc:
 ; Trashes R12
 compareInfoFlash:
 			clr		R12					; Loop counter
-			_BEGIN
+			_DO
 				cmp.b	infoDataStart(R12),ramDataStart(R12)
-				_WHILE	_EQ ; _Z
+				_WHILE	EQ ; Z
 					inc		R12
 					cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+			_UNTIL	EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
@@ -579,11 +579,11 @@ compareInfoFlash:
 ; Trashes R12
 compareBSL2:
 			mov		#jBSL,R12
-			_BEGIN
+			_DO
 				cmp.w	@R12,jBSLb-jBSL(R12)
-				_WHILE	_EQ ; _Z
+				_WHILE	EQ ; Z
 					incd	R12
-			_UNTIL	_Z					; Loop until R12 wraps from $FFFE to 0
+			_UNTIL	Z					; Loop until R12 wraps from $FFFE to 0
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret

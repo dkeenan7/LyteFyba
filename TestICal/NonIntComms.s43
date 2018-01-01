@@ -4,13 +4,13 @@
 
 DELAY_IF_NEEDED MACRO		; Delay for one character time to allow the downstream CMU to echo a byte
 			clr		R9					; Use R9 to count cycles
-			_BEGIN						; Loop
+			_DO						; Loop
 				cmp.b	#255,&infoID
-				_IF		_EQ					; If we're a BMU
+				_IF		EQ					; If we're a BMU
 					bit.b	#UCA0RXIFG,&IFG2
-					_IF		_NZ					; If there's a byte from the CMU port
+					_IF		NZ					; If there's a byte from the CMU port
 						bit		#WRT,&FCTL1
-						_IF		_Z					; And if we're not writing to flash
+						_IF		Z					; And if we're not writing to flash
 							push	R8					; Preserve R8
 							mov.b	&UCA0RXBUF,R8		; Get CMU byte
 							call 	#WriteScuByte-jBSL+BSL2_START ; Send the byte to the SCU port
@@ -23,7 +23,7 @@ DELAY_IF_NEEDED MACRO		; Delay for one character time to allow the downstream CM
 				_ENDIF
 				add		#16, R9			; Add 16 cycles (includes cmp and UNTIL below)
 				cmp		#(MClock*104/100000), R9
-			_UNTIL	_HS					; Until at least 1.04 ms has passed
+			_UNTIL	HS					; Until at least 1.04 ms has passed
 			ENDM
 			LSTOUT+
 

@@ -34,7 +34,7 @@ mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
 ; Mixed sign Mixed size multiply: signed R8 * unsigned R9 -> signed R10:R9
 MMStar:
 			tst		R8			; Check for negative operand
-			_IF		_NN
+			_IF		NN
 				call	#UMStar		; Two positive operands, just call UMStar
 			_ELSE
 				neg		R8			; Make operand positive
@@ -113,7 +113,7 @@ UpdateRtc:
 			mov		&oldRtcMeasCnt,R9			; Get old value of same
 			mov		R8,&oldRtcMeasCnt			; Save new as old
 			sub		R9,R8						; R8 = new - old
-			_IF		_Z							; If no difference
+			_IF		Z							; If no difference
 				ret									; then nothing to do; return
 			_ENDIF
 			; R8 has the difference between old and new counts in the upper nibble.
@@ -130,19 +130,19 @@ UpdateRtc:
 BumpRtc
 			add		R8,&rtcSec		; Add to the seconds
 			cmp		#60,&rtcSec		; Is it now >=60 seconds?
-			_IF		_GE
+			_IF		GE
 				sub		#60,&rtcSec	; Wrap seconds
 				inc		&rtcMin		; Bump minutes
 				cmp		#60,&rtcMin	; Now 60?
-				_IF		_EQ
+				_IF		EQ
 					clr		&rtcMin		; Clear minutes
 					inc		&rtcHour	; Bump hour
 					cmp		#24,rtcHour	; Now 24?
-					_IF		_EQ
+					_IF		EQ
 						clr		&rtcHour
 						inc		&rtcDay		; Bump day of week
 						cmp		#7,&rtcDay	; Now 7?
-						_IF		_EQ
+						_IF		EQ
 							clr		&rtcDay		; Clear day of week
 							; Allow to wrap around
 						_ENDIF

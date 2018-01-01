@@ -228,22 +228,22 @@ _RUN
 		_COND
 #if _HI_CMDCHR != $FF	; The following test is redundant when _HI_CMDCHR = $FF
 			cmp.b	#_HI_CMDCHR+1,Rw
-		_OR_ELSE	_HS		; If it's higher than the highest valid command character
+		_OR_ELSE	HS		; If it's higher than the highest valid command character
 #endif
 			cmp.b	#_LO_CMDCHR,Rw
-		_OR_IFS		_LO		; Or if it's lower than the lowest valid command character
+		_OR_IFS		LO		; Or if it's lower than the lowest valid command character
 			mov		#_Space,Rw	; Treat it as a literal-separator no-op
 			jmp		FncLIT
 		_ENDIF
 
 		; Check for operator-in-progress (2nd char of 2-char command)
 		bit		#1<<13,SR
-		_IF		_NZ
+		_IF		NZ
 			; Apply a simple hash function that minimises collisions for the second letter of
 			; English words, while reducing it to 3 bits.
 			and.b	#$1F,Rw		; Treat upper and lower case the same
 			cmp.b	#'a'&$1F,Rw
-			_IF		_EQ			; If it's an 'a' replace it with 'c'
+			_IF		EQ			; If it's an 'a' replace it with 'c'
 				mov.b	#'c',Rw
 			_ENDIF
 			and.b	#7,Rw		; Take the low 3 bits
@@ -264,7 +264,7 @@ _RUN
 
 FncLIT ; Check for an implied push-literal
 		tst		SR
-		_IF		_L			; If there's an operand-in-progress
+		_IF		L			; If there's an operand-in-progress
 			DPUSH	Rop			; Push the operand now, before doing the operation
 			bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
 		_ENDIF
@@ -275,7 +275,7 @@ FncLIT ; Check for an implied push-literal
 
 DoUNDEF
 		bit		#1<<13,SR
-		_IF		_NZ			; If this is the second character of a two-character command
+		_IF		NZ			; If this is the second character of a two-character command
 			bic		#1<<13,SR	; Clear the operator-in-progress flag
 			jmp		_NEXT
 		_ENDIF
@@ -285,12 +285,12 @@ DoUNDEF
 		mov.b	@Rip+,Rw	;  re-fetch the character
 		_COND
 			cmp.b	#'0',Rw
-		_AND_IF	_HS			; If the character is between '0'
+		_AND_IF	HS			; If the character is between '0'
 			cmp.b	#'9'+1,Rw
-		_AND_IF	_LO			; and '9'
+		_AND_IF	LO			; and '9'
 			sub.b	#'0',Rw		; Convert '0'-'9' to 0-9
 FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
-			_IF		_NN			; If there wasn't already an operand in progress
+			_IF		NN			; If there wasn't already an operand in progress
 				mov		Rw,Rop		; Move the 4 bits of data to the partial-operand register
 				bis		#1<<15,SR	; Set the operand-in-progress flag
 			_ELSE				; Else operand-in-progress
@@ -299,7 +299,7 @@ FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
 				rla		Rop			; 4*Rop
 				rla		Rop			; 8*Rop
 				bit		#1<<14,SR	; Test the hex input flag
-				_IF		_Z			; If decimal
+				_IF		Z			; If decimal
 					add		R9,Rop		; 10*Rop
 				_ELSE				; Else hex (due to a preceding '$')
 					rla		Rop			; 16*Rop
@@ -309,17 +309,17 @@ FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
 		_ELSES				; Else not '0' to '9'
 			_COND
 				bit		#1<<14,SR	; Test the hex input flag
-			_AND_IF	_NZ			; If we're in hexadecimal input mode (due to a preceding '$')
+			_AND_IF	NZ			; If we're in hexadecimal input mode (due to a preceding '$')
 				cmp.b	#'A',Rw
-			_AND_IF	_HS			; And the character is between 'A'
+			_AND_IF	HS			; And the character is between 'A'
 				cmp.b	#'F'+1,Rw
-			_AND_IF	_LO			; and 'F'
+			_AND_IF	LO			; and 'F'
 				sub.b	#'A'-$A,Rw	; Convert 'A'-'F' to $A-$F
 				jmp		FncPFX4		; Update the partial operand register
 			_ELSES				; Else treat it as the first character of a two-character command
 				; Check for an implied push-literal
 				tst		SR
-				_IF		_L			; If there's an operand-in-progress
+				_IF		L			; If there's an operand-in-progress
 					DPUSH	Rop			; Push the operand now, to free up Rop for partial operator
 					bic		#(1<<15)+(1<<14),SR	; Clear the operand-in-progress flag and the hex flag
 				_ENDIF
@@ -327,7 +327,7 @@ FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
 				; English words, while reducing it to 4 bits.
 				and.b	#$1F,Rw		; Treat upper and lower case the same
 				cmp.b	#'Q'&$1F,Rw
-				_IF		_HS			; If it's a 'Q' or greater
+				_IF		HS			; If it's a 'Q' or greater
 					sub.b	#'Q'-'I',Rw	; Map it to the letters begining with 'I'
 				_ENDIF
 				and.b	#$F,Rw		; Take the low 4 bits
@@ -350,29 +350,29 @@ ACCEPT:
 		mov		&ToIN,R9
 		_CASE
 
-		_OFb	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
+		_OF_B	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
 		_ENDOF
 
-		_OFb	#$0D,R8			; Carriage return = end of packet
+		_OF_B	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd-1,R9	; Leave space for 2 EXIT commands
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
 				bit.b	#bEchoResponses,&interpFlags
 				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
-				_IF		_NZ				; If echoing responses
+				_IF		NZ				; If echoing responses
 					mov.b	&TIB,R8				; Get first char of text input buffer
 					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Wunth resp.
-					_IF		_NZ					; Otherwise,
+					_IF		NZ					; Otherwise,
 						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
-						_IF		_EQ
+						_IF		EQ
 							cmp		#TIB+13,R9			; Is the CR  at position 13?
-							_IF		_EQ					; If so, it's a Modbus response
+							_IF		EQ					; If so, it's a Modbus response
 								clr		R8					; Clear boolean R8 if so
 							_ENDIF
 						_ENDIF
 					_ENDIF
 					tst		R8						; Test our condition flag
-					_IF		_Z						; Zero indicates a response to be echoed
+					_IF		Z						; Zero indicates a response to be echoed
 						; Echo the response
 						push	R9
 						push	R10
@@ -382,7 +382,7 @@ ACCEPT:
 						sub		#TIB-1,R11			; R11 has length including CR
 						call	#TxBytes			; Send the response packet (ptr R10 length R11)
 						cmp.b	#':',&TIB			; If it started with a colon (modbus)
-						_IF		_EQ
+						_IF		EQ
 							mov.b	#$0A,R8				; Send a line-feed
 							call	#TxByte
 						_ENDIF
@@ -392,14 +392,14 @@ ACCEPT:
 					_ENDIF					; Endif copying this response
 				_ENDIF					; Endif bEchoResponses
 				bit.b	#bChecksumming,&interpFlags
-				_IF		_NZ				; If checksumming
+				_IF		NZ				; If checksumming
 					cmp.b	#':',&TIB
-					_IF		_NE				; And if not a modbus packet (starts with colon)
+					_IF		NE				; And if not a modbus packet (starts with colon)
 						tst.b	&rxCksum
-						_IF		_Z				; And if good checksum
+						_IF		Z				; And if good checksum
 							dec		R9				; Prepare to overwrite checksum with EXIT command char
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
-							_IF		_LO
+							_IF		LO
 								mov		#TIB,R9
 							_ENDIF
 					_END_PRIOR_IF			; End if not modbus
@@ -408,7 +408,7 @@ ACCEPT:
 							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
 							mov.b	#EXIT,1(R9)		; In case a 2-byte command
 							bit.b	#bDontInterpret,&interpFlags
-							_IF		_Z				; If the dont-interpret flag is clear
+							_IF		Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
 								call	#_ENTER
 								bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
@@ -419,39 +419,39 @@ ACCEPT:
 			clr.b	&rxCksum		; Clear the packet checksum
 		_ENDOF					; End of carriage return
 
-		_OFb	#$08,R8			; Backspace editing
+		_OF_B	#$08,R8			; Backspace editing
 			cmp		#TIBEnd-1,R9
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
 				cmp		#TIB,R9			; don't go back past start of packet
-				_IF		_LO
+				_IF		LO
 					mov		#TIB,R9
 				_ENDIF
 				mov		R9,&ToIN
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
+		_OF_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
 			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XON
 
-		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
+		_OF_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&interpFlags
-			_IF		_Z				; If the dont-interpret flag is clear
+			_IF		Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
+		_OF_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
 		; Default case, if not CR, BS, XON, XOFF or ESC
 			cmp		#TIBEnd-1,R9
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
 				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum

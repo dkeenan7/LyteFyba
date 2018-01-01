@@ -136,7 +136,7 @@ ClearWatchdog MACRO
 
 abs			MACRO	dest
 			cmp		#0,dest
-			_IF		_L
+			_IF		L
 				inv		dest
 				inc		dest
 			_ENDIF

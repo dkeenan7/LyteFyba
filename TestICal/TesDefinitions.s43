@@ -43,12 +43,12 @@ sizeCalAddressTable	EQU	$-calAddressTable
 TranslateToCalAddr:
 		; Do the calibration address translations using the table above
 		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
-		_BEGIN				; Begin loop
+		_DO				; Begin loop
 			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
-			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
 				decd	R9			; Decrement loop-counter/table-index by 2
-		_UNTIL	_Z			; Until loop counter is zero
+		_UNTIL	Z			; Until loop counter is zero
 		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
 			_ELSE				; Else there is a match so
 				swpb	R10			; Get the high byte from the table
@@ -64,7 +64,7 @@ TranslateToCalAddr:
 measure17:
 		call	#measure	; Get raw 12.2 bit fixed point measurement in R8
 		cmp.b	#255,&ID
-		_IF		_NE			; If not a BMU then
+		_IF		NE			; If not a BMU then
 			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
 			mov		R8,R9		; Copy the value
 			add		#8,R9		; Add half the divisor for rounding
@@ -110,21 +110,21 @@ voltScaleWork:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
-			_OFb	#'v',Rtos					; 'v': Cell voltage scale factor
+			_OF_B	#'v',Rtos					; 'v': Cell voltage scale factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				mov.b	&ramCellOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramCellCal				; Save cell/battery calibration value
 			_ENDOF
 
-			_OFb	#'V',Rtos					; 'b': Bolt+/Array voltage scale factor
+			_OF_B	#'V',Rtos					; 'b': Bolt+/Array voltage scale factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
-			_OFb	#'o',Rtos					; 'o': Cell voltage offset
+			_OF_B	#'o',Rtos					; 'o': Cell voltage offset
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramCellCal,R9				; Use this voltage scale for correction
@@ -133,7 +133,7 @@ voltScaleWork:
 				mov.b	Rsec,&ramCellOff
 			_ENDOF
 
-			_OFb	#'O',Rtos					; 'O': Bolt+/Array voltage offset
+			_OF_B	#'O',Rtos					; 'O': Bolt+/Array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
@@ -142,7 +142,7 @@ voltScaleWork:
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
 
-			_OFb	#'t',Rtos					; 't': Temperature offset
+			_OF_B	#'t',Rtos					; 't': Temperature offset
 				call	#GetTemp					; Get calibrated temp in half degC into R9
 				mov.b	&ramTempOff,R8				; Subtract off our existing offset calibration
 				sxt		R8
@@ -160,7 +160,7 @@ voltScaleWork:
 				mov.b	R9,&ramTempOff				; Save new temperature offset calibration value
 			_ENDOF
 
-			_OFb		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
+			_OF_B		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				mov.b	&ramBoltMiOff,R9			; Subtract the existing offset (signed byte)
@@ -184,24 +184,24 @@ voltScaleWork:
 				neg		R10
 				_COND								; Start a short-circuit conditional
 					cmp		#-$7F,R10					; Compare with -$7F
-				_IF_OR		_L						; If < -$7F
+				_OR_ELSE	L						; If < -$7F
 					cmp		#$80,R10					; Compare with $80
-				_OR_IFS		_GE						; or >= $80
+				_OR_IFS		GE						; or >= $80
 					mov		#$80,R10					; Use $80 to indicate "not calibrated"
 				_ENDIF
 				mov.b	R10,&ramBoltMiOff			; Save the bolt-/current offset calibration value
 			_ENDOF
 
-			_OFb	#'i',Rtos
+			_OF_B	#'i',Rtos
 				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
 				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 				; and responds with the ID _after_ the last ID.
 				cmp.b	#255,&ID
-				_IF		_EQ					; But if we're a BMU,
+				_IF		EQ					; But if we're a BMU,
 					ret							; silently ignore; BMUs have to stay ID=255
 				_ENDIF
 				bit.b	#bDontEcho,&interpFlags
-				_IF		_NZ					; If the dont-echo flag is set
+				_IF		NZ					; If the dont-echo flag is set
 					; Save our new ID to RAM
 					mov.b	Rtos,&ramID
 
@@ -266,15 +266,15 @@ voltScaleWork:
 			bic.b	#$80,Rsec
 			or_w	#ramDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
-			_IF		_NZ						; If not zero (zero means "unrecognised")
-				_IF		_NN						; If high bit clear
+			_IF		NZ						; If not zero (zero means "unrecognised")
+				_IF		NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit set so
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-					_IF		_EQ
+					_IF		EQ
 						mov		Rsec,R9
 						clr		R10
 						mov		#10,R8				; Divide by 10 to bring to whole Ah
@@ -312,7 +312,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			xCODE	'w',writeCalValue,_writeCalValue
 			cmp		#'d',Rtos				; Don't allow data version to be changed like this
-			_IF		_EQ
+			_IF		EQ
 				jmp		EmitQmark
 			_ENDIF
 			call 	#TranslateToCalAddr
@@ -320,21 +320,21 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			bic.b	#$80,R9
 			bis		#$200,R9				; Start of RAM
 			cmp		#ramCapacity,R9			; Check for battery capacity
-			_IF		_EQ						; If so
+			_IF		EQ						; If so
 				rla		Rsec					; Multiply given value by 10
 				mov		Rsec,R8					; to bring to tenths of an Ah
 				rla2	Rsec					; *8
 				add		R8,Rsec					; *10
 			_ENDIF
 			tst.b	Rtos
-			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit clear
+			_IF		NZ						; If not zero for "unrecognised"
+				_IF		NN						; If high bit clear
 					mov.b	Rsec,0(R9)				; Set byte sized cal value
 				_ELSE							; Else high bit set so
 					mov.w	Rsec,0(R9)				; Set word sized cal value
 				_ENDIF							; Endif high bit
 				cmp	#ram8MHzCalD,R9
-				_IF		_EQ
+				_IF		EQ
 					mov.b	@R9+,&DCOCTL
 					mov.b	@R9,&BCSCTL1
 				_ENDIF
@@ -363,11 +363,11 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
 			clr		R12						; Loop counter
-			_BEGIN
+			_DO
 				mov.b	ramDataStart(R12),infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
 				cmp		#ramDataEnd-ramDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
+			_UNTIL	EQ						; Loop until ramDataEnd
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
@@ -376,7 +376,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			; Check that the flash programming worked
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
-			_IF    _NE
+			_IF    NE
 				mov	#b'1010000000000000,R8	; 2 flashes
 				br		#jErrorFlash		; Infinite loop, never returns
 			_ENDIF
@@ -389,7 +389,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			; Avoid an infinite loop if there is a 'b' command in the INIT_CMD_STRING.
 			call	#compareBSL2			; Compare the payload copy with the existing BSL2
-			_IF		_EQ						; If it's already the same
+			_IF		EQ						; If it's already the same
 				ret								; Return without doing anything
 			_ENDIF							; Endif
 
@@ -405,18 +405,18 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			push	SR						; Save the interrupt state
 			dint							; Disable interrupts while the interrupt vectors are erased
-			_BEGIN
+			_DO
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
 				add		#512,R12				; Next segment
-			_UNTIL	_NN						; Until the high bit is clear (wraps around to zero)
+			_UNTIL	NN						; Until the high bit is clear (wraps around to zero)
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 			mov		#jBSL,R12				; Start of BSL2 image
-			_BEGIN
+			_DO
 				mov		jBSLb-jBSL(R12),0(R12)		; Program word
 				incd	R12
-			_UNTIL	_NN						; Will wrap to 0 after writing last word
+			_UNTIL	NN						; Will wrap to 0 after writing last word
 			pop		SR						; Restore the interrupt state
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
@@ -425,7 +425,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			; Check that the flash programming worked
 			;
 			call	#compareBSL2			; Compare the payload copy with what's at $FC00
-			_IF		_EQ						; If it was successful
+			_IF		EQ						; If it was successful
 				mov.b	#BSLFG,&IFG1			; Clear the watchdog flag, and indicate a BSL "reset"
 				br		#jBSL					; Start the new BSL. Effectively a software reset.
 			_ELSE							; Else
@@ -592,12 +592,12 @@ SizeManAddressTable	EQU	$-ManAddressTable
 TranslateToManAddr:
 		; Do the calibration address translations using the table above
 		mov		#SizeManAddressTable,R9 ; Initialise the loop counter and table index
-		_BEGIN				; Begin loop
+		_DO				; Begin loop
 			mov.w	ManAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
-			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
 				decd	R9			; Decrement loop-counter/table-index by 2
-		_UNTIL	_Z			; Until loop counter is zero
+		_UNTIL	Z			; Until loop counter is zero
 		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
 			_ELSE				; Else there is a match so
 				swpb	R10			; Get the high byte from the table
@@ -614,8 +614,8 @@ TranslateToManAddr:
 			bic.b	#$80,Rsec
 			bis		#$1080,Rsec
 			tst.b	Rtos
-			_IF		_NZ						; If not zero (zero means "unrecognised")
-				_IF		_NN						; If high bit clear
+			_IF		NZ						; If not zero (zero means "unrecognised")
+				_IF		NN						; If high bit clear
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high set clear so

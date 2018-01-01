@@ -47,14 +47,14 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		xCODE	'"',QUOTE,_QUOTE	; Double-quote
 		DPUSH	Rip			; Push the address of the first character
 		DPUSH	#0			; Push a tentative zero length, Rtos := 0
-		_BEGIN
+		_DO
 			mov.b	@Rip+,Rw	; Read a character and increment the interpreter pointer
 			cmp.b	#'"',Rw		; Check if the character is a double quote
-			_WHILE	_NE			; While the character is not a double-quote
+			_WHILE	NE			; While the character is not a double-quote
 				cmp.b	#EXIT,Rw	; Check if at end of command packet, in case quote was omitted
-				_WHILE	_NE			; While the character is not an EXIT command
+				_WHILE	NE			; While the character is not an EXIT command
 					inc	Rtos			; Increment the length
-		_AGAIN				; Loop back to _BEGIN
+		_AGAIN				; Loop back to _DO
 				_ENDIF				; End While not EXIT command (end of command packet)
 				dec		Rip			; Back up so the EXIT command gets interpreted
 			_ENDIF				; End While not a double-quote
@@ -63,13 +63,13 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ; TYPE (c-addr u -- )
 ; If u is greater than zero, emit the character string specified by pointer c-addr and length u.
 		xCODE	'T'|'y' <<8,TYPE,_TYPE	; 'Ty' collides with 'Ti, 'Tq', 'Li', 'Lq', 'Ly'
-		_BEGIN
+		_DO
 			tst		Rtos
-		_WHILE	_NZ
+		_WHILE	NZ
 			mov.b	@Rsec+,R8
 			call	#TxByteCk
 			dec		Rtos
-		_REPEAT
+		_ENDW
 		DROP
 		DROP
 		ret
@@ -105,7 +105,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 		cmp.b	&ID,Rtos			; Correct ID?
 ;		pop		Rtos				; Pop the argument
 ;		DROP						; Pop the argument
-		_IF		_NE					; If not correct ID
+		_IF		NE					; If not correct ID
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
 		_ELSE						; Else
 			bic.b	#bDontInterpret,&interpFlags ; Needed to handle _eXclusive fall-through
@@ -117,7 +117,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ;
 		xCODE	'X',eXclude,_eXclude
 		cmp.b	&ID,Rtos			; specified ID?
-		_IF		_EQ					; If specified ID
+		_IF		EQ					; If specified ID
 			bis.b	#bDontInterpret,&interpFlags	; Stop interpreting
 		_ENDIF
 		ret
@@ -127,7 +127,7 @@ _Space	ret					; When _Space is called, be a no-op (for separating literal numbe
 ;
 		xCODE	'S',deSelect,_deSelect
 		cmp.b	&ID,Rtos			; Specified ID?
-		_IF		_EQ					; If specified ID
+		_IF		EQ					; If specified ID
 			incd	SP					; Return to the outer interpreter (i.e. ignore rest of packet)
 		_ENDIF						; Endif
 		ret
@@ -165,9 +165,9 @@ _emitNum3:
 #if 1	// This version takes up 7 more words of flash but doesn't use any stack (except return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
-		_IF		_Z					; If decimal, treat as a signed number
+		_IF		Z					; If decimal, treat as a signed number
 			tst		Rsec
-			_IF		_L					; If n is negative
+			_IF		L					; If n is negative
 				mov.b	#'-',R8				; Emit minus sign
 				call	#TxByteCk
 				inv		Rsec				; Negate to get absolute value
@@ -187,22 +187,22 @@ _emitNum3:
 			dec		R12					; Loop only 4 times for hexadecimal conversion
 			dec		Rtos				; For hex, send one less digit than requested
 			cmp		#2,Rtos				; but enforce a minimum of 2 digits
-			_IF		_LO
+			_IF		LO
 				mov		#2,Rtos
 			_ENDIF
 			bit.b	#bModbusOutput,&interpFlags
-			_IF		_Z					; If not in modbus output mode
+			_IF		Z					; If not in modbus output mode
 				mov.b	#'$',R8				; Emit dollar sign for hex
 				call	#TxByteCk
 			_ENDIF
 			mov		Rsec,R9				; R9 := n
 			mov		#16,Rsec			; Rsec := 16 (radix)
-			_BEGIN
+			_DO
 				mov		Rsec,R8				; Radix (10 or 16) into R8
 				call	#UMStar				; R9 * R8 -> R10:R9, clears R11
 		_END_PRIOR_IF				; End hexadecimal
 				cmp		Rtos,R12			; Only convert and send the digit if it was asked for
-				_IF		_LO					; Equivalent to _IF _NC. So clrc isn't necessary below
+				_IF		LO					; Equivalent to _IF NC. So clrc isn't necessary below
 					mov.b	R10,R8				; ASCII conversion follows
 			;		clrc						; Because dadd is always done with carry on MSP430
 					dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
@@ -213,13 +213,13 @@ _emitNum3:
 					mov		Rthd,R9				; Restore R9
 				_ENDIF
 				dec		R12					; Decrement loop counter
-			_UNTIL	_L					; Jump back to matching _BEGIN if loop counter not negative
+			_UNTIL	L					; Jump back to matching _DO if loop counter not negative
 
 #else	// This version of emitNum takes less flash but uses up to 8 bytes of stack to reverse digits
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
-		_IF		_Z					; If decimal, treat as a signed number
+		_IF		Z					; If decimal, treat as a signed number
 			tst		Rsec
-			_IF		_L					; If n is negative
+			_IF		L					; If n is negative
 				mov.b	#'-',R8				; Emit minus sign
 				call	#TxByteCk
 				inv		Rsec				; Negate
@@ -233,30 +233,30 @@ _emitNum3:
 			mov.b	#16,R8			; Divisor in R8 is number base
 		_ENDIF						; End hexadecimal
 		dec		Rtos				; Count := Count-1
-		_IF		_L					; Enforce a minimum of 2 digits
+		_IF		L					; Enforce a minimum of 2 digits
 			mov		#1,Rtos
 		_ENDIF
 		mov		Rtos,R12			; Count to R12
 		mov		Rsec,R9				; Dividend in R10:R9 will have n initially
 		dec		R12					; Count := Count-1
-		_BEGIN
+		_DO
 			clr		R10
 			call	#UMSlashMod			; dividend/base -> R9, remainder to R10
 			push	R10					; Push remainder
 			dec		R12
-		_UNTIL	_L					; R9 keeps quotient as next dividend
+		_UNTIL	L					; R9 keeps quotient as next dividend
 		mov		R9,R8
 		; Now we have n-1 results on the stack and the last one in R8; print these as hex/decimal
-		_BEGIN
+		_DO
 			clrc						; Because dadd is always done with carry on MSP430
 			dadd.b	#$90,R8				; Causes a carry for A to F, none for 0 to 9
 			dadd.b	#$40,R8				; Now any carry gets added, giving 30h-39h, 41h-46h
 			and.b	#$7F,R8				; Ensure nothing can be misinterpreted as status
 			call	#TxByteCk
 			dec		Rtos
-		_WHILE	_NN
+		_WHILE	NN
 			pop		R8
-		_REPEAT
+		_ENDW
 #endif
 		ret
 
@@ -325,7 +325,7 @@ _emitNum3:
 GetLinkV:
 		call		#GetBoltMiV			; Return bolt- or shuntx20 in mV in R10
 		cmp.b	#255,&ID
-		_IF		_EQ						; If we're a BMU
+		_IF		EQ						; If we're a BMU
 			mov			R10,Rsec			; Result to Rsec
 		_ELSE
 			abs			R10					; Absolute value: easier to compare, and sign is meaningless
@@ -340,7 +340,7 @@ GetLinkV:
 			pop			R10					; R10 has pos term strap drop
 			abs			R10					; Absolute value
 			cmp			R10,0(SP)			; Compare pos and neg drops
-			_IF			_LO					; If 0(SP) < R10
+			_IF			LO					; If 0(SP) < R10
 				mov			R10,0(SP)			; Replace it with R10
 			_ENDIF
 			pop			R10					; Worst result to R10
@@ -385,7 +385,7 @@ GetLinkV:
 ;
 		xCODE		'T'|'o' <<8,touchValue,_touchValue	; 'To' collides with 'Tg' 'Tw' 'Lg' 'Lo' 'Lw'
 		cmp.b	#255,&ID					; If we're a BMU
-		_IF		_EQ
+		_IF		EQ
 			call		#GetTouchV			; Return touch value (0 to 4092) in R10
 			mov			#'T'|'o' <<8,Rthd	; Command characters
 			mov			R10,Rsec			; Result
@@ -407,7 +407,7 @@ GetLinkV:
 #define Rmeas R14				// Max of touch measurements when any one relay is on.
 #define Rtest R15				// Touch self-test value when both relays are on.
 		cmp.b	#0,&ID				; If we're an IMU
-		_IF		_EQ
+		_IF		EQ
 			call	#GetCellV			; Return battery_voltage/109 in millivolts in R10
 			mov		R10,RCellV
 
@@ -435,7 +435,7 @@ GetLinkV:
 			call	#GetTouchV			; Return touch value in R10
 
 			cmp		R10,Rmeas			; Keep the maximum of the two single-relay measurements
-			_IF		_LO
+			_IF		LO
 				mov		R10,Rmeas
 			_ENDIF
 
@@ -444,13 +444,13 @@ GetLinkV:
 
 			mov.b	#$FF,R8				; If battery voltage is less than 109 * 255 mV ~= 28 V
 			cmp.w	R8,RCellV			;  e.g. if battery contactors are off
-			_IF		_LO
+			_IF		LO
 				mov		#8888,R9			; Indicate an invalid test by a large distinctive value
 			_ELSE
 				mov		RCellV,R8			; If test value is less than battery_voltage/109 / 4
 				rra2	R8					;  e.g. because of reed relay failure
 				cmp		R8,Rtest
-				_IF		_LO
+				_IF		LO
 					mov		#7777,R9			; Indicate an invalid test by a large distinctive value
 				_ELSE
 					; Calculate the prospective touch current in tenths of a milliamp (accuracy +-25%)
@@ -462,7 +462,7 @@ GetLinkV:
 					mov		RCellV,R9		; R9    = VcellV
 					call	#UMStar			; R10:R9 = R8 * R9 = Vcell * Vmeas
 					sub		Rmeas,Rtest		; Rtest = Vtest - Vmeas
-					_IF		_NC				; If not carry = If borrow = If Vtest < Vmeas
+					_IF		NC				; If not carry = If borrow = If Vtest < Vmeas
 						mov		#0,Rtest		; Rtest = 0
 					_ENDIF					; Must not feed negative numbers to the following sqrt
 
@@ -473,16 +473,16 @@ GetLinkV:
 					mov		Rtest,R9		; R9    = (Vtest - Vmeas) * 4
 					rla2	R9				; R9    = (Vtest - Vmeas) * 16
 					add		R9,Rtest		; Rtest = (Vtest - Vmeas) * 20
-					_BEGIN
+					_DO
 						cmp		#4,R8
-						_WHILE	_HS				; While R8 >= 4 (_HS is the same as carry set)
+						_WHILE	HS				; While R8 >= 4 (HS is the same as carry set)
 							clrc					; Clear carry so the rrc below is an unsigned div by 2
 							rrc		Rtest			; Do half as many shifts of Rtest
 							rra2	R8				; as we can do to R8 before it goes below 4
 					_AGAIN
 						_ELSE
 							cmp		#2,R8
-							_IF		_HS				; If one more shift of R8 is possible, to take it to 1
+							_IF		HS				; If one more shift of R8 is possible, to take it to 1
 								mov		Rtest,R8		; Perform a "half-shift" of Rtest, by
 								rra2	R8				; subtracting a quarter of it, which effectively
 								sub		R8,Rtest		; multiplies it by 0.75, which is approx sqrt(0.5)
@@ -504,7 +504,7 @@ GetLinkV:
 					rra2	R9				; R9 = (Vcell * Vmeas)/(Corr(Vtest - Vmeas) + Vmeas/256) * 92)
 					mov		#9999,R8		; Clamp to 999.9 mA
 					cmp		R8,R9
-					_IF		_HS
+					_IF		HS
 						mov		R8,R9
 					_ENDIF
 				_ENDIF
@@ -534,15 +534,15 @@ DelayMs:
 ; R8 is treated as unsigned. There will be no travelling-backwards-in-time allowed here!
 ; Clears R8.
 		push	R9
-		_BEGIN
+		_DO
 			tst		R8						; (1)
-		_WHILE	_NZ						; (2) jz
+		_WHILE	NZ						; (2) jz
 			; 1 ms of MCLKs, 3 c inner loop, 11 c outer, 1 c rounding
-			_DO		#((DCOfreq/DCOckPerMck+500)/1000-11+1)/3,R9
-			_LOOP	R9						; (3) dec R9, jnz
+			_FOR		#((DCOfreq/DCOckPerMck+500)/1000-11+1)/3,R9
+			_NEXT_DEC	R9						; (3) dec R9, jnz
 			ClearWatchdog					; (5) mov #x,&y
 			dec			R8					; (1)
-		_REPEAT							; (2) jmp
+		_ENDW							; (2) jmp
 		pop R9
 		ret
 
@@ -552,7 +552,7 @@ DelayMs:
 ;
 		xCODE	'Y',relayP,_relayP
 		cmp.b	#255,&ID
-		_IF		_EQ					; If we're a BMU (57.6 kHz on a CMU)
+		_IF		EQ					; If we're a BMU (57.6 kHz on a CMU)
 			allBitsIfNZ	Rtos,Rtos		; IF Rtos is nonzero THEN $FF to Rtos ELSE $00 to Rtos
 			movBits_B	Rtos,#RelayP,&P2OUT ; Move only the #RelayP bit from Rtos to &P2OUT. Trashs Rtos
 		_ENDIF
@@ -585,7 +585,7 @@ _prettyPrint:
 		push	Rsec				; Save n -- the result
 
 		bit.b	#bModbusOutput,&interpFlags
-		_IF		_Z					; If not in modbus output mode, give a human-readable response
+		_IF		Z					; If not in modbus output mode, give a human-readable response
 			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 			call	#TxByteCk			; Stops rest of packet being interpreted
 			push	Rtos				; Save m -- the digit count
@@ -599,7 +599,7 @@ _prettyPrint:
 			call	#TxByteCk			; Transmit ch, preserves R8
 			swpb	R8					; Check if there's a second command character
 			tst.b	R8
-			_IF		_NZ					; If the second command character is not null
+			_IF		NZ					; If the second command character is not null
 				call	#TxByteCk			; Transmit the second command character
 			_ENDIF
 			mov		#' ',R8				; Transmit a space
@@ -616,7 +616,7 @@ _prettyPrint:
 			mov		#':',R8				; Colon is start of modbus packet
 			call	#TxByteCk			; Send the colon
 			cmp.b	#255,&ID
-			_IF		_EQ					; If our ID is 255 (i.e. BMU)
+			_IF		EQ					; If our ID is 255 (i.e. BMU)
 				mov		#BmuModbusID,Rsec	; Translate it to corresponding modbus ID
 			_ELSE						; Else
 				mov.b	&ID,Rsec			; Use our ID unchanged
@@ -646,7 +646,7 @@ TxEndOfModbusPacket:
 			add.b	R8, Rsec				; Add the lower byte of result
 			add.b	#03+02,Rsec				; Add the constant terms of the checksum
 			cmp.b	#255, &ID
-			_IF		_EQ						; If our ID is 255 (a BMU)
+			_IF		EQ						; If our ID is 255 (a BMU)
 				add.b	#BmuModbusID, Rsec		; add the corresponding modbus ID
 			_ELSE							; Else a cmu
 				add.b	&ID, Rsec				; add our ID directly
@@ -663,13 +663,13 @@ TxEndOfModbusPacket:
 
 ErrorLed:
 		tst		Rtos
-		_IF		_Z
+		_IF		Z
 			ErrLedOff						; Turn off the error LED
 			bic.b	#Piezo,&P1SEL			; Short out the piezo
 		_ELSE
 			ErrLedOn						; Turn on the error LED
 			bit.b	#bQuiet,&interpFlags
-			_IF		_Z						; If not in quiet mode
+			_IF		Z						; If not in quiet mode
 				bis.b	#Piezo,&P1SEL			; Make the piezo squeal
 			_ENDIF
 		_ENDIF
@@ -690,13 +690,13 @@ ErrorLed:
 ; Stop the piezo coming on with the error LED
 		xCODE	'Q',quiet,_quiet
 		tst		Rtos
-		_IF		_NZ
+		_IF		NZ
 			bis.b	#bQuiet,&interpFlags
 			bic.b	#Piezo,P1SEL			; Make it an ordinary output (short piezo to GND)
 		_ELSE
 			bic.b	#bQuiet,&interpFlags
 			bit.b	#ErrLed,&P2OUT
-			_IF		_NZ						; If error LED is on
+			_IF		NZ						; If error LED is on
 				bis.b	#Piezo,P1SEL			; Give piezo output ACLK function (make it squeal)
 			_ENDIF
 		_ENDIF
@@ -717,11 +717,11 @@ ErrorLed:
 			bis.b	#bHexOutput,&interpFlags	; Set to hexadecimal output
 
 			cmp		&resetCounter,R8		; Take min of maxResetsToShow and resetCounter
-			_IF		_HS
+			_IF		HS
 				mov		&resetCounter,R8
 			_ENDIF
 			cmp		#16,R8					; Take min of that and 16
-			_IF		_HS
+			_IF		HS
 				mov		#16,R8
 			_ENDIF
 
@@ -729,14 +729,14 @@ ErrorLed:
 			and		#$0F,R9
 			add		#resetBuffer,R9
 
-			_BEGIN
+			_DO
 				tst		R8
-			_WHILE	_NZ
+			_WHILE	NZ
 				push	R8
 				mov		#'R'|'l' <<8,Rthd		; Type is reset-log query
 				dec		R9
 				cmp		#resetBuffer,R9
-				_IF		_LO
+				_IF		LO
 					mov		#resetBuffer+15,R9
 				_ENDIF
 				mov.b	@R9,Rsec				; Result
@@ -748,7 +748,7 @@ ErrorLed:
 
 				pop		R8
 				dec		R8
-			_REPEAT
+			_ENDW
 
 			popBits_B #bHexOutput,&interpFlags ; Restore number base
 			ret
@@ -757,18 +757,18 @@ ErrorLed:
 			xCODE	'^',resetResetLog,_resetResetLog ; "^" so unlikely to type accidentally
 			clr		&resetCounter
 			mov		#resetBuffer,R8
-			_BEGIN
+			_DO
 				clr.b	0(R8)
 				inc		R8
 				cmp		#resetBuffer+16,R8
-			_UNTIL	_EQ
+			_UNTIL	EQ
 			ret
 
 
 ; NO_ECHO_CMD ; A wrapper macro for defining commands that need to operate without echo
 NO_ECHO_CMD	MACRO	cmd0,cmd
 			cmp.b	#1,&ID
-			_IF		_EQ					; If my ID is 1
+			_IF		EQ					; If my ID is 1
 				mov		#$13,R8				; Transmit an XOFF (ctrl-S)
 				call	#TxByteCk
 				call	#cmd0				; Do the command with default parameters
@@ -776,7 +776,7 @@ NO_ECHO_CMD	MACRO	cmd0,cmd
 				call	#TxByteCk
 			_ELSE						; Else (ID not 1)
 				bit.b	#bDontEcho,&interpFlags
-				_IF		_NZ					; If the dont-echo flag is set
+				_IF		NZ					; If the dont-echo flag is set
 					call	#cmd				; Do the command
 				_ENDIF
 			_ENDIF
@@ -825,7 +825,7 @@ doNumCells:	; Emit another NumCells command with its parameter incremented by on
 #else
 		cmp.b	#0,&ID
 #endif
-		_IF		_EQ					; BMUs and IMUs only
+		_IF		EQ					; BMUs and IMUs only
 			call	#DepthOfDischarge	; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'g',Rthd			; Type is fuel gauge (depth of discharge)
 			mov		R9,Rsec				; Result in tenths of a percent
@@ -843,7 +843,7 @@ DepthOfDischarge:
 		mov		&discharge+2,R9		; High word of discharge accumulator
 									; Starts with units of 1/72 mAh
 		tst		R9
-		_IF		_L					; Clamp negative values to zero. Unsigned divide below.
+		_IF		L					; Clamp negative values to zero. Unsigned divide below.
 			clr		R8
 			clr		R9
 		_ENDIF
@@ -919,7 +919,7 @@ SocToDischarge:
 		ret
 
 
-		xCODE	'F'|'f' <<8,forceFuelGauge,_forceFuelGauge; 'Ff' collides with 'Fn' and 'Fv'
+		xCODE	'F'|'f' <<8,forceFuelGauge,_forceFuelGauge	; 'Ff' collides with 'Fn' and 'Fv'
 		mov		Rtos,R9
 		call	#SocToDischarge
 		mov		R9,&discharge
@@ -939,19 +939,19 @@ SocToDischarge:
 ; GetContactorBitmask ( n -- m )
 GetContactorBitmask:
 			_CASE
-			_OFb	#1,Rtos				; Precharge
+			_OF_B	#1,Rtos				; Precharge
 				mov.b	#PreCtor,Rtos
 			_ENDOF
-			_OFb	#2,Rtos				; Battery pos
+			_OF_B	#2,Rtos				; Battery pos
 				mov.b	#BatPosCtor,Rtos
 			_ENDOF
-			_OFb	#3,Rtos				; Battery neg
+			_OF_B	#3,Rtos				; Battery neg
 				mov.b	#BatNegCtor,Rtos
 			_ENDOF
-			_OFb	#4,Rtos				; Left charge sources
+			_OF_B	#4,Rtos				; Left charge sources
 				mov.b	#AcLfPvCtor,Rtos
 			_ENDOF
-			_OFb	#5,Rtos				; Right charge source(s)
+			_OF_B	#5,Rtos				; Right charge source(s)
 				mov.b	#RtPvCtor,Rtos
 			_ENDOF
 			_ENDCASE
@@ -984,12 +984,12 @@ GetContactorBitmask:
 ;
 		xCODE		'I'|'n' <<8,inPut,_inPut ; 'In' collides with 'If', 'Iv', 'Qf', 'Qv', 'Qn'
 		tst			Rtos				; 0 for pre input?
-		_IF			_Z
+		_IF			Z
 			bit.b	#PreI,&PreIPortIN		; Is PreI input high?
 		_ELSE
 			bit.b	#BatI,&BatIPortIN		; Is BatI input high?
 		_ENDIF
-		_IF		_NZ
+		_IF		NZ
 			mov		#1,Rsec					; If so, set Rsec to 1
 		_ELSE
 			mov		#0,Rsec					; Else set Rsec to 0
@@ -1010,7 +1010,7 @@ GetContactorBitmask:
 		ClearWatchdog
 		push.b	&interpFlags		; Save present number base
 		bit.b	#bModbusOutput,&interpFlags
-		_IF		_Z					; If not in modbus output mode, give a human-readable response
+		_IF		Z					; If not in modbus output mode, give a human-readable response
 			mov		#EXIT,R8			; Initial slosh (EXIT command or comment character)
 			call	#TxByteCk			; Stops rest of packet being interpreted
 			bic.b	#bHexOutput,&interpFlags ; Set to decimal output
@@ -1041,7 +1041,7 @@ GetContactorBitmask:
 			call	#TxByteCk
 			mov		&jBslRevision,R8	; Read the code at the BslRevision entry point in BSL
 			cmp		#$4030,R8			; Compare with branch opcode
-			_IF		_EQ					; If the BslRevision entry point exists
+			_IF		EQ					; If the BslRevision entry point exists
 				call	#jBslRevision		; Ask the BSL what its revision number is
 				mov		R8,Rsec				; Copy to Rsec
 			_ELSE						; Else not safe to call that entry point,
@@ -1051,7 +1051,7 @@ GetContactorBitmask:
 			call	#_emitNum4
 			pop		Rsec
 			cmp		#BSL_REV,Rsec
-			_IF		_NE					; If the BSL is not up to date
+			_IF		NE					; If the BSL is not up to date
 				mov		#'!',R8				; display a bang
 				call	#TxByteCk			; after the BSL rev number
 			_ENDIF
@@ -1085,15 +1085,15 @@ GetContactorBitmask:
 		mov		#0,R9				; Clear LRC
 		push	Rip					; Save position in buffer
 
-		_BEGIN
+		_DO
 			cmp.b	#EXIT,0(Rip)		; Current ch an EXIT? (was CR)
-		_WHILE	_NE
+		_WHILE	NE
 			mov.b	@Rip+,R8			; Get a high hex digit
 			cmp.b	#EXIT,0(Rip)		; Is next an EXIT? (was CR)
 			jeq		abortColon			; Should not be! Abort if so
 			sub.b	#'0',R8				; Convert to binary
 			cmp.b	#9+1,R8				; Was it A-F?
-			_IF		_GE
+			_IF		GE
 				sub.b	#7,R8				; Adjust for A-F
 			_ENDIF
 			rla4	R8					; Shift left 4 bits
@@ -1101,11 +1101,11 @@ GetContactorBitmask:
 			mov.b	@Rip+,R8			; Get a low hex digit
 			sub.b	#'0',R8				; Convert to binary
 			cmp.b	#9+1,R8				; Was it A-F?
-			_IF		_GE
+			_IF		GE
 				sub.b	#7,R8				; Adjust for A-F
 			_ENDIF
 			add.b	R8,R9				; Add to sum
-		_REPEAT						; Ready to check is next ch a CR?
+		_ENDW						; Ready to check is next ch a CR?
 
 		tst.b	R9						; Sum should be zero
 		jne		abortColon
@@ -1118,12 +1118,12 @@ GetContactorBitmask:
 		call	#_ENTER				; Interpret the hex device ID
 		sub		#4,Rip				; Back up to the start of the packet again
 		cmp.b	#BroadcastModbusID,Rtos
-		_IF		_EQ					; If it uses the broadcast ID
+		_IF		EQ					; If it uses the broadcast ID
 			mov.b	#' ',3(Rip)			; Overwrite <func_code> hi digit with space (no-op)
 		_ELSE						; Else
 			mov.b	#'s',3(Rip)			; Overwrite <func_code> hi digit with 's' for select
 			cmp.b	#BmuModbusID,Rtos
-			_IF		_EQ					; If it's for the BMU
+			_IF		EQ					; If it's for the BMU
 				mov.b	#'F',1(Rip)			; Replace with FF (255)
 				mov.b	#'F',2(Rip)			;	(255 is not a valid Modbus device address)
 			_ENDIF
@@ -1149,20 +1149,20 @@ CAP_TOTV	EQU		16 * 32					; Nominal total volltage in decivolts. 16 cells at 3.2
 
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
 		_CASE
-		_OFb	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
+		_OF_B	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
-		_OFb	#$C,Rtos			; $C: Charge power capability (W)
+		_OF_B	#$C,Rtos			; $C: Charge power capability (W)
 			call	#EnergyCap
 			; Need a multiply or divide here if the charge C rate isn't 1.0
 			mov		R9,Rsec
 		_ENDOF
-		_OFb	#$D,Rtos			; $D: Discharge power capability (W)
+		_OF_B	#$D,Rtos			; $D: Discharge power capability (W)
 			call	#EnergyCap
 			; Need a multiply or divide here if the discharge C rate isn't 1.0
 			mov		R9,Rsec
 		_ENDOF
-		_OFb	#$E,Rtos			; $E: Energy capacity (Wh)
+		_OF_B	#$E,Rtos			; $E: Energy capacity (Wh)
 			call	#EnergyCap
 			mov		R9,Rsec
 		_ENDOF
