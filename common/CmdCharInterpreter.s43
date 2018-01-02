@@ -350,10 +350,10 @@ ACCEPT:
 		mov		&ToIN,R9
 		_CASE
 
-		_OF_B	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
+		_OF_EQ_B	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
 		_ENDOF
 
-		_OF_B	#$0D,R8			; Carriage return = end of packet
+		_OF_EQ_B	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd-1,R9	; Leave space for 2 EXIT commands
 			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
@@ -419,7 +419,7 @@ ACCEPT:
 			clr.b	&rxCksum		; Clear the packet checksum
 		_ENDOF					; End of carriage return
 
-		_OF_B	#$08,R8			; Backspace editing
+		_OF_EQ_B	#$08,R8			; Backspace editing
 			cmp		#TIBEnd-1,R9
 			_IF		LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
@@ -431,21 +431,21 @@ ACCEPT:
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OF_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
+		_OF_EQ_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		NE
 				bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XON
 
-		_OF_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
+		_OF_EQ_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&interpFlags
 			_IF		Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OF_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
+		_OF_EQ_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 

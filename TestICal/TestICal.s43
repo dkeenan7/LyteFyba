@@ -261,7 +261,7 @@ InterpretInit:
 ;
 #if !FAKE_NEW_CHIP
 			_CASE
-			_OF_B	#DATAVERS-1,&infoDataVers			; Check for version 6
+			_OF_EQ_B	#DATAVERS-1,&infoDataVers			; Check for version 6
 				; Data version 6 is close enough to version 7 that we can get away with merely flashing
 				; the error light for a second.
 				; Should eventually translate the link calibration data
@@ -279,19 +279,19 @@ InterpretInit:
 				rla		R8							; Convert to half degrees
 				mov.b	R8,&ramTempOff				; Save converted data
 			_ENDOF
-			_OF_B	#DATAVERS,&infoDataVers		; Check at the present address
+			_OF_EQ_B	#DATAVERS,&infoDataVers		; Check at the present address
 				; The RAM image has the same layout as current version data, so we use a block move
 				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
-			_OF_B	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
+			_OF_EQ_B	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
 				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~16 bytes
 					mov.b	oldInfoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
 				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
-			_OF_B	#$FF,&infoDataVers
+			_OF_EQ_B	#$FF,&infoDataVers
 #endif
 				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data

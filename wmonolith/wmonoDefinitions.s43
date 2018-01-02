@@ -194,20 +194,20 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#GetCellV		; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
@@ -258,20 +258,20 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#GetCellV		; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF

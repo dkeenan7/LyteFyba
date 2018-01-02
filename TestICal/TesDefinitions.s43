@@ -110,21 +110,21 @@ voltScaleWork:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
-			_OF_B	#'v',Rtos					; 'v': Cell voltage scale factor
+			_OF_EQ_B	#'v',Rtos					; 'v': Cell voltage scale factor
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				mov.b	&ramCellOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramCellCal				; Save cell/battery calibration value
 			_ENDOF
 
-			_OF_B	#'V',Rtos					; 'b': Bolt+/Array voltage scale factor
+			_OF_EQ_B	#'V',Rtos					; 'b': Bolt+/Array voltage scale factor
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				mov.b	&ramBoltPlOff,R9			; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,&ramBoltPlCal			; Save bolt/array calibration value
 			_ENDOF
 
-			_OF_B	#'o',Rtos					; 'o': Cell voltage offset
+			_OF_EQ_B	#'o',Rtos					; 'o': Cell voltage offset
 				mov		#CellVChan<<12,R8			; ADC channel for scaled cell/battery voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramCellCal,R9				; Use this voltage scale for correction
@@ -133,7 +133,7 @@ voltScaleWork:
 				mov.b	Rsec,&ramCellOff
 			_ENDOF
 
-			_OF_B	#'O',Rtos					; 'O': Bolt+/Array voltage offset
+			_OF_EQ_B	#'O',Rtos					; 'O': Bolt+/Array voltage offset
 				mov		#BoltVPlChan<<12,R8			; ADC channel for scaled bolt/array voltage input
 				call	#measure17					; Measure and possibly scale 17/16
 				mov		&ramBoltPlCal,R9			; Use this voltage scale for correction
@@ -142,7 +142,7 @@ voltScaleWork:
 				mov.b	Rsec,&ramBoltPlOff
 			_ENDOF
 
-			_OF_B	#'t',Rtos					; 't': Temperature offset
+			_OF_EQ_B	#'t',Rtos					; 't': Temperature offset
 				call	#GetTemp					; Get calibrated temp in half degC into R9
 				mov.b	&ramTempOff,R8				; Subtract off our existing offset calibration
 				sxt		R8
@@ -160,7 +160,7 @@ voltScaleWork:
 				mov.b	R9,&ramTempOff				; Save new temperature offset calibration value
 			_ENDOF
 
-			_OF_B		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
+			_OF_EQ_B		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				mov		#BoltVMiChan<<12,R8
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				mov.b	&ramBoltMiOff,R9			; Subtract the existing offset (signed byte)
@@ -192,7 +192,7 @@ voltScaleWork:
 				mov.b	R10,&ramBoltMiOff			; Save the bolt-/current offset calibration value
 			_ENDOF
 
-			_OF_B	#'i',Rtos
+			_OF_EQ_B	#'i',Rtos
 				; When preceded by XOFF (ctrl-S) and the desired first ID in decimal,
 				; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 				; and responds with the ID _after_ the last ID.
@@ -221,7 +221,7 @@ voltScaleWork:
 				ret			; Don't fall through to _readCalValue
 			_ENDOF
 
-			_OF		#'a',Rtos					; 'a': optimal ADC timing, with debug display
+			_OF_EQ		#'a',Rtos					; 'a': optimal ADC timing, with debug display
 				call	#FindOptAdc					; 4 results in R8 R9 R10 R11
 				push	R11
 				push	R10
@@ -547,28 +547,28 @@ bitDelay	dec		R11
 		xCODE	'I'|'r' <<8,IrTxLevel,_IrTxLevel ; 'Ir' collides with 'Ib' 'Ij' 'Iz' 'Qr' 'Qb' 'Qj' 'Qz'
 			bis.b	#Ir57k6A|Ir57k6B,&P2OUT		; Set both for high output (when not pulsed or open)
 			_CASE
-				_OF		#0,Rtos
+				_OF_EQ		#0,Rtos
 					bic.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are not pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs (high from above)
 				_ENDOF
-				_OF		#1,Rtos
+				_OF_EQ		#1,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is high
 					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF
-				_OF		#2,Rtos
+				_OF_EQ		#2,Rtos
 					bis.b	#Ir57k6A,&P2SEL				; A is pulsed
 					bis.b	#Ir57k6A,&P2DIR				; A is an output
 					bic.b	#Ir57k6B,&P2SEL				; B is not pulsed
 					bic.b	#Ir57k6B,&P2DIR				; B is an input
 				_ENDOF
-				_OF		#3,Rtos
+				_OF_EQ		#3,Rtos
 					bic.b	#Ir57k6A,&P2SEL				; A is not pulsed
 					bic.b	#Ir57k6A,&P2DIR				; A is an input
 					bis.b	#Ir57k6B,&P2SEL				; B is pulsed
 					bis.b	#Ir57k6B,&P2DIR				; B is an output
 				_ENDOF
-				_OF		#4,Rtos
+				_OF_EQ		#4,Rtos
 					bis.b	#Ir57k6A|Ir57k6B,&P2SEL		; Both are pulsed
 					bis.b	#Ir57k6A|Ir57k6B,&P2DIR		; Both are outputs
 				_ENDOF

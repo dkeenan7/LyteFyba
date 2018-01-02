@@ -478,7 +478,7 @@ DoPassword:
 				; No matter what happens now, we want to begin a new password match after we return
 				mov.b	#4,&passWordState	; Go back to waiting for first password character
 				_CASE
-				_OF_B	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
+				_OF_EQ_B	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
 					_FOR		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
 						cmp.b	#255,&ID			; Check my ID
@@ -492,7 +492,7 @@ DoPassword:
 					; The last byte read could look like a command char.  Ensure it doesn't.
 					mov.b	#2,R8				; Restore last password character, ignored by ACCEPT
 				_ENDOF						; End of fake download case
-				_OF_B	#1,R8				; If matched complete real download pwd 05 04 03 01
+				_OF_EQ_B	#1,R8				; If matched complete real download pwd 05 04 03 01
 					; Start a real download
 					; Jump to the code in the BSL which will erase main flash memory and wait for bytes
 					;	to flash program without using interrupts.

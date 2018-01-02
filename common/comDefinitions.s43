@@ -939,19 +939,19 @@ SocToDischarge:
 ; GetContactorBitmask ( n -- m )
 GetContactorBitmask:
 			_CASE
-			_OF_B	#1,Rtos				; Precharge
+			_OF_EQ_B	#1,Rtos				; Precharge
 				mov.b	#PreCtor,Rtos
 			_ENDOF
-			_OF_B	#2,Rtos				; Battery pos
+			_OF_EQ_B	#2,Rtos				; Battery pos
 				mov.b	#BatPosCtor,Rtos
 			_ENDOF
-			_OF_B	#3,Rtos				; Battery neg
+			_OF_EQ_B	#3,Rtos				; Battery neg
 				mov.b	#BatNegCtor,Rtos
 			_ENDOF
-			_OF_B	#4,Rtos				; Left charge sources
+			_OF_EQ_B	#4,Rtos				; Left charge sources
 				mov.b	#AcLfPvCtor,Rtos
 			_ENDOF
-			_OF_B	#5,Rtos				; Right charge source(s)
+			_OF_EQ_B	#5,Rtos				; Right charge source(s)
 				mov.b	#RtPvCtor,Rtos
 			_ENDOF
 			_ENDCASE
@@ -1149,20 +1149,20 @@ CAP_TOTV	EQU		16 * 32					; Nominal total volltage in decivolts. 16 cells at 3.2
 
 		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
 		_CASE
-		_OF_B	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
+		_OF_EQ_B	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
 			mov		#CAP_TOTV,Rsec
 		_ENDOF
-		_OF_B	#$C,Rtos			; $C: Charge power capability (W)
+		_OF_EQ_B	#$C,Rtos			; $C: Charge power capability (W)
 			call	#EnergyCap
 			; Need a multiply or divide here if the charge C rate isn't 1.0
 			mov		R9,Rsec
 		_ENDOF
-		_OF_B	#$D,Rtos			; $D: Discharge power capability (W)
+		_OF_EQ_B	#$D,Rtos			; $D: Discharge power capability (W)
 			call	#EnergyCap
 			; Need a multiply or divide here if the discharge C rate isn't 1.0
 			mov		R9,Rsec
 		_ENDOF
-		_OF_B	#$E,Rtos			; $E: Energy capacity (Wh)
+		_OF_EQ_B	#$E,Rtos			; $E: Energy capacity (Wh)
 			call	#EnergyCap
 			mov		R9,Rsec
 		_ENDOF

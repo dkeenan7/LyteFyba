@@ -203,7 +203,7 @@ BSLFG	EQU		WDTIFG|RSTIFG		; Use these two bits in IFG1 to indicate a bootstrap-l
 				; No matter what happens now, we want to begin a new password match after we return
 				mov		#4,&bsl2state		; Go back to waiting for first password character
 				_CASE
-				_OF_B	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
+				_OF_EQ_B	#2,R8				; If matched 05 04 03 already, now 02 (rev61 password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
 					_FOR		#REV61_BSL2_ST-REV61_PROG_ST,R12 ; Set count of bytes to ignore
 						call	#ReadByte-jBSL+BSL2_START	; Wait for a byte from the appropriate port
@@ -213,7 +213,7 @@ BSLFG	EQU		WDTIFG|RSTIFG		; Use these two bits in IFG1 to indicate a bootstrap-l
 					mov.b	#2,R8				; Restore last password character, ignored by ACCEPT
 					clrz						; Clear Z flag so we don't leave password checking loop
 				_ENDOF						; End of fake download case
-				_OF_B	#1,R8				; If matched complete real download pwd 05 04 03 01
+				_OF_EQ_B	#1,R8				; If matched complete real download pwd 05 04 03 01
 BSLErase:			; Erase segments of main flash used for the main program, not the BSL.
 					; Reflash tool will need to delay at least number_of_segments * 16 ms
 					; = number_of_KiB * 32 ms before sending the first byte to program.
