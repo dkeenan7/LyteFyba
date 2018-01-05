@@ -10,6 +10,7 @@
 
 ; Make a Control-flow Stack (CS) in the assembler so we can implement
 ; Forth-like structured control-flow words for assembly.
+; It needs to have more elements than the maximum number of cases in any _CASE statement. 
 
 _CS_TOP	SET 0
 _CS2	SET 0
@@ -39,6 +40,9 @@ _CS3	SET _CS2
 _CS2	SET _CS_TOP
 _CS_TOP SET arg
 _CS_COUNT SET _CS_COUNT + 1
+		IF	_CS_COUNT > 12
+			#error "Control flow stack overflow"
+		ENDIF
 		ENDM
 
 _CS_DROP MACRO
@@ -55,6 +59,9 @@ _CS10	SET _CS11
 _CS11	SET _CS12
 _CS12	SET 0
 _CS_COUNT SET _CS_COUNT-1
+		IF	_CS_COUNT < 0
+			#error "Control flow stack underflow"
+		ENDIF
 		ENDM
 
 _CS_SWAP MACRO
