@@ -5,11 +5,11 @@
 
 ; In memory of Wil Baden (1928-2016)
 ; http://www.boston-baden.com/hazel/dad/
-; Among Wil's many gifts to the world, is the elegant control-flow scheme of ANS Forth (1994),
+; Among Wil's many gifts to the world, is the elegant control-flow implementation of ANS Forth (1994),
 ; on which this work is based.
 
-; Make a Control-flow Stack (CS) in the assembler so we can implement
-; Forth-like structured control-flow words for assembly.
+; Make a Control-flow Stack (CS) in the assembler so we can implement structured control-flow words
+; for assembly, similar to those in higher-level languages.
 ; It needs to have more elements than the maximum number of cases in any _CASE statement.
 
 _CS_TOP	SET 0
@@ -214,8 +214,8 @@ JnotLO	MACRO	label
 		JHS		label
 									ENDM
 JnotN	MACRO	label 				; MSP430 specific.
-		BIC		#1<<8, SR			; Clear the V flag so we can
-		JGE		label				; substitute JGE for the non-existent JNN instruction
+		JN		$+4					; The best substitute for the non-existent JNN instruction
+		JMP		label				; Thanks to Anders Lindgren
 									ENDM
 JnotNN	MACRO	label
 		JN		label
@@ -445,8 +445,8 @@ _IF_NOT MACRO cond
 ; Used by _OR_ELSE. MSP430 specific.
 
 JNN		MACRO	label
-		BIC		#1<<8, SR			; Clear the V flag so we can
-		JGE		label				; substitute JGE for the non-existent JNN instruction
+		JN		$+4					; The best substitute for the non-existent JNN instruction
+		JMP		label				; Thanks to Anders Lindgren
 									ENDM
 
 ; Used by ELSES and OR_IFS below
