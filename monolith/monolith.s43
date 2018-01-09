@@ -81,7 +81,8 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
-// OV setpoint is 3.408 to 3.448 V. Bypass at 3.368. Alarm at 3.556. Drop out source contactors at 3.608
+// OV setpoint is 3.408 to 3.448 V. Bypass at 3.408. Alarm at 3.608. Drop out source contactors at 3.608
+// Drop out battery cont at 3.728 V.
 OV_ZERO		EQU		3128		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ; These were an attempt to float at the 75% step
@@ -1395,6 +1396,7 @@ ControlContactors:
 
 		; If stress <= 7
 		;	turn on discharging/loads contactors
+		;	NOTE: potentially different threshold to turning back on the source contactor
 		cmp.b	#8,R9
 		_IF	_L							; If incoming stress is normal
 			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
