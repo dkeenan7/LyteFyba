@@ -10,7 +10,7 @@
 
 ; Make a Control-flow Stack (CS) in the assembler so we can implement
 ; Forth-like structured control-flow words for assembly.
-; It needs to have more elements than the maximum number of cases in any _CASE statement. 
+; It needs to have more elements than the maximum number of cases in any _CASE statement.
 
 _CS_TOP	SET 0
 _CS2	SET 0
@@ -27,6 +27,10 @@ _CS12	SET 0
 _CS_COUNT SET 0
 
 _CS_PUSH MACRO arg
+_CS_COUNT SET _CS_COUNT + 1
+		IF	_CS_COUNT > 12
+			#error "Control flow stack overflow"
+		ENDIF
 _CS12	SET _CS11
 _CS11	SET _CS10
 _CS10	SET _CS9
@@ -39,13 +43,13 @@ _CS4	SET _CS3
 _CS3	SET _CS2
 _CS2	SET _CS_TOP
 _CS_TOP SET arg
-_CS_COUNT SET _CS_COUNT + 1
-		IF	_CS_COUNT > 12
-			#error "Control flow stack overflow"
-		ENDIF
 		ENDM
 
 _CS_DROP MACRO
+_CS_COUNT SET _CS_COUNT-1
+		IF	_CS_COUNT < 0
+			#error "Control flow stack underflow"
+		ENDIF
 _CS_TOP	SET _CS2
 _CS2	SET _CS3
 _CS3	SET _CS4
@@ -58,10 +62,6 @@ _CS9	SET _CS10
 _CS10	SET _CS11
 _CS11	SET _CS12
 _CS12	SET 0
-_CS_COUNT SET _CS_COUNT-1
-		IF	_CS_COUNT < 0
-			#error "Control flow stack underflow"
-		ENDIF
 		ENDM
 
 _CS_SWAP MACRO
@@ -462,7 +462,7 @@ _END_PRIOR_IF	MACRO
 
 _COND	MACRO
 									LSTOUT-
-		_CS_PUSH	0				; Push an _IF-count of zero onto the control flow stack
+		_CS_PUSH	0				; Push a zero marker onto the control flow stack
 									LSTOUT+
 									ENDM
 
@@ -502,7 +502,7 @@ _ELSES	MACRO
 									ENDM
 
 ; Used in place of ENDIF for short-circuit AND, but only when there is no ELSES clause.
-; Resolves multiple counted _IFs or _ELSEs.
+; Resolves multiple _IFs or _ELSEs.
 ; Aliased as _ENDCASE.
 
 _ENDIFS	MACRO
@@ -529,9 +529,9 @@ _OR_ELSE MACRO cond
 
 _OR_IFS	MACRO cond
 									LSTOUT-
-		_IF	cond
+		_IF	cond					; Assemble an _IF
 									LSTOUT-
-		_END_PRIOR_IFS				; Resolve an unconditional forward jump
+		_END_PRIOR_IFS				; Resolve all prior _IFs back to _COND
 									ENDM
 
 
@@ -589,13 +589,13 @@ _OF		MACRO cond
 _OF_EQ	MACRO src, dest			; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
 									LSTOUT-
 		cmp		src, dest
-		_OF EQ						; Assemble an _IF EQ while incrementing the _OF-count
+		_OF EQ						; Assemble an _IF EQ
 									ENDM
 
 _OF_EQ_B MACRO src, dest		; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
 									LSTOUT-
 		cmp.b	src, dest
-		_OF EQ						; Assemble an _IF EQ while incrementing the _OF-count
+		_OF EQ						; Assemble an _IF EQ
 									ENDM
 
 _ENDOF  MACRO
