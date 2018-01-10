@@ -1,12 +1,13 @@
 ;-------------------------------------------------------------------------------
 ; Assembler Structured Control-flow Macros
-; Dave Keenan, 5-Feb-2010, updated 1-Jan-2018
-; <d.keenan@bigpond.net.au>
+; Dave Keenan, 5-Feb-2010, updated 10-Jan-2018
+; Documentation here:
+; http://dkeenan.com/AddingStructuredControlFlowToAnyAssembler.htm
 
 ; In memory of Wil Baden (1928-2016)
 ; http://www.boston-baden.com/hazel/dad/
-; Among Wil's many gifts to the world, is the elegant control-flow implementation of ANS Forth (1994),
-; on which this work is based.
+; Among Wil's many gifts to the world, is the elegant control-flow implementation scheme
+; in ANS Forth (1994), on which this work is based.
 
 ; Make a Control-flow Stack (CS) in the assembler so we can implement structured control-flow words
 ; for assembly, similar to those in higher-level languages.
@@ -259,7 +260,7 @@ _IF 	MACRO cond		; "\1" below is equivalent to "cond" (1st argument) but can be 
 									LSTOUT+
 									ENDM
 
-; Resolve a forward branch due to most recent _AHEAD, _IF, _ELSE or _WHILE.
+; Resolve a forward branch due to most recent _IF, _ELSE or _WHILE.
 ; Called by _ELSE and _ENDW.
 
 _ENDIF	MACRO
