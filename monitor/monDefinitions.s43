@@ -40,7 +40,7 @@
 			xCODE	'o',ChargerControl,_ChargerControl
 			mov		Rtos,&chargerCurrLim
 			tst		Rtos
-			_IF		_Z
+			_IF		Z
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 				mov		#BitTime96,&txBitTime		; Set transmit baud rate to 9600 (default)
 			_ELSE
@@ -72,7 +72,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			mov		#'p',Rthd				; Type is stress
 			mov.b	&localStatus,Rsec		; Get local status
 			bit.b	#bModbusOutput,&interpFlags
-			_IF		_Z						; If not modbus
+			_IF		Z						; If not modbus
 				and.b	#STRESS,Rsec			; Extract stress level, 0 to 15
 			_ENDIF
 ;			mov		#3,Rtos					; Print 3 digits
@@ -81,7 +81,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
 			cmp.b	Rtos,&worstStress
-			_IF		_LO
+			_IF		LO
 				ret
 			_ENDIF
 			push.b	&interpFlags				; Save current number base
@@ -182,20 +182,20 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#cellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#STRESS,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
@@ -204,7 +204,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		_ENDCASE
 
 		cmp		Rtos,R10			; Find min of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new min, update ID
 		_ENDIF
@@ -247,20 +247,20 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#cellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
@@ -269,7 +269,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_ENDCASE
 
 		cmp		R10,Rtos			; Find max of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new max, update ID
 		_ENDIF
@@ -307,7 +307,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; In future may also have under-voltage 'vP, over-temperature 'TP, under-temperature 'tP, link 'lP.
 		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
  		_CASE
-			_OF #'V',Rtos				; Set overvoltage zero and step
+			_OF_EQ #'V',Rtos				; Set overvoltage zero and step
 				mov		Rsec,&ovStep	; ovStep = Rsec
 				add		Rsec,Rthd		; ovZero = Rthd - 7 * Rsec
 				rla3	Rsec

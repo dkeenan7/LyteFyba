@@ -7,7 +7,7 @@ ActLedOff	MACRO
 #else
 			cmp.b	#0,&ID
 #endif
-			_IF	_NE
+			_IF	NE
 				bis.b	#ActLed,&P1OUT
 			_ENDIF
 			ENDM
@@ -18,28 +18,28 @@ ActLedOn	MACRO
 #else
 			cmp.b	#0,&ID
 #endif
-			_IF	_NE
+			_IF	NE
 				bic.b	#ActLed,&P1OUT
 			_ENDIF
 			ENDM
 
 ErrLedOff	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				bic.b	#ErrLed,&P2OUT		; Turn off the error LED
 			_ENDIF
 			ENDM
 
 ErrLedOn	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				bis.b	#ErrLed,&P2OUT		; Turn on the error LED
 			_ENDIF
 			ENDM
 
 ErrLedToggle	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				xor.b	#ErrLed,&P2OUT		; Toggle the error LED
 			_ENDIF
 			ENDM
@@ -166,7 +166,7 @@ ClearWatchdog MACRO
 
 abs			MACRO	dest
 			cmp		#0,dest
-			_IF		_L
+			_IF		L
 				inv		dest
 				inc		dest
 			_ENDIF

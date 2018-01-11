@@ -39,23 +39,23 @@ measure:
 			mov			R8,&ADC10CTL1
 
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-;			_LOOP		R8
+;			_FOR			#40,R8					; 40 times around a 3 cycle dec jnz loop
+;			_NEXT_DEC		R8
 
 			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
-			_DO			#NumSamples,R9			; Sample counter
+			_FOR			#NumSamples,R9			; Sample counter
 				bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion. ADC10SC is reset automatically
 
 				ClearWatchdog
 
-				_BEGIN								; Busy wait for conversion to complete
+				_REPEAT								; Busy wait for conversion to complete
 	;				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
-	;			_UNTIL		_NZ
+	;			_UNTIL		NZ
 					bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
-				_UNTIL		_Z
+				_UNTIL		Z
 				add			&ADC10MEM,R8			; Add a result
 	;			bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
-			_LOOP		R9
+			_NEXT_DEC		R9
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0 	; Turn off ADC core
 
@@ -81,48 +81,48 @@ measure:
 			mov			R8,&ADC10CTL1
 
 			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
-;			_DO			#40,R8					; 40 times around a 3 cycle dec jnz loop
-;			_LOOP		R8
+;			_FOR			#40,R8					; 40 times around a 3 cycle dec jnz loop
+;			_NEXT_DEC		R8
 
 			mov.b		#NumSamples,&ADC10DTC1	; Typically 16 conversions
 			mov			#sampleBuf,&ADC10SA		; Set start address
 			bis			#ENC+ADC10SC,&ADC10CTL0	; Start conversion
-			_BEGIN								; Busy wait for conversion to complete
+			_REPEAT								; Busy wait for conversion to complete
 ;				bit			#ADC10IFG,&ADC10CTL0	; Done conversion?
-;			_UNTIL		_NZ
+;			_UNTIL		NZ
 				bit			#ADC10BUSY,&ADC10CTL1	; Done conversion?
-			_UNTIL		_Z
+			_UNTIL		Z
 ;			bic			#ADC10IFG,&ADC10CTL0	; Clear the interrupt flag
 			bic			#ENC,&ADC10CTL0 		; Must turn off ENC bit before other bits can be changed
 			bic			#ADC10ON,&ADC10CTL0		; Turn off ADC core
 			; Sum the samples
 			mov			#0,R8					; Initialise the sum. R8 no longer cleared by above loop
 			mov			#NumSamples*2,R9
-			_BEGIN
+			_REPEAT
 				add			sampleBuf-2(R9),R8		; Add a sample
 				decd		R9
-			_UNTIL		_Z
+			_UNTIL		Z
 	#if 0					; Debug code for measuring deviations -- Trashes R11
 			mov		R8,R10						; Sum of samples into R10. Treat as mean in 12.4 fixed point
 			clr		R8
 			mov		#NumSamples*2,R9
-			_BEGIN
+			_REPEAT
 				mov		sampleBuf-2(R9),R11		; Retrieve a sample
 				rla		R11						; Convert to 12.4 fixed point
 				rla		R11
 				rla		R11
 				rla		R11
 				sub		R10,R11					; Subtract the mean to get deviation (as 12.4)
-				_IF		_L						; Get absolute value of deviation (as 12.4)
+				_IF		L						; Get absolute value of deviation (as 12.4)
 					inv		R11
 					inc		R11
 				_ENDIF
 				cmp		R11,R8					; Record the max abs deviation (as 12.4)
-				_IF		_LO
+				_IF		LO
 					mov		R11,R8
 				_ENDIF
 				decd	R9
-			_UNTIL	_Z
+			_UNTIL	Z
 	#endif
 #endif
 			ret
@@ -158,11 +158,11 @@ cellV:
 #ifdef MONOLITH
 	#ifdef HELIDON
 			cmp.b	#255,&ID
-			_IF		_EQ
+			_IF		EQ
 				call	#measure
 				mov		#4062<<2,R9
 				sub	R8,R9
-				_IF		_NC
+				_IF		NC
 					clr		R9
 				_ENDIF
 				mov.w	&VoltCal,R8
@@ -216,7 +216,7 @@ linkV:
 ; Trashes: R8, R9, R11
 			mov.b		&LinkCal,R8		; Link offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
-			_IF			_EQ				; If link calibration value is $80
+			_IF			EQ				; If link calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
 				; In the below, add ADC10DIV_7, which forces the link measurement to use the slowest (/8) clock
@@ -234,7 +234,7 @@ linkV:
 				mov.b		&LinkCal,R8		; Link offset calibration
 				sxt			R8				; Sign extend
 				sub			R8,R10
-				_IF			_NN
+				_IF			NN
 					mov			R10,R8
 					mov			#48047,R9
 					call		#UMStar

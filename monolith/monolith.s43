@@ -297,9 +297,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Clear all variables in RAM except resetBuffer and IMU's fuel gauge discharge accumulator
 			; and worstStress (and ToIN/TIB)
-			_DO		#worstStress-comNoEraseEnd,R8
+			_FOR		#worstStress-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
-			_mLOOP	#2,R8
+			_NEXT_DECD	R8
 
 			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
 			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
@@ -319,7 +319,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			mov.b	#ActLed,&P1OUT				; All outputs low, except (inverted) ActLed, on port 1
 			cmp.b	#255,&ID					; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				mov.b	#ActLed|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set ActLed, VrefP, Txs, piezo as outputs
 			_ELSE
 				mov.b	#SocMeter|VrefP|TxPl|TxMi|Piezo,&P1DIR ; Set SocMeter, VrefP, Txs and piezo out
@@ -327,7 +327,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#0,&P2SEL					; Set Bypass and ErrLed to not be crystal osc pins
 			mov.b	#0,&P2OUT					; Set Bypass and ErrLed off (RLY- and RLY+ if IMU)
 			cmp.b	#255,&ID
-			_IF		_EQ							; If we're an IMU
+			_IF		EQ							; If we're an IMU
 				bis.b	#LoadCont,&P2OUT			; Set load contactor on so battery contactor goes on
 													; and we stay powered up
 			_ENDIF
@@ -388,7 +388,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Already cleared by loop above
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 			cmp.b	#255,&ID					; If we're an IMU (Insulation/current Monitoring Unit)
-			_IF		_EQ
+			_IF		EQ
 				mov.w	#ChargerVoltMin,&chargerVoltMin ; Initialise charger voltage min
 				mov.w	#ChargerVoltMax,&chargerVoltMax ; Initialise charger voltage max
 				bis.b	#bChargerControl,&monFlags	; Set by o command
@@ -405,7 +405,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Initialise the ADC10
 ;
 			cmp.b	#255,&ID					; If we're not an IMU (Insulation Monitoring Unit)
-			_IF		_NE
+			_IF		NE
 				; Enable cellV and linkV analog inputs. Enable ADC function of P1.4 (Vref+ out)
 				mov.b		#(1<<CellVChan)|(1<<LinkVChan)|(1<<4),&ADC10AE0
 			_ELSE
@@ -427,7 +427,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			;	Already cleared by loop above
 ;			clr.b	&RXCksum				; Clear received packet xor checksum
 			cmp.b	#255,&ID					; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
 			_ELSE
 				mov.b	#bChecksumming | bDontEcho,&interpFlags ; IMU is in a comms loop so echo would be bad
@@ -450,7 +450,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; then retrieve the high word of the discharge accumulator from CMU 1
 
 			cmp.b	#255,&ID
-			_IF		_EQ
+			_IF		EQ
 				mov		#'\r',R8				; Clear any junk
 				call	#TxByte
 				mov		#'k',R8					; Transmit "k" with no checksum
@@ -469,14 +469,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 
 ; Main loop
-			_BEGIN
+			_REPEAT
 				call	#RxByteNoWait			; Check if received data
-				_IF		_NZ
+				_IF		NZ
 					call	#Reject2400Baud			; Eliminates $00, $80, $F8 and $78 (lowercase 'x')
 				_ENDIF
-				_IF		_NZ
+				_IF		NZ
 					tst.b	R8
-					_IF		_NN
+					_IF		NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
@@ -485,7 +485,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
-					_IF		_Z							; If so, do measurement and set/clear of bypass
+					_IF		Z							; If so, do measurement and set/clear of bypass
 						bis.b	#bNotMeasureTime,&monFlags	; Reset the time-to-measure flag
 						call	#DoMeasurement			; May transmit status
 					_ELSE
@@ -510,7 +510,7 @@ InitPip:
 			call		#WaitTxComplete		; Wait for transmission to complete
 			mov.w		#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			mov			#PipInit,R10		; Point to CR before initialisation strings
-			_DO			#15,R8				; Number of initialisation strings,
+			_FOR			#15,R8				; Number of initialisation strings,
 											; including initial CR and final junk sweeper
 				push		R8					; Save loop counter
 				push.b		@R10				; Push length byte
@@ -523,7 +523,7 @@ InitPip:
 				add			#500,R8				; plus 500 ms
 				call		#DelayMs			; Allow time for PIP to Ack or Nak
 				pop			R8					; Restore loop counter
-			_LOOP		R8
+			_NEXT_DEC		R8
 
 			mov.w		#BitTime96,&txBitTime ; Set the bit time for 9600 baud
 			ret
@@ -571,16 +571,16 @@ Reject2400Baud:
 ; $00 is a no-op, $80 and $F8 are status bytes.
 ; $78 is a lowercase 'x', which forces us to use a different character 'W' for the exclusive command.
 			cmp.b	#1,&ID
-			_IF		_EQ						; If we're the first CMU
+			_IF		EQ						; If we're the first CMU
 				_COND
 					cmp.b	#$00,R8
-				_OR_ELSE	_EQ					; If char is a null, or else
+				_OR_ELSE	EQ					; If char is a null, or else
 					cmp.b	#'x',R8
-				_OR_ELSE	_EQ					; If char is an 'x', or else
+				_OR_ELSE	EQ					; If char is an 'x', or else
 					cmp.b	#$80,R8
-				_OR_ELSE	_EQ					; If char is $80, or else
+				_OR_ELSE	EQ					; If char is $80, or else
 					cmp.b	#$F8,R8
-				_OR_IFS		_EQ					; If char is $F8
+				_OR_IFS		EQ					; If char is $F8
 					setz							; Set the Z flag so char  will be ignored
 				_ELSE							; Else
 					clrz							; Clear the Z flag so char  will be accepted
@@ -594,9 +594,9 @@ Reject2400Baud:
 
 DoEcho:		_COND							; Begin short circuit conditional
 				cmp.b	#$11,R8
-			_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character OR Else
+			_OR_ELSE	EQ					; If it's an XON (ctrl-Q) character OR Else
 				bit.b	#bDontEcho,&interpFlags
-			_OR_IFS		_Z					; Or If the dont-echo flag is clear
+			_OR_IFS		Z					; Or If the dont-echo flag is clear
 				call	#TxByte					; Echo the character
 			_ENDIF
 			ret
@@ -613,11 +613,11 @@ DoMeasurement:
 
 			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
 			cmp.b	#255,&ID
-			_IF		_EQ						; If we're an IMU
+			_IF		EQ						; If we're an IMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
-				_IF		_Z
+				_IF		Z
 					cmp.w	#PipWait, &uPipInitCtr
-					_IF		_EQ
+					_IF		EQ
 						call	#InitPip		; Send the PIP initialisation strings
 						bis.b	#bDonePipInit,&monFlags
 					_ELSE
@@ -631,14 +631,14 @@ DoMeasurement:
 			clr		Rtype					; Init type of measurement causing zero stress to zero
 
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
-			_IF		_C						; If unsigned overflow
+			_IF		C						; If unsigned overflow
 				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
 			_ENDIF
 
 			; Do cell voltage measurement
 			call	#cellV					; Get cell voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				; Estimate OCV by subtracting current times internal resistance from measured voltage
 				push	R10						; Save the cell voltage measurement
 
@@ -672,14 +672,14 @@ DoMeasurement:
 				; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
 				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
 				mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
-				_BEGIN
+				_DO
 					cmp		&temperature,R11
-				_WHILE	_GE						; While loop counter >= temperature
+				_WHILE	GE						; While loop counter >= temperature
 					mov		R9,R10					; Multiply resistance by 1.5
 					rra		R10
 					add		R10,R9
 					sub		#6,R11					; Decrement loop counter by 6 degC
-				_REPEAT
+				_ENDW
 				add		R9,R8					; Add the temperature-dependent part to the fixed part
 
 				; Get the scaled absolute value of the current into R9
@@ -693,7 +693,7 @@ DoMeasurement:
 				mov		R10,R9					; Use only the high word of the result, put into R9
 				pop		R10						; Restore the cell voltage measurement to R10
 				tst		&current
-				_IF		_NN						; If current is not negative (charge)
+				_IF		NN						; If current is not negative (charge)
 					sub		R9,R10					; OCV is lower than measured
 				_ELSE							; Else discharging
 					add		R9,R10					; OCV is higher than measured
@@ -702,7 +702,7 @@ DoMeasurement:
 
 			; Set bypass as required
 			cmp.b	#255,&ID				; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				mov			&ovStep,R9			; Calculate the bypass threshold in R9 = ovZero + 6*ovStep
 				rla3		R9
 				add			&ovZero,R9
@@ -721,7 +721,7 @@ DoMeasurement:
 			_ENDIF
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		NE						; If we're not an IMU
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
 				push	R10						; OCV for overvoltage stress calc
@@ -743,7 +743,7 @@ DoMeasurement:
 			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		NE						; If we're not an IMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 				push	R10						; Measurement for overtemperature stress calc
@@ -763,13 +763,13 @@ DoMeasurement:
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
 			cmp.b	#255,&ID				; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
-				_IF		_NE						; Only calculate link stress if not this value
+				_IF		NE						; Only calculate link stress if not this value
 					; Calculate stress due to excessive absolute link voltage
 					tst		R10						; Get absolute value of link voltage
-					_IF		_L
+					_IF		L
 						inv		R10
 						inc		R10
 					_ENDIF
@@ -795,7 +795,7 @@ DoMeasurement:
 				call	#_emitNum				; Transmit the number
 				ClearWatchdog
 				cmp		#0,&current
-				_IF		_L						; If current is negative
+				_IF		L						; If current is negative
 					mov		#'-',R8					; Transmit a postfix minus sign
 					call	#TxByteCk
 				_ENDIF
@@ -804,7 +804,7 @@ DoMeasurement:
 				call	#TxEndOfPacket
 
 				tst		&current
-				_IF		_NN						; If current is not negative
+				_IF		NN						; If current is not negative
 					bis.b	#bCharging,&monFlags	; We're charging
 				_ELSE							; Else
 					bic.b	#bCharging,&monFlags	; We're not charging
@@ -820,8 +820,8 @@ DoMeasurement:
 				; Do coulomb counting
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
-				_IF		_NN							; Clamp negative values to zero
-				_ELSE								; There is no true _IF _N with the MSP430
+				_IF		NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF N with the MSP430
 					clr		&discharge
 					clr		&discharge+2
 				_ENDIF
@@ -829,7 +829,7 @@ DoMeasurement:
 
 				; Send the high word of the discharge counter to safe storage
 				tst.b	&statusFreqCtr				; Every 136 seconds
-				_IF	_Z
+				_IF	Z
 					mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
 					call	#TxStringCk
 					ClearWatchdog
@@ -849,16 +849,16 @@ DoMeasurement:
 			_ENDIF ; IMU current measurement
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're not an IMU
+			_IF		NE						; If we're not an IMU
 				; Clamp local present stress to a maximum value
 				mov		#15,R9					; Default clamp value is 15
 				cmp		#4,Rtype
-				_IF		_EQ						; If type is undertemperature
+				_IF		EQ						; If type is undertemperature
 					mov		#MinContStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
 				_ENDIF
 				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes its source.
 				cmp		R9,R8					; If the stress is not less than the maximum allowed
-				_IF		_HS
+				_IF		HS
 					mov		R9,R8					; Use the maximum allowed
 				_ENDIF
 
@@ -869,16 +869,16 @@ DoMeasurement:
 				mov.b	&localStatus,R10
 				and		#S_TYPE,R10
 				cmp		#ALL_FULL,R10
-				_IF		_NE						; If stress type is not already All considered Full
+				_IF		NE						; If stress type is not already All considered Full
 					cmp		#2,Rtype
-					_IF		_EQ						; If stress type is UnderVoltage
+					_IF		EQ						; If stress type is UnderVoltage
 						mov		#UV_AF,R8				; Set the UV_AF bit, clear the OV_UT bit
 					_ELSE							; Else
 						_COND							; Begin short circuit conditional
 							cmp		#1,Rtype
-						_OR_ELSE _EQ					; If type is OverVoltage, else
+						_OR_ELSE EQ					; If type is OverVoltage, else
 							cmp		#4,Rtype
-						_OR_IFS	_EQ						; or if type is UnderTemperature
+						_OR_IFS	EQ						; or if type is UnderTemperature
 							mov		#OV_UT,R8				; Set the OV_UT bit, clear the UV_AF bit
 						_ELSE							; Else type is OT (3) or AL (5)
 							clr		R8						; Clear both type bits (never ignore)
@@ -889,9 +889,9 @@ DoMeasurement:
 
 				; Update worst stress since last reset thereof
 				cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
-				_IF		_HS
+				_IF		HS
 					tst.b	Rstrs					; and it's an actual, nonzero stress
-					_IF	_NZ
+					_IF	NZ
 						mov.b	Rstrs,&worstStress		; Update worstStress
 						mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 					_ENDIF
@@ -909,17 +909,17 @@ DoMeasurement:
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
 			bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
-			_IF		_Z
+			_IF		Z
 				cmp.b	#ComErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
-				_IF		_HS
+				_IF		HS
 					; If our ID is not 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
 					; every 256 status bytes (approx every 136 seconds).
 					cmp.b	#1,&ID
-					_IF		_NE
+					_IF		NE
 						bis.b	#COM_ERR,&localStatus
 						tst.b	&statusFreqCtr
-						_IF	_Z
+						_IF	Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
 					_ENDIF
@@ -930,7 +930,7 @@ DoMeasurement:
 
 					; Send status or control a charger
 					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for IMU.
-					_IF		_Z							; If we're not in charge control mode
+					_IF		Z							; If we're not in charge control mode
 						call	#TxByte						; Send the status byte. Wait buffer not full
 					_ELSE								; Else we're an IMU or we're a CMU in charger control mode
 						call	#ControlContactors			; Control a charger
@@ -961,15 +961,15 @@ meas	EQU		8				; The measurement
 			rla		R10
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
-			_IF		_GE
+			_IF		GE
 				cmp		worstStress(R10),R9
-				_IF		_GE						; If this is a worse measurement of this type
+				_IF		GE						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				sub		zero(SP),R9				; Get meas - zero in R9
 			_ELSE
 				cmp		worstStress(R10),R9
-				_IF		_L						; If this is a worse measurement of this type
+				_IF		L						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				inv		R8						; Get absolute value of step in R8
@@ -979,13 +979,13 @@ meas	EQU		8				; The measurement
 				add		step(SP),R9
 				sub		#1,R9
 			_ENDIF
-			_IF		_L
+			_IF		L
 				clr		R9						; Min of 0
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step, clears R11
 			cmp		R9,Rstrs
-			_IF		_LO						; If this stress worse than present stress calculated so far
+			_IF		LO						; If this stress worse than present stress calculated so far
 				mov		R9,Rstrs				; Make it the new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
@@ -1015,34 +1015,34 @@ DoStatus:
 
 		; Check if DoMeasures may have just sent a status byte, due to a comms error
 		bit.b	#COM_ERR,&localStatus
-		_IF		_Z						; If no comms error
+		_IF		Z						; If no comms error
 
 			cmp.b	#255,&ID
-			_IF		_NE						; If we're a CMU
+			_IF		NE						; If we're a CMU
 				; Do MAX of local and incoming stress, and handle stress type and all considered full
 				mov.b	&localStatus,R10		; Get local status to R10
 				and.b	#STRESS,R10				; Extract stress bits
 				cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
-				_IF		_LO						; If incoming stress (R9) is less than ours (R10)
+				_IF		LO						; If incoming stress (R9) is less than ours (R10)
 					mov		R8,R9					; Make a copy of incoming status for tests below
 					mov.b	&localStatus,R10		; Get local status to R10
 					movBits_B	R10,#STRESS|S_TYPE,R8 ; Replace incoming stress and type with ours (trashes R10)
 					_COND
 						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
-					_AND_IF	_NE						; If incoming was not all considered full
+					_AND_IF	NE						; If incoming was not all considered full
 						mov.b	&localStatus,R10
 						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
-					_AND_IF	_EQ						; and if local is in bypass
+					_AND_IF	EQ						; and if local is in bypass
 						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
 					_ENDIFS
 				_ELSE							; Else incoming stress is not less than ours
-					_IF		_EQ						; If incoming stress is equal to ours
+					_IF		EQ						; If incoming stress is equal to ours
 						mov.b	&localStatus,R10		; Ensure UV trumps other types, particularly UT,
 						and		#S_TYPE,R10				; which won't go away when sources dropped, and
 						cmp		#UV_AF,R10				; may mask UV and prevent loads being dropped.
-						_IF		_EQ						; If local is undervoltage
+						_IF		EQ						; If local is undervoltage
 							movBits_B	R10,#S_TYPE,R8		; Replace incoming type with ours (trashes R10)
 						_ENDIF
 					_ENDIF
@@ -1051,11 +1051,11 @@ DoStatus:
 					_COND
 						and		#S_TYPE,R9
 						cmp		#ALL_FULL,R9
-					_AND_IF	_EQ						; If incoming is all considered full
+					_AND_IF	EQ						; If incoming is all considered full
 						mov.b	&localStatus,R10
 						and		#S_TYPE,R10
 						cmp		#ALL_FULL,R10
-					_AND_IF	_NE						; and if local is not in bypass
+					_AND_IF	NE						; and if local is not in bypass
 						bic		#UV_AF,R8 				; Clear the UV_AF (undervoltage or all considered full) bit
 					_ENDIFS
 				_ENDIF							; End else incoming stress is not less than ours
@@ -1066,7 +1066,7 @@ DoStatus:
 
 				; Send status or control a charger
 				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
-				_IF		_Z							; If we're not in charge control mode
+				_IF		Z							; If we're not in charge control mode
 					call	#TxByte						; Send the status byte. Wait buffer not full
 				_ELSE								; Else we're an IMU or were a CMU in charger control mode
 					call	#ControlContactors
@@ -1075,11 +1075,11 @@ DoStatus:
 				; If all considered full (and no comms error), reset the coulomb counter
 				_COND							; Start short-circuit conditional
 					bit		#COM_ERR,R8				; Test the comms error bit
-				_AND_IF	_Z						; If no comms error
+				_AND_IF	Z						; If no comms error
 					mov		R8,R10					; Make a copy of the status byte in R10
 					and		#S_TYPE,R10				; Extract the stress type bits
 					cmp		#ALL_FULL,R10
-				_AND_IF	_EQ						; And If all cells are considered full
+				_AND_IF	EQ						; And If all cells are considered full
 					; Set the discharge counter to a DoD of 0.
 					mov		#0,&discharge		; Lo word
 					mov		#0,&discharge+2		; Hi word
@@ -1106,14 +1106,14 @@ ControlContactors:
 		mov		R8,R9					; Take a copy of the status byte in R9
 		_COND							; Begin a short-circuit conditional
 			cmp		#10,&current			; Check the current, which is in tenths of an amp
-		_OR_ELSE _GE						; If there's 1 amp or more of charge current (positive)
+		_OR_ELSE GE						; If there's 1 amp or more of charge current (positive)
 			bit.b	#SourceCont,&ContPortOUT ; Check the state of the source contactors
-		_OR_IFS	_Z						; Or if the AC and left PV source contactors are off
+		_OR_IFS	Z						; Or if the AC and left PV source contactors are off
 			and		#S_TYPE,R9				; Isolate the two stress-type bits
 			cmp		#UV_AF,R9				; Check if type of stress is ignore-on-charge
 		_ELSE							; Else not charging
 			cmp		#-9,&current			; Check the current, which is in tenths of an amp
-			_IF		_L						; If 1 amp or more of discharge current (negative)
+			_IF		L						; If 1 amp or more of discharge current (negative)
 				and		#OV_UT,R9				; Isolate the single overvolt/undertemp stress-type bit
 				cmp		#OV_UT,R9				; Check if type of stress is ignore-on-discharge
 			_ELSE							; Else current between -1 amp and 1 amp
@@ -1122,14 +1122,14 @@ ControlContactors:
 		_ENDIF							; Endif >= 1 amp charge or source contactors off
 
 		; Treat ignorable stress as 5 and comms error as 15, for contactor control (will be smoothed)
-		_IF		_EQ						; If we can ignore this stress
+		_IF		EQ						; If we can ignore this stress
 			mov		#5,R9					; Treat it as stress 5 (< neutral) for contactor control
 		_ELSE							; Else can't ignore
 			mov		R8,R9
 			and		#STRESS,R9				; Get stress into R9
 		_ENDIF							; Endif ignore stress
 		bit		#COM_ERR,R8
-		_IF		_NZ						; If the comms error bit is set
+		_IF		NZ						; If the comms error bit is set
 			mov		#15,R9					; Treat it as stress 15 for contactor control
 		_ENDIF								;   (it will be smoothed)
 
@@ -1146,10 +1146,10 @@ ControlContactors:
 		rra2	R9						; Divide by 4 to get smoothed stress
 
 		cmp.b	#15,R9					; If smoothed stress is extreme
-		_IF		_GE
+		_IF		GE
 			inc.b	&shutdownTimer
 			cmp.b	#ShutdownTime,&shutdownTimer
-			_IF		_HS						; And enough time has passed
+			_IF		HS						; And enough time has passed
 				bic.b	#(SourceCont | LoadCont),ContPortOUT ; Drop out both source and load contactors
 											; and hence also the battery contactor
 				; We need an endless loop here in case the BMU doesn't lose power.
@@ -1167,11 +1167,11 @@ ControlContactors:
 		;	turn off discharging/loads contactors
 		_COND							; Begin short circuit conditional
 			bit		#OV_UT,R8
-		_AND_IF	_Z						; If the stress is not due to OverVoltage or UnderTemp
+		_AND_IF	Z						; If the stress is not due to OverVoltage or UnderTemp
 			bit.b	#bCharging,&monFlags
-		_AND_IF	_Z						; And if we're not charging
+		_AND_IF	Z						; And if we're not charging
 			cmp.b	#MinContStress,R9
-		_AND_IF	_GE						; And if incoming stress is alarming
+		_AND_IF	GE						; And if incoming stress is alarming
 			bic.b	#LoadCont,&P2OUT		; Drop out the load contactor (magenta LED)
 		_ENDIFS
 
@@ -1179,9 +1179,9 @@ ControlContactors:
 		;	turn on discharging/loads contactors
 		_COND							; Begin short circuit conditional
 			bit		#OV_UT,R8
-		_OR_ELSE _NZ					; If the stress is due to OverVoltage or UnderTemp
+		_OR_ELSE NZ					; If the stress is due to OverVoltage or UnderTemp
 			cmp.b	#8,R9
-		_OR_IFS	_L						; Or if incoming stress is normal
+		_OR_IFS	L						; Or if incoming stress is normal
 			bis.b	#LoadCont,&P2OUT		; Turn on the load contactor (magenta LED)
 		_ENDIF
 
@@ -1191,11 +1191,11 @@ ControlContactors:
 		and		#S_TYPE,R10				; Extract the two stress-type bits
 		_COND							; Begin short circuit conditional
 			cmp		#UV_AF,R10				; Check for UV = UV_AF and not OV_UT
-		_AND_IF	_NE						; If the stress is not due to UnderVoltage
+		_AND_IF	NE						; If the stress is not due to UnderVoltage
 			bit.b	#bCharging,&monFlags
-		_AND_IF	_NZ						; And if we're charging
+		_AND_IF	NZ						; And if we're charging
 			cmp.b	#MinContStress,R9
-		_AND_IF	_GE						; And if incoming stress is alarming
+		_AND_IF	GE						; And if incoming stress is alarming
 			bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
 		_ELSES							; Else
 			push	R8
@@ -1204,7 +1204,7 @@ ControlContactors:
 			pop		R9
 			pop		R8
 			cmp		#145*10,R10
-			_IF		_HS						; If PV array voltage is greater or equal to 145 volts
+			_IF		HS						; If PV array voltage is greater or equal to 145 volts
 				bic.b	#SourceCont,&ContPortOUT ; Drop out the source contactor (yellow LED)
 			_ENDIF
 		_ENDIF
@@ -1214,29 +1214,29 @@ ControlContactors:
 		; We need to let it go down to stress 5 so that balancing can occur.
 		_COND							; Begin short circuit conditional
 			cmp.b	#6,R9
-		_AND_IF	_L						; Or incoming stress is 5 or less
+		_AND_IF	L						; Or incoming stress is 5 or less
 			push	R8
 			call	#cellV
 			pop		R8
 			cmp		#140*10,R10
-		_AND_IF	_LO						; And if PV array voltage is less than 140 volts
+		_AND_IF	LO						; And if PV array voltage is less than 140 volts
 			bis.b	#SourceCont,&ContPortOUT ; Turn on the source contactor (yellow LED)
 		_ENDIFS
 
 
 #if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
-;		_IF		_NZ						; If we've been told to start charging
+;		_IF		NZ						; If we've been told to start charging
 			ClearWatchdog
 			inc.b	&chargerTxTimer			; Increment charger transmit timer
 			mov.b	&chargerTxTimer,R9		; Get charger transmit timer
 			and.b	#3,R9
-			_IF		_Z						; Every fourth tick (every 2 seconds)
+			_IF		Z						; Every fourth tick (every 2 seconds)
 				bit		#COM_ERR,R8
-				_IF		_NZ						; If the comms error bit is set
+				_IF		NZ						; If the comms error bit is set
 					and		#STRESS,R8
 					cmp		#8,R8					; Treat it as a minimum of stress 8 for PI control
-					_IF		_LO
+					_IF		LO
 						mov		#8,R8
 					_ENDIF
 				_ELSE
@@ -1244,7 +1244,7 @@ ControlContactors:
 					mov		R8,R9					; Make a copy of the status byte in R9
 					and		#S_TYPE,R9				; Extract the stress type bits
 					cmp		#UV_AF,R9
-					_IF		_EQ						; If stress type is UnderVoltage
+					_IF		EQ						; If stress type is UnderVoltage
 						clr		R8						; Treat as a stress of zero for charging
 					_ELSE							; Else
 						and		#STRESS,R8				; Use the given stress value (0-15)
@@ -1289,13 +1289,13 @@ PiController:
 											; and the rra2 at the end, have the effect of dividing
 											; bit Kp and Ki by 4. So they are effectively 1 and 1/4.
 			cmp		R9,Routput				; Clamp output between chargerVoltMin and chargerVoltMax
-			_IF		_L
+			_IF		L
 				mov		R9,Routput
 			_ELSE
 				mov		&chargerVoltMax,R9
 				rla2	R9						; For effective reduction of Kp and Ki
 				cmp		R9,Routput
-				_IF		_GE
+				_IF		GE
 					mov		R9,Routput
 				_ENDIF
 			_ENDIF
@@ -1345,11 +1345,11 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 			; them up as soon as possible. The PIP gives no way of telling when it is in float mode.
 			_COND
 				cmp		&prevFloat,R8
-			_AND_IF		_EQ
+			_AND_IF		EQ
 				cmp		&prevBulk,R8
-			_AND_IF		_EQ
+			_AND_IF		EQ
 				tst		&lastWasFloat
-				_IF		_NZ
+				_IF		NZ
 					mov		R8,&prevBulk		; Record bulk voltage setpoint for next time
 					mov		#0,&lastWasFloat	; Record that the last sent was a Bulk
 					mov		#BulkCmd,R10		; Send a Bulk voltage packet
@@ -1363,13 +1363,13 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 			_ELSES
 				_COND
 					cmp		&prevFloat,R8
-				_OR_ELSE	_LO
+				_OR_ELSE	LO
 					cmp		R8,&prevBulk
-				_OR_IFS		_LO
+				_OR_IFS		LO
 					tst		&lastWasFloat
-					_IF		_NZ
+					_IF		NZ
 						cmp		&prevFloat,R8
-						_IF		_LO
+						_IF		LO
 							mov		&prevFloat,R8
 						_ENDIF
 						mov		R8,&prevBulk		; Record bulk voltage setpoint for next time
@@ -1378,7 +1378,7 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 						call	#SendPipPacket		; Trashes R8 thru R11
 					_ELSE
 						cmp		R8,&prevBulk
-						_IF		_LO
+						_IF		LO
 							mov		&prevBulk,R8
 						_ENDIF
 						mov		R8,&prevFloat		; Record float voltage setpoint for next time
@@ -1388,7 +1388,7 @@ PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAK
 					_ENDIF
 				_ELSE
 					cmp		&prevBulk,R8
-					_IF		_EQ					; If equal to previous bulk voltage
+					_IF		EQ					; If equal to previous bulk voltage
 						mov		R8,&prevFloat		; Record float voltage setpoint for next time
 						mov		#-1,&lastWasFloat	; Record that the last sent was a Float
 						mov		#FloatCmd,R10		; Send a Float voltage packet
@@ -1478,11 +1478,11 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			; Although we use DoD here, the PWM interrupt routine inverts the output so it represents SoC
 			call		#DepthOfDischarge	; Get DoD as value 0-1000 (0 to 100.0%)
 			cmp			#MinAdvance,R9		; Compare with minimum value
-			_IF			_LO					; If lower,
+			_IF			LO					; If lower,
 				mov			#MinAdvance,R9		; Enforce minimum value to avoid timer compare wrap
 			_ENDIF
 			cmp			#1000-MinAdvance,R9	; Compare with maximum value
-			_IF			_HS					; If higher or same,
+			_IF			HS					; If higher or same,
 				mov			#1000-MinAdvance,R9	; Enforce maximum value to avoid timer compare wrap
 			_ENDIF
 			mov			R9,&socPwmAdv		; Save in the pre-computed advance variable

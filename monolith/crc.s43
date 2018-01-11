@@ -19,10 +19,10 @@ TxByteCrc:	call	#UpdateCrc
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxStringCrc: _DOb	@R10+,R11
+TxStringCrc: _FOR_B	@R10+,R11
 				mov.b	@R10+,R8
 				call	#TxByteCrc
-			_LOOPb	R11
+			_NEXT_DEC_B	R11
 			ret
 
 
@@ -84,11 +84,11 @@ TxCrc:
 			mov.b	&txCrc+1,R8		; Get MSB of CRC
 			_COND					; Begin short circuit OR
 				cmp.b	#'(',R8
-			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+			_OR_ELSE	EQ			; If CRC byte would be open paren,
 				cmp.b	#$0D,R8
-			_OR_ELSE	_EQ			; or CR
+			_OR_ELSE	EQ			; or CR
 				cmp.b	#$0A,R8
-			_OR_IFS		_EQ			; or LF,
+			_OR_IFS		EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
 			_ENDIF
 			call	#TxByte			; Send MSB of CRC first
@@ -96,11 +96,11 @@ TxCrc:
 			mov.b	&txCrc,R8		; Get LSB of CRC
 			_COND					; Begin short circuit OR
 				cmp.b	#'(',R8
-			_OR_ELSE	_EQ			; If CRC byte would be open paren,
+			_OR_ELSE	EQ			; If CRC byte would be open paren,
 				cmp.b	#$0D,R8
-			_OR_ELSE	_EQ			; or CR
+			_OR_ELSE	EQ			; or CR
 				cmp.b	#$0A,R8
-			_OR_IFS		_EQ			; or LF,
+			_OR_IFS		EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
 			_ENDIF
 			call	#TxByte			; Send LSB of CRC
