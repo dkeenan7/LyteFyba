@@ -562,7 +562,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
 													; we are not waiting for the conversion to complete
 			clr			R8
-			_DO
+			_REPEAT
 				mov.b		R9, chanList(R8)			; Store timing data
 				incd		R8							; Next word
 				cmp			#6, R8						; Repeat for 4 words (index 0-6 step 2)
@@ -617,7 +617,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ENDIF
 
 ; Main loop
-			_DO
+			_REPEAT
 				; If we're a BMU (ID = 255) handle SCU and Charger communication.
 				cmp.b	#255,&ID				; Check my ID
 				_IF		EQ						; If I'm a BMU
@@ -1555,7 +1555,7 @@ DoPrecharge:
 			bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
 		_ENDIF
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
-		_DO
+		_REPEAT
 			mov		#100,R8						; 100 milliseconds; placed at start
 			call	#DelayMs					;	of loop to allow ADC system to settle after reset
 			call	#GetCapV					; Trashes R8, R9, R11 result in R10

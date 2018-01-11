@@ -285,11 +285,11 @@ _ELSE	MACRO
 ;------------------------------------------------------------
 ; Define macros for uncounted loops
 
-;		_DO
+;		_REPEAT
 ;			<do_stuff>
 ;		_AGAIN				(infinite)
 
-;		_DO
+;		_REPEAT
 ;			<do_stuff>
 ;			<test>
 ;		_UNTIL cc			(post-tested
@@ -310,7 +310,7 @@ _ELSE	MACRO
 
 ; Mark a backward destination (i.e. the start of a loop)
 
-_DO  MACRO
+_REPEAT  MACRO
 									LSTOUT-
 		_LABEL		_LABEL_NUM		; Assemble the label
 		_CS_PUSH	_LABEL_NUM		; Push the number of the label to jump back to
@@ -318,22 +318,27 @@ _DO  MACRO
 									LSTOUT+
 									ENDM
 
-; Resolve most recent _DO with a backward conditional branch
+_DO  MACRO
+									LSTOUT-
+		_REPEAT
+									ENDM
+
+; Resolve most recent _REPEAT or _DO with a backward conditional branch
 ; The end of a post-tested loop
 
 _UNTIL	MACRO cond
 									LSTOUT-
-		_JUMP		not\1, _CS_TOP	; Assemble a conditional jump back to the corresponding _DO
+		_JUMP		not\1, _CS_TOP	; Assemble a conditional jump back to corresponding _REPEAT or _DO
 		_CS_DROP					; Drop its label number off the control-flow stack
 									LSTOUT+
 									ENDM
 
-; Resolve most recent _DO with a backward unconditional branch
+; Resolve most recent _REPEAT with a backward unconditional branch
 ; The end of an infinite loop
 
 _AGAIN  MACRO
 									LSTOUT-
-		_UNTIL		NEVER			; Assemble an unconditional jump back to the corresponding _DO
+		_UNTIL		NEVER			; Assemble an unconditional jump back to the corresponding _REPEAT
 									ENDM
 
 ; Mark the origin of a forward conditional branch out of a loop
@@ -361,9 +366,9 @@ _ENDW	MACRO
 
 ; Any loop may have additional _WHILEs to exit it, but each additional one must be
 ; balanced by an _ENDIF (or _ELSE ... _ENDIF) after the end of the loop. Examples:
-; _DO ... _WHILE cc1 ... _WHILE cc2  ... _ENDW  ... _ENDIF
-; _DO ... _WHILE cc1 ... _UNTIL cc2  ... _ELSE  ... _ENDIF
-; _DO ... _WHILE cc1 ... _WHILE cc2  ... _AGAIN ... _ENDIF ... _ENDIF
+; _DO     ... _WHILE cc1 ... _WHILE cc2  ... _ENDW  ... _ENDIF
+; _REPEAT ... _WHILE cc1 ... _UNTIL cc2  ... _ELSE  ... _ENDIF
+; _REPEAT ... _WHILE cc1 ... _WHILE cc2  ... _AGAIN ... _ENDIF ... _ENDIF
 ;
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
@@ -625,7 +630,7 @@ _ENDCASE MACRO
 _FOR	MACRO src, dest
 		mov src, dest
 									LSTOUT-
-		_DO
+		_REPEAT
 									ENDM
 
 _NEXT_DEC MACRO dest
@@ -654,7 +659,7 @@ _NEXT_DECD MACRO dest
 _FOR_B	MACRO src, dest
 		mov.b src, dest
 									LSTOUT-
-		_DO
+		_REPEAT
 									ENDM
 
 _NEXT_DEC_B  MACRO dest

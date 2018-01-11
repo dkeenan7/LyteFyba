@@ -145,7 +145,7 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	dest
-			_DO
+			_REPEAT
 				ClearWatchdog
 #if ALL_TO_ALL
 				call	#ScuTxByteNoWait
@@ -181,7 +181,7 @@ ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accu
 ; Called before changing baud rate in monolith.
 ;
 WaitTxComplete:
-		_DO						; Begin loop
+		_REPEAT						; Begin loop
 			ClearWatchdog
 			mov.b	&ScuCCTLt,R8
 			bis.b	&ChgCCTLt,R8	; or.b
@@ -428,7 +428,7 @@ ChgRxByteNW:	RxByteNWMacro	ChgRxSz, chgRxBuf, chgRxRd, chgRxWr
 ; Trashes R9
 RxByte:
 				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-				_DO
+				_REPEAT
 					call	#RxByteNoWait		; Check for a received byte
 				_UNTIL	NZ					; Repeat until received
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
@@ -438,7 +438,7 @@ RxByte:
 ; Trashes R9
 ScuRxByte:
 				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-				_DO
+				_REPEAT
 					call	#ScuRxByteNW		; Check for a received byte
 				_UNTIL	NZ					; Repeat until received
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
@@ -530,7 +530,7 @@ Halt:
 		; BMU to reset it. After which, releasing the red button may be sufficient to restart,
 		; or you may also have to push the green button.
 		; Sending a break to a BMU's SCU port will also reset it.
-		_DO							; Begin loop
+		_REPEAT							; Begin loop
 			cmp.b	#255,&ID			; Check my ID
 			_IF		EQ					; If I'm a BMU
 				call	#ScuRxByte			; Wait for a byte from the SCU port

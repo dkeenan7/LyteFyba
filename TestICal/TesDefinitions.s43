@@ -43,7 +43,7 @@ sizeCalAddressTable	EQU	$-calAddressTable
 TranslateToCalAddr:
 		; Do the calibration address translations using the table above
 		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
-		_DO				; Begin loop
+		_REPEAT				; Begin loop
 			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
 			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
@@ -363,7 +363,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
 			clr		R12						; Loop counter
-			_DO
+			_REPEAT
 				mov.b	ramDataStart(R12),infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
 				cmp		#ramDataEnd-ramDataStart,R12
@@ -405,7 +405,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			push	SR						; Save the interrupt state
 			dint							; Disable interrupts while the interrupt vectors are erased
-			_DO
+			_REPEAT
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 				rra		@R12					; Dummy write to erase segment. Takes 16 milliseconds.
 				add		#512,R12				; Next segment
@@ -413,7 +413,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 			mov		#jBSL,R12				; Start of BSL2 image
-			_DO
+			_REPEAT
 				mov		jBSLb-jBSL(R12),0(R12)		; Program word
 				incd	R12
 			_UNTIL	NN						; Will wrap to 0 after writing last word
@@ -592,7 +592,7 @@ SizeManAddressTable	EQU	$-ManAddressTable
 TranslateToManAddr:
 		; Do the calibration address translations using the table above
 		mov		#SizeManAddressTable,R9 ; Initialise the loop counter and table index
-		_DO				; Begin loop
+		_REPEAT				; Begin loop
 			mov.w	ManAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
 			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]

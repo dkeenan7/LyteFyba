@@ -460,7 +460,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Main loop
-			_DO
+			_REPEAT
 				; If we're a BMU (ID = 255) handle SCU and Charger communication.
 				cmp.b	#255,&ID				; Check my ID
 				_IF		EQ						; If I'm a BMU

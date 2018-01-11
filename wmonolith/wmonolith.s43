@@ -530,7 +530,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_ENDIF
 
 ; Main loop
-			_DO
+			_REPEAT
 				; For BMUs only (ID=255), check for input from the SCU Rx port, and send these to the
 				; "master" accept function, to echo to CMU Tx and inject Z/i commands as required
 				cmp.b	#255,&ID
@@ -1233,7 +1233,7 @@ DoPrecharge:
 			bis.b	#PreCtor,&CtorPortOUT		; Turn on the Precharge contactor
 		_ENDIF
 		mov		#3*1000/100,R12				; 3 seconds = 30 x 100 ms timeout
-		_DO
+		_REPEAT
 			mov		#100,R8						; 100 milliseconds; placed at start
 			call	#DelayMs					;	of loop to allow ADC system to settle after reset
 			call	#GetCapV					; Trashes R8, R9, R11 result in R10

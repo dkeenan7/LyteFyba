@@ -4,7 +4,7 @@
 
 DELAY_IF_NEEDED MACRO		; Delay for one character time to allow the downstream CMU to echo a byte
 			clr		R9					; Use R9 to count cycles
-			_DO						; Loop
+			_REPEAT						; Loop
 				cmp.b	#255,&infoID
 				_IF		EQ					; If we're a BMU
 					bit.b	#UCA0RXIFG,&IFG2

@@ -459,7 +459,7 @@ sizeCalAddressTable	EQU	$-calAddressTable
 TranslateToCalAddr:
 		; Do the calibration address translations using the table above
 		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
-		_DO				; Begin loop
+		_REPEAT				; Begin loop
 			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
 			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
@@ -672,7 +672,7 @@ UpdFlash:
 			sub		#infoDataEnd-infoDataStart,SP ; Allocate space on stack for info flash bytes
 			mov		SP,R11					; Copy start of buffer to R10
 			clr		R12						; Loop counter
-			_DO
+			_REPEAT
 				mov.b	infoDataStart(R12),0(R11)	; Copy a byte from info-flash to stack
 				inc		R11
 				inc		R12
@@ -700,7 +700,7 @@ UpdFlash:
 
 			clr		R12						; Loop counter
 			mov		SP,R10					; Point to start of RAM copy
-			_DO
+			_REPEAT
 				mov.b	@R10+,infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
 				cmp		#infoDataEnd-infoDataStart,R12
@@ -736,7 +736,7 @@ compareInfoFlash:
 			mov		SP,R10
 			incd	R10					; Skip return address
 			clr		R12					; Loop counter
-			_DO
+			_REPEAT
 				cmp.b	@R10+,infoDataStart(R12)
 				_WHILE	EQ ; Z
 					inc		R12

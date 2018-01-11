@@ -514,7 +514,7 @@ FindOptAdc:
 			clr		R15					; R15 will range 0-3
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
-			_DO
+			_REPEAT
 				mov		R15,R8
 				inc		R8					; R8 is 1-4
 				mov.b	R8,&ramAdcTimIdx	; Use this ADC timing
@@ -536,7 +536,7 @@ FindOptAdc:
 			mov		#$FFFF,R8			; Worst so far
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to start of devThisIdx array
-			_DO
+			_REPEAT
 				cmp		@R13+,R8			; Compare lowest so far with table
 				_IF		HS					; If the lowest so far is higher than this table entry
 					mov		-2(R13),R8			; A new lowest noise
@@ -563,7 +563,7 @@ FindOptAdc:
 ; Trashes R12
 compareInfoFlash:
 			clr		R12					; Loop counter
-			_DO
+			_REPEAT
 				cmp.b	infoDataStart(R12),ramDataStart(R12)
 				_WHILE	EQ ; Z
 					inc		R12
@@ -579,7 +579,7 @@ compareInfoFlash:
 ; Trashes R12
 compareBSL2:
 			mov		#jBSL,R12
-			_DO
+			_REPEAT
 				cmp.w	@R12,jBSLb-jBSL(R12)
 				_WHILE	EQ ; Z
 					incd	R12
