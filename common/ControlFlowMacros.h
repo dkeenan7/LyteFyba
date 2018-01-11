@@ -1,10 +1,17 @@
 ;-------------------------------------------------------------------------------
 ; Assembler Structured Control-flow Macros
-; Dave Keenan, 5-Feb-2010
-; <d.keenan@bigpond.net.au>
+; Dave Keenan, 5-Feb-2010, updated 10-Jan-2018
+; Documentation here:
+; http://dkeenan.com/AddingStructuredControlFlowToAnyAssembler.htm
 
-; Make a Control-flow Stack (CS) in the assembler so we can implement
-; Forth-like structured control-flow words for assembly.
+; In memory of Wil Baden (1928-2016)
+; http://www.boston-baden.com/hazel/dad/
+; Among Wil's many gifts to the world, is the elegant control-flow implementation scheme
+; in ANS Forth (1994), on which this work is based.
+
+; Make a Control-flow Stack (CS) in the assembler so we can implement structured control-flow words
+; for assembly, similar to those in higher-level languages.
+; It needs to have more elements than the maximum number of cases in any _CASE statement.
 
 _CS_TOP	SET 0
 _CS2	SET 0
@@ -14,9 +21,21 @@ _CS5	SET 0
 _CS6	SET 0
 _CS7	SET 0
 _CS8	SET 0
+_CS9	SET 0
+_CS10	SET 0
+_CS11	SET 0
+_CS12	SET 0
 _CS_COUNT SET 0
 
 _CS_PUSH MACRO arg
+_CS_COUNT SET _CS_COUNT + 1
+		IF	_CS_COUNT > 12
+			#error "Control flow stack overflow"
+		ENDIF
+_CS12	SET _CS11
+_CS11	SET _CS10
+_CS10	SET _CS9
+_CS9	SET _CS8
 _CS8	SET _CS7
 _CS7	SET _CS6
 _CS6	SET _CS5
@@ -25,10 +44,13 @@ _CS4	SET _CS3
 _CS3	SET _CS2
 _CS2	SET _CS_TOP
 _CS_TOP SET arg
-_CS_COUNT SET _CS_COUNT + 1
 		ENDM
 
 _CS_DROP MACRO
+_CS_COUNT SET _CS_COUNT-1
+		IF	_CS_COUNT < 0
+			#error "Control flow stack underflow"
+		ENDIF
 _CS_TOP	SET _CS2
 _CS2	SET _CS3
 _CS3	SET _CS4
@@ -36,8 +58,11 @@ _CS4	SET _CS5
 _CS5	SET _CS6
 _CS6	SET _CS7
 _CS7	SET _CS8
-_CS8	SET 0
-_CS_COUNT SET _CS_COUNT-1
+_CS8	SET _CS9
+_CS9	SET _CS10
+_CS10	SET _CS11
+_CS11	SET _CS12
+_CS12	SET 0
 		ENDM
 
 _CS_SWAP MACRO
@@ -47,409 +72,473 @@ _CS_TOP SET _CS_TOP^_CS2
 		ENDM
 
 ; Check that the control flow stack is empty and has not underflowed.
-; Use at end of program, or anywhere thatcontrol flow structures are all complete.
+; Use at end of program, or anywhere that control flow structures should all be complete.
 _CS_CHECK MACRO
-#if	_CS_COUNT != 0
-#error "Control flow stack is unbalanced"
-#endif
+									LSTOUT-
+		IF	_CS_COUNT != 0
+			#error "Control flow stack is unbalanced"
+		ENDIF
+									LSTOUT+
+									ENDM
+
+
+; Initialise the variable used to generate unique labels beginning with "_L"
+_LABEL_NUM	SET	100			; Can't be zero. Easier to read the listing if they are all 3 digits.
+
+
+; Increment an assembler variable. Improves readability of macros below.
+_INC	MACRO var
+var SET var + 1
 		ENDM
 
-; Define condition codes for structured assembly. Used with _IF _WHILE _UNTIL.
-; For convenience they are mostly defined as bits 12..10 of the machine-code for the jump instruction
-; with the inverse condition. But codes for _NN and above are increased by one to allow for
-; an _N code, despite the MSP430 having no JNN instruction.
-; This is to allow the use of _N with _OR_ELSE macros, where it will generate a JN instruction.
-; For other uses of _N, and for uses of _NN with _OR_ELSE macros,
-; a JGE instruction will be generated, with no warning issued.
-; One should instead use _L (or _GE with _OR_ELSE) and ensure the V flag is cleared
-; e.g. by a preceding TST instruction, or invert the logic and use _NN (except with _OR_ELSE).
-
-; MSP430 condition codes
-_Z  EQU 0 ; (jnz) Zero
-_EQ EQU 0 ; (jne) Equal, zame as Zero
-_NZ EQU 1 ; (jz ) Not Zero
-_NE EQU 1 ; (jeq) Not Equal, same as Not Zero
-_C  EQU 2 ; (jnc) Carry
-_HS EQU 2 ; (jlo) High or Same (unsigned), same as Carry
-_NC EQU 3 ; (jc ) No Carry
-_LO EQU 3 ; (jhs) Low (unsigned), same as Not Carry
-_N	EQU 4 ; (jge substituted with no warning) Negative. There is no jnn instruction.
-_NN EQU 5 ; (jn ) Not Negative
-_L  EQU 6 ; (jge) Less (signed), (N xor V)
-_GE EQU 7 ; (jl ) Greater or Equal (signed), not(N xor V)
-_NEVER EQU 8 ; (jmp) Never, i.e. unconditional, Used by ELSE, AGAIN, REPEAT
-
-#define InverseCond(cond) ((cond&1)==0)*(cond+1) + ((cond&1)!=0)*(cond-1)
+; Assign an assembler variable the value of an expression. Improves readability of macros below.
+_SET	MACRO var, expr
+var SET expr
+		ENDM
 
 
-; Assemble a Jxx instruction given a condition code and an offset
-_ASM_Jxx MACRO cond,offset
-	; ! Need to give error message for offset odd or out of range, or bad condition code,
-	; and give warning when JGE is substituted for non-existent JNN,
-	; but can't figure out how to get assembler to give conditional message
-	; dependent on macro parameters.
-	; Assembly hangs when I try to do the following. May be an assembler bug.
+; Generate a label from an integer variable. The label consists of "_L" followed by the
+; decimal representation of the integer. Uses a recursive macro.
+; The idea of using generated labels came from https://github.com/WestfW/structured_gas
+; which was in turn inspired by the first version of my control-flow macros article,
+; which did not use computed labels but relied on being able to ORG backwards
+; to fill in a jump instruction using DW, once the offset was known.
+; The GNU assembler can't ORG backwards.
+; But it sure was difficult to come up with a way to generate labels in the IAR assembler.
+; In the GNU assembler one can simply use % to evaluate an integer expression as a string
+; at macro-expansion time.
 
-;		IF cond == _N
-;			#message "Warning: jge substituted for non-existent jnn."
-;			#message "Ensure V flag is cleared, e.g. by preceding tst."
-;		ENDIF
+_LABEL	MACRO num, str		; "\2" below is equivalent to "str" (2nd argument) but can be concatenated
+		IF	num <= 0
+									LSTOUT+
+_L\2
+									LSTOUT-
+		ELSE
+			IF num % 10 == 0
+				_LABEL num / 10, 0\2
+			ENDIF				; I want to use the assembler's ELSEIFs here, but they seem to be broken
+			IF num % 10 == 1
+				_LABEL num / 10, 1\2
+			ENDIF
+			IF num % 10 == 2
+				_LABEL num / 10, 2\2
+			ENDIF
+			IF num % 10 == 3
+				_LABEL num / 10, 3\2
+			ENDIF
+			IF num % 10 == 4
+				_LABEL num / 10, 4\2
+			ENDIF
+			IF num % 10 == 5
+				_LABEL num / 10, 5\2
+			ENDIF
+			IF num % 10 == 6
+				_LABEL num / 10, 6\2
+			ENDIF
+			IF num % 10 == 7
+				_LABEL num / 10, 7\2
+			ENDIF
+			IF num % 10 == 8
+				_LABEL num / 10, 8\2
+			ENDIF
+			IF num % 10 == 9
+				_LABEL num / 10, 9\2
+			ENDIF
+		ENDIF
+		ENDM
 
-cond_field	SET (cond<_N)*cond + (cond==_N)*(_L-1) + (cond>_N)*(cond-1)
+; Assemble a (possibly conditional) jump instruction, generating the label from an integer variable.
+_JUMP	MACRO cond, num, str	; "\3" below is equivalent to "str" (3rd argument) but can be concatenated
+		IF	num <= 0
+									LSTOUT+
+		J\1	 _L\3
+									LSTOUT-
+		ELSE
+			IF num % 10 == 0
+				_JUMP cond,num / 10, 0\3
+			ENDIF
+			IF num % 10 == 1
+				_JUMP cond,num / 10, 1\3
+			ENDIF
+			IF num % 10 == 2
+				_JUMP cond,num / 10, 2\3
+			ENDIF
+			IF num % 10 == 3
+				_JUMP cond,num / 10, 3\3
+			ENDIF
+			IF num % 10 == 4
+				_JUMP cond,num / 10, 4\3
+			ENDIF
+			IF num % 10 == 5
+				_JUMP cond,num / 10, 5\3
+			ENDIF
+			IF num % 10 == 6
+				_JUMP cond,num / 10, 6\3
+			ENDIF
+			IF num % 10 == 7
+				_JUMP cond,num / 10, 7\3
+			ENDIF
+			IF num % 10 == 8
+				_JUMP cond,num / 10, 8\3
+			ENDIF
+			IF num % 10 == 9
+				_JUMP cond,num / 10, 9\3
+			ENDIF
+		ENDIF
+		ENDM
 
-		; Assemble the jump instruction with offset
-Jxx	 SET 1<<13 | (cond_field&7)<<10 | (offset>>1)&$03FF
-						LSTOUT+
-		DW Jxx
-						LSTOUT-
-						ENDM
+; Translate the jump instructions generated by _JUMP above, when "not" is placed before the condition code.
+; Used by _IF and _UNTIL.
+
+JnotZ	MACRO	label
+		JNZ		label
+									ENDM
+JnotNZ	MACRO	label
+		JZ		label
+									ENDM
+JnotEQ	MACRO	label
+		JNE		label
+									ENDM
+JnotNE	MACRO	label
+		JEQ		label
+									ENDM
+JnotHS	MACRO	label
+		JLO		label
+									ENDM
+JnotC	MACRO	label
+		JNC		label
+									ENDM
+JnotNC	MACRO	label
+		JC		label
+									ENDM
+JnotLO	MACRO	label
+		JHS		label
+									ENDM
+JnotN	MACRO	label 				; MSP430 specific.
+		JN		$+4					; The best substitute for the non-existent JNN instruction
+		JMP		label				; Thanks to Anders Lindgren
+									ENDM
+JnotNN	MACRO	label
+		JN		label
+									ENDM
+JnotL	MACRO	label
+		JGE		label
+									ENDM
+JnotGE	MACRO	label
+		JL		label
+									ENDM
+JnotNEVER MACRO	label				; An unconditional jump
+		JMP		label
+									ENDM
 
 ;------------------------------------------------------------
 ; Define macros for simple conditionals
 
 ;		<test>
-;		_IF _CC
-;			<stuff to do if _CC>
+;		_IF cc
+;			<stuff to do if cc>
 ;		_ENDIF
 
 ;		<test>
-;		_IF _CC
-;			<stuff to do if _CC>
+;		_IF cc
+;			<stuff to do if cc>
 ;		_ELSE
-;			<stuff to do if NOT _CC>
+;			<stuff to do if NOT cc>
 ;		_ENDIF
+;
+; Where cc is one of Z, NZ, EQ, NE, C, NC, HS, LO, N, NN, L, GE or NEVER.
 
-; Mark the origin of a forward unconditional branch.
-; Called by _ELSE.
-_AHEAD  MACRO
-						LSTOUT-
-		_CS_PUSH (_NEVER << 28) | ($ & $0FFFFFFF) ; Push the condition code (unconditional) and
-				   ; the address where the jump instruction will be filled-in later
-		ORG $+2	; Skip over that location
-						LSTOUT+
-						ENDM
 
 ; Mark the origin of a forward conditional branch.
 ; Called by _WHILE.
-_IF 	MACRO cond
-						LSTOUT-
-		_CS_PUSH (cond << 28) | ($ & $0FFFFFFF) ; Push the condition code and
-				   ; the address where the jump instruction will be filled-in later
-		ORG $+2	; Skip over that location
-						LSTOUT+
-						ENDM
 
-; Resolve a forward branch due to most recent _AHEAD, _IF, _ELSE or _WHILE.
-; Called by _ELSE and _REPEAT.
+_IF 	MACRO cond		; "\1" below is equivalent to "cond" (1st argument) but can be concatenated
+									LSTOUT-
+		_JUMP		not\1, _LABEL_NUM ; Assemble a conditional jump with the opposite condition
+		_CS_PUSH	_LABEL_NUM		; Push its label number
+		_INC		_LABEL_NUM		; Increment the label number
+									LSTOUT+
+									ENDM
+
+; Resolve a forward branch due to most recent _IF, _ELSE or _WHILE.
+; Called by _ELSE and _ENDW.
+
 _ENDIF	MACRO
-						LSTOUT-
-_destin SET $		   ; Remember where we were up to in assembling
-_origin SET _CS_TOP & $0FFFFFFF ; Mask off the condition code to leave the origin address
-		ORG _origin	 ; Go back to the address on the top of the control-flow stack
-_offset SET _destin-_origin-2 ; Calculate the offset in bytes
-_cond   SET _CS_TOP>>28 ; Extract the condition code
-		_ASM_Jxx  _cond,_offset ; Assemble the jump instruction with offset
-		_CS_DROP		; Drop the address and cond code off the control-flow stack
-		ORG _destin	 ; Go forward again to continue assembling
-						LSTOUT+
-						ENDM
+									LSTOUT-
+		_LABEL		_CS_TOP			; Assemble the label for the previous _IF.
+		_CS_DROP					; Drop its label number off the control-flow stack
+									LSTOUT+
+									ENDM
 
 ; Mark the origin of a forward unconditional branch and
 ; resolve a forward branch due to an _IF.
+
 _ELSE	MACRO
-						LSTOUT-
-		_AHEAD		  ; Leave space for an unconditional jump and push its address
-						LSTOUT-
-		_CS_SWAP		; Get the original _IF address back on top
-		_ENDIF		  ; Back-fill the jump and offset for previous _IF.
-						ENDM
+									LSTOUT-
+		_IF			NEVER			; Assemble an unconditional jump and push its label number
+									LSTOUT-
+		_CS_SWAP					; Get the original _IF label number back on top
+		_ENDIF						; Assemble the label for the previous _IF, and drop its number
+									ENDM
+
 
 ;------------------------------------------------------------
-; Define macros for tested loops
+; Define macros for uncounted loops
 
-;		_BEGIN
+;		_REPEAT
 ;			<do_stuff>
 ;		_AGAIN				(infinite)
 
-;		_BEGIN
-;			<do_stuff>
-;			<test>
-;		_UNTIL _CC			(post-tested
-
-;		_BEGIN
-;			<test>
-;		_WHILE _CC			(pre-tested)
-;			<do_stuff>
 ;		_REPEAT
-
-;		_BEGIN
 ;			<do_stuff>
 ;			<test>
-;		_WHILE _CC			(mid tested)
+;		_UNTIL cc			(post-tested
+
+;		_DO
+;			<test>
+;		_WHILE cc			(pre-tested)
+;			<do_stuff>
+;		_ENDW
+
+;		_DO
+;			<do_stuff>
+;			<test>
+;		_WHILE cc			(mid tested)
 ;			<do_other_stuff>
-;		_REPEAT
+;		_ENDW
+
 
 ; Mark a backward destination (i.e. the start of a loop)
-_BEGIN  MACRO
-						LSTOUT-
-		_CS_PUSH $	  ; Push the address to jump back to
-						LSTOUT+
-						ENDM
 
+_REPEAT  MACRO
+									LSTOUT-
+		_LABEL		_LABEL_NUM		; Assemble the label
+		_CS_PUSH	_LABEL_NUM		; Push the number of the label to jump back to
+		_INC		_LABEL_NUM		; Increment the label number
+									LSTOUT+
+									ENDM
 
-; Resolve most recent _BEGIN with a backward unconditional branch
-; The end of an infinite loop
-_AGAIN  MACRO
-						LSTOUT-
-_offset SET _CS_TOP-$-2
-		_ASM_Jxx  _NEVER,_offset  ; Assemble an unconditional jump back to the address on the top of the stack
-		_CS_DROP		; Drop the address off the control-flow stack
-						LSTOUT+
-						ENDM
+_DO  MACRO
+									LSTOUT-
+		_REPEAT
+									ENDM
 
-; Resolve most recent _BEGIN with a backward conditional branch
+; Resolve most recent _REPEAT or _DO with a backward conditional branch
 ; The end of a post-tested loop
-_UNTIL	MACRO cond
-						LSTOUT-
-_offset SET _CS_TOP-$-2
-		_ASM_Jxx  cond,_offset ; Assemble a conditional jump back to the address on the top of the stack
-		_CS_DROP		; Drop the address off the control-flow stack
-						LSTOUT+
-						ENDM
 
+_UNTIL	MACRO cond
+									LSTOUT-
+		_JUMP		not\1, _CS_TOP	; Assemble a conditional jump back to corresponding _REPEAT or _DO
+		_CS_DROP					; Drop its label number off the control-flow stack
+									LSTOUT+
+									ENDM
+
+; Resolve most recent _REPEAT with a backward unconditional branch
+; The end of an infinite loop
+
+_AGAIN  MACRO
+									LSTOUT-
+		_UNTIL		NEVER			; Assemble an unconditional jump back to the corresponding _REPEAT
+									ENDM
 
 ; Mark the origin of a forward conditional branch out of a loop
 ; The test of a pre-tested or mid-tested loop
+
 _WHILE	MACRO cond
-						LSTOUT-
-		_IF cond		; Assemble conditional jump and push the address of its offset
-						LSTOUT-
-		_CS_SWAP		; Get the _BEGIN address back on top
-						LSTOUT+
-						ENDM
+									LSTOUT-
+		_IF			cond			; Assemble a conditional jump and push its label number
+									LSTOUT-
+		_CS_SWAP					; Get the _DO label number back on top
+									LSTOUT+
+									ENDM
 
-
-; Resolve most recent _BEGIN with a backward unconditional branch and
+; Resolve most recent _DO with a backward unconditional branch and
 ; resolve a forward branch due to most recent _WHILE.
 ; The end of a pre-tested or mid-tested loop
-_REPEAT MACRO
-						LSTOUT-
-		_AGAIN		  ; Jump back to the corresponding _BEGIN
-						LSTOUT-
-		_ENDIF		  ; Fill in the offset for the last _WHILE
-						ENDM
+
+_ENDW	MACRO
+									LSTOUT-
+		_UNTIL		NEVER			; Assemble an unconditional jump back to the corresponding _DO
+									LSTOUT-
+		_ENDIF		  				; Assemble the label for the last _WHILE
+									ENDM
+
 
 ; Any loop may have additional _WHILEs to exit it, but each additional one must be
 ; balanced by an _ENDIF (or _ELSE ... _ENDIF) after the end of the loop. Examples:
-; _BEGIN ... _WHILE _CC ... _WHILE _CC  ... _REPEAT ... _ENDIF
-; _BEGIN ... _WHILE _CC ... _UNTIL _CC  ... _ELSE ...  _ENDIF
-; _BEGIN ... _WHILE _CC ... _WHILE _CC  ... _AGAIN ... _ENDIF ... _ENDIF
+; _DO     ... _WHILE cc1 ... _WHILE cc2  ... _ENDW  ... _ENDIF
+; _REPEAT ... _WHILE cc1 ... _UNTIL cc2  ... _ELSE  ... _ENDIF
+; _REPEAT ... _WHILE cc1 ... _WHILE cc2  ... _AGAIN ... _ENDIF ... _ENDIF
 ;
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
 
 ;------------------------------------------------------------
-; Short-circuit conditionals (using overlapping structures)
-; Note: More-readable non-overlapping versions appear further below. See _AND_IF, OR_ELSE etc.
+; Short-circuit conditionals
 
-; _IF _CC1 && _CC2 && _CC3 ... _ENDIF
-; is written as
-;
-;		<test1>
-;		_IF _CC1
-;			<test2>
-;			_IF _CC2
-;				<test3>
-;				_IF _CC3
-;					<stuff to do when _CC1 && _CC2 && _CC3>
-;				_ENDIF
-;			_ENDIF
-;		_ENDIF
-
-; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
-; is written as
-;
-;		<test1>
-;		_IF _CC1
-;			<test2>
-;			_IF _CC2
-;				<test3>
-;				_IF _CC3
-;					<stuff to do when _CC1 && _CC2 && _CC3>
-;				_ELSE
-;			_END_PRIOR_IF
-;		_END_PRIOR_IF
-;					<stuff to do when NOT (_CC1 && _CC2 && _CC3)>
-;				_ENDIF
-
-; _IF _CC1 || _CC2 || _CC3 ... _ENDIF
-; is written as
-;
-;		<test1>
-;		_IF _CC1_inverse
-;			<test2>
-;			_IF _CC2_inverse
-;				<test3>
-;				_IF _CC3
-;			_END_PRIOR_IF
-;		_END_PRIOR_IF
-;					<stuff to do when _CC1 || _CC2 || _CC3>
-;				_ENDIF
-
-; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
-; is written as
-;
-;		<test1>
-;		_IF _CC1_inverse
-;			<test2>
-;			_IF _CC2_inverse
-;				<test3>
-;				_IF _CC3
-;			_END_PRIOR_IF
-;		_END_PRIOR_IF
-;					<stuff to do when _CC1 || _CC2 || _CC3>
-;				_ELSE
-;					<stuff to do when NOT (_CC1 || _CC2 || _CC3)>
-;				_ENDIF
-
-_END_PRIOR_IF	MACRO
-						LSTOUT-
-		_CS_SWAP
-		_ENDIF
-						ENDM
-
-
-;------------------------------------------------------------
-; Short-circuit conditionals (without overlapping structures)
-
-; _IF _CC1 && _CC2 && _CC3 ... _ENDIF
+; IF cond1 && cond2 && cond3 ... ENDIF
 ; is written as
 ;
 ;		_COND
 ;			<test1>
-;		_AND_IF		_CC1
+;		_AND_IF		cc1
 ;			<test2>
-;		_AND_IF		_CC2
+;		_AND_IF		cc2
 ;			<test3>
-;		_AND_IF		_CC3
-;			<stuff to do when _CC1 && _CC2 && _CC3>
+;		_AND_IF		cc3
+;			<stuff to do when cond1 && cond2 && cond3>
 ;		_ENDIFS				; Note plural _ENDIFS when there is no ELSES clause
+;
+; Note: COND ... ENDIFS is equivalent to COND ... THENS which, although it is not standard ANS Forth,
+; is also due to Wil Baden.
 
-; _IF _CC1 && _CC2 && _CC3 ... _ELSE ... _ENDIF
+; IF cond1 && cond2 && cond3 ... ELSE ... ENDIF
 ; is written as
 ;
 ;		_COND
 ;			<test1>
-;		_AND_IF		_CC1
+;		_AND_IF		cc1
 ;			<test2>
-;		_AND_IF		_CC2
+;		_AND_IF		cc2
 ;			<test3>
-;		_AND_IF		_CC3
-;			<stuff to do when _CC1 && _CC2 && _CC3>
+;		_AND_IF		cc3
+;			<stuff to do when cond1 && cond2 && cond3>
 ;		_ELSES				; Note plural _ELSES
-;			<stuff to do when NOT (_CC1 && _CC2 && _CC3)>
+;			<stuff to do when NOT (cond1 && cond2 && cond3)>
 ;		_ENDIF				; Note singular _ENDIF when there is an ELSES clause
 
-; _IF _CC1 || _CC2 || _CC3 ... _ENDIF
+; IF cond1 || cond2 || cond3 ... ENDIF
 ; is written as
 ;
 ;		_COND
 ;			<test1>
-;		_OR_ELSE	_CC1
+;		_OR_ELSE	cc1
 ;			<test2>
-;		_OR_ELSE	_CC2
+;		_OR_ELSE	cc2
 ;			<test3>
-;		_OR_IFS 	_CC3	; Note plural _OR_IFS for last condition
-;			<stuff to do when _CC1 || _CC2 || _CC3>
+;		_OR_IFS 	cc3		; Note plural _OR_IFS for last condition
+;			<stuff to do when cond1 || cond2 || cond3>
 ;		_ENDIF
 
-; _IF _CC1 || _CC2 || _CC3 ... _ELSE ... _ENDIF
+; IF cond1 || cond2 || cond3 ... ELSE ... ENDIF
 ; is written as
 ;
 ;		_COND
 ;			<test1>
-;		_OR_ELSE	_CC1
+;		_OR_ELSE	cc1
 ;			<test2>
-;		_OR_ELSE	_CC2
+;		_OR_ELSE	cc2
 ;			<test3>
-;		_OR_IFS 	_CC3	; Note plural _OR_IFS for last condition
-;			<stuff to do when _CC1 || _CC2 || _CC3>
+;		_OR_IFS 	cc3		; Note plural _OR_IFS for last condition
+;			<stuff to do when cond1 || cond2 || cond3>
 ;		_ELSE
-;			<stuff to do when NOT (_CC1 || _CC2 || _CC3)>
+;			<stuff to do when NOT (cond1 || cond2 || cond3)>
 ;		_ENDIF
 
 
-_COND	MACRO			; Begin a short-circuit conditional of either type
-						LSTOUT-
-		_CS_PUSH 0		; Push an _IF-count of zero onto the control flow stack
-						LSTOUT+
-						ENDM
+; Mark the origin of a forward conditional branch with the opposite condition.
+; Aliased to _OR_ELSE.
 
+_IF_NOT MACRO cond
+									LSTOUT-
+		_JUMP		cond, _LABEL_NUM ; Assemble a conditional jump with the same condition
+		_CS_PUSH	_LABEL_NUM		; Push its label number
+		_INC		_LABEL_NUM		; Increment the label number
+									LSTOUT+
+									ENDM
 
-_AND_IF	MACRO cond		; Short circuit AND condition
-						LSTOUT-
-_count  SET _CS_TOP+1   ; Copy and increment the _IF-count
-		_CS_DROP		; and take it off the stack for now
+; Translate the jump instruction generated by _JUMP above, when the condition code is NN.
+; Used by _OR_ELSE. MSP430 specific.
 
+JNN		MACRO	label
+		JN		$+4					; The best substitute for the non-existent JNN instruction
+		JMP		label				; Thanks to Anders Lindgren
+									ENDM
+
+; Used by ELSES and OR_IFS below
+
+_END_PRIOR_IF	MACRO
+									LSTOUT-
+		_CS_SWAP
+		_ENDIF
+									ENDM
+
+; Begin a short-circuit conditional of either type.
+; Aliased as _CASE.
+
+_COND	MACRO
+									LSTOUT-
+		_CS_PUSH	0				; Push a zero marker onto the control flow stack
+									LSTOUT+
+									ENDM
+
+; Short circuit AND condition. Counted _IF.
+; Aliased as _OF.
+
+_AND_IF	MACRO cond
+									LSTOUT-
 		_IF cond
-						LSTOUT-
-		_CS_PUSH _count ; Put the _IF-count back on the stack
-						LSTOUT+
-						ENDM
+									ENDM
 
+; Resolve all _IFs or _ELSEs except the most recent one, back to the most recent _COND.
+; Called by _ELSES.
 
-_ELSES	MACRO			; Used in place of ELSE for short circuit AND
-						LSTOUT-
-_count  SET _CS_TOP-1	; Copy and decrement the _IF-count
-		_CS_DROP		; and take it off the stack permanently
+_END_PRIOR_IFS MACRO
+									LSTOUT-
+		_CS_SWAP
+		IF	_CS_TOP == 0
+			_CS_DROP
+		ELSE
+			_ENDIF
+									LSTOUT-
+	 		_END_PRIOR_IFS			; Recursive
+									LSTOUT-
+		ENDIF
+									LSTOUT+
+									ENDM
 
-		_ELSE
-						LSTOUT-
-		REPT _count		; Repeat _IF-count - 1 times
-			_END_PRIOR_IF	; Resolve a forward jump
-						LSTOUT-
-		ENDR
-						LSTOUT+
-						ENDM
+; Used in place of _ELSE for short-circuit AND.
+; Does an _ELSE, then ends all _IFs except the most recent one, back to the most recent _COND.
 
+_ELSES	MACRO
+									LSTOUT-
+		_ELSE						; Assemble an _ELSE
+									LSTOUT-
+		_END_PRIOR_IFS				; Resolve all prior _IFs back to _COND
+									ENDM
 
-_ENDIFS	MACRO			; Used in place of ENDIF for short-circuit AND, but only
-						; when there is no ELSES clause
-						LSTOUT-
-_count  SET _CS_TOP		; Copy the _IF-count
-		_CS_DROP		; and take it off the stack permanently
-		REPT _count		; Repeat _IF-count times
-			_ENDIF		; Resolve a forward jump
-						LSTOUT-
-		ENDR
-						LSTOUT+
-						ENDM
+; Used in place of ENDIF for short-circuit AND, but only when there is no ELSES clause.
+; Resolves multiple _IFs or _ELSEs.
+; Aliased as _ENDCASE.
 
+_ENDIFS	MACRO
+									LSTOUT-
+		IF	_CS_TOP == 0
+			_CS_DROP
+		ELSE
+			_ENDIF
+									LSTOUT-
+			_ENDIFS					; Recursive
+									LSTOUT-
+		ENDIF
+									LSTOUT+
+									ENDM
 
-_OR_ELSE MACRO cond		; Short circuit OR condition, except last
-						LSTOUT-
-_count  SET _CS_TOP+1   ; Copy and increment the _IF-count
-		_CS_DROP		; and take it off the stack for now
+; Short circuit OR condition, except last
 
-		_IF InverseCond(cond)
-						LSTOUT-
-		_CS_PUSH _count ; Put the _IF-count back on the stack
-						LSTOUT+
-						ENDM
+_OR_ELSE MACRO cond
+									LSTOUT-
+		_IF_NOT cond
+									ENDM
 
+; Last short-circuit OR condition
 
-_OR_IFS	MACRO cond		; Last short-circuit OR condition
-						LSTOUT-
-_count  SET _CS_TOP		; Copy the _IF-count
-		_CS_DROP		; and take it off the stack for good
-		_IF	cond
-						LSTOUT-
-		REPT _count		; Repeat _IF-count times
-			_END_PRIOR_IF	; Resolve an unconditional forward jump
-						LSTOUT-
-		ENDR
-						LSTOUT+
-						ENDM
+_OR_IFS	MACRO cond
+									LSTOUT-
+		_IF	cond					; Assemble an _IF
+									LSTOUT-
+		_END_PRIOR_IFS				; Resolve all prior _IFs back to _COND
+									ENDM
 
 
 ;------------------------------------------------------------
@@ -458,174 +547,130 @@ _count  SET _CS_TOP		; Copy the _IF-count
 ; Typical use:
 
 ;	   _CASE
-;		   _OF src,dest		; OF uses CMP (word comparison)
+;          <test>
+;		   _OF cc
+;			   ...
+;		   _ENDOF
+;
+;		   _OF_EQ src, dest			; OF_EQ uses CMP (word comparison)
 ;				...
 ;		   _ENDOF
-;		   _OFb src,dest	; OFb uses CMP.B (byte comparison)
+;
+;		   _OF_EQ_B src, dest		; OF_EQ_B uses CMP.B (byte comparison)
 ;			   ...
 ;		   _ENDOF
 ;		   ... ( default case )
 ;	   _ENDCASE
 
+; IF cond1 ... ELSEIF cond2 ... ELSEIF cond3 ... ELSE ... ENDIF
+; is written as
+;
+;	   _CASE
+;          <test1>
+;		   _OF cc1
+;			   ...
+;		   _ENDOF
+;          <test2>
+;		   _OF cc2
+;			   ...
+;		   _ENDOF
+;          <test3>
+;		   _OF cc3
+;			   ...
+;		   _ENDOF
+;		   ...
+;	   _ENDCASE
+
 
 _CASE   MACRO
-						LSTOUT-
-		_CS_PUSH 0	 	; Push an _OF-count of zero onto the control flow stack
-						LSTOUT+
-						ENDM
+									LSTOUT-
+		_COND			 			; Push a zero marker onto the control flow stack
+									ENDM
 
+_OF		MACRO cond
+									LSTOUT-
+		_IF cond					; Assemble an _IF
+									ENDM
 
-_OF	 MACRO src,dest  ; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
-						LSTOUT-
-_count  SET _CS_TOP+1   ; Increment the _OF-count
-		_CS_DROP		; and take it off the stack for now
-		; Assemble the word comparison
-						LSTOUT+
-		CMP src,dest
-						LSTOUT-
-		_IF _EQ			; Mark where a conditional jump will be backfilled later
-						LSTOUT-
-		_CS_PUSH _count ; Put the _OF-count back on the stack
-						LSTOUT+
-						ENDM
+_OF_EQ	MACRO src, dest			; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
+									LSTOUT-
+		cmp		src, dest
+		_OF EQ						; Assemble an _IF EQ
+									ENDM
 
-_OFb	MACRO src,dest  ; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
-						LSTOUT-
-_count  SET _CS_TOP+1   ; Increment the _OF-count
-		_CS_DROP		; and take it off the stack for now
-		; Assemble the byte comparison
-						LSTOUT+
-		CMP.B src,dest
-						LSTOUT-
-		_IF _EQ			; Mark where a conditional jump will be backfilled later
-						LSTOUT-
-		_CS_PUSH _count ; Put the _OF-count back on the stack
-						LSTOUT+
-						ENDM
-
+_OF_EQ_B MACRO src, dest		; src is usually #N, dest can be Rn, X(Rn), &ADDR, ADDR
+									LSTOUT-
+		cmp.b	src, dest
+		_OF EQ						; Assemble an _IF EQ
+									ENDM
 
 _ENDOF  MACRO
-						LSTOUT-
-_count  SET _CS_TOP		; Take the _OF-count off the stack for now
-
-		_CS_DROP
-		_ELSE			; Resolve the previous unconditional jump
-						LSTOUT-
-						; and mark where an unconditional jump will be backfilled later
-		_CS_PUSH _count ; Put the _OF-count back on the stack
-						LSTOUT+
-						ENDM
-
+									LSTOUT-
+		_ELSE						; Resolve the previous cond'l jump and assemble an uncond'l jump
+									ENDM
 
 _ENDCASE MACRO
-						LSTOUT-
-_count  SET _CS_TOP		; Copy the _OF-count
-		_CS_DROP		; And take it  off the stack permanently
-		REPT _count		; Repeat _OF-count times
-			_ENDIF	  	; Resolve a forward jump
-						LSTOUT-
-		ENDR
-						LSTOUT+
-						ENDM
+									LSTOUT-
+		_ENDIFS	  					; Resolve all the uncoditional jumps from the _ENDOFs
+									ENDM
 
 
 ;------------------------------------------------------------
 ; Counted loops
 
-;	_DO src,dest
-;		<do_stuff>		; dest = src down to 1   (src 0 = 65536)
-;	_LOOP dest
+;	_FOR src, dest
+;		...					; dest = src down to 1   (src 0 = 65536)
+;	_NEXT_DEC dest
 
-;	_DO src,dest
-;		<do_stuff>		; dest = src down to 1 in steps of src2   (src 0 = 65536)
-;	_mLOOP src2,dest
+;	_FOR src, dest			; src must be even
+;		...					; dest = src down to 2 in steps of 2   (src 0 = 65536)
+;	_NEXT_DECD dest
 
-;	_qDO src,dest
-;		<do_stuff>		; dest = src down to 0
-;	_qLOOP dest
 
-;	_qDO src,dest
-;		<do_stuff>		; dest = src down to 0 in steps of src2
-;	_qmLOOP src2,dest
-
-_DO	 MACRO src,dest
-		MOV src,dest
-						LSTOUT-
-		_BEGIN
-						ENDM
-
-_LOOP   MACRO dest
-		DEC   dest
-						LSTOUT-
-		_UNTIL _Z
-						ENDM
-
-_mLOOP  MACRO src,dest
-		SUB   src,dest
-						LSTOUT-
-		_UNTIL _Z
-						ENDM
-
-_qDO	MACRO src,dest
-		MOV src,dest
-						LSTOUT-
-		_BEGIN
-						LSTOUT+
-		TST dest
-						LSTOUT-
-		_WHILE _NZ
-						ENDM
-
-_qLOOP  MACRO dest
-		DEC   dest
-						LSTOUT-
+_FOR	MACRO src, dest
+		mov src, dest
+									LSTOUT-
 		_REPEAT
-						ENDM
+									ENDM
 
-_qmLOOP MACRO src,dest
-		SUB   src,dest
-						LSTOUT-
-		_REPEAT
-						ENDM
+_NEXT_DEC MACRO dest
+		dec   dest
+									LSTOUT-
+		_UNTIL Z
+									ENDM
+
+_NEXT_DECD MACRO dest
+		decd   dest
+									LSTOUT-
+		_UNTIL Z
+									ENDM
 
 ; Byte versions of the above
-_DOb	MACRO src,dest
-		MOV.B src,dest
-						LSTOUT-
-		_BEGIN
-						ENDM
 
-_LOOPb  MACRO dest
-		DEC.B dest
-						LSTOUT-
-		_UNTIL _Z
-						ENDM
+;	_FOR_B src, dest
+;		...					; dest = src down to 1   (src 0 = 256)
+;	_NEXT_DEC_B dest
 
-_mLOOPb MACRO src,dest
-		SUB.B src,dest
-						LSTOUT-
-		_UNTIL _Z
-						ENDM
+;	_FOR_B src, dest		; src must be even
+;		...					; dest = src down to 2 in steps of 2   (src 0 = 256)
+;	_NEXT_DECD_B dest
 
-_qDOb   MACRO src,dest
-		MOV.B src,dest
-						LSTOUT-
-		_BEGIN
-						LSTOUT+
-		TST.B dest
-						LSTOUT-
-		_WHILE _NZ
-						ENDM
 
-_qLOOPb MACRO dest
-		DEC.B dest
-						LSTOUT-
+_FOR_B	MACRO src, dest
+		mov.b src, dest
+									LSTOUT-
 		_REPEAT
-						ENDM
+									ENDM
 
-_qmLOOPb MACRO src,dest
-		SUB.B src,dest
-						LSTOUT-
-		_REPEAT
-						ENDM
+_NEXT_DEC_B  MACRO dest
+		dec.b dest
+									LSTOUT-
+		_UNTIL Z
+									ENDM
+
+_NEXT_DECD_B MACRO dest
+		decd.b dest
+									LSTOUT-
+		_UNTIL Z
+									ENDM
 

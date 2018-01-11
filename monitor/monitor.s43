@@ -305,9 +305,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			; Clear all variables in RAM except resetBuffer and IMU/BMU's fuel-gauge dischg accumulator
 			; and worstStress (and ToIN/TIB)
-			_DO		#worstStress-comNoEraseEnd,R8
+			_FOR		#worstStress-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
-			_mLOOP	#2,R8
+			_NEXT_DECD	R8
 
 			; LOG2 -- The following preprocessor-macro gem is due to Dave Keenan.
 			; It is based on a Taylor series expansion. It is valid for the domain 1-64, and range 0-6.
@@ -332,7 +332,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			; Analog settings done later.
 			mov.b	#TxPl,&P1OUT				; Set TxPl high (idle), all other outputs low.
 			cmp.b	#255,&ID					; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				mov.b	#VrefP|TxPl|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
 			_ELSE								; Else
 				mov.b	#VrefP|TxPl,&P1DIR			; Set VrefP, Tx bits as outputs
@@ -500,11 +500,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 			eint							; Enable interrupts now that all initialisation is complete
 
 ; Main loop
-			_BEGIN
+			_REPEAT
 				call	#RxByteNoWait			; Check if received data
-				_IF		_NZ
+				_IF		NZ
 					tst.b	R8
-					_IF		_NN
+					_IF		NN
 						call	#DoEcho					; Echo the command or password byte if required
 						call	#DoPassword				; Check for password bytes
 						call	#ACCEPT					; Process command bytes (could take a long time)
@@ -513,7 +513,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 					_ENDIF
 				_ELSE
 					bit.b	#bNotMeasureTime,&monFlags	; Check if time to measure
-					_IF		_Z							; If so, do measurement and set/clear of bypass
+					_IF		Z							; If so, do measurement and set/clear of bypass
 						bis.b	#bNotMeasureTime,&monFlags	; Reset the time-to-measure flag
 						call	#DoMeasurement			; May transmit status
 					_ELSE
@@ -530,9 +530,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 DoEcho:		_COND							; Begin short circuit conditional
 				cmp.b	#$11,R8
-			_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character OR Else
+			_OR_ELSE	EQ					; If it's an XON (ctrl-Q) character OR Else
 				bit.b	#bDontEcho,&interpFlags
-			_OR_IFS		_Z					; Or If the dont-echo flag is clear
+			_OR_IFS		Z					; Or If the dont-echo flag is clear
 				call	#TxByte					; Echo the character
 			_ENDIF
 			ret
@@ -553,7 +553,7 @@ DoMeasurement:
 			clr		Rtype					; Init type of measurement causing zero stress to zero
 
 			inc.b	&ticksSinceLastRx		; Cleared whenever valid stress byte received
-			_IF		_C						; If unsigned overflow
+			_IF		C						; If unsigned overflow
 				mov.b	#$FF,&ticksSinceLastRx	; Saturate at $FF
 			_ENDIF
 
@@ -563,7 +563,7 @@ DoMeasurement:
 
 			; Set bypass as required
 			cmp.b	#0,&ID					; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				mov			&ovStep,R9			; Calc the bypass threshold in R9 = ovZero + 6*ovStep
 				rla3		R9
 				add			&ovZero,R9
@@ -590,9 +590,9 @@ DoMeasurement:
 
 			; Calculate stress due to undervoltage if required
 			cmp.b	#0,&ID					; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 				bit.b	#bCharging,&monFlags	; And we're not charging (including not regen braking)
-				_IF		_Z
+				_IF		Z
 													; Measurement saved on stack earlier
 					push	#UV_STEP				; For every UV_STEP (millivolts)
 					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
@@ -616,7 +616,7 @@ DoMeasurement:
 
 			; Calculate stress due to undertemperature if required
 			bit.b	#bCharging,&monFlags	; If charging (including regen braking)
-			_IF		_NZ
+			_IF		NZ
 												; Measurement saved on stack earlier
 				push	#UT_STEP				; For every UT_STEP (degrees Celsius)
 				push	#UT_ZERO				;	below UT_ZERO, we add one level of stress
@@ -629,13 +629,13 @@ DoMeasurement:
 			; Calculate stress due to link voltage (current shunt measurement for an IMU)
 			call	#linkV					; Get link voltage in mV in R10
 			cmp.b	#0,&ID					; If we're not an IMU
-			_IF		_NE
+			_IF		NE
 #if 0			// Don't treat link voltage as stress for now, as the circuitry is too noise prone.
 				cmp		#9999,R10				; Special "invalid" value?
-				_IF		_NE						; Only calculate link stress if not this value
+				_IF		NE						; Only calculate link stress if not this value
 					; Calculate stress due to excessive absolute link voltage
 					tst		R10						; Get absolute value of link voltage
-					_IF		_L
+					_IF		L
 						inv		R10
 						inc		R10
 					_ENDIF
@@ -655,8 +655,8 @@ DoMeasurement:
 
 				sub		R9,&discharge				; Integrate current in 32-bit discharge accumulator
 				subc	R10,&discharge+2			; for fuel gauge
-				_IF		_NN							; Clamp negative values to zero
-				_ELSE								; There is no true _IF _N with the MSP430
+				_IF		NN							; Clamp negative values to zero
+				_ELSE								; There is no true _IF N with the MSP430
 					clr		&discharge
 					clr		&discharge+2
 				_ENDIF
@@ -665,15 +665,15 @@ DoMeasurement:
 			; Update local present stress, and worst stress for trip so far
 			mov.b	Rstrs,R8				; Copy stress. movBits_B instruction trashes its source.
 			cmp		#STRESS,R8				; If the stress is worse than we can fit in status byte
-			_IF		_HS
+			_IF		HS
 				mov		#STRESS,R8				; Use the maximum we can fit
 			_ENDIF
 			mov.b	stressTable(R8),R8		; Encode it with checkbit
 			movBits_B R8,#ENC_STRESS,&localStatus ; Record for later use, preserving other status bits.
 			cmp.b	&worstStress,Rstrs		; If stress equal or higher than worstStress for trip so far
-			_IF		_HS
+			_IF		HS
 				tst.b	Rstrs					; and it's an actual, nonzero stress
-				_IF	_NZ
+				_IF	NZ
 					mov.b	Rstrs,&worstStress		; Update worstStress
 					mov.b	Rtype,&worstStressType	; Update type of measurement causing worst stress
 				_ENDIF
@@ -690,17 +690,17 @@ DoMeasurement:
 			; Check for comms error and send local status if required
 			bic.b	#COM_ERR,&localStatus	; Clear comms error flag by default. May be set below.
 			bit.b	#bNotSendStatus,&monFlags ; If sending status, and so expecting to receive it
-			_IF		_Z
+			_IF		Z
 				cmp.b	#ComErrTicks,&ticksSinceLastRx ; and too many ticks since last valid status Rx
-				_IF		_HS
+				_IF		HS
 					; If our ID is not 0 (IMU) or 1 (first CMU), set the comms error bit in local status
 					; and send a comment with our ID followed by 'c' for comms error
 					; every 256 status bytes (approx every 17 seconds).
 					cmp.b	#2,&ID
-					_IF		_HS
+					_IF		HS
 						bis.b	#COM_ERR,&localStatus
 						tst.b	&statusFreqCtr
-						_IF	_Z
+						_IF	Z
 							call	#_commsError			; Call pretty-printing command
 						_ENDIF
 					_ENDIF
@@ -732,15 +732,15 @@ meas	EQU		8				; The measurement
 			rla		R10
 			mov		step(SP),R8				; Get step in R8
 			tst		R8
-			_IF		_GE
+			_IF		GE
 				cmp		worstStress(R10),R9
-				_IF		_GE						; If this is a worse measurement of this type
+				_IF		GE						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				sub		zero(SP),R9				; Get meas - zero in R9
 			_ELSE
 				cmp		worstStress(R10),R9
-				_IF		_L						; If this is a worse measurement of this type
+				_IF		L						; If this is a worse measurement of this type
 					mov		R9,worstStress(R10)		; Update the worst
 				_ENDIF
 				inv		R8						; Get absolute value of step in R8
@@ -750,13 +750,13 @@ meas	EQU		8				; The measurement
 				add		step(SP),R9
 				sub		#1,R9
 			_ENDIF
-			_IF		_L
+			_IF		L
 				clr		R9						; Min of 0
 			_ENDIF
 			clr		R10						; Clear high word of dividend
 			call	#UMSlashMod				; R9 = R10:R9 / R8 = (meas - zero) / step
 			cmp		R9,Rstrs				; Is this stress worse than present stress calcultd so far?
-			_IF		_LO
+			_IF		LO
 				mov		R9,Rstrs				; Yes, new present stress
 				mov		meas(SP),Rmeas			; Measurement causing present stress
 				mov		type(SP),Rtype			; Type of measurement causing present stress
@@ -783,19 +783,19 @@ DoStatus:
 			and.b	#STRESS,R9				; Only stress bits in R9
 			and.b	#ENC_STRESS,R10			; Only stress and check bits in R10
 			cmp.b	R10,stressTable(R9)		; If the incoming status byte has valid encoded stress
-			_IF		_EQ
+			_IF		EQ
 				clr.b	&ticksSinceLastRx		; Now zero time since last received valid status
 				; This will eliminate any comms error next time through DoMeasures
 
 				; Check if DoMeasures may have just sent a status byte, due to a comms error
 				bit.b	#COM_ERR,&localStatus	; If no comms error
-				_IF		_Z
+				_IF		Z
 
 					; Do MAX of local and incoming stress
 					mov.b	&localStatus,R10		; Get local status to R10
 					and.b	#STRESS,R10				; Extract stress bits
 					cmp.b	R10,R9					; Compare incoming stress (R9) to ours (R10)
-					_IF		_LO						; If incoming (R9) is less than ours (R10)
+					_IF		LO						; If incoming (R9) is less than ours (R10)
 						mov.b	stressTable(R10),R10	; Get encoded local stress to R10
 						movBits_B	R10,#ENC_STRESS,R8	; Replace incoming encoded stress with ours
 					_ENDIF							; Endif we are worse
@@ -829,13 +829,13 @@ SendStatus:
 ; Status byte is in R8. Send it or feed it to a PI controller to control a charger
 ;
 			bit.b	#bChargerControl,&monFlags	; Set by 'o' command
-			_IF		_Z							; If we're not in charge control mode
+			_IF		Z							; If we're not in charge control mode
 				call	#TxByte					; Send the status byte. Wait until buffer not full
 			_ELSE								; Else we're in charger control mode
 				bit.b	#bCharging,&monFlags		; Set by '1c' command
-				_IF		_NZ							; If we've been told to start charging
+				_IF		NZ							; If we've been told to start charging
 					bit		#ALL_FULL,R8
-					_IF		_NZ							; If all cells are considered full
+					_IF		NZ							; If all cells are considered full
 						; Send command packet to charger to turn it off
 						mov		#0,&chargerPrevCurr			; Set previous charger current to zero
 						mov		#1<<15,R8					; Set charger-off bit
@@ -844,17 +844,17 @@ SendStatus:
 						call	#_Charging					; Equiv to '0c' command. Clears bCharging
 					_ELSE								; Else some are not full, so keep charging
 						bit		#COM_ERR,R8
-						_IF		_NZ
+						_IF		NZ
 							mov		#8,R8					; Treat comms error as stress 8
 						_ELSE
 							and		#STRESS,R8				; Otherwise use the stress value (0-15)
 						_ENDIF
 						call	#PIController			; Call PI controller with R8 as input and output
 						dec		&chargerTxTimer			; Decrement charger transmit timer
-						_IF		_NZ						; If 4 seconds not yet passed since last Tx
+						_IF		NZ						; If 4 seconds not yet passed since last Tx
 							cmp		R8,&chargerPrevCurr		; Check if current setpoint has changed.
 							mov		R8,&chargerPrevCurr		; Record current setpoint for next time
-							_IF		_NE						; If current setpoint has changed,
+							_IF		NE						; If current setpoint has changed,
 						_END_PRIOR_IF					; Or 4 seconds has passed
 								call	#SendChargerPacket		; Send packet to charger to set current
 								mov		#StatusFreq*4,&chargerTxTimer ; Set timer for 4 seconds
@@ -925,11 +925,11 @@ PIController:
 			add		Rerror,Routput			; Ki = 1
 
 			cmp		#0,Routput				; Clamp output between 0 and charger current limit
-			_IF		_L
+			_IF		L
 				mov		#0,Routput
 			_ELSE
 				cmp		&chargerCurrLim,Routput
-				_IF		_GE
+				_IF		GE
 					mov		&chargerCurrLim,Routput
 				_ENDIF
 			_ENDIF

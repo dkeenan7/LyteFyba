@@ -4,9 +4,9 @@
 ActLedOff	MACRO
 #if !G2553			// Activity LEDs are done in hardware on newer devices
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				bit.b	#ErrLed,&P2OUT		; Activity and error LEDs share an output.
-				_IF		_Z					; If the error LED is off
+				_IF		Z					; If the error LED is off
 					bic.b	#ErrLed,&P2DIR		; make output high-Z so activity LED goes off
 				_ENDIF							; without turning error LED on.
 			_ENDIF
@@ -18,7 +18,7 @@ ActLedOn	MACRO
 			; No provision for oscillating to light both LEDs yet.
 			; Error LED has priority.
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				bis.b	#ErrLed,&P2DIR		; Make it a proper output again
 			_ENDIF
 #endif
@@ -26,7 +26,7 @@ ActLedOn	MACRO
 
 ErrLedOff	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				bic.b	#ErrLed,&P2DIR		; Make output high-Z so activity LED will not come on
 				bic.b	#ErrLed,&P2OUT		; Turn off the error LED (so ActLedOff/On can tell)
 			_ENDIF
@@ -34,7 +34,7 @@ ErrLedOff	MACRO
 
 ErrLedOn	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				; No provision for oscillating to light both LEDs yet.
 				; Error LED has priority.
 				bis.b	#ErrLed,&P2DIR		; Make it a proper output
@@ -44,7 +44,7 @@ ErrLedOn	MACRO
 
 ErrLedToggle	MACRO
 			tst.b	&infoID
-			_IF		_NZ
+			_IF		NZ
 				xor.b	#ErrLed,&P2DIR		; Toggle high-Z-ness so activity LED will not come on
 				xor.b	#ErrLed,&P2OUT		; Toggle the error LED (so ActLedOff/On can tell)
 			_ENDIF
@@ -172,7 +172,7 @@ ClearWatchdog MACRO
 
 abs			MACRO	dest
 			cmp		#0,dest
-			_IF		_L
+			_IF		L
 				inv		dest
 				inc		dest
 			_ENDIF

@@ -10,10 +10,10 @@
 ;
 TxCksum:
 			bit.b		#bChecksumming,&interpFlags
-			_IF		_NZ
+			_IF		NZ
 				mov.b	&txCksum,R8
 				cmp.b	#$20,R8				; If the checksum would be a control character and therefore
-				_IF		_LO					; possibly confused with CR, BS, ESC, or BSL-password chars
+				_IF		LO					; possibly confused with CR, BS, ESC, or BSL-password chars
 					mov.b	#' ',R8				; then send a space character (no-op), which
 					call 	#TxByteCk			; also updates the checksum to a non-control character.
 					mov.b	&txCksum,R8 		; Reload the altered checksum.
@@ -37,13 +37,13 @@ TxEndOfPacket:
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxString: _DOb	@R10+,R11
+TxString: _FOR_B	@R10+,R11
 TxBytes:								; Alternative entry point with length in R11
 				push	R11
 				mov.b	@R10+,R8
 				call	#TxByte
 				pop		R11
-			_LOOPb	R11
+			_NEXT_DEC_B	R11
 			ret
 
 ;-------------------------------------------------------------------------------
@@ -53,12 +53,12 @@ TxBytes:								; Alternative entry point with length in R11
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxStringCk: _DOb	@R10+,R11
+TxStringCk: _FOR_B	@R10+,R11
 				push	R11
 				mov.b	@R10+,R8
 				call	#TxByteCk
 				pop		R11
-			_LOOPb	R11
+			_NEXT_DEC_B	R11
 			ret
 
 			EVEN

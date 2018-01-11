@@ -112,8 +112,8 @@ ThermCal	EQU	ramThermCal
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
 #include "../common/comMacros.h"			// Macros for obscure instruction sequences
 DELAY_IF_NEEDED MACRO
-			_DO		#1390,R11				; Delay for approx ...
-			_LOOP	R11						;	... 1.04 ms
+			_FOR		#1390,R11				; Delay for approx ...
+			_NEXT_DEC	R11						;	... 1.04 ms
 			ENDM							; Allows downstream CMU to echo a byte
 			LSTOUT+
 #include "../common/common.h"				// Definitions common to monitor, TestICal and BSL
@@ -125,14 +125,14 @@ DELAY_IF_NEEDED MACRO
 ; Use these macros to safely clear and set it.
 CLRLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			_IF		_NZ					; Currently locked?
+			_IF		NZ					; Currently locked?
 				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, unlock
 			_ENDIF
 			ENDM
 
 SETLOCKA	MACRO
 			BIT		#LOCKA,&FCTL3		; Test LOCKA
-			_IF		_Z					; Currently unlocked?
+			_IF		Z					; Currently unlocked?
 				MOV		#FWKEY+LOCKA,&FCTL3 ; Yes, lock
 			_ENDIF
 			ENDM
@@ -244,9 +244,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 InterpretInit:
 			ClearWatchdog					; Clear and enable Watchdog Timer 32k cyc. BSL sets 64 cyc.
 			; Clear all variables in RAM except resetBuffer and BMU's fuel gauge discharge accumulator
-			_DO		#TIB-comNoEraseEnd,R8
+			_FOR		#TIB-comNoEraseEnd,R8
 				clr		comNoEraseEnd-2(R8)
-			_mLOOP	#2,R8
+			_NEXT_DECD	R8
 
 #if	G2553
 			; Initialise the Timer to run the piezo
@@ -263,27 +263,27 @@ InterpretInit:
 ;
 #if !FAKE_NEW_CHIP
 			_CASE
-			;_OFb	#DATAVERS-1,&infoDataVers
+			;_OF_EQ_B	#DATAVERS-1,&infoDataVers
 				; Copy/translate stuff from previous version to RAM
 			;_ENDOF
 #if 1
-			_OFb	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
+			_OF_EQ_B	#DATAVERS,&infoDataVers		; Presently infoDataVers is diffrnt address when !G2553
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
+				_FOR		#infoDataEnd-infoDataStart,R8 ; Prepare to move ~8 bytes
 					mov.b	infoDataStart-1(R8),ramDataStart-1(R8) ; Move 1 byte
-				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 			_ENDOF
 #endif
-			_OFb	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
+			_OF_EQ_B	#DATAVERS,&oldInfoDataVers	; Check at the old address ($10FF)
 				; The RAM image has the same layout as current version data, so we use a block move
-				_DO		#infoDataEnd-infoVoltCal,R8 ; Prepare to move ~8 bytes
+				_FOR		#infoDataEnd-infoVoltCal,R8 ; Prepare to move ~8 bytes
 					mov.b	oldInfoDataStart-1(R8),ramVoltCal-1(R8) ; Move 1 byte
-				_LOOP	R8							; Decrement loop counter by 1, loop if non zero
+				_NEXT_DEC	R8							; Decrement loop counter by 1, loop if non zero
 				mov.w	#1800,&ramCapacity			; 180 amp-hours
 				mov.w	#740,&ramCellRes			; 740 micro-ohms
 				call	#_updateInfoFlash
 			_ENDOF
-			_OFb	#$FF,&infoDataVers
+			_OF_EQ_B	#$FF,&infoDataVers
 #endif
 				; If we find $FF at infoDataVers (an area of info-flash that we assume will be erased
 				; in new chips), then assume it's a new chip. If not a new chip, it will have the data
@@ -329,7 +329,7 @@ newChip:
 			mov.b	#TxPl,&P1OUT			; Set TxPl high (idle), all other outputs low.
 
 			cmp.b	#255,&ID				; If we're not a BMU
-			_IF		_NE
+			_IF		NE
 				mov.b	#VrefP|TxPl|TxMi|TouchV_Byp,&P1DIR ; Set VrefP, Tx bits, bypass as outputs
 			_ELSE							; Else
 				mov.b	#VrefP|TxPl|TxMi,&P1DIR ; Set VrefP, Tx bits as outputs
@@ -420,12 +420,12 @@ newChip:
 ; Trashes R12
 compareInfoFlash:
 			clr		R12					; Loop counter
-			_BEGIN
+			_REPEAT
 				cmp.b	infoDataStart(R12),ramDataStart(R12)
-				_WHILE	_EQ ; _Z
+				_WHILE	EQ ; Z
 					inc		R12
 					cmp		#infoDataEnd-infoDataStart,R12
-			_UNTIL	_EQ					; Loop until we get to infoDataEnd
+			_UNTIL	EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
@@ -436,11 +436,11 @@ compareInfoFlash:
 ; Trashes R12
 compareBSL2:
 			mov		#jBSL,R12
-			_BEGIN
+			_REPEAT
 				cmp.w	@R12,jBSLb-jBSL(R12)
-				_WHILE	_EQ ; _Z
+				_WHILE	EQ ; Z
 					incd	R12
-			_UNTIL	_Z					; Loop until R12 wraps from $FFFE to 0
+			_UNTIL	Z					; Loop until R12 wraps from $FFFE to 0
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
 			ret
@@ -458,19 +458,19 @@ ErrorFlash:
 			mov.b	#$81,&DCOCTL				;	so we can count the flashes
 			mov		rERR,R9
 			mov		#16,R10						; Bit loop counter
-			_BEGIN
+			_REPEAT
 				rra		R9						; LSB into carry
-				_IF		_C
+				_IF		C
 					ErrLedOn
 				_ELSE
 					ErrLedOff
 				_ENDIF
-				_DO		#8,R11					; 8 * 49 = 392 ms delay
-					_DO		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
-					_LOOP	R12
-				_LOOP	R11
+				_FOR		#8,R11					; 8 * 49 = 392 ms delay
+					_FOR		#0,R12				; 65536 * 3 / 4 MHz = 49 ms delay
+					_NEXT_DEC	R12
+				_NEXT_DEC	R11
 				dec		R10
-			_UNTIL	_Z							; Until 16 bits sent
+			_UNTIL	Z							; Until 16 bits sent
 			jmp		ErrorFlash					; Infinite loop
 
 ;-------------------------------------------------------------------------------

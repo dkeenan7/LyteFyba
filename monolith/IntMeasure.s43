@@ -19,7 +19,7 @@ MeasureSubIsr:
 			inc		R8						; (1)
 			and		#$F, R8					; (2)
 			mov.b	R8, &sampIndex			; (4)
-			_IF		_Z						; (2) If the sample index is now zero
+			_IF		Z						; (2) If the sample index is now zero
 				mov.b	&chanIndex, R8			; (3)
 				mov		&partialSum, rawMeasures(R8) ; (6) Save the sum as the channel's raw measurement
 				clr		&partialSum				; (4) Clear for next set of 16 conversions
@@ -125,7 +125,7 @@ linkV:
 ; Trashes: R8, R9, R11
 			mov.b		&LinkCal,R8		; Link offset calibration
 			cmp.b		#$80,R8			; $80 is a special value representing "calibration failure"
-			_IF			_EQ				; If link calibration value is $80
+			_IF			EQ				; If link calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
 				mov			&boltVMiRaw,R8
@@ -142,7 +142,7 @@ linkV:
 				mov.b		&LinkCal,R8		; Link offset calibration
 				sxt			R8				; Sign extend
 				sub			R8,R10
-				_IF			_NN
+				_IF			NN
 					mov			R10,R8
 					mov			#48001,R9
 					call		#UMStar

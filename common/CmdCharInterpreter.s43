@@ -175,7 +175,7 @@ DoUNDEF ; Attempt to interpret undefined command characters as hex/decimal digit
         sub.b	#'0',Rw		; '0'-'9','A'-'F' -> $0-$9,$11-$16
 		jn		NotDigit	; Ignore undefined characters below '0'
 		cmp.b	#$0A,Rw
-		_IF		_GE
+		_IF		GE
 			cmp.b	#$17,Rw
 			jge		NotDigit ; Ignore undefined characters above 'F'
 			cmp.b	#$11,Rw
@@ -195,7 +195,7 @@ DatMor4 rla		Rlit		;	Multiply the partial operand by 16 or 10
 		rla		Rlit		;	4*Rlit
 		rla		Rlit		;	8*Rlit
 		bit		#1<<14,SR	; Test the hex flag
-		_IF		_Z			; If decimal
+		_IF		Z			; If decimal
 			add		R9,Rlit	;	10*Rlit
 		_ELSE				; Else hex
 			rla		Rlit	;	16*Rlit
@@ -218,29 +218,29 @@ ACCEPT:
 		mov		&ToIN,R9
 		_CASE
 
-		_OFb	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
+		_OF_EQ_B	#$0A,R8			; Throw away any line feeds (after carriage returns from modbus)
 		_ENDOF
 
-		_OFb	#$0D,R8			; Carriage return = end of packet
+		_OF_EQ_B	#$0D,R8			; Carriage return = end of packet
 			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
 				bit.b	#bEchoResponses,&interpFlags
 				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
-				_IF		_NZ				; If echoing responses
+				_IF		NZ				; If echoing responses
 					mov.b	&TIB,R8				; Get first char of text input buffer
 					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Wunth resp.
-					_IF		_NZ					; Otherwise,
+					_IF		NZ					; Otherwise,
 						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
-						_IF		_EQ
+						_IF		EQ
 							cmp		#TIB+13,R9			; Is the CR  at position 13?
-							_IF		_EQ					; If so, it's a Modbus response
+							_IF		EQ					; If so, it's a Modbus response
 								clr		R8					; Clear boolean R8 if so
 							_ENDIF
 						_ENDIF
 					_ENDIF
 					tst		R8						; Test our condition flag
-					_IF		_Z						; Zero indicates a response to be echoed
+					_IF		Z						; Zero indicates a response to be echoed
 						; Echo the response
 						push	R9
 						push	R10
@@ -250,7 +250,7 @@ ACCEPT:
 						sub		#TIB-1,R11			; R11 has length including CR
 						call	#TxBytes			; Send the response packet (ptr R10 length R11)
 						cmp.b	#':',&TIB			; If it started with a colon (modbus)
-						_IF		_EQ
+						_IF		EQ
 							mov.b	#$0A,R8				; Send a line-feed
 							call	#TxByte
 						_ENDIF
@@ -260,14 +260,14 @@ ACCEPT:
 					_ENDIF					; Endif copying this response
 				_ENDIF					; Endif bEchoResponses
 				bit.b	#bChecksumming,&interpFlags
-				_IF		_NZ				; If checksumming
+				_IF		NZ				; If checksumming
 					cmp.b	#':',&TIB
-					_IF		_NE				; And if not a modbus packet (starts with colon)
+					_IF		NE				; And if not a modbus packet (starts with colon)
 						tst.b	&rxCksum
-						_IF		_Z				; And if good checksum
+						_IF		Z				; And if good checksum
 							dec		R9				; Prepare to overwrite checksum with EXIT command char
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
-							_IF		_LO
+							_IF		LO
 								mov		#TIB,R9
 							_ENDIF
 					_END_PRIOR_IF			; End if not modbus
@@ -275,7 +275,7 @@ ACCEPT:
 							; We get here when not-checksumming or a modbus packet or a good checksum
 							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
 							bit.b	#bDontInterpret,&interpFlags
-							_IF		_Z				; If the dont-interpret flag is clear
+							_IF		Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
 								call	#_ENTER
 								bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
@@ -286,36 +286,36 @@ ACCEPT:
 			clr.b	&rxCksum		; Clear the packet checksum
 		_ENDOF					; End of carriage return
 
-		_OFb	#$08,R8			; Backspace editing
+		_OF_EQ_B	#$08,R8			; Backspace editing
 			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
 				cmp		#TIB,R9			; don't go back past start of packet
-				_IF		_LO
+				_IF		LO
 					mov		#TIB,R9
 				_ENDIF
 				mov		R9,&ToIN
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OFb	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
+		_OF_EQ_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
 			bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 		_ENDOF					; EndOf XON
 
-		_OFb	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
+		_OF_EQ_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&interpFlags
-			_IF		_Z				; If the dont-interpret flag is clear
+			_IF		Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OFb	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
+		_OF_EQ_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
 		; Default case, if not CR, BS, XON, XOFF or ESC
 			cmp		#TIBEnd,R9
-			_IF		_LO				; If packet buffer not full
+			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
 				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum

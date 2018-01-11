@@ -99,7 +99,7 @@ TxByteNWUartMacro	MACRO	TxSz, txBuf, txRd, txWr
 			inc.b	R9						; Increment a copy of the write index
 			and.b	#TxSz-1,R9				;	modulo the queue size
 			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
-			_IF		_NE
+			_IF		NE
 				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 				bis.b	#UCA0TXIE,&IE2		; Enable transmit interrupts
 				clrz						; Indicate char was accepted
@@ -119,13 +119,13 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 			inc.b	R9						; Increment a copy of the write index
 			and.b	#TxSz-1,R9				;	modulo the queue size
 			cmp.b	&txRd,R9				; If wr+1 mod sz = rd then it's full
-			_IF		_NE
+			_IF		NE
 				mov.b	R9,&txWr			; Increment write index so char is officially in tx queue
 
 				; If transmit interrupts are disabled, set up the timer for a new start bit
 				; and enable transmit compare interrupts.
 				bit		#CCIE,&CCTLt		; Test transmit interrupts enabled bit
-				_IF		_Z					; If transmit interrupts disabled
+				_IF		Z					; If transmit interrupts disabled
 #if !G2553
 					mov.b	#8,&USICNT			; Load USI counter to keep USIIFG clear so TxPl (SCLK)
 												;   will continue to be an inversion of TxMi (TAx.0).
@@ -143,9 +143,9 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					add		&TAR,R9				; R9 := timer value + setup time
 					_COND						; Start short circuit conditional
 						bit		#CCIFG,&CCTLt	; (5) Test transmit compare interrupt flag
-					_OR_ELSE	_NZ				; (2) If previous stop bit has not completed Or Else
+					_OR_ELSE	NZ				; (2) If previous stop bit has not completed Or Else
 						cmp		&CCRt,R9		; (4) Test (TAR+setup) - CCRt
-					_OR_IFS		_NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
+					_OR_IFS		NN				; (2) Or If existing CCRt AFTER TAR+setup, keep CCRt
 						mov		R9,&CCRt			; (4) Set the new compare value for the start-bit
 					_ENDIF						; Endif existing CCRt is AFTER TAR+setup
 					eint						; (1) Next instruction still protected
@@ -175,7 +175,7 @@ TxByteNoWait:		TxByteNWTimerMacro	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd,
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	TxByteNoWait
-			_BEGIN
+			_REPEAT
 
 				ClearWatchdog
 
@@ -185,7 +185,7 @@ TxByteMacro	MACRO	TxByteNoWait
 				call	#ScuTxByteNoWait
 				call	#ChgTxByteNoWait
 #endif
-			_UNTIL	_NZ
+			_UNTIL	NZ
 			ret
 			ENDM
 
@@ -221,17 +221,17 @@ TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulat
 ;
 WaitTxComplete:
 #if G2553
-			_BEGIN						; Begin loop
+			_REPEAT						; Begin loop
 				ClearWatchdog
 				mov.b	&ScuCCTLt,R8
 				bis.b	&ChgCCTLt,R8	; or.b
 				and.b	#CCIE,R8		; Test the transmit interrupts enabled bits
-			_UNTIL	_Z					; Until it is cleared
+			_UNTIL	Z					; Until it is cleared
 #else
-			_BEGIN						; Begin loop
+			_REPEAT						; Begin loop
 				ClearWatchdog
 				bit		#CCIE,&CCTLt		; Test the transmit interrupts enabled bit
-			_UNTIL	_Z					; Until it is cleared
+			_UNTIL	Z					; Until it is cleared
 #endif
 			ret
 
@@ -253,7 +253,7 @@ TxIsrUartMacro	MACRO	TxSz, txBuf, txRd, txWr
 			and.b 	#TxSz-1,R9				;	modulo the queue size.
 			mov.b 	R9,&txRd				; Update the read index
 			cmp.b 	&txWr,&txRd				; Test if TX queue is empty
-			_IF		_EQ						; If TX queue is empty
+			_IF		EQ						; If TX queue is empty
 				bic.b	#UCA0TXIE,&IE2		; Disable Tx interrupts
 				nop							; Wait because the above doesn't take effect immediately
 			_ENDIF							; Endif TX queue is not empty
@@ -285,10 +285,10 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 											; (6) cycles for interrupt accepted
 			add.w	&txBitTime,&CCRt		; (6) Set timer compare reg for when next transition is due
 			dec.b	&bitCntTx				; (4) Decrement bit counter
-			_IF		_NZ						; (2) If not Stop bit initiated
+			_IF		NZ						; (2) If not Stop bit initiated
 
 				cmp.b	#9,&bitCntTx			; (5) Test if start bit just started
-				_IF		_EQ						; (2) If start bit just started
+				_IF		EQ						; (2) If start bit just started
 					push	R9
 					mov.b 	&txRd,R9				; Get read index in R9
 					mov.b	txBuf(R9),&txData		; Get next char from queue into txData
@@ -302,14 +302,14 @@ TxIsrTimerMacro	MACRO	CCRt, CCTLt, txData, bitCntTx, txBitTime, TxSz, txBuf, txR
 				_ENDIF							; Endif start bit just started
 				rra.w	&txData					; (1) Next bit to C. NOTE: upper byte remains $FF always
 												; so stop and idle bits are always treated like data 1s
-				_IF		_NC						; (2) If bit is 0
+				_IF		NC						; (2) If bit is 0
 					mov		#OUTMOD_1+CCIE,&CCTLt ; (5) then set TxMi = TAx.0 output high
 				_ELSE							; (2) Else bit is 1
 					mov		#OUTMOD_5+CCIE,&CCTLt	; (5) Else clear TxMi = TAx.0 output low
 				_ENDIF							; Endif bit is 1
 			_ELSE							; Else Stop bit initiated
 				cmp.b 	&txWr,&txRd				; Test if Tx queue is empty
-				_IF		_EQ						; If Tx queue is empty
+				_IF		EQ						; If Tx queue is empty
 					bic.w	#CCIE,&CCTLt			; (5) Disable Tx interrupts
 					ActLedOff						; (5) Turn off activity LED at end of the transmit
 				_ELSE							; Else Tx queue is not empty
@@ -346,7 +346,7 @@ RxIsrUartMacro	MACRO	rxBuf, rxRd, rxWr, RxSz
 		inc.b	R9						; Increment a copy of the write index
 		and.b	#RxSz-1,R9				;  modulo the queue size
 		cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-		_IF		_NE						; If queue not full
+		_IF		NE						; If queue not full
 			mov.b	R9,&rxWr				; Update write index so char is properly in queue
 			bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 		_ENDIF							; Endif queue not full
@@ -388,14 +388,14 @@ TiovSubIsr:
 ;
 RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
 			bit		#CAP,&CCTLr				; (5) Capture mode = start bit edge
-			_IF		_NZ						; (2) If start bit edge
+			_IF		NZ						; (2) If start bit edge
 				bic		#CAP,&CCTLr				; (5) Switch to compare mode
 				add		#BitTime96/2,&CCRr		; (5) First databit 1.5 bits from edge
 			_ELSE							; (2) Else data bit sampled
 				bit		#SCCI,&CCTLr			; (4) Sampled bit to carry
 				rrc.b	&rxData					; (4) Store received bit
 				dec.b	&bitCntRx				; (4) All bits RXed?
-				_IF		_Z						; (2) If this is the last data bit
+				_IF		Z						; (2) If this is the last data bit
 					mov.b	#8,&bitCntRx			; Setup bit counter for next byte
 					bis		#CAP,&CCTLr				; Set back to capture mode
 
@@ -407,7 +407,7 @@ RxSubIsr:		add		#BitTime96,&CCRr		; (5) Time to next bit
 					inc.b	R9						; Increment a copy of the write index
 					and.b	#RxSz-1,R9				;  modulo the queue size
 					cmp.b	&rxRd,R9				; If wr+1 mod sz = rd then it's full
-					_IF		_NE						; If queue not full
+					_IF		NE						; If queue not full
 						mov.b	R9,&rxWr				; Update write index so char is properly in queue
 WakeExit				bic		#CPUOFF,2(SP)			; When return, wake CPU. 2(SP) due to saved R9
 					_ENDIF							; Endif queue not full
@@ -452,7 +452,7 @@ RxTiovIsr:		RxTiovIsrTimerMacro	TAIV, CCRt, CCRr, CCTLr, MeasCCR0, MeasCCRp, rxD
 RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 			mov.b 	&rxRd,R9			; Get the read index into R9
 			cmp.b 	&rxWr,R9			; Equal if queue empty
-			_IF		_NE
+			_IF		NE
 				mov.b	rxBuf(R9),R8	; Read char from queue
 				inc.b 	R9				; Increment the read index
 				and.b 	#RxSz-1,R9		;	modulo the queue size
@@ -465,7 +465,7 @@ RxByteNWMacro	MACRO	RxSz, rxBuf, rxRd, rxWr
 	; Note that the CMU routines have no prefix while the others have "Scu" and "Chg".
 RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 	#if ALL_TO_ALL
-				_IF		_NZ
+				_IF		NZ
 					ret
 				_ENDIF
 	#else
@@ -473,7 +473,7 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 	#endif
 ScuRxByteNW:	RxByteNWMacro	ScuRxSz, scuRxBuf, scuRxRd, scuRxWr
 	#if ALL_TO_ALL
-				_IF		_NZ
+				_IF		NZ
 					ret
 				_ENDIF
 	#else
@@ -490,9 +490,9 @@ RxByteNoWait:	RxByteNWMacro	RxSz, rxBuf, rxRd, rxWr
 ; Trashes R9
 RxByte:
 				mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-				_BEGIN
+				_REPEAT
 					call	#RxByteNoWait		; Check for a received byte
-				_UNTIL	_NZ					; Repeat until received
+				_UNTIL	NZ					; Repeat until received
 				mov.w	#WDTPW+WDTCNTCL,&WDTCTL ; Clear and enable the Watchdog Timer
 				ret
 
@@ -508,29 +508,29 @@ DoPassword:
 			dec.b	&passWordState
 			; Check for a continuing password match
 			mov.b	&passWordState,R9	; Passwords are $05 $04 $03 $02/01
-			_IF		_NZ					; If not the final state
+			_IF		NZ					; If not the final state
 				add.b	#2,R9				; Expected password char equals &passWordState with 2 added
 				cmp.b	R9,R8				; Check for a match
-				_IF		_NE					; If not a match,
+				_IF		NE					; If not a match,
 					mov.b	#4,&passWordState	; then reset FSM
 				_ENDIF
 			_ELSE						; Else it's state zero, final char
 				; No matter what happens now, we want to begin a new password match after we return
 				mov.b	#4,&passWordState	; Reset FSM
 				_CASE
-				_OFb	#1,R8				; If matched 05 04 03 already, now 01 (trunk password)
+				_OF_EQ_B	#1,R8				; If matched 05 04 03 already, now 01 (trunk password)
 					; Start a fake download, reading and discarding a complete download worth of bytes
 					; Note that merely exiting will not ignore them
 					push	R10					; Don't trash R10
-					_DO		#TRUNK_BSL2_ST-TRUNK_PROG_ST,R10 ; Set count of bytes to ignore
+					_FOR		#TRUNK_BSL2_ST-TRUNK_PROG_ST,R10 ; Set count of bytes to ignore
 						call	#RxByte					; Check for a received byte
 						call	#TxByte					; Echo byte to later CMUs also ignoring
-					_LOOP 	R10
+					_NEXT_DEC 	R10
 					pop		R10
 					; The last byte read could look like a command char. Clear it so that it will be
 					clr		R8					;	ignored by ACCEPT
 				_ENDOF						; end fake download case
-				_OFb	#2,R8				; If matched complete real download pwd 05 04 03 02
+				_OF_EQ_B	#2,R8				; If matched complete real download pwd 05 04 03 02
 					; Start a real download
 					; Jump to the code in the BSL which will erase main flash memory and wait for bytes
 					;	 to flash program without using interrupts.
@@ -583,10 +583,10 @@ Halt:
 		; This will require the red button to be pushed to remove power from the BMU
 		; to reset it. After which, releasing the red may be sufficient to restart,
 		; or you may also have to push the green.
-		_BEGIN
+		_REPEAT
 			ClearWatchdog
 			call	#RxByteNoWait			; Check for BSL password
-			_IF		_NZ						; Don't process none received as if they are nulls
+			_IF		NZ						; Don't process none received as if they are nulls
 				call	#DoPassword			;	(bad between password chars)
 			_ENDIF
 		_AGAIN								; Endless loop

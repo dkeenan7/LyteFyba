@@ -7,18 +7,18 @@
 #if		G2553							; The master "task" is only possible in a BMU running a G2553
 AccMaster
 		cmp.b	#$0D,R8				; Carriage return?
-		_IF		_EQ
+		_IF		EQ
 			; No longer blocked, and if we unblocked via a timeout but didn't have anything to inject,
 			;	then forget about the timeout (CR no longer required for next injection)
 			bic.b	#bBlocked | bTimeout,&masterFlags
 		_ELSE
 			bit.b	#bBlocked,&masterFlags
-			_IF		_Z						; Presently not blocked. A non null non linefeed will block
+			_IF		Z						; Presently not blocked. A non null non linefeed will block
 				_COND
 					tst.b	R8				; Not null? (Indicates no char received)
-				_AND_IF		_NZ
+				_AND_IF		NZ
 					cmp.b	#$0A,R8			; And not linefeed?
-				_AND_IF	_NE
+				_AND_IF	NE
 					bis.b	#bBlocked,&masterFlags	; We're now blocked
 					mov.b	&ticks,R9				; Get the medium speed counter
 					add.b	#2*StatusFreq,R9		; ~ two second later. Check what can be tolerated!
@@ -27,7 +27,7 @@ AccMaster
 			_ELSE						; Presently blocked. A carriage return will unblock
 				; Presently blocked. Check for timeout, with care for wrapping
 				cmp.b		&masterUnblockTicks,&ticks
-				_IF _NN						; If ticks minus masterUnblockTicks is not negative
+				_IF NN						; If ticks minus masterUnblockTicks is not negative
 					bic.b	#bBlocked,&masterFlags ; then unblock anyway
 					bis.b	#bTimeout,&masterFlags ; remember we forced an unblock
 				_ENDIF
@@ -36,14 +36,14 @@ AccMaster
 
 		bit.b	#bBlocked,&masterFlags
 		; Warning: the below branch is ~15 words away from overflow. If necessary, branch around a ret
-		_IF		_Z						; Now not blocked. Can inject commands as needed
+		_IF		Z						; Now not blocked. Can inject commands as needed
 			push	&TxBytePtr				; Save current destination for TxByte
 			mov		#CmuTxByte,&TxBytePtr	; Switch to CMU output
 			_COND
 				bit.b	#bTimeout,&masterFlags	; If we recently unblocked via a timeout,
-			_AND_IF	_NZ
+			_AND_IF	NZ
 				bit.b	#bSendZ | bSendi | bSendInit, &masterFlags		; And we have anything to send,
-			_AND_IF	_NZ
+			_AND_IF	NZ
 				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
 												; reset checksums (at receivers)
 				call	#TxByte
@@ -51,7 +51,7 @@ AccMaster
 				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
 			_ENDIFS
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
-			_IF		_NZ
+			_IF		NZ
 				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
 				call	#TxStringCk
 				ClearWatchdog
@@ -71,7 +71,7 @@ AccMaster
 			_ENDIF
 
 			bit.b	#bSendi,&masterFlags			; Is an 'i' command due?
-			_IF		_NZ
+			_IF		NZ
 				; For the BMU in the Kingscliff DCM, the so-called link-voltage is really shunt current
 				; in half amps.
 				; This was multiplied by 5 and copied to the variable &current (so tenths of an amp)
@@ -83,7 +83,7 @@ AccMaster
 				call	#_emitNum4				; Transmit the number with 4 digit field width
 				ClearWatchdog
 				cmp		#0,&current
-				_IF		_L						; If current is negative (discharge)
+				_IF		L						; If current is negative (discharge)
 					mov		#'-',R8					; Transmit a postfix minus sign
 					call	#TxByteCk
 				_ENDIF
@@ -94,7 +94,7 @@ AccMaster
 			_ENDIF							; End if 'i' command was due
 
 			bit.b	#bSendInit,&masterFlags
-			_IF		_NZ
+			_IF		NZ
 				; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
 				; then retrieve the high word of the discharge accumulator from CMU 1
 				; The below can't be replaced by a single 9-byte string.

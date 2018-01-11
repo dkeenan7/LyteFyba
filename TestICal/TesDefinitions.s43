@@ -42,12 +42,12 @@ sizeCalAddressTable	EQU	$-calAddressTable
 TranslateToCalAddr:
 		; Do the calibration address translations using the table above
 		mov		#sizeCalAddressTable,R9 ; Initialise the loop counter and table index
-		_BEGIN				; Begin loop
+		_REPEAT				; Begin loop
 			mov.w	calAddressTable-2(R9),R10 ; Get two bytes from the table
 			cmp.b	R10,Rtos	; Compare the address character with the low byte from the table
-			_WHILE	_NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
+			_WHILE	NE			; While no match [ _WHILE xx = _IF xx  _CS_SWAP ]
 				decd	R9			; Decrement loop-counter/table-index by 2
-		_UNTIL	_Z			; Until loop counter is zero
+		_UNTIL	Z			; Until loop counter is zero
 		clr		Rtos		; Finished loop with no match so set result to zero for "unrecognised"
 			_ELSE				; Else there is a match so
 				swpb	R10			; Get the high byte from the table
@@ -61,7 +61,7 @@ TranslateToCalAddr:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
-			_OFb	#'v',Rtos			; 'v': cell Voltage
+			_OF_EQ_B	#'v',Rtos			; 'v': cell Voltage
 				mov		#CellVChan<<12,R8		; ADC channel for scaled cell voltage input
 				call	#measure
 ; The calibration scale factor will be the expected value divided by the reading.
@@ -81,7 +81,7 @@ TranslateToCalAddr:
 				mov.w	R9,&ramVoltCal				; Save calibration value
 			_ENDOF
 
-			_OFb	#'t',Rtos			; 't': temperature
+			_OF_EQ_B	#'t',Rtos			; 't': temperature
 ;
 ; Temperature offset calibration
 ; M = 4092/1.5 * (.00355 T + typ0.986)
@@ -105,7 +105,7 @@ TranslateToCalAddr:
 				mov.b	R10,&ramTempCal				; Save temperature offset calibration value
 			_ENDOF
 
-			_OFb		#'l',Rtos				; 'l': link voltage
+			_OF_EQ_B		#'l',Rtos				; 'l': link voltage
 				mov		#BoltVMiChan<<12,R8
 				call	#measAndScale
 				sub		#2046,R10					; Zero volts for link voltage is a 2046 reading
@@ -121,7 +121,7 @@ realCal
 				mov.b	R10,&ramLinkCal				; Save the link calibration value
 			_ENDOF
 #ifdef	KINGSCLIFF_DCM
-			_OFb	#'H',Rtos					; 'H': tHermistor (or Hotness)
+			_OF_EQ_B	#'H',Rtos					; 'H': tHermistor (or Hotness)
 				; A resistor network gives it a similar slope to the internal temp sensor,
 				; as described in the comments for the extT routine in measure.s43.
 				mov		#BoltVPlChan<<12,R8			; ADC channel for external thermistor
@@ -155,8 +155,8 @@ realCal
 			bic.b	#$80,Rsec
 			bis		#$200,Rsec
 			tst.b	Rtos
-			_IF		_NZ						; If not zero (zero means "unrecognised")
-				_IF		_NN						; If high bit set
+			_IF		NZ						; If not zero (zero means "unrecognised")
+				_IF		NN						; If high bit set
 					mov		#3,Rtos					; Display 3 digits
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit clear so
@@ -200,14 +200,14 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			bic.b	#$80,R9
 			bis		#$200,R9
 			tst.b	Rtos
-			_IF		_NZ						; If not zero for "unrecognised"
-				_IF		_NN						; If high bit set
+			_IF		NZ						; If not zero for "unrecognised"
+				_IF		NN						; If high bit set
 					mov.b	Rsec,0(R9)				; Set byte sized cal value
 				_ELSE							; Else high bit clear so
 					mov.w	Rsec,0(R9)				; Set word sized cal value
 				_ENDIF							; Endif high bit
 				cmp	#ram8MHzCalD,R9
-				_IF		_EQ
+				_IF		EQ
 					mov.b	@R9+,&DCOCTL
 					mov.b	@R9,&BCSCTL1
 				_ENDIF
@@ -224,7 +224,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			; and followed by <cr> XON (ctrl-Q), it sets consecutive IDs in consecutive CMUs
 			; and responds with the ID _after_ the last ID.
 			bit.b	#bDontEcho,&interpFlags
-			_IF		_NZ					; If the dont-echo flag is set
+			_IF		NZ					; If the dont-echo flag is set
 				; Save our new ID to RAM
 				mov.b	Rtos,&ramID
 
@@ -264,11 +264,11 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 
 			clr		R12						; Loop counter
-			_BEGIN
+			_REPEAT
 				mov.b	ramDataStart(R12),infoDataStart(R12)	; Write a byte to info-flash
 				inc		R12
 				cmp		#ramDataEnd-ramDataStart,R12
-			_UNTIL	_EQ						; Loop until ramDataEnd
+			_UNTIL	EQ						; Loop until ramDataEnd
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3		; Set LOCK
@@ -277,7 +277,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			; Check that the flash programming worked
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
-			_IF    _NE
+			_IF    NE
 				mov		#b'01010000,rERR		; 2 flashes
 				call	#ErrorFlash				; Infinite loop, never returns
 			_ENDIF
@@ -290,7 +290,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 
 			; Avoid an infinite loop if there is a 'b' command in the INIT_CMD_STRING.
 			call	#compareBSL2			; Compare the payload copy with the existing BSL2
-			_IF		_EQ						; If it's already the same
+			_IF		EQ						; If it's already the same
 				ret								; Return without doing anything
 			_ENDIF							; Endif
 
@@ -304,18 +304,18 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			; Erase last segment of main flash (usually contains BSL2).
 			mov		#jBSL,R12				; Start of BSL2 image, $FE00 or $FC00 or ...
 			mov		#FWKEY,&FCTL3			; Clear LOCK, don't toggle LOCKA
-			_BEGIN
+			_REPEAT
 				mov		#FWKEY+ERASE,&FCTL1		; Enable single segment erase
 				rra		@R12					; Dummy write: erase segment
 				add		#512,R12				; Next block
-			_UNTIL	_NN
+			_UNTIL	NN
 
 			mov		#FWKEY+WRT,&FCTL1		; Enable write (can leave on; only write block that can't)
 			mov		#jBSL,R12				; Start of BSL2 image
-			_BEGIN
+			_REPEAT
 				mov		jBSLb-jBSL(R12),0(R12)		; Program word
 				incd	R12
-			_UNTIL	_NN						; Will wrap to 0 after writing last word
+			_UNTIL	NN						; Will wrap to 0 after writing last word
 
 			mov		#FWKEY,&FCTL1			; Done. Clear WRT
 			mov		#FWKEY+LOCK,&FCTL3 		; Set LOCK
@@ -323,7 +323,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 			; Check that the flash programming worked
 			;
 			call	#compareBSL2			; Compare the payload copy with what's at $FC00
-			_IF		_EQ						; If it was successful
+			_IF		EQ						; If it was successful
 				br		#jBSL					; Start the new BSL. Effectively a software reset.
 			_ELSE							; Else
 				mov	#b'01010100,rERR			; 3 flashes
@@ -345,7 +345,7 @@ emitQmark:		mov		#'?',Rtos				; Question mark should be ignored by downstream CM
 ;
 		xCODE	'p',ParallelPullDown,_ParallelPullDown
 		tst			Rtos
-		_IF			_Z
+		_IF			Z
 			bis.b	#1<<4,&ADC10AE0		; Set bit 4 in analog enable register.
 			bis		#REFOUT,&ADC10CTL0	; Set the REFOUT bit in analog ctl0 reg
 		_ELSE

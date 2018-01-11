@@ -40,7 +40,7 @@
 			xCODE	'o',ChargerControl,_ChargerControl
 			mov		Rtos,&chargerVoltMax		; Set the maximum charger voltage
 			tst		Rtos
-			_IF		_Z							; If the maximum is zero
+			_IF		Z							; If the maximum is zero
 				bic.b	#bChargerControl,&monFlags	; Clear the bChargerControl bit in monFlags
 			_ELSE
 				bis.b	#bChargerControl,&monFlags	; Set the bChargerControl bit in monFlags
@@ -79,7 +79,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
 			mov		#'p',Rthd				; Type is stress
 			cmp.b	#255,&ID
-			_IF		_EQ						; If BMU
+			_IF		EQ						; If BMU
 				mov.b	&globalStatus,Rsec		; Get global status
 			_ELSE
 				mov.b	&localStatus,Rsec		; Get local status
@@ -93,7 +93,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 ; Query worst stress ( minStressToShow -- )
 			xCODE	'q',queryWorstStress,_queryWorstStress
 			cmp.b	Rtos,&worstStress
-			_IF		_LO
+			_IF		LO
 				ret
 			_ENDIF
 			push.b	&interpFlags				; Save present number base
@@ -197,20 +197,20 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#cellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
@@ -219,7 +219,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		_ENDCASE
 
 		cmp		Rtos,R10			; Find min of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new min, update ID
 		_ENDIF
@@ -262,20 +262,20 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		; relevant local value. The second parameter tells which type of local value, voltage or temp.
 		; The first parameter gives the ID of the cell having the max value.
  		_CASE
-			_OF #'v',Rsec
+			_OF_EQ #'v',Rsec
 				call	#cellV			; Get cell voltage in millivolts in R10
 				push	#4				; Save the field width, 4 digits
 			_ENDOF
-			_OF #'t',Rsec
+			_OF_EQ #'t',Rsec
 				call	#temp			; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'p',Rsec
+			_OF_EQ #'p',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#$0F,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF #'q',Rsec
+			_OF_EQ #'q',Rsec
 				mov.b	&worstStress,R10 ; Get stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
@@ -284,7 +284,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		_ENDCASE
 
 		cmp		R10,Rtos			; Find max of parameter and local value
-		_IF		_L
+		_IF		L
 			mov		R10,Rtos
 			mov.b	&ID,Rthd			; If new max, update ID
 		_ENDIF
@@ -320,7 +320,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; setPainThresholds  ( setpoint step type -- ) // Standard setting is 3490 20'VP. 76% charge 3353 3'VP
 		xCODE	'P',setPainThresholds,_setPainThresholds	; Set stress-level thresholds
  		_CASE
-			_OF #'V',Rtos				; Set overvoltage zero and step
+			_OF_EQ #'V',Rtos				; Set overvoltage zero and step
 				mov		Rsec,&ovStep	; ovStep = Rsec
 				add		Rsec,Rthd		; ovZero = Rthd - 7 * Rsec
 				rla3	Rsec
@@ -334,7 +334,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; Current (tenths-of-an-amp -- ) // Sent by BMU to CMUs
 		xCODE	'i',Current,_Current
 		cmp.b	#255,&ID
-		_IF	_NE							; If we're not a BMU
+		_IF	NE							; If we're not a BMU
 			mov		Rtos,&current			; Set the current
 		_ENDIF
 		clr.b	&ticksSinceLastI		; Zero ticks since last 'i' command
@@ -379,12 +379,12 @@ SelectIMU	DB	4, '255s'				; First byte is length of following string
 #else
 		cmp.b	#0,&ID
 #endif
-		_IF		_EQ					; BMUs and IMUs only
+		_IF		EQ					; BMUs and IMUs only
 			call	#DepthOfDischarge		; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'f',Rthd				; Type is fuel gauge (state of charge)
 			mov		#1000,Rsec				; 100% - DOD = SOC
 			sub		R9,Rsec					; SOC in tenths of a percent
-			_IF		_N						; If result is negative,
+			_IF		N						; If result is negative,
 				clr		Rsec					; then saturate at zero
 			_ENDIF
 			mov		#4,Rtos					; Use 4 digits

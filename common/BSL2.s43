@@ -61,7 +61,7 @@ BSL:		; Initialisation
 			; in which case it would lead to endlessly circulating breaks.
 
 			cmp.b	#255,&infoID
-			_IF		_NE				; If we're not a BMU
+			_IF		NE				; If we're not a BMU
 				; Send a 27 ms break
 					mov.b	#$FF,R10		; Bit count 256 (terminates at -1)
 					clr		R9				; Bit values (all zeros so it's a break)
@@ -89,22 +89,22 @@ mainLoop2:
 #if 1	// Set to 1 only when JTAG debugging
 	#message "Warning: BSL2 is set to ignore non-watchdog abnormal resets."
 			bit.b	#WDTIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
-			_IF		_Z				; If a non-watchdog abnormal reset (which may only be a JTAG reset)
+			_IF		Z				; If a non-watchdog abnormal reset (which may only be a JTAG reset)
 				mov.b	#RSTIFG,&IFG1	; Fake a /RST pin reset for the code below
 			_ENDIF
 #endif
 			_COND					; Begin a short-circuit conditional
 				cmp.b	#PORIFG,&IFG1	; Test for Vcc power-up or /RST pin pulsed low
 				clr.b	&IFG1			; Clear those bits ready for next time
-			_OR_ELSE	_L			; If Vcc power-up or /RST pin pulsed low Or Else
+			_OR_ELSE	L			; If Vcc power-up or /RST pin pulsed low Or Else
 				cmp.b	#$AA,&ProgPresence ; Test for presence of main program.
-			_OR_IFS		_NE			; Or If no main program
+			_OR_IFS		NE			; Or If no main program
 				mov.b	#WDTIFG,&IFG1	; Set watchdog int flag to indicate not to call jInterpretByte
 			_ENDIF					; End short circuit conditional
 
 			; Initialise main program, if allowed
 			bit.b	#WDTIFG, &IFG1
-			_IF		_Z
+			_IF		Z
 				call	#jInterpretInit
 			_ENDIF
 
@@ -180,9 +180,9 @@ progByte2	mov.b	R8,0(R12)		; Program it (takes 90 microseconds)
 ; Call jInterpretByte, if it's safe to do so.
 TestNoInterp2:
 			bit.b	#WDTIFG,&IFG1	; Test no-interpret bit, due to watchdog, cksum error or programming
-			_IF		_Z				; If we're interpreting
+			_IF		Z				; If we're interpreting
 				tst.b	R8
-				_IF		_L				; If data is a status byte (bit 7 set)
+				_IF		L				; If data is a status byte (bit 7 set)
 					mov.b	#$C1,R8			; Send status with comms error bit and bad check bit
 											; $C1 to identify TestICal here, $C0 for BSL2 below
 				_ENDIF
@@ -190,9 +190,9 @@ TestNoInterp2:
 				; Echo the character if required
 				_COND							; Begin short circuit conditional
 					cmp.b		#$11,R8
-				_OR_ELSE	_EQ					; If it's an XON (ctrl-Q) character Or Else
+				_OR_ELSE	EQ					; If it's an XON (ctrl-Q) character Or Else
 					bit.b	#bDontEcho,&interpFlags
-				_OR_IFS		_Z					; Or If the dont-echo flag is clear
+				_OR_IFS		Z					; Or If the dont-echo flag is clear
 					call	#WriteByte-jBSL+BSL2_START	; Echo. Call address adjusted for relocation
 				_ENDIF
 
@@ -211,10 +211,10 @@ TestNoInterp2:
 				; and set the comms error bit and a bad check bit on any passing status bytes,
 				; since we are not calling the main program.
 				cmp		#1,&bsl2state
-				_IF		_GE				; If we're not programming (greater or equal to 1)
+				_IF		GE				; If we're not programming (greater or equal to 1)
 					ErrLedToggle
 					tst.b	R8				; Test the character
-					_IF		_L				; If the character is a status byte (bit 7 set)
+					_IF		L				; If the character is a status byte (bit 7 set)
 						mov.b	#$C0,R8			; Send status with comms error and bad check bit, $C0
 												; $C0 to identify BSL2 here, $C1 for TestICal above
 					_ENDIF
@@ -230,9 +230,9 @@ TestNoInterp2:
 ReadByte:
 									; (Number of cycles)
 			mov.w	#WDTPW+WDTHOLD,&WDTCTL ; Hold the Watchdog Timer
-			_BEGIN
+			_REPEAT
 				bit.b	#Rx,&P1IN		; (4) Start bit?
-			_UNTIL	_Z					; (2) Loop until 0 (start bit)
+			_UNTIL	Z					; (2) Loop until 0 (start bit)
 			; The loop above takes 6 cycles so on average we will have missed the start bit by
 									; (3) cycles
 			push	SR				; (3) cycles
@@ -242,21 +242,21 @@ ReadByte:
 			; Pad out the average delay between starting edge of start bit
 			; and sampling of first bit below to ~ 1.5 bittimes
 			mov.b	#(BitCyc1_5-21+1)/3,R11 ; (2) Loop count for waitMid delay loop
-			_BEGIN
+			_REPEAT
 				dec		R11				; (1) Delay loop
-			_UNTIL	_Z					; (2) Note: Clearing R11 here may be assumed in WriteByte below
+			_UNTIL	Z					; (2) Note: Clearing R11 here may be assumed in WriteByte below
 
 			mov		#8,R10			; (1) Bit count
-			_BEGIN
+			_REPEAT
 				bit.b	#Rx,&P1IN		; (4) Sampled bit to carry
 				rrc.b	R8				; (1) Store received bit
 
 				mov.b	#(BitCycles-10+1)/3,R11 ; (2) Pad RX bit loop out to one bit time
-				_BEGIN
+				_REPEAT
 					dec		R11				; (1) Delay loop
-				_UNTIL	_Z					; (2) Note: Clearing R11 here is assumed in WriteByte below
+				_UNTIL	Z					; (2) Note: Clearing R11 here is assumed in WriteByte below
 				dec		R10				; (1) All bits RXed?
-			_UNTIL	_Z					; (2) Sample next bit
+			_UNTIL	Z					; (2) Sample next bit
 
 			; Normally there would be a 1 bit delay here so we return in the middle of the stop bit, so
 			; calling ReadByte soon after returning doesn't mistake a zero in the MSB as a start bit.
@@ -293,7 +293,7 @@ WriteByte:
 			push	SR
 			dint
 
-			_BEGIN					; (Number of cycles)
+			_REPEAT					; (Number of cycles)
 				rra		R9				; (1) Next bit to C.
 				subc.b	#TxPl,R11		; (1) Bits 11(1)000(0)0 if C; 11(0)111(1)1 if NC
 										; Note: R11 must be guaranteed clear in advance
@@ -306,12 +306,12 @@ WriteByte:
 				xor.b	R11,&P1OUT		; (4) Toggle as needed, to send bit
 
 WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out to one bit time
-				_BEGIN
+				_REPEAT
 					dec		R11				; (1n) Note: Clearing of R11 here is assumed by subc.b above
-				_UNTIL	_Z					; (2n)
+				_UNTIL	Z					; (2n)
 
 				dec		R10				; (1) Decrement the bit counter
-			_UNTIL	_NC				; (2) Loop until -1
+			_UNTIL	NC				; (2) Loop until -1
 
 #if	G2553 // BMU
 			; Send a stop bit
@@ -325,7 +325,7 @@ WriteBrk		mov.b	#(BitCycles-16+1)/3,R11 ; (2) Set the delay counter to pad out t
 
 			; Turn off the Activity LED
 			bit.b	#ErrLed,&P2OUT	; Activity and error LEDs share an output.
-			_IF		_Z				; If the error LED is off
+			_IF		Z				; If the error LED is off
 				bic.b	#ErrLed,&P2DIR	; make output high-Z so activity LED goes off
 			_ENDIF						; without turning error LED on.
 #endif
