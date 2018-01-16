@@ -539,4 +539,4 @@ Halt:
 			_ENDIF
 			call	#CmuTxByte				; Echo it to the CMU port
 			call	#DoPassword			; Check for a BSL password
-		_AGAIN							; Loop forever
+		_FOREVER							; Loop forever

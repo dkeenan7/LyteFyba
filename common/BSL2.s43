@@ -277,7 +277,7 @@ BSLErase:			; Erase segments of main flash used for the main program, not the BS
 				_ENDCASE				; End of final character cases
 			_ENDIF					; End else the final password character
 		_UNTIL	Z				; Until successfully programmed
-	_AGAIN					; Go back to normal operation as if reset (main loop)
+	_FOREVER					; Go back to normal operation as if reset (main loop)
 	; end FSM code
 
 
@@ -501,7 +501,7 @@ ErrorFlash:
 			; ErrLedOff						; Uncomment for caveman debugging
 			; mov.w	#WDTPW+WDTCNTCL,&WDTCTL	; Uncomment for caveman debugging
 			; ret							; Uncomment for caveman debugging
-		_AGAIN					; Infinite loop
+		_FOREVER					; Infinite loop
 
 
 ; Frequency locked loop interrupt service routine.

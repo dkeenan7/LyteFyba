@@ -287,7 +287,7 @@ _ELSE	MACRO
 
 ;		_REPEAT
 ;			<do_stuff>
-;		_AGAIN				(infinite)
+;		_FOREVER				(infinite)
 
 ;		_REPEAT
 ;			<do_stuff>
@@ -336,7 +336,7 @@ _UNTIL	MACRO cond
 ; Resolve most recent _REPEAT with a backward unconditional branch
 ; The end of an infinite loop
 
-_AGAIN  MACRO
+_FOREVER  MACRO
 									LSTOUT-
 		_UNTIL		NEVER			; Assemble an unconditional jump back to the corresponding _REPEAT
 									ENDM
@@ -368,7 +368,7 @@ _ENDW	MACRO
 ; balanced by an _ENDIF (or _ELSE ... _ENDIF) after the end of the loop. Examples:
 ; _DO     ... _WHILE cc1 ... _WHILE cc2  ... _ENDW  ... _ENDIF
 ; _REPEAT ... _WHILE cc1 ... _UNTIL cc2  ... _ELSE  ... _ENDIF
-; _REPEAT ... _WHILE cc1 ... _WHILE cc2  ... _AGAIN ... _ENDIF ... _ENDIF
+; _REPEAT ... _WHILE cc1 ... _WHILE cc2  ... _FOREVER ... _ENDIF ... _ENDIF
 ;
 ; See http://www.taygeta.com/forth/dpansa3.htm#A.3.2.3.2
 
