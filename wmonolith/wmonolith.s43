@@ -652,7 +652,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
 
-			_AGAIN
+			_FOREVER
 ; End of main loop
 
 
@@ -1247,7 +1247,7 @@ ControlContactors:
 				; or you may also have to push the green.
 				_REPEAT
 					ClearWatchdog
-				_AGAIN								; Endless loop
+				_FOREVER								; Endless loop
 			_ENDIF
 		_ELSE							; Else
 			clr.b	&shutdownTimer			; Clear the shutdown timer
@@ -1357,7 +1357,7 @@ DoPrecharge:
 				bic.b	#NrmCont,&ContPortOUT 		; Turn off the upper charge-direction contactor
 				_REPEAT
 					ClearWatchdog
-				_AGAIN								; Endless loop
+				_FOREVER								; Endless loop
 			_ELSE									; Come here from WHILE, when less than 6 V
 				; We stagger the turn-on of the contactors so that the DC-DC converter can cope.
 				bis.b	#BatCont,&ContPortOUT ; Turn on the lower discharge-direction contactor

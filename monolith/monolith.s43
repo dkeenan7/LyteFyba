@@ -670,7 +670,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			ClearWatchdog				; Clear and restart Watchdog Timer each time around main loop
 
-			_AGAIN
+			_FOREVER
 ; End of main loop
 
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending

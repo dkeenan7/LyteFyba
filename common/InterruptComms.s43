@@ -589,4 +589,4 @@ Halt:
 			_IF		NZ						; Don't process none received as if they are nulls
 				call	#DoPassword			;	(bad between password chars)
 			_ENDIF
-		_AGAIN								; Endless loop
+		_FOREVER								; Endless loop

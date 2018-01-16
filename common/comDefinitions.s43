@@ -384,7 +384,7 @@ _emitNum3:
 							clrc					; Clear carry so the rrc below is an unsigned div by 2
 							rrc		Rtest			; Do half as many shifts of Rtest
 							rra2	R8				; as we can do to R8 before it goes below 4
-					_AGAIN
+					_FOREVER
 						_ELSE
 							cmp		#2,R8
 							_IF		HS				; If one more shift of R8 is possible, to take it to 1

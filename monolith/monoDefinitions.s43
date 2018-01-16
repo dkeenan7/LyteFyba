@@ -102,7 +102,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 				cmp.b	#EXIT,Rw	; Check if at end of command packet, in case quote was omitted
 				_WHILE	NE			; While the character is not an EXIT command
 					inc	Rtos			; Increment the length
-		_AGAIN				; Loop back to _REPEAT
+		_FOREVER				; Loop back to _REPEAT
 				_ENDIF				; End While not EXIT command (end of command packet)
 				dec		Rip			; Back up so the EXIT command gets interpreted
 			_ENDIF				; End While not a double-quote
