@@ -421,4 +421,4 @@ Halt:
 			call	#RxByte					; Wait for a byte
 			call	#TxByte					; Echo it
 			call	#DoPassword				; Check for a BSL password
-		_AGAIN							; Loop forever
+		_FOREVER							; Loop forever
