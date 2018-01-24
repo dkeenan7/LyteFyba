@@ -18,18 +18,19 @@
 ; R8 * R9 + R10 -> R10:R9. Clears R11
 ; This is the exact inverse of UMSlashMod below
 
-UMStar:							; (4) Call
-			clr		R10			; (1) Clear hi word of product so far
-UMStarPlus:	mov		#16,R11		; (2) Do 16 times
+UMStar:							; (4) Cycles required for Call
+			clr		R10			; (1) Clear hi word of product-so-far
+UMStarPlus:
+			_FOR	#16,R11		; (2) Repeat 16 times
+				bit		#1,R9		; (1) Test low bit of multiplier
+				_IF		NZ			; (2) If low bit of multiplier is a 1
+					add		R8,R10		; (1) Add multiplicand to product-hi
+				_ENDIF				; (0) Endif
+				rrc		R10			; (1) Shift product-hi (including carry) right
+				rrc		R9			; (1) into product-lo and simultaneously shift multiplier right
+			_NEXT_DEC R11		; (3) Decrement loop counter. Repeat until zero
+			ret					; (3) Return from subroutine
 
-mullp		bit		#1,R9		; (1) Test low bit of multiplier
-			jz		mulz		; (2) If it's a 1
-			add		R8, R10		; (1)   add multiplicand to product hi word; Endif
-mulz		rrc		R10			; (1) Shift product hi word (incl. carry) right
-			rrc		R9			; (1) into product lo and simul. shift multiplier right
-			dec		R11			; (1) Decrement loop counter
-			jnz		mullp		; (2) Loop until zero
-			ret					; (3)
 
 ; Mixed sign Mixed size multiply: signed R8 * unsigned R9 -> signed R10:R9
 MMStar:
@@ -80,28 +81,28 @@ Fx1_15UMul:
 ; and a remainder of $FFFF which cannot occur otherwise.
 ; Algorithm is from eForth by Bill Muench.
 ; It is essentially the reverse of the multiplication algorithm above.
-; 172 to 204 cycles (excluding overflow or div by zero)
+; 172 to 204 cycles (excluding overflow or divide by zero)
 
-UMSlashMod:						; (4) Call
-			cmp		R8,R10		; (1) Overflow?
-			jhs		oflo		; (2) Jump to error exit if divide by zero or overflow.
-			mov		#16,R11		; (2) Do 16 times
+UMSlashMod:						; (4) Cycles required for Call
+			cmp		R8,R10		; (1) Test for overflow, including divide by zero
+			_IF		LO			; (2) If no overflow, i.e. if dividend-hi less than divisor
+				_FOR	#16,R11		; (2) Repeat 16 times
+					_COND				; (0) Start a short-circuit conditional
+						rla		R9			; (1) Shift quotient left, and simultaneously shift
+						rlc		R10			; (1) dividend-lo into dividend-hi
+					_OR_ELSE C			; (2) If carry, or else
+						cmp		R8,R10		; (1) Test for remainder-so-far >= divisor
+					_OR_IFS	HS			; (2) if no carry, but remainder-so-far >= divisor
+						sub		R8,R10		; (1) Subtract divisor from remainder-so-far
+						bis		#1,R9		; (1) Set low bit of quotient-so-far
+					_ENDIF				; (0) End of short-circuit conditional
+				_NEXT_DEC R11		; (3) Decrement loop counter. Repeat until zero
+				ret					; (3) Return from subroutine
+			_ENDIF				; (0) End If no overflow
+			mov		#$FFFF,R9	; (1) Error exit if overflow or divide by zero
+			mov		#$FFFF,R10	; (1) Return $FFFF for both quotient and remainder
+			ret					; (3) Return from subroutine
 
-ummlp		rla		R9			; (1) Shift quotient left and simul. shift dividend lo
-			rlc		R10			; (1)   into dividend hi
-			jc		umm2		; (2) If carry OR
-			cmp		R8,R10		; (1)
-			jlo		umm1		; (2) no carry AND remainder-so-far >= divisor
-umm2		sub		R8,R10		; (1)	Subtract divisor from remainder-so-far
-			bis		#1,R9		; (1)	Set low bit of quotient-so-far
-								;	  Endif
-umm1		dec		R11			; (1) Decrement loop counter
-			jnz		ummlp		; (2) Loop until zero
-			ret					; (3)
-
-oflo		mov	#-1,R9			; (1)
-			mov	#-1,R10         ; (1)
-			ret					; (3)
 
 #ifdef	MONOLITH
 ; Not the right place for these
