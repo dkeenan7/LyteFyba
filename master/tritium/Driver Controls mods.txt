@@ -1,7 +1,11 @@
-To add a third (software) UART for the voice synthesiser we use GEAR_3 (pin 28) for RX and GEAR_4 (pin 10) for TX. But we don't want the 12 volt inverters that are on those (the voice synth will give and take 3V3 signals) so we isolate the inverter outputs by desoldering the 100k resistors R42 and R46. Then we cut the tracks between DC37 pin 28 and R40 and between DC37 pin 10 and R44. Then we jumper from the DC37 pin 28 track to the processor side of R42 (removed), and from the DC37 pin 10 track to the processor side of R46 (removed).
+	To add a third (software) UART for the voice synthesiser we use GEAR_3 (pin 28) for RX and GEAR_4 (pin 10) for TX. But we don't want the 12 volt inverters that are on those (the voice synth will give and take 3V3 signals) so we isolate the inverter outputs by desoldering the 100k resistors R42 and R46. Then we cut the tracks between DC37 pin 28 and R40 and between DC37 pin 10 and R44. Then we jumper from the DC37 pin 28 track to the processor side of R42 (removed), and from the DC37 pin 10 track to the processor side of R46 (removed).
 
 ------------------------------
 The pulldown for IGN_START (R39) and the pullups for FUEL_DOOR (charge cable) (R47) and GEAR_2 (crash switch) (R36) need to have 1k resistors soldered in parallel with the existing 10k to avoid spurious triggering by noise in drive mode.
+
+-------------------------------
+
+Add a 10R in parallel with R50, which is in series with the gauge 4 output (fuel gauge). More drive was needed.
 
 ------------------------------
 Here is the procedure for modifying a Tritium Driver Controls Unit to read the voltage of its nominally 12 V supply (the auxiliary battery) instead of the reversing light current.
@@ -43,5 +47,7 @@ To connect the TXD outputs:
 
 * Wire from the proc pin 32 via to the 47R resistor for the IFO LED for the charger.
 * Wire from the proc pin 34 track to the 47R resistor for the IFO LED for the BMS.
+
+Add a 100nF capacitor from the 3V3 wire to ground, at the non-DB37 end.
 
 -- Dave Keenan, 12-Jun-2011 updated 24-Aug-2014
