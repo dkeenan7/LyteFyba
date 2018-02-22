@@ -163,7 +163,7 @@ ramTempOff		DS		1			; Temperature offset calibration for internal sensor
 ramBoltMiOff	DS		1			; Bolt-/current offset calibration byte
 ram8MHzCalD 	DS		1			; 8 MHz DCO frequency calibration byte
 ram8MHzCalB 	DS		1			; 8 MHz DCO range calibration byte
-ramID			DS		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
+ramID			DS		1			; Cell/CMU identifier byte; first cell is 1; written by 'iw 'ic cmds
 ramDataVers		DS		1			; Data version
 ramDataEnd
 

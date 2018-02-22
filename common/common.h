@@ -127,7 +127,7 @@ infoTempOff		ds		1			; Temperature offset calibration for internal sensor
 infoBoltMiOff	ds		1			; Bolt- voltage / current offset calibration signed byte
 info8MHzCalD	ds		1			; 8 MHz DCO frequency calibration byte
 info8MHzCalB	ds		1			; 8 MHz DCO range calibration byte
-infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'i' cmd
+infoID			ds		1			; Cell/CMU identifier byte; first cell is 1; written by 'iw 'ic cmds
 infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS value above
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration data

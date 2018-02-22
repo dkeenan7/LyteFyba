@@ -74,7 +74,7 @@ Master:
 
 			_COND
 				bit.b	#bSendi,&masterFlags
-			_AND_IF		NZ					; If an 'i' command is due
+			_AND_IF		NZ					; If an 'i' (current) command is due
 				bit.b	#bNotSendStatus,&monFlags
 			_AND_IF		Z					; And we're allowing them
 				; For the BMU in the Kingscliff DCM, the so-called link-voltage is really shunt current

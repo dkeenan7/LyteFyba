@@ -209,7 +209,7 @@ bDonePipInit	EQU		1<<5		; 1 if have done PIP initialisation
 masterFlags		DS		1			; Master (command injector) flags; bitmask definitions follow
 bBlocked		EQU		1<<0		; 1 if blocked.
 bSendZ			EQU		1<<1		; 1 if Z command is due to be sent
-bSendi			EQU		1<<2		; 1 if 'i' command is due
+bSendi			EQU		1<<2		; 1 if 'i' (current) command is due
 bSendInit		EQU		1<<3		; 1 if CMU initialisation string should be sent
 bTimeout		EQU		1<<4		; 1 if unblocked via timeout; may or may not have to send a CR to
 									;	clear a stalled command if we have something to inject (may not

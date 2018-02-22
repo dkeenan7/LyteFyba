@@ -178,7 +178,8 @@ ColonQspace	DB		3, ':q '				; First byte is length of following string
 			clr		&worstAL
 			ret
 
-; Min  ( id type value -- ) ; Gives the minimum voltage or temperature and the ID of the cell
+; Min  ( id type value -- ) ; Gives the minimum voltage, temperature, stress or worstStress
+; and the ID of the cell
 		xCODE	'<',min,_min
 			NO_ECHO_CMD	doMin0,doMin			; Use the no-echo wrapper macro
 doMin0:
@@ -197,13 +198,13 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF_EQ #'p',Rsec
+			_OF_EQ #'j',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#STRESS,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF_EQ #'q',Rsec
-				mov.b	&worstStress,R10 ; Get stress level in R10
+				mov.b	&worstStress,R10 ; Get worst stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 		mov		#$7FFF,R10			; Default case, unknown type, set R10 to infinity
@@ -226,7 +227,7 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
 
-		pop		R8					; Pop and transmit the type, 'v' or 't'
+		pop		R8					; Pop and transmit the type, 'v', 't', 'j' or 'q'
 		call	#TxByteCk
 
 		mov		#' ',R8				; Transmit a space
@@ -242,7 +243,8 @@ doMin:	; Emit another Min command with its last parameter min-ed with the
 		br		#TxEndOfPacket		; Tail-call TxEndOfPacket and return
 ;		ret
 
-; Max  ( id type value -- ) ; Gives the maximum voltage or temperature and the ID of the cell
+; Max  ( id type value -- ) ; Gives the maximum voltage, temperature, stress or worstStress
+; and the ID of the cell
 		xCODE	'>',max,_max
 			NO_ECHO_CMD	doMax0,doMax	; Use the no-echo wrapper macro
 doMax0:
@@ -261,13 +263,13 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 				call	#GetTemp		; Get temperature in degrees Celsius in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
-			_OF_EQ #'p',Rsec
+			_OF_EQ #'j',Rsec
 				mov.b	&localStatus,R10 ; Get stress level in R10
 				and.b	#STRESS,R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 			_OF_EQ #'q',Rsec
-				mov.b	&worstStress,R10 ; Get stress level in R10
+				mov.b	&worstStress,R10 ; Get worst stress level in R10
 				push	#2				; Save the field width, 2 digits
 			_ENDOF
 		mov		#$8000,R10			; Default case, unknown type, set R10 to neg infinity
@@ -289,7 +291,7 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 		mov		#':',R8				; Transmit a colon, an alias for tick
 		call	#TxByteCk
 
-		pop		R8					; Pop and transmit the type, 'v' or 't'
+		pop		R8					; Pop and transmit the type, 'v', 't', 'j' or 'q'
 		call	#TxByteCk
 
 		mov		#' ',R8				; Transmit a space
