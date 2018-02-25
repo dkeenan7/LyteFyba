@@ -166,6 +166,48 @@ rla8_l		MACRO	hi,lo
 or_w		MACRO	src,dest
 			bis		src,dest			; Badly named mnemonic at times
 			ENDM
+
 or_b		MACRO	src,dest
 			bis.b	src,dest			; Badly named mnemonic at times
+			ENDM
+
+swpb_b_R	MACRO	regNum				; Undocumented. Same as swpb, but clears hi byte of reg after.
+			; Would have liked to make it just swpb_b and give it R8 etc as dest,
+			; but assembler seems broken in that regard. It hangs when I try to invoke such a macro.
+			IF regNum=4
+				dw		$10C4				; Undocumented swpb.b R4
+			ENDIF
+			IF regNum=5
+				dw		$10C5				; Undocumented swpb.b R5
+			ENDIF
+			IF regNum=6
+				dw		$10C6				; Undocumented swpb.b R6
+			ENDIF
+			IF regNum=7
+				dw		$10C7				; Undocumented swpb.b R7
+			ENDIF
+			IF regNum=8
+				dw		$10C8				; Undocumented swpb.b R8
+			ENDIF
+			IF regNum=9
+				dw		$10C9				; Undocumented swpb.b R9
+			ENDIF
+			IF regNum=10
+				dw		$10CA				; Undocumented swpb.b R10
+			ENDIF
+			IF regNum=11
+				dw		$10CB				; Undocumented swpb.b R11
+			ENDIF
+			IF regNum=12
+				dw		$10CC				; Undocumented swpb.b R12
+			ENDIF
+			IF regNum=13
+				dw		$10CD				; Undocumented swpb.b R13
+			ENDIF
+			IF regNum=14
+				dw		$10CE				; Undocumented swpb.b R14
+			ENDIF
+			IF regNum=15
+				dw		$10CF				; Undocumented swpb.b R15
+			ENDIF
 			ENDM
