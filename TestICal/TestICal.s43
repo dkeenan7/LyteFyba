@@ -188,11 +188,15 @@ ramDataEnd
 
 ; Miscellaneous variables
 
-txCksum		DS		1				; Transmit checksum
+			ALIGNRAM 1
+txCksum		DS		2				; Transmit CRC12
 
 ; Command Character Interpreter variables
 
-rxCksum		DS		1				; Received packet xor checksum
+			ALIGNRAM 1
+rxCksum		DS		2				; Received packet CRC12
+prevRxCksum	DS		2				; Previoius received packet CRC12
+priorRxCksum DS		2				; Previoius previoius received packet CRC12
 
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer
@@ -210,6 +214,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/measure.s43"			// ADC measurement functions
 #include "../common/CmdCharInterpreter.s43" // RPN interpreter with single-character commands
 #include "../common/math.s43"				// Multiply and divide routines
+#include "../common/Crc12.s43"				// Wunth CRC calculation routines
 #include "TesDefinitions.s43"				// Include command character definitions
 
 			; Assemble any initialisation command string

@@ -11,67 +11,70 @@
 
 
 UpdateCrc12:
-; Input: Data byte in R8, 12-bit CRC in R9. Output: Updated CRC in R9. Destroys: R8, R10.
+; Input: Data byte in R8, 12-bit CRC in R9. Output: Updated CRC in R9. Destroys R10. Preserves R8 byte.
 ; crc = (crc >> 8) ^ lookup[data ^ (crc & $FF)]
-	xor.b    R9, R8				; XOR the low byte of the CRC-so-far with the data byte
-	call     #VirtualCrc12Lookup	; R10 = CRC of one-byte message in R8. Destroys R8.
+	xor.b	R9, R8				; XOR the low byte of the CRC-so-far with the data byte
+	call	#VirtualCrc12Lookup	; R10 = CRC of one-byte message in R8. Preserves R8.
+	xor.b	R9, R8				; Restore R8 (low byte only)
 	swpb_b_R 9					; Shift CRC 8 bits right
-	xor      R10, R9			; XOR the looked-up value with the shifted CRC-so-far
+	xor		R10, R9				; XOR the looked-up value with the shifted CRC-so-far
 	ret
 
 
 VirtualCrc12Lookup:
 ; Return the CRC of a one-byte message.
 ; Virtual 256 word CRC table lookup.
-; Input: 8 bit index in R8. Output: 12-bit CRC in R10. Destroys: R8.
+; Input: 8 bit index in R8. Output: 12-bit CRC in R10. Preserves R8.
 	clr     R10
-	rla.b   R8    ; shift high bit of index to carry
+	rlc.b   R8    ; shift ms bit of index to carry
 	_IF     C
 		xor     #$C16, R10    ; Constant is table value for $80 = polynomial
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 6 of index to carry
 	_IF     C
 		xor     #$60B, R10    ; Constant is table value for $40
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 5 of index to carry
 	_IF     C
 		xor     #$F13, R10    ; Constant is table value for $20
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 4 of index to carry
 	_IF     C
 		xor     #$B9F, R10    ; Constant is table value for $10
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 3 of index to carry
 	_IF     C
 		xor     #$9D9, R10    ; Constant is table value for $08
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 2 of index to carry
 	_IF     C
 		xor     #$8FA, R10    ; Constant is table value for $04
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift bit 1 of index to carry
 	_IF     C
 		xor     #$47D, R10    ; Constant is table value for $02
 	_ENDIF
-	rla.b   R8    ; Shift high bit of index to carry
+	rlc.b   R8    ; Shift ls bit of index to carry
 	_IF     C
 		xor     #$E28, R10    ; Constant is table value for $01
 	_ENDIF
+	rlc.b   R8    ; Restore the original contents of R8
 	ret
 
 
 MakeCrc12Printable:
-; Input: 12-bit CRC in R8. Output: Two halves of the CRC as printable-ASCII bytes, R8 (LSB), R9 (MSB).
-	mov    R8, R9        ; Make a copy of the CRC in R9
-	and    #$3F, R8      ; Mask off the low 6 bits
-	cmp    #$3F, R8      ; Ensure it's not a control character (nor will it be a decimal digit)
+; Input: 12-bit CRC in R8. Output: The CRC as two printable-ASCII bytes in R8. Destroys R9.
+	mov    R8, R9		; Make a copy of the CRC in R10
+	and    #$3F, R8		; Mask off the low 6 bits
+	cmp    #$3F, R8		; Ensure it's not a control character (nor will it be a decimal digit)
 	_IF    NE
 		or_w     #$40, R8
 	_ENDIF
-	rla2   R9            ; Get the high 6 bits
-	swpb_b_R 9
-	cmp    #$3F, R9      ; Ensure it's not a control character (nor will it be a decimal digit)
+	rla2   R9			; Get the high 6 bits into the high byte
+	and    #$3F00, R9	; Mask off the high 6 bits
+	cmp    #$3F00, R9	; Ensure it's not a control character (nor will it be a decimal digit)
 	_IF    NE
-		or_w     #$40, R9
+		or_w     #$4000, R9
 	_ENDIF
+	or_w	R9, R8		; Put both bytes into R8
 	ret

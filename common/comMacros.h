@@ -178,12 +178,33 @@ abs			MACRO	dest
 			_ENDIF
 			ENDM
 
+neg			MACRO	dest
+			inv		dest
+			inc		dest
+			ENDM
+
+rra8_l		MACRO	hi,lo
+			swpb	hi
+			swpb	lo
+			xor.b	hi,lo
+			xor.w	hi,lo
+			mov.b	hi,hi
+			ENDM
+
+rla8_l		MACRO	hi,lo
+			xor.b	lo,hi
+			xor.w	lo,hi
+			swpb	hi
+			mov.b	lo,lo
+			swpb	lo
+			ENDM
+
 or_w		MACRO	src,dest
-			bis		src,dest			; Badly named mnemonic at times
+			bis		src,dest			; Badly named instruction at times
 			ENDM
 
 or_b		MACRO	src,dest
-			bis.b	src,dest			; Badly named mnemonic at times
+			bis.b	src,dest			; Badly named instruction at times
 			ENDM
 
 swpb_b_R	MACRO	regNum				; Undocumented. Same as swpb, but clears hi byte of reg after.

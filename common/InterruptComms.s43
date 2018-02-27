@@ -171,7 +171,7 @@ TxByteNoWait:		TxByteNWTimerMacro	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd,
 ;-------------------------------------------------------------------------------
 ; TxByteCk	; Transmit the character in R8 while accumulating checksum.
 			; If necessary, wait until the queue is not full.
-			; Trashes R9.
+			; Trashes R9, R10.
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	TxByteNoWait
@@ -190,7 +190,11 @@ TxByteMacro	MACRO	TxByteNoWait
 			ENDM
 
 #if	G2553
-TxByteCk: 	xor.b	R8,&txCksum
+; I note that this uses the same variable to accumulate the CRC12 no matter which port we're sending
+; from. This works because we never switch ports in the middle of a packet.
+TxByteCk: 	mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
 TxByte:		; Alternative entry which does not accumulate checksum
 			; If a BMU (ID-255), send all output to SCU port
 			br		&TxBytePtr					; Branch to handler at *TxBytePtr
@@ -198,17 +202,23 @@ TxByte:		; Alternative entry which does not accumulate checksum
 
 CmuTxByte:										; Alternative entry point that always goes to CMU port,
 												;	and doesn't update the Wunth checksum
-				TxByteMacro	TxByteNoWait
+			TxByteMacro	TxByteNoWait
 
-ScuTxByteCk: xor.b	R8,&txCksum
+ScuTxByteCk: mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
 ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate checksum
 
-ChgTxByteCk: xor.b	R8,&txCksum
+ChgTxByteCk: mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
 ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accumulate checksum
 
 #else
 
-TxByteCk: 	xor.b	R8,&txCksum
+TxByteCk: 	mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
 TxByte:		TxByteMacro	TxByteNoWait			; Alternative entry which does not accumulate checksum
 
 #endif

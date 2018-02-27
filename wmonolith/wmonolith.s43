@@ -247,14 +247,14 @@ smoothStressX4	DS		1			; Moving average of stress used by BMU to control contact
 	; Cell monitoring units comms variables
 	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
+txCksum			DS		2			; Transmit CRC12
+txCrc			DS		2			; Transmit CRC16 for PIP
 txBitTime		DS		2			; Determines transmit baud rate for timer-based comms (not UART).
 									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
 bitCntRx		DS		1			; Bit count 8 -> 1
-txCksum			DS		1			; Transmit checksum
-txCrc			DS		2			; Transmit cyclic redundancy check
 
 RxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
@@ -312,7 +312,10 @@ chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 #endif
 
-rxCksum			DS		1			; Received packet xor checksum
+				ALIGNRAM 1
+rxCksum			DS		2			; Received packet CRC12
+prevRxCksum		DS		2			; Previous received packet CRC12
+priorRxCksum	DS		2			; Previous previous received packet CRC12
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -349,6 +352,7 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/InterruptComms.s43"	// Comms routines
 #include "../common/ComComms.s43"	// Common comms functions
 #include "../common/measure.s43"	// Voltage measurement functions
+#include "../common/Crc12.s43"		// Wunth CRC calculation routines
 #include "../common/math.s43"		// Multiply and divide routines
 #include "wmonoDefinitions.s43"		// Command character definitions
 #include "master.s43"				// AccMaster function for injecting commands

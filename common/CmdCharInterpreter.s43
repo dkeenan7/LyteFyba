@@ -210,9 +210,9 @@ NotDigit mov	#_Space,Rw	; Treat as literal-separator no-op
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
 ; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
-; Trashes R8 and R9, and more if carriage return is processed.
+; Trashes R8, R9, R10, and more if carriage return is processed.
 ; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
-; to interpret the line when a valid checksum and a carriage return are received.
+; to interpret the line when a valid CRC12 and a carriage return are received.
 ; Outputs go to the default port (usually CMU, but SCU for the case of a BMU running wmonolith)
 ACCEPT:
 		mov		&ToIN,R9
@@ -263,17 +263,26 @@ ACCEPT:
 				_IF		NZ				; If checksumming
 					cmp.b	#':',&TIB
 					_IF		NE				; And if not a modbus packet (starts with colon)
-						tst.b	&rxCksum
-						_IF		Z				; And if good checksum
-							dec		R9				; Prepare to overwrite checksum with EXIT command char
+						mov.b	-2(R9),R10		; Get the two CRC12 bytes from the packet into R10. LSB
+						mov.b	-1(R9),R8		; MSB
+						swpb	R8
+						or_w	R8,R10
+						mov		&priorRxCksum,R8 ; Get the calculated CRC12 from 2 bytes back
+						inv		R8				; Invert it
+						push	R9				; Save the command buffer pointer
+						call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trashes R9
+						pop		R9				; Restore the command buffer pointer
+						cmp		R8,R10			; Compare calculated CRC12 with received CRC12
+						_IF		EQ				; And if CRC12 is correct
+							decd	R9				; Prepare to overwrite CRC12 LSB with EXIT command
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
 							_IF		LO
 								mov		#TIB,R9
 							_ENDIF
 					_END_PRIOR_IF			; End if not modbus
 				_END_PRIOR_IF			; End if checksumming
-							; We get here when not-checksumming or a modbus packet or a good checksum
-							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
+							; We get here when not-checksumming or a modbus packet or a correct CRC12
+							mov.b	#EXIT,0(R9) 	; Overwrite CRC12 LSB or CR with EXIT command
 							bit.b	#bDontInterpret,&interpFlags
 							_IF		Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
@@ -283,7 +292,7 @@ ACCEPT:
 						_ENDIF					; End if good checksum
 			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			clr.b	&rxCksum		; Clear the packet checksum
+			mov		#$0FFF,&rxCksum	; Initialise the CRC12
 		_ENDOF					; End of carriage return
 
 		_OF_EQ_B	#$08,R8			; Backspace editing
@@ -318,7 +327,11 @@ ACCEPT:
 			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
-				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum
+				mov		&prevRxCksum,&priorRxCksum ; Keep CRC12 from 2 bytes back, for when we hit a CR.
+				mov		&rxCksum,R9		; Get the CRC12
+				mov		R9,&prevRxCksum	; Keep the CRC12 from 1 byte back
+				call	#UpdateCrc12	; Update the CRC12 in R9 with the data in R8. Trashes R8, R10
+				mov		R9,&rxCksum		; Save the updated CRC12
 			_ENDIF					; Endif packet buffer not full
 
 		_ENDCASE				; End Case char
