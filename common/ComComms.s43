@@ -11,8 +11,9 @@
 TxCksum:
 			bit.b		#bChecksumming,&interpFlags
 			_IF		NZ
-				mov		&txCksum,R8
-				call	#MakeCrc12Printable	; Get CRC12 as two printable ASCII bytes in R8. Trashes R9
+				mov		&txCksum,R8			; Get the calculated CRC12
+				inv		R8					; Invert it
+				call	#MakeCrc12Printable	; Convert it to two printable ASCII bytes in R8. Trashes R9
 				call 	#TxByte				; Send the LSB of the CRC12. Preserves R8. Trashes R9.
 				swpb	R8
 				call 	#TxByte				; Send the MSB of the CRC12
