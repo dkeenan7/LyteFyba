@@ -164,11 +164,11 @@ rla8_l		MACRO	hi,lo
 			ENDM
 
 or_w		MACRO	src,dest
-			bis		src,dest			; Badly named mnemonic at times
+			bis		src,dest			; Badly named instruction at times
 			ENDM
 
 or_b		MACRO	src,dest
-			bis.b	src,dest			; Badly named mnemonic at times
+			bis.b	src,dest			; Badly named instruction at times
 			ENDM
 
 swpb_b_R	MACRO	regNum				; Undocumented. Same as swpb, but clears hi byte of reg after.
