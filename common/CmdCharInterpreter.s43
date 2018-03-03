@@ -292,33 +292,37 @@ ACCEPT:
 						_ENDIF					; End if good checksum
 			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			mov		#INITCRC,&rxCksum; Initialise the CRC12
+			mov		#InitialCrc12,&rxCksum	; Initialise the CRC12
 		_ENDOF					; End of carriage return
 
-		_OF_EQ_B	#$08,R8			; Backspace editing
+		_OF_EQ_B	#$08,R8		; Backspace editing
 			cmp		#TIBEnd,R9
 			_IF		LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
-				cmp		#TIB,R9			; don't go back past start of packet
-				_IF		LO
-					mov		#TIB,R9
+				cmp		#TIB,R9
+				_IF		LO				; If that takes us back before the start of the packet
+					inc		R9				; Undo the decrement
+				_ELSE					; Else Wind the CRC12 back to its previous value
+					mov	&prevRxCksum,&rxCksum ; Note: This only works for a maximum of two backspaces
+					mov	&priorRxCksum,&prevRxCksum ; and only if they are followed by the same
+					mov	#InitialCrc12,&priorRxCksum ; number of printable ASCII characters.
 				_ENDIF
 				mov		R9,&ToIN
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OF_EQ_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
+		_OF_EQ_B	#$11,R8		; XON (ctrl-Q) to exit no-echo mode
 			bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 		_ENDOF					; EndOf XON
 
-		_OF_EQ_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
+		_OF_EQ_B	#$13,R8		; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&interpFlags
 			_IF		Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OF_EQ_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
+		_OF_EQ_B	#$1B,R8		; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 

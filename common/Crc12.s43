@@ -1,6 +1,6 @@
 ; This 12-bit CRC was chosen from Philip Koopman's CRC catalog. In Koopman's notation it is 0xb41.
 ; https://users.ece.cmu.edu/~koopman/crc/index.html
-; It is 12 bits so it can be represented in two bytes that contain only printable ASCII chracters.
+; It is 12 bits so it can be represented in two bytes that contain only printable ASCII characters.
 ; It detects:
 ; Up to 5 bit-errors in messages of 1 to 3 bytes
 ; Up to 3 bit-errors in messages of 4 to 221 bytes
@@ -8,7 +8,21 @@
 ; All burst errors of up to 12 bits
 ; We implement a right-shift version (so the polynomial is bit-reversed) because UARTs send LSBit first.
 ; The CRC is also sent LSByte first.
+; Author: Dave Keenan, 27-Feb-2018
 
+; This online CRC calculator can be used to check our implementation.
+; http://www.ghsi.de/pages/subpages/Online%20CRC%20Calculation/index.php?Polynom=1011010000011&Message=5D80%0D%0A
+; However it only does left-shifts, so you have to bit-reverse our polynomial
+; (so it becomes 1011010000011), and you have to bit-reverse our data,
+; and you have to bit-reverse the CRC it gives you.
+; It doesn't allow an initial value for the CRC other than zero.
+; But you can get the same effect by feeding it initial data of $5D80
+; (to the left of the bit-reversed version of our data).
+; And it doesn't allow a final inversion of the CRC.
+; But you can invert the bits of the CRC it gives you (as well as bit-reversing it).
+
+InitialCrc12	EQU		$0FFF	; This ensures that nulls added to the start will break the CRC.
+								; Inverting the final CRC ensures nulls added to the end will break it.
 
 UpdateCrc12:
 ; Input: Data byte in R8, 12-bit CRC in R9. Output: Updated CRC in R9. Destroys R10. Preserves R8 byte.

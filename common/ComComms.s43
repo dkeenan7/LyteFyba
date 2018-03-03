@@ -18,7 +18,7 @@ TxCksum:
 				swpb	R8
 				call 	#TxByte				; Send the MSB of the CRC12
 			_ENDIF
-			mov		#INITCRC,&txCksum		; Initialise the CRC12
+			mov		#InitialCrc12,&txCksum	; Initialise the CRC12
 			ret
 
 
