@@ -33,6 +33,9 @@
 
 #define	G2553		0			// MSP430 model. True for BMUs, false for CMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
+								
+#define REJECT2400 0			// Set to 1 for Helidon, to reject 2400 bps interference
+#define INITCRC 0				// Initial CRC value: eventually want $FFF
 
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
@@ -515,7 +518,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov.b	#$FF,&txData+1				; Initialise the top half of txData to all 1s (stop bit,
 												;	idle bit)
 			mov.b	#8,&bitCntRx				; Load Bit Counter, 8 data bits
-			mov		#$0FFF,&txCksum				; Initialise transmit CRC12.
+			mov		#INITCRC,&txCksum			; Initialise transmit CRC12.
 			mov.w	#CM_2|CCIS_0|SCS|CAP|CCIE,&CCTLr ; Falling edge, Input A, Sync, Capture (TA0CCTL1)
 			mov.w	#CCIE, &MeasCCTLp			; Enable measurement compare interrupts (TA0CCTL2)
 
@@ -587,7 +590,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the command character interpreter
 ;
-			mov		#$0FFF,&rxCksum				; Initialise received packet CRC12
+			mov		#INITCRC,&rxCksum			; Initialise received packet CRC12
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		NE
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
@@ -643,9 +646,11 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Main loop
 			_REPEAT
 				call	#RxByteNoWait			; Check if received data
+#if REJECT2400
 				_IF		NZ
 					call	#Reject2400Baud			; Eliminates $00, $80, $F8 and $78 (lowercase 'x')
 				_ENDIF
+#endif
 				_IF		NZ
 					tst.b	R8
 					_IF		NN

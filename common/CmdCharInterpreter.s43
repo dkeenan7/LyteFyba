@@ -292,7 +292,7 @@ ACCEPT:
 						_ENDIF					; End if good checksum
 			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			mov		#$0FFF,&rxCksum	; Initialise the CRC12
+			mov		#INITCRC,&rxCksum; Initialise the CRC12
 		_ENDOF					; End of carriage return
 
 		_OF_EQ_B	#$08,R8			; Backspace editing
