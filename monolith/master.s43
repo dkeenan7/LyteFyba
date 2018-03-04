@@ -108,6 +108,8 @@ Master:
 				; The '1sG' must go as a separate packet because it is for a single CMU.
 				mov		#'\r',R8				; Send a CR to clear any junk
 				call	#TxByte
+				mov		#$1B,R8					; Send an ESC to ensure all are listening
+				call	#TxByte
 				mov		#$11,R8					; Send a ctrl-Q (XON) to turn on echo
 				call	#TxByte
 				mov		#'k',R8					; Transmit "k" with no checksum

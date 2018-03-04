@@ -595,8 +595,9 @@ _prettyPrint:
 			call	#_emitNum3			; Emit the ID in decimal
 			mov		#':',R8				; Colon separator
 			call	#TxByteCk
-			pop		R8					; Restore ch (command character(s)) to R8
-			call	#TxByteCk			; Transmit ch, preserves R8
+			mov		@SP,R8				; Copy ch (command character(s)) to R8, but leave on stack
+			call	#TxByteCk			; Transmit ch, only preserves low byte of R8
+			pop		R8					; Restore ch (command character(s)) to R8 again
 			swpb	R8					; Check if there's a second command character
 			tst.b	R8
 			_IF		NZ					; If the second command character is not null

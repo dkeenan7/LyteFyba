@@ -406,7 +406,7 @@ ACCEPT:
 						pop		R9				; Restore the command buffer pointer
 						cmp		R8,R10			; Compare calculated CRC12 with received CRC12
 						_IF		EQ				; And if CRC12 is correct
-							decd	R9				; Prepare to overwrite CRC12 LSB with EXIT command
+							decd	R9				; Prepare to overwrite CRC12 with EXIT commands
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
 							_IF		LO
 								mov		#TIB,R9
@@ -415,6 +415,9 @@ ACCEPT:
 				_END_PRIOR_IF			; End if checksumming
 							; We get here when not-checksumming or a modbus packet or a correct CRC12
 							mov.b	#EXIT,0(R9) 	; Overwrite CRC12 LSB or CR with EXIT command
+							mov.b	#EXIT,1(R9) 	; Overwrite CRC12 MSB or char after CR with EXIT cmd
+							; The second EXIT is in case the first gets treated as the second char
+							; of a two char command, in a badly formed packet. e.g. if last char is R.
 							bit.b	#bDontInterpret,&interpFlags
 							_IF		Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
