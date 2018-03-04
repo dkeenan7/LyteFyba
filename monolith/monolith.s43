@@ -20,8 +20,8 @@
 
 ;-----------------------------------------------------------------------------------------------------
 ; Commonly changed conditional assembly -- defaults are for LBS
-#define		CONFIG			OFF_GRID	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
-#define		QUIET			1			// 1 for BMU to tell CMUs not to beep
+#define		CONFIG			ON_GRID_SMALL	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
+#define		QUIET			0			// 1 for BMU to tell CMUs not to beep
 #define 	LOW_LOW_CUTOFF	1			// 1 for 2.8 V cutoff (2% SoC), 0 for 3.08 V cutoff (5% SoC)
 #define		chargerCurrMax	60			// 60 or 80 A charger limit, depending on PIP-4048 model
 ;-----------------------------------------------------------------------------------------------------
@@ -591,20 +591,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontInterpret,&interpFlags ; Do interpret
 ;			bic.b	#bDontEcho,&interpFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
-
-; SoC initialisation
-			; Don't change the SoC unless this is a power-on reset
-			mov		&resetCounter,R8
-			dec		R8
-			and		#$0F,R8
-			mov.b	resetBuffer(R8),R8
-			bit.b	#PORIFG,R8				; Check for power-on reset
-			_IF		NZ						; If it was a power-on
-				clr		&discharge				; Initialise the SoC to 100%
-				clr		&discharge+2			; BMU will retrieve SoC from CMU 1
-				call	#UpdateSoC				; Initialise the pre-computed counter advance value
-			_ENDIF
-
 ;
 ; Miscellaneous initialisation
 ;
