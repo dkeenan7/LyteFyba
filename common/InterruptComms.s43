@@ -112,7 +112,7 @@ TxByteNWTimerMacro	MACRO	TAR, CCRt, CCTLt, bitCntTx, TxSz, txBuf, txRd, txWr
 					; First number is sum of cycles in paren below. The +MckPerTAck-1 is for rounding up.
 					; Half of the +2 is in case the TAR increments just after we read it.
 					; Don't understand why other half needed, but otherwise it fails when StatusFreq = 2
-					; and MckPerTAck = 32.
+					; and hence MckPerTAck = 32.
 					; If we get it wrong, the timer wraps around in just 16 ms anyway.
 					mov		#((27+MckPerTAck-1)/MckPerTAck)+2,R9 ; R9 := setup time. Not protected by dint
 					add		&TAR,R9				; (4) R9 := timer value + setup time
@@ -141,7 +141,7 @@ ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgT
 ;-------------------------------------------------------------------------------
 ; TxByteCk	; Transmit the character in R8 while accumulating checksum.
 			; If necessary, wait until the queue is not full.
-			; Trashes R9. Preserves R8.
+			; Trashes R9, R10.
 ;-------------------------------------------------------------------------------
 
 TxByteMacro	MACRO	dest
@@ -158,20 +158,28 @@ TxByteMacro	MACRO	dest
 			ret
 			ENDM
 
-TxByteCk: 	xor.b	R8,&txCksum
+; I note that this uses the same variable to accumulate the CRC12 no matter which port we're sending
+; from. This works because we never switch ports in the middle of a packet.
+TxByteCk: 	mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
 TxByte:		; Alternative entry which does not accumulate checksum
 			; If a BMU (ID-255), send all output to SCU port
 			br		&TxBytePtr					; Branch to handler at *TxBytePtr
 
 
 CmuTxByte:										; Alternative entry point that always goes to CMU port,
-			TxByteMacro	TxByteNoWait			;	and doesn't update the Wunth checksum
+			TxByteMacro	TxByteNoWait			;	and doesn't update the Twoth CRC12
 
-ScuTxByteCk: xor.b	R8,&txCksum
-ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate checksum
+ScuTxByteCk: mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
+ScuTxByte:	TxByteMacro ScuTxByteNoWait			; Alternative entry which does not accumulate CRC12
 
-ChgTxByteCk: xor.b	R8,&txCksum
-ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accumulate checksum
+ChgTxByteCk: mov		&txCksum,R9
+			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
+			mov		R9,&txCksum 				;   Preserves R8 byte
+ChgTxByte:	TxByteMacro	ChgTxByteNoWait			; Alternative entry which does not accumulate CRC12
 
 
 

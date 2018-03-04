@@ -654,7 +654,7 @@ TxEndOfModbusPacket:
 			inv.b	Rsec					; The checksum is the negation of all this
 			inc.b	Rsec
 			call	#_emitNum3				; Transmit the checksum as two hex digits
-			clr.b	&txCksum				; Restart regular checksums
+			mov		#InitialCrc12,&txCksum	; Restart regular CRC12s
 			mov		#$0D,R8					; Transmit a carriage return.
 			call	#TxByte
 			mov		#$0A,R8					; Transmit a line feed.

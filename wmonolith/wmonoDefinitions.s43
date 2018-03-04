@@ -6,7 +6,13 @@
 												; and TestICal
 
 ; checKsumming ( -- )						; Toggle bChecksumming
-			; kk to turn checksumming off, k to turn it on (irrespective of present state)
+			; The complete packet for a k command, with CRC, is kCB. This will always toggle checksumming.
+			; When sending from a terminal program such as TeraTerm: 
+			; To turn on  checksumming irrespective of present state, send k<enter>.
+			; To turn off checksumming irrespective of present state, send k<enter> kCB<enter>.
+			; When sending from the node-red Monolith debug terminal, or anywhere CRCs are added automatically,
+			; To turn on  checksumming irrespective of present state, send 2<enter>.
+			; To turn off checksumming irrespective of present state, send 2<enter> k<enter>.
 			xCODE	'k',checksumming,_checksumming
 			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
 			ret
@@ -354,13 +360,9 @@ SelectIMU	DB	4, '255s'				; First byte is length of following string
 			ALIGN	1
 
 ; Get state of charge ( -- )
-		xCODE	'f',fuelSOC,_fuelSOC
-#ifdef MONOLITH
+		xCODE	'f',fuelSoc,_fuelSoc
 		cmp.b	#255,&ID
-#else
-		cmp.b	#0,&ID
-#endif
-		_IF		EQ					; BMUs and IMUs only
+		_IF		EQ						; BMUs only
 			call	#DepthOfDischarge		; Get the depth of discharge as a number 0-1000 in R9
 			mov		#'f',Rthd				; Type is fuel gauge (state of charge)
 			mov		#1000,Rsec				; 100% - DOD = SOC

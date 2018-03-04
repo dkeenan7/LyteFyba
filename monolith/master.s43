@@ -49,7 +49,7 @@ Master:
 				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
 												; reset checksums (at receivers)
 				call	#TxByte
-				clr.b	&txCksum				; Explicitly clear our transmit checksum
+				mov		#InitialCrc12,&txCksum	; Explicitly initialise our transmit checksum
 				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
 			_ENDIFS
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?

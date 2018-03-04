@@ -140,9 +140,7 @@ AL_STEP		EQU		3			; mV difference between one AL stress level and the next
 ; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
 
 MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
-MinContStress EQU	12			; Minimum stress to drop out source or load contactors (BMU only)
-								; There are no separate source or load contactors in monolith now --
-								;  only battery contactors that drop out at stress 15.
+MinContStress EQU	12			; Minimum stress to drop out source contactors (BMU only)
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -263,12 +261,14 @@ chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum requ
 	; Cell monitoring units comms variables
 	; Note that the CMU variables have no prefix while the others have "scu" and "chg".
 				ALIGNRAM 1
+txCksum			DS		2			; CRC12 for data transmitted to CMUs/BMU or SCU
+txCrc			DS		2			; CRC16 for data transmitted to PIP inverter
+txBitTime		DS		2			; Determines transmit baud rate for timer-based comms (not UART).
+									; Use BitTime96 or BitTime24 constant from InterruptComms.s43.
 txData			DS		2			; Byte to transmit in lower byte; always $FF in high byte
 rxData			DS		1			; Received char
 bitCntTx		DS		1			; Bit count 10 -> 1
 bitCntRx		DS		1			; Bit count 8 -> 1
-txCksum			DS		1			; Transmit checksum
-txCrc			DS		2			; Transmit cyclic redundancy check
 
 RxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 									; 8 is sufficient to prevent dropped cmd and response characters
@@ -290,7 +290,6 @@ scuTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 scuRxData		DS		1			; Received char
 scuBitCntTx		DS		1			; Bit count 10 -> 1
 scuBitCntRx		DS		1			; Bit count 8 -> 1
-scuTxCksum		DS		1			; Transmit checksum
 
 ScuRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
@@ -311,7 +310,6 @@ chgTxData		DS		2			; Byte to transmit in lower byte; always $FF in high byte
 chgRxData		DS		1			; Received char
 chgBitCntTx		DS		1			; Bit count 10 -> 1
 chgBitCntRx		DS		1			; Bit count 8 -> 1
-chgTxCksum		DS		1			; Transmit checksum
 
 ChgRxSz			EQU		32			; Receive queue size. Must be a power of 2 no greater than 256
 ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
@@ -324,7 +322,10 @@ chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 
-rxCksum			DS		1			; Received packet xor checksum
+				ALIGNRAM 1
+rxCksum			DS		2			; CRC12 for data received from CMUs/BMU or SCU
+prevRxCksum		DS		2			; Previous CRC12
+priorRxCksum	DS		2			; Previous previous CRC12
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -346,9 +347,9 @@ temperatureRaw	DS  	2
 
 
 				ALIGNRAM 1
-eraseEnd		EQU		$			; End of the erased variables
+eraseEnd							; End of the erased variables
 
-									; A kind of trip-meter for this cell's stress
+; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
 worstStressType	DS		1			; Type of measurement that caused worst stress
 worstOV			DS		2			; Worst over-voltage since the last resetWorstStress command
@@ -386,7 +387,8 @@ STACKSPACE		EQU		InitSP-$	; Look at listing to see what this is
 #include "../common/ComComms.s43"	// Common comms functions, e.g. TxCksum
 #include "IntMeasure.s43"			// Interrupt driven ADC measurement functions
 #include "../common/math.s43"		// Multiply and divide routines
-#include "crc.s43"					// CRC calculation routines
+#include "../common/Crc12.s43"		// Twoth CRC12 calculation routines
+#include "crc.s43"					// PIP CRC16 calculation routines
 #include "monoDefinitions.s43"		// Command character definitions
 #include "master.s43"				// Master function for injecting commands
 
@@ -488,7 +490,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.w	#BitTime96,&scuBitTime		; Set the SCU bit time for 9600 baud
 				mov.b	#$FF,&scuTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&scuBitCntRx				; Load Rx bit Counter, 8 data bits
-	;			clr.b	scuTxCksum					; Clear transmit checksum. Already cleared by loop above
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ScuCCTLr	; Falling edge, Input A, Sync, Capture
 
 				; Initialise TA1 CCRs
@@ -496,7 +497,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				mov.w	#BitTime24,&chgBitTime		; Set the charger bit time for 2400 baud
 				mov.b	#$FF,&chgTxData+1			; Init top half of txData to all 1s (stop bit, idle bit)
 				mov.b	#8,&chgBitCntRx				; Load Rx bit Counter, 8 data bits
-	;			clr.b	chgTxCksum					; Clear transmit checksum. Already cleared by loop above
+				mov		#InitialCrc12,&txCksum		; Initialise transmit CRC12.
 				mov.w	#CM_2+CCIS_0+SCS+CAP+CCIE,&ChgCCTLr	; Falling edge, Input A, Sync, Capture
 
 				mov.w	#CCIE, &MeasCCTL			; Enable measurement interrupts on a BMU (TA1CCTL0)
@@ -578,7 +579,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the command character interpreter
 ;
-;			clr.b	&rxCksum				; Received packet xor checksum already cleared by loop above
+			mov		#InitialCrc12,&rxCksum	; Initialise received packet CRC12
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		NE
 				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
@@ -590,6 +591,19 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			bic.b	#bDontInterpret,&interpFlags ; Do interpret
 ;			bic.b	#bDontEcho,&interpFlags	; Do echo
 			mov		#TIB,&ToIN				; Initialise write pointer into text input buffer
+
+; SoC initialisation
+			; Don't change the SoC unless this is a power-on reset
+			mov		&resetCounter,R8
+			dec		R8
+			and		#$0F,R8
+			mov.b	resetBuffer(R8),R8
+			bit.b	#PORIFG,R8				; Check for power-on reset
+			_IF		NZ						; If it was a power-on
+				clr		&discharge				; Initialise the SoC to 100%
+				clr		&discharge+2			; BMU will retrieve SoC from CMU 1
+				call	#UpdateSoC				; Initialise the pre-computed counter advance value
+			_ENDIF
 
 ;
 ; Miscellaneous initialisation

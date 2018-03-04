@@ -7,25 +7,23 @@
 ;
 ; This is not in InterruptComms.s43 because it is used by both the Monitor and TestICal
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
-;
+; Trashes R8, R9
 TxCksum:
 			bit.b		#bChecksumming,&interpFlags
 			_IF		NZ
-				mov.b	&txCksum,R8
-				cmp.b	#$20,R8				; If the checksum would be a control character and therefore
-				_IF		LO					; possibly confused with CR, BS, ESC, or BSL-password chars
-					mov.b	#' ',R8				; then send a space character (no-op), which
-					call 	#TxByteCk			; also updates the checksum to a non-control character.
-					mov.b	&txCksum,R8 		; Reload the altered checksum.
+				mov		&txCksum,R8			; Get the calculated CRC12
+				inv		R8					; Invert it
+				call	#MakeCrc12Printable	; Convert it to two printable ASCII bytes in R8. Trashes R9
+				call 	#TxByte				; Send the LSB of the CRC12. Preserves R8. Trashes R9.
+				swpb	R8
+				call 	#TxByte				; Send the MSB of the CRC12
 				_ENDIF
-				call 	#TxByteCk			; Send the checksum. Also updates TXCksum to 0
-			_ENDIF
-			clr.b	&txCksum			; Needed for when checksumming is off
+			mov		#InitialCrc12,&txCksum	; Initialise the CRC12
 			ret
 
 
 TxEndOfPacket:
-			call	#TxCksum				; Transmit checksum if required, then clear checksum.
+			call	#TxCksum				; Transmit checksum if required, then initialise checksum.
 			mov		#'\r',R8				; Transmit a carriage return.
 			br		#TxByte					; Tail-call TxByte and return
 ;			ret

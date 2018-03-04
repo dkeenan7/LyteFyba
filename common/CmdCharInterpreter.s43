@@ -166,7 +166,7 @@ CMDCHRNAM	EQU		$80|_char1<<3|_char2		; Combine the hashed characters and set the
 
 ; Interpreter for 8 bit command characters.
 ; Partly inspired by the transputer instruction set with its PFIX and OPR instructions,
-; and partly inspired by Forth, but with a maximum of two letters per command. "Twoth"?
+; and partly inspired by Forth, but with a maximum of two letters per command. Twoth?
 ; This could be extended to more letters per command, without requiring spaces as separators,
 ; by adopting the convention that a command word is terminated by a lower case character.
 ; So valid words would be x, Xx, XXx, XXXx etc.
@@ -342,9 +342,9 @@ FncPFX4		tst		SR			; Test the operand-in-progress flag (sign bit of status reg)
 ;-------------------------------------------------------------------------------
 ; The outer (packet) interpreter
 ; ACCEPT	( char -- )	; Accept the character in R8 into the line buffer.
-; Trashes R8 and R9, and more if carriage return is processed.
+; Trashes R8, R9, R10, and more if carriage return is processed.
 ; Implements backspace editing, Xon/Xoff and Escape, and calls the inner interpreter
-; to interpret the line when a valid checksum and a carriage return are received.
+; to interpret the line when a valid CRC12 and a carriage return are received.
 ; Outputs go to the default port (usually CMU, but SCU for the case of a BMU running wmonolith)
 ACCEPT:
 		mov		&ToIN,R9
@@ -358,10 +358,10 @@ ACCEPT:
 			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Store CR in the buffer; simplifies later logic
 				bit.b	#bEchoResponses,&interpFlags
-				; This is e.g. to allow SCU to see Wunth or Modbus responses from CMUs
+				; This is e.g. to allow SCU to see Twoth or Modbus responses from CMUs
 				_IF		NZ				; If echoing responses
 					mov.b	&TIB,R8				; Get first char of text input buffer
-					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Wunth resp.
+					xor.b	#'\\',R8			; R8 is 0 iff it was a slosh, starting a Twoth resp.
 					_IF		NZ					; Otherwise,
 						cmp.b	#':',&TIB			; Does it start with a colon? (modBus resp or cmd)
 						_IF		EQ
@@ -395,18 +395,26 @@ ACCEPT:
 				_IF		NZ				; If checksumming
 					cmp.b	#':',&TIB
 					_IF		NE				; And if not a modbus packet (starts with colon)
-						tst.b	&rxCksum
-						_IF		Z				; And if good checksum
-							dec		R9				; Prepare to overwrite checksum with EXIT command char
+						mov.b	-2(R9),R10		; Get the two CRC12 bytes from the packet into R10. LSB
+						mov.b	-1(R9),R8		; MSB
+						swpb	R8
+						or_w	R8,R10
+						mov		&priorRxCksum,R8 ; Get the calculated CRC12 from 2 bytes back
+						inv		R8				; Invert it
+						push	R9				; Save the command buffer pointer
+						call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trashes R9
+						pop		R9				; Restore the command buffer pointer
+						cmp		R8,R10			; Compare calculated CRC12 with received CRC12
+						_IF		EQ				; And if CRC12 is correct
+							decd	R9				; Prepare to overwrite CRC12 LSB with EXIT command
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
 							_IF		LO
 								mov		#TIB,R9
 							_ENDIF
 					_END_PRIOR_IF			; End if not modbus
 				_END_PRIOR_IF			; End if checksumming
-							; We get here when not-checksumming or a modbus packet or a good checksum
-							mov.b	#EXIT,0(R9) 	; Overwrite checksum or CR with EXIT command character
-							mov.b	#EXIT,1(R9)		; In case a 2-byte command
+							; We get here when not-checksumming or a modbus packet or a correct CRC12
+							mov.b	#EXIT,0(R9) 	; Overwrite CRC12 LSB or CR with EXIT command
 							bit.b	#bDontInterpret,&interpFlags
 							_IF		Z				; If the dont-interpret flag is clear
 								mov		#TIB,Rip		; Interpret the packet as command characters
@@ -416,36 +424,40 @@ ACCEPT:
 						_ENDIF					; End if good checksum
 			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
-			clr.b	&rxCksum		; Clear the packet checksum
+			mov		#InitialCrc12,&rxCksum	; Initialise the CRC12
 		_ENDOF					; End of carriage return
 
-		_OF_EQ_B	#$08,R8			; Backspace editing
+		_OF_EQ_B	#$08,R8		; Backspace editing
 			cmp		#TIBEnd-1,R9
 			_IF		LO				; If packet buffer not full
 				dec		R9				; Decrement the pointer, but
-				cmp		#TIB,R9			; don't go back past start of packet
-				_IF		LO
-					mov		#TIB,R9
+				cmp		#TIB,R9
+				_IF		LO				; If that takes us back before the start of the packet
+					inc		R9				; Undo the decrement
+				_ELSE					; Else Wind the CRC12 back to its previous value
+					mov	&prevRxCksum,&rxCksum ; Note: This only works for a maximum of two backspaces
+					mov	&priorRxCksum,&prevRxCksum ; and only if they are followed by the same
+					mov	#InitialCrc12,&priorRxCksum ; number of printable ASCII characters.
 				_ENDIF
 				mov		R9,&ToIN
 			_ENDIF					; Endif packet buffer not full
 		_ENDOF					; EndOf backspace
 
-		_OF_EQ_B	#$11,R8			; XON (ctrl-Q) to exit no-echo mode
+		_OF_EQ_B	#$11,R8		; XON (ctrl-Q) to exit no-echo mode
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		NE
 				bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XON
 
-		_OF_EQ_B	#$13,R8			; XOFF (ctrl-S) to enter no-echo mode
+		_OF_EQ_B	#$13,R8		; XOFF (ctrl-S) to enter no-echo mode
 			bit.b	#bDontInterpret,&interpFlags
 			_IF		Z				; If the dont-interpret flag is clear
 				bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
 			_ENDIF
 		_ENDOF					; EndOf XOFF
 
-		_OF_EQ_B	#$1B,R8			; Escape to exit eXclusive mode (single CMU interaction)
+		_OF_EQ_B	#$1B,R8		; Escape to exit eXclusive mode (single CMU interaction)
 			bic.b	#bDontInterpret,&interpFlags ; Clear the don't-interpret flag
 		_ENDOF					; EndOf escape
 
@@ -454,7 +466,11 @@ ACCEPT:
 			_IF		LO				; If packet buffer not full
 				mov.b	R8,0(R9)		; Write the byte to the buffer
 				inc		&ToIN			; Increment the pointer
-				xor.b	R8,&rxCksum	; Accumulate the Wunth checksum
+				mov		&prevRxCksum,&priorRxCksum ; Keep CRC12 from 2 bytes back, for when we hit a CR.
+				mov		&rxCksum,R9		; Get the CRC12
+				mov		R9,&prevRxCksum	; Keep the CRC12 from 1 byte back
+				call	#UpdateCrc12	; Update the CRC12 in R9 with the data in R8. Trashes R8, R10
+				mov		R9,&rxCksum		; Save the updated CRC12
 			_ENDIF					; Endif packet buffer not full
 
 		_ENDCASE				; End Case char
