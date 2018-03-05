@@ -37,10 +37,12 @@ TxEndOfPacket:
 
 TxString: _FOR_B	@R10+,R11
 TxBytes:								; Alternative entry point with length in R11
-				push	R11					; Many TxByte implementations trash R11
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#TxByte
 				pop		R11
+				pop		R10
 			_NEXT_DEC_B	R11
 			ret
 
@@ -52,10 +54,12 @@ TxBytes:								; Alternative entry point with length in R11
 ;-------------------------------------------------------------------------------
 
 TxStringCk: _FOR_B	@R10+,R11
-				push	R11
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#TxByteCk
 				pop		R11
+				pop		R10
 			_NEXT_DEC_B	R11
 			ret
 
@@ -63,19 +67,23 @@ TxStringCk: _FOR_B	@R10+,R11
 											//	some required definitions (e.g. ChgTxByte)
 ChgTxString: _FOR_B	@R10+,R11
 ChgTxBytes:								; Alternative entry point with length in R11
-				push	R11
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#ChgTxByte
 				pop		R11
+				pop		R10
 			_NEXT_DEC_B	R11
 			ret
 
 ScuTxString: _FOR_B	@R10+,R11
 ScuTxBytes:								; Alternative entry point with length in R11
-				push	R11
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#ScuTxByte
 				pop		R11
+				pop		R10
 			_NEXT_DEC_B	R11
 			ret
 

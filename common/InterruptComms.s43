@@ -162,7 +162,8 @@ TxByteMacro	MACRO	dest
 ; from. This works because we never switch ports in the middle of a packet.
 TxByteCk: 	mov		&txCksum,R9
 			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
-			mov		R9,&txCksum 				;   Preserves R8 byte
+ 												;   Preserves R8 low byte only
+			mov		R9,&txCksum
 TxByte:		; Alternative entry which does not accumulate checksum
 			; If a BMU (ID-255), send all output to SCU port
 			br		&TxBytePtr					; Branch to handler at *TxBytePtr

@@ -17,6 +17,9 @@
 ;
 ; "Monolith" is the standard solar power system operating software for our Cell Management Unit (CMU)
 ; and Battery Management Unit (BMU) based on an MSP430 microcontroller.
+;
+; Aspirational register-use policy:
+; R8 thru R12 should be caller save (callee trashable)
 
 ;-----------------------------------------------------------------------------------------------------
 ; Commonly changed conditional assembly -- defaults are for LBS
