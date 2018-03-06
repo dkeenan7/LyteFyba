@@ -139,7 +139,7 @@ ScuTxByteNoWait:	TxByteNWTimerMacro	ScuTAR, ScuCCRt, ScuCCTLt, scuBitCntTx, ScuT
 ChgTxByteNoWait:	TxByteNWTimerMacro	ChgTAR, ChgCCRt, ChgCCTLt, chgBitCntTx, ChgTxSz, chgTxBuf, chgTxRd, chgTxWr
 
 ;-------------------------------------------------------------------------------
-; TxByteCk	; Transmit the character in R8 while accumulating checksum.
+; TxByteCk	; Transmit the character in R8 while accumulating CRC12.
 			; If necessary, wait until the queue is not full.
 			; Trashes R9, R10.
 ;-------------------------------------------------------------------------------
@@ -164,7 +164,7 @@ TxByteCk: 	mov		&txCksum,R9
 			call 	#UpdateCrc12				; Update CRC12 in R9 using data in R8, Trashes R10.
  												;   Preserves R8 low byte only
 			mov		R9,&txCksum
-TxByte:		; Alternative entry which does not accumulate checksum
+TxByte:		; Alternative entry which does not accumulate CRC12
 			; If a BMU (ID-255), send all output to SCU port
 			br		&TxBytePtr					; Branch to handler at *TxBytePtr
 

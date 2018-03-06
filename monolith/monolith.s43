@@ -184,7 +184,7 @@ oldRtcMeasCnt	DS		2			; Hi 4 bits of measureCount at the last advance of RTC sec
 ; Command Character Interpreter flags
 interpFlags		DS		1			; Interpreter flags, bitmask definitions follow
 bHexOutput		EQU		1<<0		; Should numeric output be in hexadecimal, not decimal?
-bChecksumming	EQU		1<<1		; Are we sending checksums and checking received checksums?
+bErrorChecking	EQU		1<<1		; Are we sending CRC12s and checking received CRC12s?
 bDontInterpret	EQU		1<<2		; Are we interpreting?
 bDontEcho		EQU		1<<3		; Are we echoing at the character level?
 bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/ASCII response?
@@ -329,6 +329,7 @@ chgTxRd			DS		1			; Transmit queue read index
 rxCksum			DS		2			; CRC12 for data received from CMUs/BMU or SCU
 prevRxCksum		DS		2			; Previous CRC12
 priorRxCksum	DS		2			; Previous previous CRC12
+errorRatio		DS		4			; Error ratio
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -347,7 +348,6 @@ boltVPlRaw		DS  	2			; Raw measurement results (sum of 16 measurements)
 boltVMiRaw		DS  	2
 cellVRaw		DS  	2
 temperatureRaw	DS  	2
-
 
 				ALIGNRAM 1
 eraseEnd							; End of the erased variables
@@ -585,9 +585,9 @@ main:										; For IAR Embedded Workbench IDE debugger
 			mov		#InitialCrc12,&rxCksum	; Initialise received packet CRC12
 			cmp.b	#255,&ID					; If we're not a BMU
 			_IF		NE
-				mov.b	#bChecksumming,&interpFlags ; Default checksumming on
+				mov.b	#bErrorChecking,&interpFlags ; Default error checking on
 			_ELSE
-				mov.b	#bChecksumming | bDontEcho | bEchoResponses,&interpFlags ; Don't want to echo
+				mov.b	#bErrorChecking | bDontEcho | bEchoResponses,&interpFlags ; Don't want to echo
 													; command packets, do want to see responses
 			_ENDIF
 ;			bic.b	#bHexOutput,&interpFlags	; Default numeric output to be in decimal, not hexadecimal
@@ -611,7 +611,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				call	#DoPrecharge
 			_ENDIF
 
-; If we're a BMU, ensure CMUs are using and expecting checksums, and sending status bytes,
+; If we're a BMU, ensure CMUs are using and expecting CRC12s, and sending status bytes,
 ; then retrieve the high word of the discharge accumulator from CMU 1
 ; This is now done in Master, using the bSendInit masterFlag.
 			cmp.b	#255,&ID
@@ -766,21 +766,25 @@ DoMeasurement:
 #define Rtype R15				// Type of measurement causing worst stress
 
 			inc.b	&ticks					; Used to time various infrequent tasks. Allowed to wrap.
-			cmp.b	#255,&ID				; Check ID
-			_IF		EQ						; If we're a BMU
-				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
-				_IF		Z
-					cmp.b	#PipWait, &pipInitCtr
-					_IF		NE
-						inc.b	&pipInitCtr	; Wait till the PIP is ready to receive commands
-					_ELSE
+			bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
+			_IF		Z
+				cmp.b	#PipWait, &pipInitCtr
+				_IF		NE
+					inc.b	&pipInitCtr				; Wait till the PIP is ready to receive commands
+				_ELSE
+					mov		#$7FFF,&errorRatio		; Reset errorRatio so we don't count startup junk
+					mov		#$0000,&errorRatio+2
+					cmp.b	#255,&ID				; Check ID
+					_IF		EQ						; If we're a BMU
 						cmp.b	#PipCmdWait, &pipCmdCtr
 						_IF		NE
-							inc.b	&pipCmdCtr		; Wait the delay before each init string
+							inc.b	&pipCmdCtr			; Wait the delay before each init string
 						_ELSE
 							clr.b	&pipCmdCtr
-							call	#InitPip		; Send the next PIP initialisation string
+							call	#InitPip			; Send the next PIP initialisation string
 						_ENDIF
+					_ELSE							; Else we're a CMU
+						bis.b	#bDonePipInit,&monFlags	; Tell DoMeasurement we're done
 					_ENDIF
 				_ENDIF
 			_ENDIF

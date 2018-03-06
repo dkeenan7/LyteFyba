@@ -391,8 +391,8 @@ ACCEPT:
 						pop		R9
 					_ENDIF					; Endif copying this response
 				_ENDIF					; Endif bEchoResponses
-				bit.b	#bChecksumming,&interpFlags
-				_IF		NZ				; If checksumming
+				bit.b	#bErrorChecking,&interpFlags
+				_IF		NZ				; If error checking
 					cmp.b	#':',&TIB
 					_IF		NE				; And if not a modbus packet (starts with colon)
 						mov.b	-2(R9),R10		; Get the two CRC12 bytes from the packet into R10. LSB
@@ -401,19 +401,26 @@ ACCEPT:
 						or_w	R8,R10
 						mov		&priorRxCksum,R8 ; Get the calculated CRC12 from 2 bytes back
 						inv		R8				; Invert it
-						push	R9				; Save the command buffer pointer
-						call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trashes R9
+						push		R9				; Save the command buffer pointer
+							call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trsh R9
+							cmp		R8,R10			; Compare calculated CRC12 with received CRC12
+							push	SR				; Save the Z flag
+							mov		&errorRatio,R9
+							mov		&errorRatio+2,R10
+							call	#UpdErrorRatio	; Update the error ratio. Trashes R8.
+							mov		R9,&errorRatio
+							mov		R10,&errorRatio+2
+							pop		SR				; Restore the Z flag
 						pop		R9				; Restore the command buffer pointer
-						cmp		R8,R10			; Compare calculated CRC12 with received CRC12
 						_IF		EQ				; And if CRC12 is correct
 							decd	R9				; Prepare to overwrite CRC12 with EXIT commands
-							cmp		#TIB,R9			; Handle case of empty packet with no checksum
+							cmp		#TIB,R9			; Handle case of empty packet with no CRC12
 							_IF		LO
 								mov		#TIB,R9
 							_ENDIF
 					_END_PRIOR_IF			; End if not modbus
-				_END_PRIOR_IF			; End if checksumming
-							; We get here when not-checksumming or a modbus packet or a correct CRC12
+				_END_PRIOR_IF			; End if error checking
+							; We get here when not-error checking or a modbus packet or a correct CRC12
 							mov.b	#EXIT,0(R9) 	; Overwrite CRC12 LSB or CR with EXIT command
 							mov.b	#EXIT,1(R9) 	; Overwrite CRC12 MSB or char after CR with EXIT cmd
 							; The second EXIT is in case the first gets treated as the second char
@@ -424,7 +431,7 @@ ACCEPT:
 								call	#_ENTER
 								bic.b	#bModbusOutput,&interpFlags	; Clear the modbus output mode flag
 							_ENDIF					; End if dont-interpret flag is clear
-						_ENDIF					; End if good checksum
+						_ENDIF					; End if good CRC12
 			_ENDIF					; End if packet buffer not full
 			mov		#TIB,&ToIN		; Initialise packet buffer pointer
 			mov		#InitialCrc12,&rxCksum	; Initialise the CRC12

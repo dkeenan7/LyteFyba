@@ -3,13 +3,13 @@
 ;
 
 ;
-; Transmit the present checksum if checksumming is on. Clear checksum.
+; Transmit the present CRC if error checking is on. Initialise CRC.
 ;
 ; This is not in InterruptComms.s43 because it is used by both the Monitor and TestICal
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
 ; Trashes R8, R9
 TxCksum:
-			bit.b		#bChecksumming,&interpFlags
+			bit.b		#bErrorChecking,&interpFlags
 			_IF		NZ
 				mov		&txCksum,R8			; Get the calculated CRC12
 				inv		R8					; Invert it
@@ -23,13 +23,13 @@ TxCksum:
 
 
 TxEndOfPacket:
-			call	#TxCksum				; Transmit checksum if required, then initialise checksum.
+			call	#TxCksum				; Transmit CRC if required, then initialise CRC.
 			mov		#'\r',R8				; Transmit a carriage return.
 			br		#TxByte					; Tail-call TxByte and return
 ;			ret
 
 ;-------------------------------------------------------------------------------
-; TxString	; Transmit counted string pointed to by R10 while not accumulating checksum.
+; TxString	; Transmit counted string pointed to by R10 while not accumulating CRC.
 			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
@@ -47,7 +47,7 @@ TxBytes:								; Alternative entry point with length in R11
 			ret
 
 ;-------------------------------------------------------------------------------
-; TxStringCk ; Transmit counted string pointed to by R10 while accumulating checksum.
+; TxStringCk ; Transmit counted string pointed to by R10 while accumulating CRC.
 			; Warning: A zero length string will be treated as 256 bytes long.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.

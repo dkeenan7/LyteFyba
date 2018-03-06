@@ -2,7 +2,7 @@
 ;  Assumes global variable txCrc
 
 ;-------------------------------------------------------------------------------
-; TxByteCrc	; Transmit the character in R8 while accumulating checksum.
+; TxByteCrc	; Transmit the character in R8 while accumulating PIP CRC.
 			; If necessary, wait until the queue is not full.
 			; Trashes R9.
 ;-------------------------------------------------------------------------------
@@ -13,7 +13,7 @@ TxByteCrc:	call	#UpdateCrc
 
 
 ;-------------------------------------------------------------------------------
-; TxStringCrc ; Transmit counted string pointed to by R10 while accumulating checksum.
+; TxStringCrc ; Transmit counted string pointed to by R10 while accumulating PIP CRC.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
@@ -22,7 +22,7 @@ TxStringCrc: mov.b	@R10+,R11
 			; Fall through to TxStringCrcS
 
 ;-------------------------------------------------------------------------------
-; TxStringCrcS ; Transmit string pointed to by R10 with length in R11 while accumulating checksum.
+; TxStringCrcS ; Transmit string pointed to by R10 with length in R11 while accumulating PIP CRC.
 			; If necessary, wait until the queue is not full.
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ TxStringCrcS: _DO
 			ret
 
 UpdateCrc:
-; Pass char to include into CRC in R8
+; Pass char to include into PIP CRC in R8
 ; Destroys R9, preserves R8
 #define Rda		R9		// Variable da assigned R9
 			; da=((INT8U)(crc>>8))>>4;

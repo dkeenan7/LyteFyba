@@ -3,14 +3,17 @@
 ; https://users.ece.cmu.edu/~koopman/crc/index.html
 ; It is 12 bits so it can be represented in two bytes that contain only printable ASCII characters.
 ; It detects:
-; Up to 5 bit-errors in messages of 1 to 3 bytes
-; Up to 3 bit-errors in messages of 4 to 221 bytes
+; All errors of up to 5 bits in messages of 1 to 3 bytes
+; All errors of up to 3 bits in messages of 4 to 221 bytes
 ; All errors in an odd number of bits
 ; All burst errors of up to 12 bits
-; We implement a right-shift version (so the polynomial is bit-reversed) because UARTs send LSBit first.
+; We implement a right-shift version (and the polynomial is bit-reversed) because UARTs send LSBit first
 ; The CRC is also sent LSByte first, for the same reason.
 
-; This online CRC calculator can be used to check our implementation:
+; The Excel spreadsheet LyteFyba/trunk/common/Crc12Calc.xlsx can be used to generate our CRC
+; for any message, e.g. if you need to type them from a terminal.
+
+; This online CRC calculator can be used to check our implementations:
 ; http://www.ghsi.de/pages/subpages/Online%20CRC%20Calculation/index.php?Polynom=1011010000011&Message=5D80%0D%0A
 ; However it only does left-shifts, so you have to bit-reverse our polynomial
 ; (so it becomes 1011010000011), and you have to bit-reverse our data,
@@ -69,41 +72,41 @@ UpdateCrc12:
 VirtualCrc12Lookup:
 ; Return the CRC of a one-byte message.
 ; Virtual 256 word CRC table lookup.
-; Input: 8 bit index in R8. Output: 12-bit CRC in R10. Preserves R8.
+; Input: 8 bit index in R8. Output: 12-bit CRC in R10. Preserves R8 (low byte only).
 	clr     R10
-	rlc.b   R8    ; shift ms bit of index to carry
+	rlc.b   R8    			; Shift ms bit of index to carry
 	_IF     C
 		xor     #$C16, R10    ; Constant is table value for $80 = polynomial
 	_ENDIF
-	rlc.b   R8    ; Shift bit 6 of index to carry
+	rlc.b   R8    			; Shift bit 6 of index to carry
 	_IF     C
 		xor     #$60B, R10    ; Constant is table value for $40
 	_ENDIF
-	rlc.b   R8    ; Shift bit 5 of index to carry
+	rlc.b   R8    			; Shift bit 5 of index to carry
 	_IF     C
 		xor     #$F13, R10    ; Constant is table value for $20
 	_ENDIF
-	rlc.b   R8    ; Shift bit 4 of index to carry
+	rlc.b   R8    			; Shift bit 4 of index to carry
 	_IF     C
 		xor     #$B9F, R10    ; Constant is table value for $10
 	_ENDIF
-	rlc.b   R8    ; Shift bit 3 of index to carry
+	rlc.b   R8    			; Shift bit 3 of index to carry
 	_IF     C
 		xor     #$9D9, R10    ; Constant is table value for $08
 	_ENDIF
-	rlc.b   R8    ; Shift bit 2 of index to carry
+	rlc.b   R8    			; Shift bit 2 of index to carry
 	_IF     C
 		xor     #$8FA, R10    ; Constant is table value for $04
 	_ENDIF
-	rlc.b   R8    ; Shift bit 1 of index to carry
+	rlc.b   R8    			; Shift bit 1 of index to carry
 	_IF     C
 		xor     #$47D, R10    ; Constant is table value for $02
 	_ENDIF
-	rlc.b   R8    ; Shift ls bit of index to carry
+	rlc.b   R8    			; Shift ls bit of index to carry
 	_IF     C
 		xor     #$E28, R10    ; Constant is table value for $01
 	_ENDIF
-	rlc.b   R8    ; Restore the original contents of R8
+	rlc.b   R8    			; Restore the original contents of R8 (low byte only)
 	ret
 
 
@@ -122,4 +125,28 @@ MakeCrc12Printable:
 		or_w     #$4000, R9
 	_ENDIF
 	or_w	R9, R8		; Put both bytes into R8
+	ret
+
+;
+; Update the smoothed error ratio variable passed in R10:R9.
+; The error bit is passed in the Zero flag, as the result of a compare of the actual and expected CRCs.
+; The updated error ratio is returned in R10:R9.
+; Trashes R8.
+; The error ratio is a 0.32 unsigned fixed point number with all ones representing almost 100% error.
+; Only the upper word is significant. See the the 'Er' command.
+;
+UpdErrorRatio:
+	; Want 65535*errorRatio + 1*incomingErrorBit, all divided by 65536
+	; First do the 1*incomingErrorBit. It's in the Z flag as the result of a compare of the CRCs
+	bit		#2,SR				; Invert the Z (EQ) bit (can't use inv or xor)
+	bit		#2,SR				; Get the Z flag into the C flag.
+	adc		R10					; Add the incoming error bit
+								; Note that this possibly-incremented R10 is also subtracted from R9
+								; below. This is not quite right, but the error is insignificant.
+	; Compute 65535*errorRatio as 65536*errorRatio - errorRatio
+	mov		#$7FFF,R8			; Use $7FFF not $8000 for rounding, so result can reach 0, and can't ovflo
+	sub		R9, R8				; Multiply R10:R9 by 65536 by treating R10:R9:R8 as a 48-bit number
+	subc	R10,R9				; Subtract R10:R9 from R10:R9:R8
+	sbc		R10
+    ; Divide by 65536 by ignoring R8 on return
 	ret

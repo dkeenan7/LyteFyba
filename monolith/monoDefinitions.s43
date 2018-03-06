@@ -5,16 +5,22 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and TestICal
 
-; checKsumming ( -- )						; Toggle bChecksumming
-			; The complete packet for a k command, with CRC, is kCB. This will always toggle checksumming.
-			; When sending from a terminal program such as TeraTerm: 
-			; To turn on  checksumming irrespective of present state, send k<enter>.
-			; To turn off checksumming irrespective of present state, send k<enter> kCB<enter>.
-			; When sending from the node-red Monolith debug terminal, or anywhere CRCs are added automatically,
-			; To turn on  checksumming irrespective of present state, send 2<enter>.
-			; To turn off checksumming irrespective of present state, send 2<enter> k<enter>.
-			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
+; ErrorChec(k)ing ( -- )						; Toggle bErrorChecking
+			; The complete packet for a k command, with CRC, is kCB.
+			; This will always toggle error checking.
+			; When sending from a terminal program such as TeraTerm:
+			; To turn on  error checking irrespective of present state, send k<enter>.
+			; To turn off error checking irrespective of present state, send k<enter> kCB<enter>.
+			; When sending from the node-red Monolith debug terminal,
+			; or anywhere CRCs are added automatically,
+			; To turn on  error checking irrespective of present state, send 2<enter>.
+			; To turn off error checking irrespective of present state, send 2<enter> k<enter>.
+			; 2<enter> works in this case because fk will be sent as the CRC.
+			; This is effectively a no-op with a k in its CRC.
+			; However if it is received by a BMU that does not already have error checking turned on,
+			; it will also harmlessly respond with its state of charge, due to the 'f'.
+			xCODE	'k',ErrorChecking,_ErrorChecking
+			xor.b	#bErrorChecking,&interpFlags ; Toggle bErrorChecking bit in interpFlags
 			ret
 
 ; Kill status sending ( boolean -- )		; 1 for no status, 0 for status
@@ -64,14 +70,26 @@
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
-; Comms error ( -- )						; Report temporary master's ID
+; Error ratio ( -- )					; Fraction of packets received on CMU port with bad CRC12
+			; Units are: bad packets per 65536 packets
+			xCODE	'E'|'r' <<8,ErrorRatio,_ErrorRatio ; 'Er' collides with 'Eb' 'Ej' 'Ez' 'E2'
+			mov		#'E'|'r'<<8,Rthd		; Command is Er
+			mov		&errorRatio,Rsec		; Get low word of error ratio
+			add		#$7FFF,Rsec				; Add only 7FFF for rounding, so can reach 0 and can't ovflo
+			mov		&errorRatio+2,Rsec		; Get high word of error ratio
+			adc		Rsec					; Do rounding
+			mov		#5,Rtos					; Print 5 digits
+			call	#_prettyPrint			; Call pretty-print
+			ret
+
+; Comms error ( -- )					; Report temporary master's ID
 _commsError	; No command character since it never needs to be interpreted and 'c' is used for Charging
 			mov		#'c',Rthd				; Type is comms error
 			mov		#0,Rsec					; Zero value (so no minus sign)
 			mov		#0,Rtos					; Send no digits of value (will get '$' if hex)
 			br		#_prettyPrint			; Tail-call pretty-print and return
 
-; Stress ( -- )								; Report local stress
+; Stress ( -- )							; Report local stress
 			xCODE	'j',Stress,_Stress		; 'j' for just local stress (not the full status)
 			mov		#'j',Rthd				; Type is stress
 			mov.b	&localStatus,Rsec		; Get local status
@@ -79,7 +97,7 @@ _commsError	; No command character since it never needs to be interpreted and 'c
 ;			mov		#3,Rtos					; Print 3 digits
 			br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
 
-; Status ( -- )								; Report global status if a BMU, else local status
+; Status ( -- )							; Report global status if a BMU, else local status
 			xCODE	'p',Status,_Status		; 'p' for pain since we've already used 's' for select
 			push.b	&interpFlags			; Save present number base
 			bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output

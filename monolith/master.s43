@@ -47,9 +47,9 @@ Master:
 				bit.b	#bSendZ | bSendi | bSendInit, &masterFlags		; And we have anything to send,
 			_AND_IF	NZ
 				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
-												; reset checksums (at receivers)
+												; reset CRC12s (at receivers)
 				call	#TxByte
-				mov		#InitialCrc12,&txCksum	; Explicitly initialise our transmit checksum
+				mov		#InitialCrc12,&txCksum	; Explicitly initialise our transmit CRC12
 				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
 			_ENDIFS
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
@@ -101,10 +101,9 @@ Master:
 
 			bit.b	#bSendInit,&masterFlags
 			_IF		NZ
-				; If we're a BMU, ensure CMUs are echoing commands, using and expecting checksums,
-				; and sending status bytes.
+				; If we're a BMU, ensure CMUs are listening, echoing commands,
+				; using and expecting CRC12s, and sending status bytes.
 				; Then retrieve the high word of the discharge accumulator from CMU 1.
-				; The 'k' must go as a separate packet because it must be sent without checksum.
 				; The '1sG' must go as a separate packet because it is for a single CMU.
 				mov		#'\r',R8				; Send a CR to clear any junk
 				call	#TxByte
@@ -112,10 +111,9 @@ Master:
 				call	#TxByte
 				mov		#$11,R8					; Send a ctrl-Q (XON) to turn on echo
 				call	#TxByte
-				mov		#'k',R8					; Transmit "k" with no checksum
-				call	#TxByte					;	to tell CMUs to send and expect checksums
-				mov		#'\r',R8
-				call	#TxByte
+				mov		#EnableErrCheck,R10		; Transmit '2', which has a CRC of 'fk' to tell CMUs
+				call	#TxStringCk				;	to send and expect CRCs if they are not already
+				call	#TxEndOfPacket
 #if QUIET
 				mov		#Quiet,R10				; Transmit "1Q" to tell CMUs to be quiet
 				call	#TxStringCk
@@ -136,6 +134,7 @@ Master:
 
 		ret
 
+EnableErrCheck	DB		1, '2'			; Length-prefixed command string to turn on error checking
 SelectCMU1		DB		2, '1s'			; Length-prefixed command string to select CMU 1
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
