@@ -360,6 +360,11 @@ void bms_processStatusByte(unsigned char status)
         // But no actual shifts are required -- just take high word of a long
 		// Also add $8000 before the >> 16 for rounding.
 		current = (unsigned int)(((output + 0x8000L) * (uChgrCurrLim - CHGR_CURR_MIN) + 0x8000) >> 16) + CHGR_CURR_MIN;
+
+		// If the key is being held in the start position, force the charge current to its present limit.
+		if (bForceChgrCurrLim)
+			current = uChgrCurrLim;
+
 		// Only send a packet to the charger if the current has changed, or on a timeout
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1

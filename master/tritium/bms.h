@@ -60,8 +60,8 @@ void bms_timer();
 // Public variables
 extern volatile unsigned int bms_events;
 extern volatile unsigned int bms_sent_timeout;
-extern float fRemoteCurLim;
 extern unsigned int uChgrCurrLim;			// Charger current limit, in tenths of a volt
+extern unsigned int bForceChgrCurrLim;		// When true, ignore PI controller and force max chgr curr
 extern unsigned int bmsStatusBtimeout;		// Timeout for status via CAN from DCU-B to DCU-A
 
 // BMS buffers

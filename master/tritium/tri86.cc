@@ -59,7 +59,7 @@ void timerB_init( void );
 void adc_init( void );
 static void __inline__ brief_pause(register unsigned int n);
 void update_switches( unsigned int *state, unsigned int *difference);
-void SendChgrLimForB(unsigned int uChgrLim);
+void SendChgrLimForB(unsigned int uChgrLim, unsigned int bForceChgrLim);
 
 
 // Global variables
@@ -79,6 +79,7 @@ float field_current = 0.0;
 unsigned int uChgrCurrLim = CHGR_CURR_LIMIT - ((CHGR_CURR_LIMIT+2)/4);
 												// Default to medium current limit. Integer tenths of
 												//	an ampere, e.g. 41 means 4.1 A.
+unsigned int bForceChgrCurrLim = FALSE;			// Default to not forcing
 bool bDCUb;										// True if we are DCU-B; false if we are DCU-A
 bool bAuxBatNeedsCharge = false;				// True if auxiliary battery (12 V) needs charging
 unsigned int iAuxBatMilliVolts = 0;				// Voltage of auxiliary battery in millivolts
@@ -318,13 +319,22 @@ int main( void )
 					}
 					else { // Stay in CHARGE  mode
 						next_state = MODE_CHARGE;
-						// Cycle through the 3 charge rates on rising edges of IGN_START
+						// On rising edge of IGN_START, cycle through the 3 charge rates, and force max charge
 						if (!bDCUb && (switches & switches_diff & SW_IGN_START)) {
 							uChgrCurrLim = uChgrCurrLim + (CHGR_CURR_LIMIT+2)/4;
 							if (uChgrCurrLim > CHGR_CURR_LIMIT)
 								uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
-							SendChgrLimForB(uChgrCurrLim); // Send the new charge current limit to DCU-B
+							bForceChgrCurrLim = TRUE; // This allows manual override when high undervoltage stress would otherwise limit charge to 200 mA.
+							SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send new charge current limit and forcing to DCU-B
+							bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
 						}
+						// On falling edges of IGN_START, stop forcing max charge
+						if (!bDCUb && (~switches & switches_diff & SW_IGN_START)) {
+							bForceChgrCurrLim = FALSE;
+							SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send lack-of-forcing to DCU-B
+							bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
+						}
+						// Ensure Auxiliary battery still gets charged if required, when main charge has finished
 						if (chgr_state == CHGR_IDLE) {
 							if (bAuxBatNeedsCharge)
 								P1OUT |= (uchar)CHG_CONT_OUT;	// Turn on our chgr (and bat) contactors
@@ -453,6 +463,8 @@ int main( void )
 					switch(can.identifier) {
 					case DC_CAN_BASE + DC_CHGR_LIM:
 						uChgrCurrLim = can.data.data_u16[0];
+						bForceChgrCurrLim = can.data.data_u16[1];
+						bms_processStatusByte(7); // Ensure any change in bForceChgrCurrLim is acted on, even if there are no status bytes
 						break;
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
@@ -584,11 +596,6 @@ int main( void )
 							WDTCTL = 0x00;	// Force watchdog reset
 						}
 						break;
-					case CHGR_LIM:
-					  	// NOTE: at present, this gets overridden by the charger limit pot setting
-					  	// The filter and mask for this don't seem to work anyway
-						uChgrCurrLim = can.data.data_u16[0];
-						break;
 				}
 
 			} // End of if(can.status == CAN_OK)
@@ -658,10 +665,11 @@ int main( void )
 
 
 // Send the charger current limit on the CAN bus, for DCU-B to read.
-void SendChgrLimForB(unsigned int uChgrLim) {
+void SendChgrLimForB(unsigned int uChgrLim, unsigned int bForceChgrLim) {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_CHGR_LIM;
-	can_push_ptr->status = 2;	// Packet size in bytes
+	can_push_ptr->status = 4;	// Packet size in bytes
 	can_push_ptr->data.data_u16[0] = uChgrLim; 	// Send charger current limit to DCU-B
+	can_push_ptr->data.data_u16[1] = bForceChgrLim; // Send charger current forcing to DCU-B
 	can_push();
 }
 
