@@ -12,23 +12,25 @@ t l Name or description
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-    Characters not used so far:                           J"()*+,./;=[]_|}~
-	Characters not used so far in TestICal:          kGJKPZ"()*+,./;=[]_|}~<>{
-	Characters not used so far in Monitor etc: abjmuwzJLMOU"()*+,./;=[]_|}~
+    Characters not used so far:                           J"()*+,./;=[]_|~
+	Characters not used so far in TestICal:          kGJKPZ"()*+,./;=[]_|~<>{}
+	Characters not used so far in Monitor etc: abjmuwzJLMOU"()*+,./;=[]_|~
 @ @ Capacity constants; B@ nom Bat voltage (dV), C@ max Charge (W), D@ max Discharge (W), E@ Energy (Wh)
 $ $ dollarHex (set number input mode to hex for next literal)
 % % Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 ' ' characterLiteral (tick)
 # # revision numbers of main program, bootstrap loader and hardware
-& 	RxState Ticks since (&ince?) last received char. Rx in trunk
+&   ErrorRatio. Bad packets per 65536 packets rcvd on the CMU port, as found using our CRC12. Er in trunk
 ` ` execute (tock, inverse of tick)
 ? ? get byte (peek byte)
 ! ! store byte (poke byte)
+" " quote (begins and ends a literal string), returns pointer and length
 - - change-sign (postfix negate)
 : : begins a Modbus/ASCII packet
 <   minimum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 >   maximum, precede with 'v for voltage, 't for temp or 'p for stress (pain), 'q for worstStress
 {   resetWorstStress :-{
+} 	RxState Ticks since last received char. Rx in trunk
 \ \ exit or comment
 ^ ^ reset the Reset log
 1 to 9 are decimal and hexadecimal digits
@@ -47,7 +49,7 @@ H H Hotness. Temperature as measured by external thermistor (wmonolith and TestI
 i	set current. Sent by IMU or BMU to CMUs to tell them the current, for estimating open circuit voltage.
   i set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 I I Insulation test - touch current in tenths of a milliamp (only when ID=0, insulation monitoring unit)
-j   Just local status (not the full stress)
+j   Just local stress (not the full status)
   j JumpToSubroutine (call)
 k   chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
 K   KillStatusSending, '1K' to kill status sending, '0K' to restore it
@@ -94,6 +96,7 @@ i a
 t l Name or description
 --------------------------------------------
 ' ' characterLiteral (tick)
+" " quote (begins and ends a literal string), returns pointer and length
 ` ` execute (tock, inverse of tick)
   m e(m)itCharacter
   z send nulls (send (z)eros)
@@ -122,8 +125,10 @@ V V cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
 l l LinkVoltage
 t t Temperature
 H H Hotness. Temperature as measured by external thermistor (wmonolith and TestICal only)
-& 	RxState Ticks since (&ince?) last received char. Rx in trunk
-p   Stress level (Pain) (local to each CMU)
+p   status (local to each CMU, but global when BMU)
+j   Just local stress (not the full status)
+}   RxState (number of ticks since last Rx)
+&   ErrorRatio. Bad packets per 65536 packets received on the CMU port, as found using our CRC12.
 
 P   set PI-loop (or Pain) thresholds. ( setpoint step type -- ). e.g 3490 20'VP. Curently only overvoltage
 c   Charging, '1c' to include undertemp and exclude undervolt as stress, and start charging when 'o' mode.

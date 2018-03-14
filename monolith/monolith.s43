@@ -301,8 +301,9 @@ chgTxRd			DS		1			; Transmit queue read index
 #endif
 				ALIGNRAM 1
 rxCksum			DS		2			; CRC12 for data received from CMUs/BMU or SCU
-prevRxCksum		DS		2			; Previous CRC12 for data received from CMUs/BMU
-priorRxCksum	DS		2			; Previous previous CRC12 for data received from CMUs/BMU
+prevRxCksum		DS		2			; Previous CRC12
+priorRxCksum	DS		2			; Previous previous CRC12
+errorRatio		DS		4			; Error ratio
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
@@ -625,12 +626,16 @@ main:										; For IAR Embedded Workbench IDE debugger
 
 			cmp.b	#255,&ID
 			_IF		EQ
-				mov		#'\r',R8				; Clear any junk
+				mov		#'\r',R8				; Send a CR to clear any junk
 				call	#TxByte
-				mov		#'k',R8					; Transmit "k" with no checksum
-				call	#TxByte					;	to tell CMUs to send and expect checksums
-				mov		#'\r',R8
+				mov		#$1B,R8					; Send an ESC to ensure all are listening
 				call	#TxByte
+				mov		#$11,R8					; Send a ctrl-Q (XON) to turn on echo
+				call	#TxByte
+
+				mov		#EnableErrCheck,R10		; Transmit '2', which has a CRC of 'fk' to tell CMUs
+				call	#TxStringCk				;	to send and expect CRCs if they are not already
+				call	#TxEndOfPacket
 
 				mov		#EnableStatus,R10		; Transmit "0K" to tell CMUs to send status bytes
 				call	#TxStringCk
@@ -675,6 +680,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 			_FOREVER
 ; End of main loop
 
+EnableErrCheck	DB		1, '2'			; Length-prefixed command string to turn on error checking
 EnableStatus	DB		2, '0K'			; Length-prefixed command string to enable status sending
 SelectCMU1Get	DB		3, '1sG'		; Length-prefixed command string to get saved discharge counter
 				ALIGN	1

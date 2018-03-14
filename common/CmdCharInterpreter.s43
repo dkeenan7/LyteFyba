@@ -270,9 +270,16 @@ ACCEPT:
 						mov		&priorRxCksum,R8 ; Get the calculated CRC12 from 2 bytes back
 						inv		R8				; Invert it
 						push	R9				; Save the command buffer pointer
-						call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trashes R9
+							call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trash R9
+							cmp		R8,R10			; Compare calculated CRC12 with received CRC12
+							push	SR				; Save the Z flag
+							mov		&errorRatio,R9
+							mov		&errorRatio+2,R10
+							call	#UpdErrorRatio	; Update the error ratio. Trashes R8.
+							mov		R9,&errorRatio
+							mov		R10,&errorRatio+2
+							pop		SR				; Restore the Z flag
 						pop		R9				; Restore the command buffer pointer
-						cmp		R8,R10			; Compare calculated CRC12 with received CRC12
 						_IF		EQ				; And if CRC12 is correct
 							decd	R9				; Prepare to overwrite CRC12 LSB with EXIT command
 							cmp		#TIB,R9			; Handle case of empty packet with no checksum
