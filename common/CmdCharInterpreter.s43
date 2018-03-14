@@ -401,8 +401,8 @@ ACCEPT:
 						or_w	R8,R10
 						mov		&priorRxCksum,R8 ; Get the calculated CRC12 from 2 bytes back
 						inv		R8				; Invert it
-						push		R9				; Save the command buffer pointer
-							call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trsh R9
+						push	R9				; Save the command buffer pointer
+							call	#MakeCrc12Printable	; Convert to two printable-ASCII in R8. Trash R9
 							cmp		R8,R10			; Compare calculated CRC12 with received CRC12
 							push	SR				; Save the Z flag
 							mov		&errorRatio,R9

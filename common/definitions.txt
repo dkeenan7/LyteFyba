@@ -54,9 +54,9 @@ i     set current. Sent by BMU to CMUs to tell them the current, for estimating 
 In In Display input port value
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 j     Just local stress (not the full status)
-J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
    j  JumpToSubroutine (call)
-k     chec(K)summing, 'kk' to Kill checKsumming, 'k' to turn on checKsumming (irresp. of current state)
+J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
+k     error chec(K)ing, 'k' or '2fk' to turn it on, 'kCB' to toggle it, irrespective of current state
 K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
 l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
 L  L  Liven contactor (1L .. 5L)
@@ -164,7 +164,7 @@ x  x  e(x)clusive   (single-CMU interaction mode)
 X  X  e(X)clude     (single-CMU ignore mode)
 <ESC> ESCape from e(x)clusive or e(X)clude modes
 \  \  exit or comment
-k     chec(K)summing, kk to turn checksumming off, k to turn it on (irrespective of current state)
+k     error chec(K)ing, 'k' or '2fk' to turn it on, 'kCB' to toggle it, irrespective of current state
 K     KillStatusSending, 1K to kill status sending, 0K to restore it
 #  #  revision numbers of main program, bootstrap loader and hardware
 
