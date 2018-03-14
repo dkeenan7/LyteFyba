@@ -316,6 +316,7 @@ chgTxRd			DS		1			; Transmit queue read index
 rxCksum			DS		2			; Received packet CRC12
 prevRxCksum		DS		2			; Previous received packet CRC12
 priorRxCksum	DS		2			; Previous previous received packet CRC12
+errorRatio		DS		4			; Error ratio
 
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)

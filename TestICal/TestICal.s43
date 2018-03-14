@@ -195,8 +195,9 @@ txCksum		DS		2				; Transmit CRC12
 
 			ALIGNRAM 1
 rxCksum		DS		2				; Received packet CRC12
-prevRxCksum	DS		2				; Previoius received packet CRC12
-priorRxCksum DS		2				; Previoius previoius received packet CRC12
+prevRxCksum	DS		2				; Previous received packet CRC12
+priorRxCksum DS		2				; Previous previous received packet CRC12
+errorRatio	DS		4				; Error ratio
 
 			ALIGNRAM 1
 ToIN		DS		2				; Pointer to present character being stored in Text Input Buffer

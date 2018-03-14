@@ -33,7 +33,6 @@
 
 #define	G2553		0			// MSP430 model. True for BMUs, false for CMUs.
 								// You must also set IAR/Project/General Options/Target/Device correctly
-
 #define REJECT_2400 0			// Set to 1 for Helidon, to reject 2400 bps interference
 
 			LSTOUT-
@@ -213,7 +212,7 @@ ticks			DS		1			; To time various medium frequency tasks. Allowed to wrap
 passWordState	DS		1			; State machine for password recogniser
 
 ; Charger controller variables
-
+#if G2553
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
 				ALIGNRAM 1
 chargerVoltMin	DS		2			; Charger voltage minimum (tenths of a volt). Set by 'o' command.
@@ -229,9 +228,11 @@ ChargerVoltMin	EQU		530			; Lower limit of PI controller output. In tenths of a 
 ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
+smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
+#endif
+				ALIGNRAM 1
 current			DS		2			; Current most recently sent by BMU/IMU, tenths of an amp (signed)
 temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
-smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
 
 ; Serial-io variables
 	; Cell monitoring units comms variables
@@ -254,7 +255,7 @@ TxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 256
 rxBuf			DS		RxSz		; Receive queue buffer
 rxWr			DS		1			; Receive queue write index
 rxRd			DS		1			; Receive queue read index
-txBuf			DS		RxSz		; Transmit queue buffer
+txBuf			DS		TxSz		; Transmit queue buffer
 txWr			DS		1			; Transmit queue write index
 txRd			DS		1			; Transmit queue read index
 
@@ -275,7 +276,7 @@ ScuTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 
 scuRxBuf		DS		ScuRxSz		; Receive queue buffer
 scuRxWr			DS		1			; Receive queue write index
 scuRxRd			DS		1			; Receive queue read index
-scuTxBuf		DS		ScuRxSz		; Transmit queue buffer
+scuTxBuf		DS		ScuTxSz		; Transmit queue buffer
 scuTxWr			DS		1			; Transmit queue write index
 scuTxRd			DS		1			; Transmit queue read index
 
@@ -295,7 +296,7 @@ ChgTxSz			EQU		32			; Transmit queue size. Must be a power of 2 no greater than 
 chgRxBuf		DS		ChgRxSz		; Receive queue buffer
 chgRxWr			DS		1			; Receive queue write index
 chgRxRd			DS		1			; Receive queue read index
-chgTxBuf		DS		ChgRxSz		; Transmit queue buffer
+chgTxBuf		DS		ChgTxSz		; Transmit queue buffer
 chgTxWr			DS		1			; Transmit queue write index
 chgTxRd			DS		1			; Transmit queue read index
 #endif
@@ -536,6 +537,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 ; Initialise the charger controller
 ;
+#if G2553
 			; Already cleared by loop above
 ;			clr.b	&chargerTxTimer				; Initialise charger transmit timer
 			cmp.b	#255,&ID					; If we're a BMU (Insulation/current Monitoring Unit)
@@ -548,7 +550,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.w	&piPrevOutput				; Initialise PI controller state
 ;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
-
+#endif
 			mov.w	#OV_ZERO,&ovZero
 			mov.w	#OV_STEP,&ovStep
 
@@ -813,6 +815,7 @@ DoMeasurement:
 #define Rtype R15				// Type of measurement causing worst stress
 
 			inc.b	&statusFreqCtr			; Used to time various infrequent tasks. Allowed to wrap.
+#if G2553
 			cmp.b	#255,&ID
 			_IF		EQ						; If we're a BMU
 				bit.b	#bDonePipInit,&monFlags	; Check if we've already done PIP initialisation
@@ -826,7 +829,7 @@ DoMeasurement:
 					_ENDIF
 				_ENDIF
 			_ENDIF
-
+#endif
 			clr		Rstrs					; Init present stress to zero
 			clr		Rmeas					; Init measurement causing zero stress to zero
 			clr		Rtype					; Init type of measurement causing zero stress to zero
@@ -1184,8 +1187,10 @@ DoMeasurement:
 					bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for BMU.
 					_IF		Z							; If we're not in charge control mode
 						call	#TxByte						; Send the status byte. Wait buffer not full
+#if G2553
 					_ELSE								; Else we're in charger control mode
 						call	#ControlContactors			; Control contactors (was ControlCharger)
+#endif
 					_ENDIF
 				_ENDIF							; End if too many ticks since last Rx
 			_ENDIF							; End if sending status
@@ -1320,18 +1325,22 @@ DoStatus:
 				bit.b	#bChargerControl,&monFlags	; Set by 'o' command. Initialised true for monolith.
 				_IF		Z							; If we're not in charge control mode
 					call	#TxByte						; Send the status byte. Wait buffer not full
+#if G2553
 				_ELSE								; Else we're in charger control mode
 					call	#ControlContactors				; Control contactors (was ControlCharger)
+#endif
 				_ENDIF
+#if G2553
 			_ELSE							; Else we're an BMU
 				; Process incoming status for BMU. Stress in R9, complete status in R8.
 				call	#ControlContactors			; Control contactors
+#endif
 			_ENDIF							; End else BMU
 		_ENDIF							; End if no comms error
 		ret
 ; End of DoStatus
 
-
+#if G2553
 ControlContactors:
 ;
 ; Status byte is in R8. Use it to control contactors
@@ -1462,7 +1471,7 @@ ControlContactors:
 			call	#UpdateSoC			; Update the pre-computed PWM counter advance value
 		_ENDIFS ; All Considered Full and no comms error
 
-#if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
+	#if 0	// PI control doesn't work with the MPPT in the PIP-4048MS, only with its AC charger
 ;		bit.b	#bCharging,&monFlags	; Set by '1c' command
 ;		_IF		NZ						; If we've been told to start charging
 			ClearWatchdog
@@ -1493,13 +1502,14 @@ ControlContactors:
 				clr.b	&chargerTxTimer 		; Clear timer
 			_ENDIF ; Every fourth tick
 ;		_ENDIF ; bCharging
-#endif
+	#endif
 		pop		R10
 		pop		R9
 		ret
 ; End of ControlContactors
+#endif
 
-
+#if G2553
 PiController:
 ;
 ; A PI controller whose input and output are in R8
@@ -1543,8 +1553,9 @@ PiController:
 			rra2	Routput					; For effective reduction of Kp and Ki
 			ret
 ; End of PiController
+#endif
 
-
+#if G2553
 SendChargerPackets:
 ;
 ; Send charger float and bulk command packets (in the right order)
@@ -1558,9 +1569,9 @@ SendChargerPackets:
 ; and when lowering it, float will have to be sent before bulk.
 PipCmdDelay	EQU		950					; Delay in ms between PIP commands, so next one not NAKed
 
-#if !G2553
+	#if !G2553
 			call	#WaitTxComplete		; Wait for 9600 baud transmission to complete
-#endif
+	#endif
 			mov.w	#BitTime24,&txBitTime ; Set the bit time for 2400 baud
 			;
 			; Although we have waited long enough to send the last 9600 bps character completely, it is
@@ -1658,8 +1669,9 @@ FloatCmd	DB			4, 'PBFT'		; First byte is length of following string
 BulkCmd		DB			4, 'PCVV'		; 48.0 to 58.4 V
 			ALIGN		1
 ; End of SendChargerPackets
+#endif
 
-
+#if G2553
 SendPipPacket:
 ;
 ; Send a PIP command packet`
@@ -1707,6 +1719,7 @@ SendPipPacket:
 			ClearWatchdog
 
 			ret
+#endif
 
 ;
 ; Update the SoC meter's advance value (so the SoC meter will reflect a change made to the discharge
@@ -1731,7 +1744,6 @@ MinAdvance	EQU			20					; To avoid timer compare wraparound
 			pop			R9
 			pop			R8
 			ret
-
 
 			EVEN
 
