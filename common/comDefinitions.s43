@@ -922,6 +922,10 @@ SocToDischarge:
 
 		xCODE	'F'|'f' <<8,forceFuelGauge,_forceFuelGauge	; 'Ff' collides with 'Fn' and 'Fv'
 		mov		Rtos,R9
+		cmp		#1000,R9
+		_IF		HS
+			mov		#1000,R9
+		_ENDIF
 		call	#SocToDischarge
 		mov		R9,&discharge
 		mov		R10,&discharge+2

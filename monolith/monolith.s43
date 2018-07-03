@@ -23,10 +23,10 @@
 
 ;-----------------------------------------------------------------------------------------------------
 ; Commonly changed conditional assembly -- defaults are for LBS
-#define		CONFIG			ON_GRID_SMALL	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
+#define		CONFIG			OFF_GRID	// Options are: OFF_GRID, ON_GRID_SMALL, ON_GRID_LARGE
 #define		QUIET			0			// 1 for BMU to tell CMUs not to beep
 #define 	LOW_LOW_CUTOFF	1			// 1 for 2.8 V cutoff (2% SoC), 0 for 3.08 V cutoff (5% SoC)
-#define		chargerCurrMax	60			// 60 or 80 A charger limit, depending on PIP-4048 model
+#define		chargerCurrMax	80			// 60 or 80 A charger limit, depending on PIP-4048 model
 ;-----------------------------------------------------------------------------------------------------
 
 #define MONOLITH				// For some conditional assembly in otherwise common code.
