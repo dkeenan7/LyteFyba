@@ -11,8 +11,8 @@
 // Charger constants
 #define NUMBER_OF_CELLS		109					// Number of cells in each charger's half-pack
 #define NUMBER_OF_CMUS		109					// Number of cell monitoring units in half-pack's BMS
-#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 36.00 * 1.021))// Charger voltage limit in tenths of a volt
-							// Charger-B reads the battery voltage as 2.1% higher than it really is.
+#define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 35.70 * 1.009))// Charger voltage limit in tenths of a volt
+							// Charger-B reads the battery voltage as 0.9% higher than it really is.
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
 #define CHGR_CURR_MIN		 2					// Minimum charge current in tenths of an amp (< bypass)
 #define CHGR_EOC_SOAKT		(1 * 60 * BMS_STATUS_RATE)// Number of ticks from first detect of all bypass to
