@@ -29,7 +29,9 @@ DELAY_IF_NEEDED MACRO		; Delay for one character time to allow the downstream CM
 
 
 WaitTxComplete:	ret						; Empty routine: transmit is always complete
-TxByteCk:	xor.b	R8,&txCksum			; Alternative entry which accumulates checksum
+
+; Trashes R9 and R11
+TxByteCk:								; TestICal doesn't send, or expect to receive, CRC12s
 TxByte:		call	#jWriteByte			; Call the BSL's non-interrupt bit-bashing transmit routine
 			ClearWatchdog
 			DELAY_IF_NEEDED

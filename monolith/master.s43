@@ -47,15 +47,15 @@ Master:
 				bit.b	#bSendZ | bSendi | bSendInit, &masterFlags		; And we have anything to send,
 			_AND_IF	NZ
 				mov.b	#$0D,R8					; then send a CR to terminate the stalled command and
-												; reset CRC12s (at receivers)
-				call	#TxByte
+												; reset CRC12s (at receivers).
+				call	#TxByte					; Trashes R9,10,11
 				mov		#InitialCrc12,&txCksum	; Explicitly initialise our transmit CRC12
 				bic.b	#bTimeout,&masterFlags	; Reset the timeout flag
 			_ENDIFS
 			bit.b	#bSendZ,&masterFlags		; Is a Z command due?
 			_IF		NZ
 				mov		#SelectCMU1,R10				; Transmit "1s" to select CMU 1 only
-				call	#TxStringCk
+				call	#TxStringCk					; Trashes R9,10,11
 				ClearWatchdog
 
 				mov		&discharge+2,Rsec
@@ -67,8 +67,8 @@ Master:
 				ClearWatchdog
 
 				mov		#'Z',R8						; Transmit a "Z" for ZtoreDischarge
-				call	#TxByteCk
-				call	#TxEndOfPacket
+				call	#TxByteCk					; Trashes R9,10,11
+				call	#TxEndOfPacket				; Trashes R8 thru R11
 				bic.b	#bSendZ,&masterFlags		; Don't repeat until needed
 			_ENDIF
 
@@ -91,11 +91,11 @@ Master:
 				cmp		#0,&current
 				_IF		L						; If current is negative (discharge)
 					mov		#'-',R8					; Transmit a postfix minus sign
-					call	#TxByteCk
+					call	#TxByteCk				; Trashes R9,10,11
 				_ENDIF
 				mov		#'i',R8					; Transmit an "i" for current
-				call	#TxByteCk
-				call	#TxEndOfPacket
+				call	#TxByteCk				; Trashes R9,10,11
+				call	#TxEndOfPacket			; Trashes R8 thru R11
 				bic.b	#bSendi,&masterFlags	; Don't repeat until needed
 			_ENDIFS							; End if 'i' command was due and allowed
 

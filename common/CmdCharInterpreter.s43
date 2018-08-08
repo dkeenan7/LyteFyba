@@ -384,7 +384,7 @@ ACCEPT:
 						cmp.b	#':',&TIB			; If it started with a colon (modbus)
 						_IF		EQ
 							mov.b	#$0A,R8				; Send a line-feed
-							call	#TxByte
+							call	#TxByte				; Assume it trashes R9, R10, R11
 						_ENDIF
 						pop		R11
 						pop		R10

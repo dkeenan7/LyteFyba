@@ -5,10 +5,10 @@
 #include "../common/comDefinitions.s43"			; Include the definitions common to monitor
 												; and TestICal
 
-; checKsumming ( -- )						; Toggle bChecksumming
-			; kk to turn checksumming off, k to turn it on (irrespective of present state)
-			xCODE	'k',checksumming,_checksumming
-			xor.b	#bChecksumming,&interpFlags ; Toggle bChecksumming bit in interpFlags
+; checKsumming ( -- )						; Toggle bErrorChecking
+			; kk to turn error checking off, k to turn it on (irrespective of present state)
+			xCODE	'k',errorChecking,_errorChecking
+			xor.b	#bErrorChecking,&interpFlags ; Toggle bErrorChecking bit in interpFlags
 			ret
 
 ; Kill status sending ( boolean -- )		; 1 for no status, 0 for status

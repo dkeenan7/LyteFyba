@@ -4,11 +4,11 @@
 ;-------------------------------------------------------------------------------
 ; TxByteCrc	; Transmit the character in R8 while accumulating PIP CRC.
 			; If necessary, wait until the queue is not full.
-			; Trashes R9.
+			; Trashes R9, R10, R11.
 ;-------------------------------------------------------------------------------
 
-TxByteCrc:	call	#UpdateCrc
-			br		#TxByte
+TxByteCrc:	call	#UpdateCrc		; Trashes R9
+			br		#TxByte 		; Trashes R9,10,11
 			;ret
 
 
@@ -31,7 +31,11 @@ TxStringCrcS: _DO
 				tst		R11
 			_WHILE		NZ
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#TxByteCrc
+				pop		R11
+				pop		R10
 				dec		R11
 			_ENDW
 			ret
@@ -90,7 +94,7 @@ CrcTable	DW		$0000,$1021,$2042,$3063,$4084,$50a5,$60c6,$70e7
 
 TxCrc:
 ; Send the two CRC bytes, MSB first, and clear the CRC
-; Trashes R8-R9
+; Trashes R8 thru R11
 			mov.b	&txCrc+1,R8		; Get MSB of CRC
 			_COND					; Begin short circuit OR
 				cmp.b	#'(',R8
@@ -101,7 +105,7 @@ TxCrc:
 			_OR_IFS		EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
 			_ENDIF
-			call	#TxByte			; Send MSB of CRC first
+			call	#TxByte			; Send MSB of CRC first. Trashes R9,10,11
 
 			mov.b	&txCrc,R8		; Get LSB of CRC
 			_COND					; Begin short circuit OR
@@ -113,7 +117,7 @@ TxCrc:
 			_OR_IFS		EQ			; or LF,
 				inc.b	R8				; ... then modify by incrementing that byte
 			_ENDIF
-			call	#TxByte			; Send LSB of CRC
+			call	#TxByte			; Send LSB of CRC.  Trashes R9,10,11
 
 			clr		&txCrc			; Clear the CRC
 			ret
