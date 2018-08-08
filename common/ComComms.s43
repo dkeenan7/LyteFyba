@@ -7,18 +7,18 @@
 ;
 ; This is not in InterruptComms.s43 because it is used by both the Monitor and TestICal
 ; But the TestICal does not use serialio. It has its own version of TxByteCk.
-; Trashes R8, R9
+; Trashes R8 thru R11
 TxCksum:
 			bit.b		#bChecksumming,&interpFlags
 			_IF		NZ
 				mov		&txCksum,R8			; Get the calculated CRC12
 				inv		R8					; Invert it
 				call	#MakeCrc12Printable	; Convert it to two printable ASCII bytes in R8. Trashes R9
-				call 	#TxByte				; Send the LSB of the CRC12. Preserves R8. Trashes R9.
+				call 	#TxByte				; Send the LSB of the CRC12. Preserves R8. Trashes R9-R11
 				swpb	R8
 				call 	#TxByte				; Send the MSB of the CRC12
 			_ENDIF
-			mov		#InitialCrc12,&txCksum	; Initialise the CRC12
+			mov		#InitialCrc12,&txCksum ; Initialise the CRC12
 			ret
 
 
@@ -35,12 +35,12 @@ TxEndOfPacket:
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxString: _FOR_B	@R10+,R11
+TxString:	_FOR_B	@R10+,R11
 TxBytes:								; Alternative entry point with length in R11
+				mov.b	@R10+,R8
 				push	R10
 				push	R11
-				mov.b	@R10+,R8
-				call	#TxByte
+				call	#TxByte				; Trashes R9,10,11
 				pop		R11
 				pop		R10
 			_NEXT_DEC_B	R11
@@ -53,11 +53,11 @@ TxBytes:								; Alternative entry point with length in R11
 			; Trashes R8 thru R11.
 ;-------------------------------------------------------------------------------
 
-TxStringCk: _FOR_B	@R10+,R11
+TxStringCk:	_FOR_B	@R10+,R11
+				mov.b	@R10+,R8
 				push	R10
 				push	R11
-				mov.b	@R10+,R8
-				call	#TxByteCk
+				call	#TxByteCk			; Trashes R9,10,11
 				pop		R11
 				pop		R10
 			_NEXT_DEC_B	R11

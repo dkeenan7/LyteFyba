@@ -105,7 +105,7 @@ UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
 OT_ZERO		EQU		33			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		2			; Degrees C difference between one OT stress level and the next
-BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
+BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 3 minutes
 // UT = Under Temperature: One stress unit for every 2 degree C below 24C, to a max of 15 at <= -6degC
 // UT setpoint is 10 to 8 degC. Alarm at 2 degC. Source contactor dropout at 0 degC.
 UT_ZERO		EQU		24			; Threshold in degrees C between UT stress levels -1 and 0
@@ -128,7 +128,7 @@ UV_STEP		EQU		-50			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
-BypTempQuota EQU	12			; Degrees C subtracted when bypassing in past 5 minutes
+BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 3 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
@@ -240,7 +240,7 @@ ChargerVoltMax	EQU		570			; Upper limit of PI controller output. In tenths of a 
 ;ChargerVoltMin	EQU		526			; Lower limit of PI controller output. In tenths of a volt.
 ;ChargerVoltMax	EQU		546			; Upper limit of PI controller output. In tenths of a volt.
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
-temperature		DS		2			; Temperature most recently measured, in degrees Celsius (signed)
+cellTemperature	DS		2			; Cell temp degC (signed). For Rint calc. Not updated when bypassing
 smoothStressX4	DS		1			; Moving average of stress used by BMU to control contactors
 
 ; Serial-io variables
@@ -322,7 +322,7 @@ errorRatio		DS		4			; Error ratio
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 ticksSinceLastBypass DS	2			; Ticks since last bypass
-beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
+beenBypassing	DS		1			; True if we've bypassed in last 3 minutes. Used by OT stress calc
 
 				ALIGNRAM 1			; A kind of trip-meter for this cell's stress
 worstStress		DS		1			; Worst local stress since the last resetWorstStress command
@@ -757,7 +757,7 @@ DoMeasurement:
 				; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
 				mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
 				_DO
-					cmp		&temperature,R11
+					cmp		&cellTemperature,R11
 				_WHILE	GE						; While loop counter >= temperature
 					mov		R9,R10					; Multiply resistance by 1.5
 					rra		R10
@@ -801,13 +801,13 @@ DoMeasurement:
 					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
 				_ELSE							; Else not bypassing
 					tst.b	&beenBypassing			; ticksSinceLastBypass += 1
-					_IF		NZ						; If been bypassing in last 5 minutes
+					_IF		NZ						; If been bypassing in last 3 minutes
 						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
-						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
-						_IF		HS						; If 5 minutes or more since last bypass
+						cmp		#3*60*StatusFreq,&ticksSinceLastBypass
+						_IF		HS						; If 3 minutes or more since last bypass
 							clr.b	&beenBypassing			; beenBypassing := FALSE
 						_ENDIF							; End if
-					_ENDIF							; End if been bypassing in last 5 minutes
+					_ENDIF							; End if been bypassing in last 3 minutes
 				_ENDIF							; End else not bypassing
 
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
@@ -840,17 +840,21 @@ DoMeasurement:
 
 			; Do temperature measurement using internal sensor
 			call	#temp					; Get temperature in degrees Celsius in R10
-			mov		R10,&temperature		; Used by next calculation of cell internal resistance
 
 			cmp.b	#255,&ID
-			_IF		NE						; If we're not a BMU
+			_IF		EQ						; If we're a BMU
+				sub		#8,R10					; Subtract 8 kelvin for self-heating
+				mov		R10,&cellTemperature	; Save temp for calculation of internal resistance
+			_ELSE							; Else we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 
 				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
 				tst.b	&beenBypassing
-				_IF		NZ						; If we've been bypassing in the last 5 minutes
-						sub		#BypTempQuota,R10	; Subtract 10 degC from the temp used for OT stress
+				_IF		NZ						; If we've been bypassing in the last 3 minutes
+						sub		#BypTempQuota,R10	; Subtract 15 degC from the temp used for OT stress
+				_ELSE							; Else only update cellTemperature when not bypassing
+						mov		R10,&cellTemperature ; Save temp for calculation of internal resistance
 				_ENDIF							; End if
 
 				push	R10						; Measurement for overtemperature stress calc

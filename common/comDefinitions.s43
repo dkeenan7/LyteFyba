@@ -559,7 +559,7 @@ TxEndOfModbusPacket:
 			bis.b	#Piezo,&PiezoPortSEL	; Make the piezo squeal
 		_ENDIF
 
-;		pop		Rtos				; Remove operand
+;		pop		Rtos					; Remove operand
 		ret
 
 ;

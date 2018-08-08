@@ -21,7 +21,11 @@ TxByteCrc:	call	#UpdateCrc
 
 TxStringCrc: _FOR_B	@R10+,R11
 				mov.b	@R10+,R8
+				push	R10
+				push	R11
 				call	#TxByteCrc
+				pop		R11
+				pop		R10
 			_NEXT_DEC_B	R11
 			ret
 
