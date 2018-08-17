@@ -88,7 +88,7 @@ void gauge_stress_update( unsigned char BMS_stress )
 	if (BMS_stress == 0)
 		count = 140;
 	else
-		count = 145 + ((unsigned int)BMS_stress * 7) / 2;
+		count = 146 + ((unsigned int)BMS_stress * 8) / 2;
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g2_duty = count;
 	events |= EVENT_GAUGE2;
