@@ -73,15 +73,16 @@ UV_STEP		EQU		-80		; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
-BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 3 minutes
+BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
-// AL = Absolute Link voltage: Disabled because the hardware does not measure it reliably.
-// Plan to implement positive and negative bolt voltages in future.
+// AL = Absolute "Link" voltage. Now max of absolute positive and negative bolt voltages.
+// One stress unit for every 8 mV above 0 mV, to a max of 15 at >= 120 mV
+// AL setpoint is 56 to 64 mV. Alarm at 88 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		6			; mV difference between one AL stress level and the next
+AL_STEP		EQU		8			; mV difference between one AL stress level and the next
 
 #else
 // OV = Over Voltage: One stress unit for each 10 mV in excess of 3.500 V, to a max of 15 at >= 3.65 V
@@ -96,15 +97,16 @@ UV_STEP		EQU		-50			; mV difference between one UV stress level and the next
 // OT setpoint is 47 to 48 degC. Alarm at 51 degC.
 OT_ZERO		EQU		40			; Threshold in degrees C between OT stress levels -1 and 0
 OT_STEP		EQU		1			; Degrees C difference between one OT stress level and the next
-BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 3 minutes
+BypTempQuota EQU	15			; Degrees C subtracted when bypassing in past 5 minutes
 // UT = Under Temperature: One stress unit for every 1 degree C below 11C, to a max of 15 at <= -4degC
 // UT setpoint is 4 to 3 degC. Alarm at 0degC.
 UT_ZERO		EQU		11			; Threshold in degrees C between UT stress levels -1 and 0
 UT_STEP		EQU		-1			; Degrees C difference between one UT stress level and the next
-// AL = Absolute Link voltage: One stress unit for every 20 mV above 0 mV, to a max of 15 at >= 300 mV
-// AL setpoint is 140 to 160 mV. Alarm at 220 mV.
+// AL = Absolute "Link" voltage. Now max of absolute positive and negative bolt voltages.
+// One stress unit for every 4 mV above 0 mV, to a max of 15 at >= 60 mV
+// AL setpoint is 28 to 32 mV. Alarm at 44 mV.
 AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
-AL_STEP		EQU		3			; mV difference between one AL stress level and the next
+AL_STEP		EQU		4			; mV difference between one AL stress level and the next
 #endif
 
 ; FULLLEV	EQU	OV_ZERO+5*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
@@ -264,7 +266,7 @@ errorRatio		DS		4			; Error ratio
 ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
 ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 ticksSinceLastBypass DS	2			; Ticks since last bypass
-beenBypassing	DS		1			; True if we've bypassed in last 3 minutes. Used by OT stress calc
+beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
 				ALIGNRAM 1
 eraseEnd		EQU		$			; End of the erased variables
@@ -569,13 +571,13 @@ DoMeasurement:
 					mov.b	#1,&beenBypassing		; beenBypassing := TRUE
 				_ELSE							; Else not bypassing
 					tst.b	&beenBypassing
-					_IF		NZ						; If been bypassing in last 3 minutes
+					_IF		NZ						; If been bypassing in last 5 minutes
 						inc		&ticksSinceLastBypass	; ticksSinceLastBypass += 1
-						cmp		#3*60*StatusFreq,&ticksSinceLastBypass
-						_IF		HS						; If 3 minutes or more since last bypass
+						cmp		#5*60*StatusFreq,&ticksSinceLastBypass
+						_IF		HS						; If 5 minutes or more since last bypass
 							clr.b	&beenBypassing			; beenBypassing := FALSE
 						_ENDIF							; End if
-					_ENDIF							; End if been bypassing in last 3 minutes
+					_ENDIF							; End if been bypassing in last 5 minutes
 				_ENDIF							; End else not bypassing
 
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
@@ -624,7 +626,7 @@ DoMeasurement:
 
 				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
 				tst.b	&beenBypassing
-				_IF		NZ						; If we've been bypassing in the last 3 minutes
+				_IF		NZ						; If we've been bypassing in the last 5 minutes
 						sub		#BypTempQuota,R10	; Subtract 15 degC from the temp used for OT stress
 				_ENDIF							; End if
 
