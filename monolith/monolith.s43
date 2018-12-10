@@ -1002,16 +1002,11 @@ DoMeasurement:
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 				; Calculate stress due to undervoltage
-				cmp		#100,0(sp)				; Compare voltage; value saved on stack earlier
-				_IF		HS						; If voltage is not less than 100 mV (unbolted CMU)
 													; OCV for undervoltage stress calc already pushed
-					push	#UV_STEP				; For every UV_STEP (millivolts)
-					push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
-					push	#2						; Type of measurement
-					call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress UV
-				_ELSE
-					pop		R10						; Drop unused voltage measurement off stack
-				_ENDIF
+				push	#UV_STEP				; For every UV_STEP (millivolts)
+				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
+				push	#2						; Type of measurement
+				call	#DoStress				; Update Rstrs Rmeas Rtype if worse stress UV
 			_ENDIF	; not a BMU
 
 			; Do temperature measurement
@@ -1165,6 +1160,10 @@ DoMeasurement:
 				bit.b		#bBadInsulation,&monFlags
 				CtoAllBits	R8
 				bis			R8,Rtos				; or if the last insulation test failed (BMU only)
+				cmp			#200/4*16, &cellVRaw
+				_IF			LO					; Don't alarm if cell disconnected (approx < 200 mV)
+					clr			Rtos					; Actively turn alarm off if already on
+				_ENDIF
 				call		#ErrorLed			; Use this function so it optionally turns on piezo too
 			_ENDIF	; Not a BMU
 
