@@ -20,7 +20,6 @@ MeasureBmuIsr:				; MeasCCR = TA1CCR0
 			_ENDIF
 			; Read and accumulate the result from the previous conversion
 			add		&ADC10MEM, &partialSum	; (6) Add the conversion result to the partial sum
-			bic		#ENC,&ADC10CTL0 		; (4) Must turn off ENC bit before ctl bits can be changed
 			mov.b	&sampIndex, R8			; (3) Increment the sample index modulo 16
 			inc		R8						; (1)
 			and		#$F, R8					; (2)
@@ -32,6 +31,12 @@ MeasureBmuIsr:				; MeasCCR = TA1CCR0
 				incd	R8						; (1) Increment the channel index modulo 4 words
 				and		#$7, R8					; (2)
 				mov.b	R8, &chanIndex			; (4)
+				bic		#ENC,&ADC10CTL0 		; (4) Must turn off ENC before ctl bits can be changed
+												;	This used to be outside the conditional cluase,
+												;	meaning that the whole ADC system, possibly
+												;	including the voltage ref, were turned off every
+												;	measurement. This resulted in a 6-10 mV difference
+												;	between TestICal and monolith.
 				mov		chanList(R8), &ADC10CTL1 ; (6) Set the ADC channel number and clock
 			_ENDIF
 
