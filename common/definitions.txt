@@ -1,5 +1,5 @@
-List of single-character commands implemented in either the monitor or TestICal or both.
-Commands and hex digits are case-sensitive.
+List of commands implemented in either monitor/monolith or TestICal or both.
+Commands and hex digits are case-sensitive. Most common commands are a single character.
 
 In ASCII/alphabetical order:
 
@@ -43,13 +43,13 @@ d  d  Decimal output
 e  e  Error. Turn on or off red LED and piezo beeper
 Er    ErrorRatio. Bad packets per 65536 packets received on the CMU port, as found using our CRC12.
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
-f     (f)uel gauge. State of charge in tenths of a percent.
+f     (f)uel gauge. State of charge in tenths of a percent. (BMU only)
    Fa Frequency of ADC clock. On expansion P1.3 for 5 seconds. Too fast to measure with Fluke. Use DSO.
-Ff    Force fuel-gauge. Takes an SoC in tenths of a percent.
+Ff    Force fuel-gauge. Takes an SoC in tenths of a percent. (BMU only)
 g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 h  h  Hex output
-i     set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
+i     set current, tenths of an amp. Sent by BMU to tell CMUs the current, for estimating o/c voltage.
    i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 In In Display input port value
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
@@ -71,10 +71,10 @@ O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BM
 p     status (Pain) (local to each CMU, but global when BMU)
 Pp    Send a command to a PIP (charger port)
 Pw    Send a command to a PIP (charger port) without a CRC
-q     QueryWorstStress (monitor only. 'q' is Query Manufacturer's calibration values in TestICal)
-   q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
+q     QueryWorstStress (Not TestICal. 'q' is Query Manufacturer's calibration values in TestICal)
+   q  QueryManValue, manufacturer calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 Q  Q  Quiet. Stop piezo beeper coming on with error LED
-r  r  ReadCalValue (TestICal only. 'r' is RxState in monitor)
+r  r  ReadCalValue
 Rl Rl query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
 Rx    RxState (number of ticks since last Rx)
 s  s  select
@@ -168,16 +168,16 @@ k     error chec(K)ing, 'k' or '2fk' to turn it on, 'kCB' to toggle it, irrespec
 K     KillStatusSending, 1K to kill status sending, 0K to restore it
 #  #  revision numbers of main program, bootstrap loader and hardware
 
-q     QueryWorstStress (monitor only. 'q' is Query Manufacturer's calibration values in TestICal)
+q     QueryWorstStress (Not TestICal. 'q' is Query Manufacturer's calibration values in TestICal)
 {     resetWorstStress :-{
 
 Rl Rl query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = other bad stuff or JTAG
 ^  ^  resetResetLog
 
-f     (f)uel gauge. State of charge in tenths of a percent.
+f     (f)uel gauge. State of charge in tenths of a percent. (BMU only)
 g  g  fuel (g)auge. Depth of discharge in tenths of a percent. (BMU or IMU only)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
-Ff    Force fuel-gauge. Takes an SoC in tenths of a percent.
+Ff    Force fuel-gauge. Takes an SoC in tenths of a percent. (BMU only)
 Z     Ztore high word of fuel-gauge discharge accumulator (monolith only)
 G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
@@ -192,7 +192,7 @@ Ms Ms Milliseconds delay
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
    Fa Frequency of ADC clock. On expansion P1.3 for 5 seconds. Too fast to measure with Fluke. Use DSO.
 
-   q  QueryManValue, manufacturers calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
+   q  QueryManValue, manufacturer calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 r  r  ReadCalValue
 w  w  WriteCalValue
 c  c  Calibrate

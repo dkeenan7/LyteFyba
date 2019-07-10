@@ -394,9 +394,9 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 ; Transmit the smoothed estimated open circuit cell voltage in millivolts (0 to 4348 mV)
 ;
 		xCODE		'O',GetOcCellVolt,_GetOcCellVolt
-		mov		&avgCellVoltX256+2,R9; Get upper word 0H
+		mov		&ocCellVoltX256+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
-		mov.b	&avgCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
+		mov.b	&ocCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
 		or_w	R9, R8				; R8 has old value = HM = 0HML >> 8
 		mov		R8, Rsec
 		mov		#'O',Rthd			; Command being responded to is 'O'

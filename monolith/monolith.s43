@@ -254,7 +254,7 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
-avgCellVoltX256	DS		4			; Smoothed IR-compensated average cell voltage, shifted left 8 bits
+ocCellVoltX256	DS		4			; Smoothed IR-compensated average cell voltage, shifted left 8 bits
 restedCounter	DS		2			; Count of measurements since the battery qualified as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 cellTemperature	DS		2			; Cell temp degC (signed). For Rint calc. Not updated when bypassing
@@ -600,8 +600,8 @@ main:										; For IAR Embedded Workbench IDE debugger
 ; Miscellaneous initialisation
 ;
 			mov.b	#4,&passWordState		; Waiting for first byte of bootstrap loader password
-			mov		#(3300*256)&$FFFF,&avgCellVoltX256	; Initialise the low pass filter for the
-			mov		#(3300*256)>>16,&avgCellVoltX256+2	;	average cell voltage to 3300 mV
+			mov		#(3300*256)&$FFFF,&ocCellVoltX256	; Initialise the low pass filter for the
+			mov		#(3300*256)>>16,&ocCellVoltX256+2	;	average cell voltage to 3300 mV
 			mov		#PipInitTbl,&pipInitPtr	; Point to the first init string
 
 			eint							; Enable interrupts now that all initialisation is complete
@@ -904,21 +904,22 @@ DoMeasurement:
 				add		R9,R10					; OCV is higher than measured, when discharging
 			_ENDIF							; Endif
 
-			cmp.b	#255,&ID				; If a BMU
+            ; Calculate the smoothed IR-compensated cell voltage (average if BMU)
+            ; Use (255/256) * old + (1/256) * new
+            ; = (old << 8 - old + new) >> 8
+            ; Label ocCellVoltX256 as 0HML (Zero High Middle Low bytes)
+            mov		&ocCellVoltX256  ,R8; Get lower word ML
+            mov		&ocCellVoltX256+2,R9; Get upper word 0H
+            rra8_l	R9,R8				; Shift right 8 bits with tricky macro
+            sub		R8,&ocCellVoltX256	; Ram -= old
+            sbc		&ocCellVoltX256+2
+            add		R10,&ocCellVoltX256 ; Ram += new
+            adc		&ocCellVoltX256+2
+
+            cmp.b	#255,&ID				; If a BMU
 			_IF		EQ
 				; Check for low rested average cell voltage and update of SoC
-				; First calculate the smoothed IR-compensated average cell voltage.
-				; Use (255/256) * old + (1/256) * new
-				; = (old << 8 - old + new) >> 8
-				; Label avgCellVoltX256 as 0HML (Zero High Middle Low bytes)
-				mov		&avgCellVoltX256  ,R8; Get lower word ML
-				mov		&avgCellVoltX256+2,R9; Get upper word 0H
-				rra8_l	R9,R8				; Shift right 8 bits with tricky macro
-				sub		R8,&avgCellVoltX256	; Ram -= old
-				sbc		&avgCellVoltX256+2
-				add		R10,&avgCellVoltX256 ; Ram += new
-				adc		&avgCellVoltX256+2
-				; Check if battery current is "rested"
+				; First check if battery current is "rested"
 				_COND
 					cmp		#20,&current		; No more than 2.0 A
 				_AND_IF	L
@@ -928,8 +929,8 @@ DoMeasurement:
 					neg		R8
 					cmp		R8, &current
 				_AND_IF	GE					; No less than -C/16
-					mov		&avgCellVoltX256  ,R8; Get lower word ML
-					mov		&avgCellVoltX256+2,R9; Get upper word 0H
+					mov		&ocCellVoltX256  ,R8; Get lower word ML
+					mov		&ocCellVoltX256+2,R9; Get upper word 0H
 					rra8_l	R9,R8
 					cmp		#3251,R8
 				_AND_IF	L					; <= 3.250 V smoothed
