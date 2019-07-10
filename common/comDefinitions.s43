@@ -1196,3 +1196,16 @@ EnergyCap:		; Return energy capacity in R9. Trashes R8, R10, R11
 		xCODE		'B'|'r' <<8,break,_break ; 'Br' collides with 'Bb' 'Bj' 'Bz' 'Zr' 'Zb' 'Zj' 'Zz'
 		br	#jWriteBreak			; Tail call and return
 
+
+; Turn off echoing of command characters. Useful to stop the last CMU echoing when used without master.
+		xCODE	'[',ExOff,_ExOff
+		bit.b	#bDontInterpret,&interpFlags
+		_IF		Z				; If the dont-interpret flag is clear
+			bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
+		_ENDIF
+		ret
+
+; Turn on echoing of command characters. Useful to start the last CMU echoing when used without master.
+		xCODE	']',ExOn,_ExOn
+		bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
+		ret
