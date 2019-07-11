@@ -29,6 +29,8 @@ $  $  dollarHex (set number input mode to hex for next literal)
 <     minimum, precede with 'v for voltage, 't for temp or 'j for stress, 'q for worstStress
 >     maximum, precede with 'v for voltage, 't for temp or 'j for stress, 'q for worstStress
 {     resetWorstStress :-{
+[  [  Stop echoing commands (only echo responses). Can be used to make the last CMU behave like a BMU.
+]  ]  Resume echoing everything. Behave like a CMU, not a BMU.
 \  \  exit or comment
 ^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
@@ -149,9 +151,9 @@ J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255,
 
 <XOFF> Stop echoing
 <XON> Resume echoing
-   [  stop echoing. Used with the 'i' command when used in an INITCMDSTRING
+[  [  Stop echoing commands (only echo responses). Can be used to make the last CMU behave like a BMU.
+]  ]  Resume echoing everything. Behave like a CMU, not a BMU.
 \  \  exit or comment
-   ]  resume echoing. Used with the 'i' command when used in an INITCMDSTRING
 :  :  begins a Modbus/ASCII packet
 <     minimum, precede with 'v for voltage, 't for temp or 'j for stress, 'q' for worstStress
 >     maximum, precede with 'v for voltage, 't for temp or 'j for stress, 'q' for worstStress

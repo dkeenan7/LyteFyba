@@ -1197,15 +1197,16 @@ EnergyCap:		; Return energy capacity in R9. Trashes R8, R10, R11
 		br	#jWriteBreak			; Tail call and return
 
 
-; Turn off echoing of command characters. Useful to stop the last CMU echoing when used without master.
-		xCODE	'[',ExOff,_ExOff
+; Turn off echoing of commands. Useful to stop the last CMU echoing when used without master.
+		xCODE	'[',CmdEchoOff,_CmdEchoOff
 		bit.b	#bDontInterpret,&interpFlags
 		_IF		Z				; If the dont-interpret flag is clear
-			bis.b	#bDontEcho,&interpFlags ; Set the don't-echo flag
+			bis.b	#bDontEcho | bEchoResponses,&interpFlags    ; Don't want to echo command packets
+                                                                ; Do want to see responses
 		_ENDIF
 		ret
 
-; Turn on echoing of command characters. Useful to start the last CMU echoing when used without master.
-		xCODE	']',ExOn,_ExOn
-		bic.b	#bDontEcho,&interpFlags ; Clear the don't-echo flag
+; Turn on echoing of commands. Useful to start the last CMU echoing when used without master.
+		xCODE	']',CmdEchoOn,_CmdEchoOn
+		bic.b	#bDontEcho | bEchoResponses,&interpFlags ; Echo everything
 		ret
