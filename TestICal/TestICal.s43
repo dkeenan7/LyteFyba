@@ -76,7 +76,7 @@ ID			EQU		ramID			; We use the ram copy of the ID for s, x, prettyPrint
 									; commands. Monitor uses the info-flash copy
 
 ; Some definitions so the measure.s43 code will work
-; Monitor defines these as their info-flash counterparts instead of ram
+; Monitor and Monolith define these as their info-flash counterparts instead of ram
 CellCal 	EQU	ramCellCal
 CellOff		EQU ramCellOff
 BoltPlCal 	EQU	ramBoltPlCal

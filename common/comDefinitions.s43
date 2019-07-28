@@ -331,10 +331,8 @@ GetLinkV:
 			abs			R10					; Absolute value: easier to compare, and sign is meaningless
 											;	unless you know whether pos or neg strap!
 			push		R10					; Remember this neg term value
-			mov			#CellVChan<<12,R8	; Shifted ADC channel for CellV voltage divider
 			call		#MeasAndCorrCell
 			push		R10					; Save strap voltage
-			mov			#BoltVPlChan<<12,R8 ; Shifted ADC channel for BoltVPl voltage divider
 			call		#MeasAndCorrBoltPl	; Measure and correct using the BoltPL corrections
 			sub			R10,0(SP)			; TOS has bolt/array - cell/battery
 			pop			R10					; R10 has pos term strap drop
@@ -357,23 +355,6 @@ GetLinkV:
 		mov			#'l',Rthd			; Type is Link voltage
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
-
-;
-; Measure Vcc ( -- )	; Emit the Vcc voltage in millivolts
-;
-		xCODE	'M'|'v' <<8,MeasVcc,_MeasVcc	; 'Mv' collides with 'Mf' 'Mn' 'Uv' 'Uf' 'Un'
-		xCODE	'o',MeasVcc2,_MeasVcc2			; 'o' alias to allow keyboard auto-repeat when testing
-		mov		#0xB<<12,R8				; Choose the internal half-supply analog input
-		call	#MeasAndCorrCell		; Gives us 0-4092 in R10, for 0-1.5 V
-		mov		R10,R8
-		mov		#48047,R9				; 3000/4092*65536
-		call	#UMStar					; R10:R9 = R8 * R9
-		rla		R9						; Do rounding
-		adc		R10
-		mov		#'M'|'v' <<8,Rthd		; Type is Vcc Measurement
-		mov		R10,Rsec				; Result in millivolts
-		mov		#4,Rtos					; Print 4 digits
-		br		#_prettyPrint			; Tail-call pretty-print and return
 
 
 #if INSULATION_MONITORING

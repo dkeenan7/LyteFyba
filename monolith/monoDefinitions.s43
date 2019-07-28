@@ -515,6 +515,49 @@ TranslateToCalAddr:
 		ret
 
 ;
+; Scale R8 by 17/16 if we're not a BMU
+; Needed by 'v, 'V, 'o, 'O calibrate subcommands
+; Trashes R9
+;
+Mul17Div16:
+		cmp.b	#255,&ID
+		_IF		NE			; If not a BMU then
+			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+			mov		R8,R9		; Copy the value
+			add		#8,R9		; Add half the divisor for rounding
+			rra4	R9			; Divide by 16
+			add		R9,R8		; Add back to the original
+		_ENDIF
+		ret
+
+;
+; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
+;
+
+; The calibration scale factor will be the expected value divided by the reading.
+; The expected value is an unsigned 12 bit integer of millivolts and
+; the reading is an unsigned 12.2 bit fixed-point number of millivolts.
+; We want the calibration scale factor to be represented as an unsigned 1.15 fixed-point number
+; i.e. a number with 1 integer bit and 15 fractional bits.
+; So we shift the expected value 17 places left before the division.
+; R8 contains the measurement possibly scaled by 17/16
+; R9 contains the relevant (cell or array/bolt) offset correction as a signed byte
+; The cal value is returned in R9
+voltScaleWork:
+			sxt		R9							; Convert from signed byte to signed word
+			add		R9,R8						; Perform offset correction, but not scale correction
+			clr		R9							; 16 bits of zeroes
+			mov		Rsec,R10
+			rla		R10							; 17 zeroes; we have value << 17 in R10:R9
+			mov		R8,R11						; The divisor is the voltage reading in R8
+			rra		R11							; Add half the divisor to the dividend for rounding
+			add		R11,R9
+			adc		R10
+			call	#UMSlashMod					; Gives quotient in R9, remainder in R10
+			; R9 has the value we want to store
+			ret
+
+;
 ; Calibrate ( n ch --- )
 ; Perform a calibration whose type is ch ('v for voltage etc) and value is n
 ; For the voltage scale and offset calibrations, we want to apply the other correction (i.e. scale if
@@ -523,9 +566,74 @@ TranslateToCalAddr:
 ;
 			xCODE	'c',calibrate,_calibrate
 			_CASE
+			_OF_EQ_B	#'v',Rtos				; 'v': Cell voltage scale factor
+				mov		&cellVRaw, R8				; 12.2 fixed-point result in R8
+				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				mov.b	&CellOff,R9					; This is the offset correction to use
+				call	#voltScaleWork
+				mov.w	R9,R8						; Get the calibration value into R8
+				mov		#1,R9						; Save it as a word value
+				mov		#infoCellCal,R10			; Save it as the cell offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+			_ENDOF
 
-			_OF_EQ_B		#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
-				mov		#BoltVMiChan<<12,R8
+			_OF_EQ_B	#'V',Rtos				; 'V': Bolt+/Array voltage scale factor
+				mov		&boltVPlRaw,R8				; Get raw 12.2 bit fixed point measurement in R8
+				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				mov.b	&BoltPlOff,R9				; This is the offset correction to use
+				call	#voltScaleWork
+				mov.w	R9,R8						; Get the calibration value into R8
+				mov		#1,R9						; Save it as a word value
+				mov		#infoBoltPlCal,R10			; Save it as the cell offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+			_ENDOF
+
+			_OF_EQ_B	#'o',Rtos				; 'o': Cell voltage offset
+				mov		&cellVRaw, R8				; 12.2 fixed-point result in R8
+				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				mov		&CellCal,R9					; Use this voltage scale for correction
+				call	#Fx1_15UMul					; Correct for scale but not offset
+				sub		R8,Rsec						; Calculate offset (expected - measured)
+				mov.b	Rsec,R8						; Get the calibration value into R8
+				mov		#0,R9						; Save it as a byte value
+				mov		#infoCellOff,R10			; Save it as the cell offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+			_ENDOF
+
+			_OF_EQ_B	#'O',Rtos				; 'O': Bolt+/Array voltage offset
+				mov		&boltVPlRaw,R8				; Get raw 12.2 bit fixed point measurement in R8
+				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				mov		&BoltPlCal,R9				; Use this voltage scale for correction
+				call	#Fx1_15UMul					; Correct for scale but not offset
+				sub		R8,Rsec						; Calculate offset (expected - measured)
+				mov.b	Rsec,R8						; Get the calibration value into R8
+				mov		#0,R9						; Save it as a byte value
+				mov		#infoBoltPlOff,R10			; Save it as the bolt plus offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+			_ENDOF
+
+			_OF_EQ_B	#'t',Rtos				; 't': Temperature offset
+				call	#GetTemp					; Get calibrated temp in half degC into R9
+				mov.b	&TempOff,R8					; Subtract off our existing offset calibration
+				sxt		R8
+				sub		R8,R9
+				push	R9							; Save uncalibrated measurement in half degrees
+				; Rsec is supplied in tenths of a degree now. Div by 5 to get half degrees
+				mov		#0,R10						; Put Rsec into R10:R9 as dividend
+				mov		Rsec,R9
+				add		#2,R9						; Add 2 for rounding
+				mov		#5,R8						; Divide by 5 to bring to half degrees
+				call	#UMSlashMod					; Result in R9
+				pop		R8							; Restore uncal'd measurement
+				sub		R8,R9						; Subtract measured half degrees from calibration
+													; (expected) temperature
+				mov.b	R9,R8						; Get the calibration value into R8
+				mov		#0,R9						; Save it as a byte value
+				mov		#infoTempOff,R10			; Save it as the temperature offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+			_ENDOF
+
+			_OF_EQ_B	#'n',Rtos				; 'n': Bolt-/Shuntx20 voltage offset. Was "link" offset
 				call	#MeasAndCorrBoltMi			; Measure and correct using the BoltMi corrections
 				mov.b	&BoltMiOff,R9				; Subtract the existing offset (signed byte)
 				sxt		R9
@@ -542,20 +650,21 @@ TranslateToCalAddr:
 				rla		R9							; To divide by 2^15, mult by 2 and keep the hi word
 				rlc		R10
 				mov		R10,Rsec
-				pop		R8
+				pop		R10
 
-				sub		Rsec,R8						; Subtract required reading * 1.364
-				neg		R8
+				sub		Rsec,R10					; Subtract required reading * 1.364
+				neg		R10
 				_COND								; Start a short-circuit conditional
-					cmp		#-$7F,R8					; Compare with -$7F
+					cmp		#-$7F,R10					; Compare with -$7F
 				_OR_ELSE	L						; If < -$7F
-					cmp		#$80,R8					; Compare with $80
+					cmp		#$80,R10					; Compare with $80
 				_OR_IFS		GE						; or >= $80
-					mov		#$80,R8					; Use $80 to indicate "not calibrated"
+					mov		#$80,R10					; Use $80 to indicate "not calibrated"
 				_ENDIF
-				mov			#0,R9				; Save the bolt-/current offset calibration value
-				mov			#infoBoltMiOff,R10
-				call		#UpdFlash
+				mov.b	R10,R8						; Get the calibration value into R8
+				mov		#0,R9						; Save it as a byte value
+				mov		#infoBoltMiOff,R10			; Save it as the bolt minus offset
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
 			_ENDOF
 
 			_OF_EQ_B	#'i',Rtos
@@ -606,7 +715,7 @@ TranslateToCalAddr:
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue
 			call 	#TranslateToCalAddr
-			mov.b	Rtos,Rsec				; Convert to info flash address in Rsec
+			mov.b	Rtos,Rsec				; Convert to info-flash address in Rsec
 			bic.b	#$80,Rsec
 			or_w	#infoDataStart&$FF80,Rsec ; Copy higher bits from immediate address
 			tst.b	Rtos
@@ -656,35 +765,31 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 
 			xCODE	'w',writeCalValue,_writeCalValue
 		_COND
-			cmp.b	#'i',Rtos					; Write an ID ?
-			_IF		EQ
+			cmp.b	#'d',Rtos					; Don't allow data version to be changed like this
+		_AND_IF	NE
+			_COND
+				cmp.b	#'i',Rtos					; Write an ID ?
+			_OR_ELSE	NE
 				cmp.b	#255,&ID					; BMUs have to stay ID=255
-				bit		#2,SR						; Invert the Z (EQ) bit (can't use xor)
-			_ENDIF
-		_OR_ELSE	EQ
-			cmp.b	#'r',Rtos					; Cell internal resistance
-		_OR_ELSE	EQ
-			cmp.b	#'c',Rtos					; Battery capacity
-		_OR_ELSE	EQ
-			cmp.b	#'n',Rtos					; Bolt- or Shunt offset
-		_OR_IFS 	EQ
+			_OR_IFS		NE
+
 			call 	#TranslateToCalAddr
 			mov.b	Rtos,R10					; Convert to info flash address in R10
 			bic.b	#$80,R10
 			or_w	#infoDataStart&$FF80,R10	; Copy higher bits from immediate address
-			cmp		#infoCapacity,R10			; Check for battery capacity
-			_IF		EQ							; If so
-				rla		Rsec						; Multiply given value by 10
-				mov		Rsec,R9						; to bring to tenths of an Ah
-				rla2	Rsec						; *8
-				add		R9,Rsec						; *10
+			cmp		#Capacity,R10			; Check for battery capacity
+			_IF		EQ						; If so
+				rla		Rsec					; Multiply given value by 10
+				mov		Rsec,R8					; to bring to tenths of an Ah
+				rla2	Rsec					; *8
+				add		R8,Rsec					; *10
 			_ENDIF
 			tst.b	Rtos
 			_IF		NZ						; If not zero for "unrecognised"
 				_IF		NN						; If high bit clear
-					mov		#0,R9					; Indicate byte size
+					mov		#0,R9					; Indicate byte sized cal value
 				_ELSE							; Else high bit set so
-					mov.w	#1,R9					; Indicate word sized cal value
+					mov		#1,R9					; Indicate word sized cal value
 				_ENDIF							; Endif high bit
 				mov		Rsec,R8					; Data to be written
 				call	#UpdFlash			; Write new value to flash
@@ -692,10 +797,9 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 				jmp		EmitQmark
 			_ENDIF							; Endif unrecognised
 			ret
-		_ELSE							; Not a valid ch for monolith 'w' command
-			jmp		EmitQmark
+		_ELSES
+				jmp		EmitQmark
 		_ENDIF
-
 
 ;
 ;
@@ -756,7 +860,7 @@ UpdFlash:
 			;
 			call	#compareInfoFlash		; Compare RAM cal data with what's in infoflash
 			mov		#1+4+1,R11				; String length
-			_IF    NE
+			_IF		NE
 				mov		#sFail,R10
 			_ELSE
 				mov		#sDone,R10

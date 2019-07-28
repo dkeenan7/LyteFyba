@@ -159,7 +159,9 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 ;
 ; Used for battery voltage measurement in a BMU
 MeasAndCorrCell:
-			call		#measure				; 12.2 fixed-point result in R8
+			mov			#CellVChan<<12,R8	    ; Shifted ADC channel for CellV voltage divider
+MeasAndCorr:                                    ; Alternative entry point for Vcc measurement
+            call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
@@ -174,6 +176,7 @@ MeasAndCorrCell:
 ; Used for PV array voltage measurement, or Capacitor measurement during precharge, in a BMU
 ; Trashes R8-11
 MeasAndCorrBoltPl:
+			mov			#BoltVPlChan<<12,R8     ; Shifted ADC channel for BoltVPl voltage divider
 			call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
@@ -192,6 +195,7 @@ MeasAndCorrBoltPl:
 ; As above, using the separate bolt calibration factor and offset
 ; Used for current measurements in a BMU
 MeasAndCorrBoltMi:
+			mov			#BoltVMiChan<<12,R8	    ; Shifted ADC channel for BoltMi input
 			call		#measure				; 12.2 fixed-point result in R8
 			mov.w		&BoltMiCal,R9			; Get bolt- voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
@@ -211,7 +215,6 @@ GetBatV:
 GetCellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
-			mov		#CellVChan<<12,R8
 			call	#MeasAndCorrCell
 			cmp.b	#255,&ID
 			_IF		NE			; If not a BMU then
@@ -229,7 +232,6 @@ GetArrayV:
 GetBoltPlV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
-			mov		#BoltVPlChan<<12,R8
 			call	#MeasAndCorrBoltPl
 			cmp.b	#255,&ID
 			_IF		NE			; If not a BMU then
@@ -284,7 +286,6 @@ GetBoltMiV:
 			_IF			EQ				; If BoltMi offset calibration value is $80
 				mov		#9999,R10			; then use special value
 			_ELSE
-				mov			#BoltVMiChan<<12,R8	; Shifted ADC channel for BoltMi input
 				call		#MeasAndCorrBoltMi	; Measure and correct using BoltMi corrections
 				; Bolt- voltage measurement in mV
 				; Circuit has 2:1 voltage divider with Vref at the bottom.

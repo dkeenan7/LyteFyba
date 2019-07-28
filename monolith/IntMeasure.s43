@@ -32,7 +32,7 @@ MeasureBmuIsr:				; MeasCCR = TA1CCR0
 				and		#$7, R8					; (2)
 				mov.b	R8, &chanIndex			; (4)
 				bic		#ENC,&ADC10CTL0 		; (4) Must turn off ENC before ctl bits can be changed
-												;	This used to be outside the conditional cluase,
+												;	This used to be outside the conditional clause,
 												;	meaning that the whole ADC system, possibly
 												;	including the voltage ref, were turned off every
 												;	measurement. This resulted in a 6-10 mV difference
@@ -224,7 +224,7 @@ GetBoltMiV:
 			ret
 
 #if INSULATION_MONITORING
-GetTouchV:
+GetTouchV:			; This can't work because TouchVChan is not included in the interrupt measurements
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
 			mov		#TouchVChan<<12,R8

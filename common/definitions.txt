@@ -35,8 +35,7 @@ $  $  dollarHex (set number input mode to hex for next literal)
 ^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits after a dollar sign
-   a  ADCScaled or r(A)wVoltage (TestICal only)
-   b  update Bootstrap loader (BSL2)
+   b  update Bootstrap loader
 c  c  Calibrate
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
 C? C? get byte (peek Char)
