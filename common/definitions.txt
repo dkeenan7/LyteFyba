@@ -35,6 +35,7 @@ $  $  dollarHex (set number input mode to hex for next literal)
 ^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits after a dollar sign
+a  a  additive alteration = positive terminal volt drop V-v (CMU); positive contactor voltage V-v (BMU)
    b  update Bootstrap loader
 c  c  Calibrate
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
@@ -53,7 +54,7 @@ h  h  Hex output
 i     set current, tenths of an amp. Sent by BMU to tell CMUs the current, for estimating o/c voltage.
    i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 In In Display input port value
-Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+Is Is Shunt voltage x 20 mV (was l) (if BMU); negative terminal volt drop if CMU
 j     Just local stress (not the full status)
    j  JumpToSubroutine (call)
 J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
@@ -67,7 +68,7 @@ Ms Ms Milliseconds delay
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
-o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
+   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
 O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 p     status (Pain) (local to each CMU, but global when BMU)
 Pp    Send a command to a PIP (charger port)
@@ -129,15 +130,15 @@ L  L  Liven contactor (1L .. 5L)
 U  U  Unliven contactor (1U .. 5U)
 In In Display input port value
 
-   a  ADCScaled or r(A)wVoltage (TestICal only)
 i	  set current. Sent by BMU to CMUs to tell them the current, for estimating open circuit voltage.
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    Mv Measure Vcc (CMU only)
-o  o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
+   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
 O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
 Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
+a  a  additive alteration = positive terminal volt drop V-v (CMU); positive contactor voltage V-v (BMU)
 l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
 t  t  Temperature
 p     status (Pain) (local to each CMU, but global when BMU)

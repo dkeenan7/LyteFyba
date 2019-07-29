@@ -69,7 +69,7 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 			align	1
 
 ; Measure and Correct routines
-; Output: R10 = 12-bit measurement result with scale calibration applied.
+; Output: R10 = 12-bit measurement result with scale and offset calibration applied.
 ; Trashes: R8, R9, R11
 ;
 ; Correct the value for scale by multiplying the sum-of-samples by the voltage calibration scale factor
@@ -84,6 +84,7 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 ; Used for battery voltage measurement in a BMU
 MeasAndCorrCell:
 			mov			&cellVRaw, R8			; 12.2 fixed-point result in R8
+MeasAndCorr:                                    ; Possible future entry point for TouchV and Vcc
 			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
@@ -173,7 +174,7 @@ GetTemp:
 											; as stored in CAL30
 			add		#2,R8					; For rounding
 			rra2	R8						; Now 12.2 in 14.2 fixed point, still 2 bits shifted left
-			; Want (meas-CAL30) * SLOPE + 30 (see FUG 24.2.2.1)
+			; Want (meas-CAL30) * SLOPE + 30 (see Family User Guide 24.2.2.1)
 			mov		&CALADC_15T30,R9		; CAL30 10.0 significant in 16.0 fixed point
 			rla2	R9						; CAL30 10.0 significant in 14.2 fixed point
 			sub		R9,R8					; R8 has (meas-CAL30); could be negative
@@ -227,7 +228,7 @@ GetBoltMiV:
 GetTouchV:			; This can't work because TouchVChan is not included in the interrupt measurements
 ; Trashes: R8, R9, R11
 ; Output: R10 = uncalibrated reading (affected by optocoupler CTR), approx range 0 to 4092
-			mov		#TouchVChan<<12,R8
-			jmp		MeasAndCorrCell						; Tail-call MeasAndCorrCell and return
+			mov		#TouchVChan<<12,R8					; Need to call
+			jmp		MeasAndCorr							; Tail-call MeasAndCorr and return
 #endif // INSULATION_MONITORING
 

@@ -322,20 +322,20 @@ _emitNum3:
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 
+; Link voltage (max abs volt drop across any terminal) returned in R10
 GetLinkV:
-		call		#GetBoltMiV			; Return bolt- or shuntx20 in mV in R10
+		call		#GetBoltMiV			; Get bolt- or shuntx20 in mV in R10
+		; If we're a BMU, we're done. This is deprecated. Use 'Is' for BMU current shunt value
 		cmp.b	#255,&ID
-		_IF		EQ						; If we're a BMU
-			mov			R10,Rsec			; Result to Rsec
-		_ELSE
+		_IF		NE						; If we're a CMU
 			abs			R10					; Absolute value: easier to compare, and sign is meaningless
-											;	unless you know whether pos or neg strap!
-			push		R10					; Remember this neg term value
-			call		#MeasAndCorrCell
-			push		R10					; Save strap voltage
-			call		#MeasAndCorrBoltPl	; Measure and correct using the BoltPL corrections
-			sub			R10,0(SP)			; TOS has bolt/array - cell/battery
-			pop			R10					; R10 has pos term strap drop
+											;	unless you know whether pos or neg terminal!
+			push		R10					; Remember this negative-terminal drop
+			call		#GetCellV			; Get strap+ voltage in R10
+			push		R10					; Save strap+ voltage
+			call		#GetBoltPlV			; Get bolt+ voltage in R!0 corrections
+			sub			R10,0(SP)			; TOS has drop = bolt - strap
+			pop			R10					; Get positive-terminal drop into R10
 			abs			R10					; Absolute value
 			cmp			R10,0(SP)			; Compare pos and neg drops
 			_IF			LO					; If 0(SP) < R10
@@ -350,9 +350,21 @@ GetLinkV:
 ; Display in signed millivolts, -1500 to 1500 or 9999 for "invalid".
 ; Corresponds to fifths of an amp with a 200 A 50 mV shunt
 		xCODE		'l',LinkVolt,_LinkVolt
-		call		#GetLinkV			; Get the worst link voltage
-		mov			R10,Rsec			; To Rsec for display
+		call		#GetLinkV			; Get the worst link voltage in R10
+		mov			R10,Rsec			; Copy it to Rsec for display
 		mov			#'l',Rthd			; Type is Link voltage
+		mov			#4,Rtos				; Print 4 digits
+		jmp			_prettyPrint		; Tail-call pretty-print and return
+
+;
+; Positive terminal volt drop for CMU, Positive contactor volt drop for BMU ( -- )
+; Big-V minus little-v. Display in signed millivolts, -4348 to 4348
+		xCODE		'a',PosDrop,_PosDrop
+		call		#GetBoltPlV			; Get the bolt+ voltage in R10
+		mov			R10,Rsec			; Copy it to Rsec for display
+		call		#GetCellV			; Get the strap+ voltage in R10
+		sub			R10,Rsec			; Subtract strap+ from bolt+ in Rsec
+		mov			#'a',Rthd			; Character of command being responded to
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 

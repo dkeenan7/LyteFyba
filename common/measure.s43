@@ -145,7 +145,7 @@ adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
 
 ; Measure and Correct routines
 ; Input:  R8  = analog channel number shifted left 12 bits.
-; Output: R10 = 12-bit measurement result with scale calibration applied.
+; Output: R10 = 12-bit measurement result with scale and offset calibration applied.
 ; Trashes: R8, R9, R11
 ;
 ; Correct the value for scale by multiplying the sum-of-samples by the voltage calibration scale factor
