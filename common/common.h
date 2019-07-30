@@ -114,7 +114,7 @@ CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + CAL_ADC_15T85			; $10E4
 DATAVERS		EQU		7			; This is version 7 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
 				ds		1			; Spare; has to start at even address
-infoAdcTimIdx	ds		1			; ADC timing table index: 0=default, 1=MCLK2, 3=ADCOSC/3
+infoAdcTimIdx	ds		1			; ADC timing table index: 0=default, 1=MCLK/2, 2=ADCOSC/2 and others
 infoBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
 infoTempSlope	ds		2			; Precomputed slope of temperature vs ADC-value curve
 infoBoltPlOff	ds		1			; Bolt/array voltage offset calibration signed byte
@@ -132,6 +132,8 @@ infoDataVers	ds		1			; Data Version byte (cannot move). Must be set to DATAVERS 
 ; Note that xxxDataEnd is one PAST the last calibration byte, i.e. the address of the start of what
 ;	comes after the calibration data
 infoDataEnd							; Used when copying between ram and info-flash
+
+NumAdcClocks	EQU		14			; The maximum value allowed for infoAdcTimIdx
 
 ; To allow moving old calibration data from the end of the A segment to the new D segment location
 oldInfoDataStart	EQU	$10F8

@@ -358,6 +358,7 @@ GetLinkV:
 
 ;
 ; Positive terminal volt drop for CMU, Positive contactor volt drop for BMU ( -- )
+; Mnemonic for command character is "additive alteration"
 ; Big-V minus little-v. Display in signed millivolts, -4348 to 4348
 		xCODE		'a',PosDrop,_PosDrop
 		call		#GetBoltPlV			; Get the bolt+ voltage in R10

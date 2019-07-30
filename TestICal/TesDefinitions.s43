@@ -212,27 +212,81 @@ voltScaleWork:
 			_ENDOF
 
 			_OF_EQ_B	#'a',Rtos				; 'a': optimal ADC timing, with debug display
-				call	#FindOptAdc					; 4 results in R8 R9 R10 R11
-				push	R11
-				push	R10
-				push	R9
+				call	#FindOptAdc					; Find the optimum ADC clock
+				sub		#2*NumAdcClocks+2,SP		; Recover the devThisIdx array from FindOptAdc
+													; The +2 is for the old return address
 				mov		#'M'|'2'<<8,Rthd			; M2 for MCLK/2
-				mov		R8,Rsec
+				pop		Rsec
 				mov		#5,Rtos
 				call	#_prettyPrint
+
 				mov		#'O'|'2'<<8,Rthd			; O2 for ADCOSC/2
 				pop		Rsec
 				mov		#5,Rtos
 				call	#_prettyPrint
+
 				mov		#'O'|'3'<<8,Rthd			; O3 for ADCOSC/3
 				pop		Rsec
 				mov		#5,Rtos
 				call	#_prettyPrint
+
 				mov		#'O'|'4'<<8,Rthd			; O4 for ADCOSC/4
 				pop		Rsec
 				mov		#5,Rtos
 				call	#_prettyPrint
-				mov.b	#'a',Rtos
+
+ 				mov		#'O'|'5'<<8,Rthd			; O5 for ADCOSC/5
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'6'<<8,Rthd			; O6 for ADCOSC/6
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'7'<<8,Rthd			; O7 for ADCOSC/7
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'8'<<8,Rthd			; 08 for ADCOSC/8
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'3'<<8,Rthd			; M3 for MCLK/3
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'4'<<8,Rthd			; M4 for MCLK/4
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'5'<<8,Rthd			; M5 for MCLK/5
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'6'<<8,Rthd			; M6 for MCLK/6
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'7'<<8,Rthd			; M7 for MCLK/7
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'8'<<8,Rthd			; M8 for MCLK/8
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				add		#2,SP						; Drop the old FindOptAdc return address
+				mov.b	#'a',Rtos					; Restore the calibration-type character
 				; Fall through to readCalValue to display the winner
 			_ENDOF
 ;

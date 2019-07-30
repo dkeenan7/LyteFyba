@@ -561,8 +561,8 @@ main:										; For IAR Embedded Workbench IDE debugger
             ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
             ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
 			mov.b		&AdcTimIdx,R9
-			cmp			#4+1,R9						; Test the ADC timing index
-			_IF			HS							; If not valid (not 0-4)
+			cmp			#NumAdcClocks+1,R9			; Test the ADC timing index
+			_IF			HS							; If not in the range 0 to NumAdcClocks
 				clr			R9							; Then use default timing (index = 0)
 			_ENDIF
 			mov.b		adcTimingTbl(R9),R9			; Get byte value from table

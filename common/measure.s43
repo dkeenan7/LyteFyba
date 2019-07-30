@@ -17,8 +17,8 @@ measure:
 			; INCHx		= R8 has the channel number already in the right position
 			; For other bits, see the adcTimingTbl below
 			mov.b		&AdcTimIdx,R9
-			cmp			#4+1,R9						; Test the ADC timing index
-			_IF			HS							; If not valid (not 0-4)
+			cmp			#NumAdcClocks+1,R9			; Test the ADC timing index
+			_IF			HS							; If not in the range 0 to NumAdcClocks
 				clr			R9							; Then use default timing (index = 0)
 			_ENDIF
 			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
@@ -128,19 +128,29 @@ measure:
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
 			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
             ; ADC10DIV_7 = divide input clock by 8 for ADC10CLK
-			; ADC10SSEL_0 = choose internal ADC clock (3-6 MHz) as input to ADC10CLK divider
-			; ADC10SSEL_2 = choose MCLK (4 MHz) as input to ADC10CLK divider
+			; ADC10SSEL_0 = choose internal ADC RC oscillator (3 to 6 MHz) as input to ADC10CLK divider
+			; ADC10SSEL_2 = choose MCLK (3.6864 MHz) as input to ADC10CLK divider
 			; CONSEQ_0	= single channel single conversion
 
-			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better, for
-			; more consistent ADC readings. But now they seem more noisy, especially for the Bolt+
-			; reading
-DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0
-adcTimingTbl DB		DFLT_ADC_TIMING							; value = 0, default
-			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2
+			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better,
+			; for more consistent ADC readings. But now they seem more noisy, especially for the
+			; Bolt+ reading. ADC10CLK should not be faster than 1.67 MHz or slower than 0.15 MHz.
+DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0			; Default is ADC10OSC/3
+adcTimingTbl DB		DFLT_ADC_TIMING							; 0 = default
+			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2	 (may be too fast)
 			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)
-			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADC10OSC/3
+			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADC10OSC/3 (may be too fast)
 			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADC10OSC/4
+			DB		SHS_0+ADC10DIV_4|ADC10SSEL_0|CONSEQ_0	; 5 = ADC10OSC/5
+			DB		SHS_0+ADC10DIV_5|ADC10SSEL_0|CONSEQ_0	; 6 = ADC10OSC/6
+			DB		SHS_0+ADC10DIV_6|ADC10SSEL_0|CONSEQ_0	; 7 = ADC10OSC/7
+			DB		SHS_0+ADC10DIV_7|ADC10SSEL_0|CONSEQ_0	; 8 = ADC10OSC/8
+			DB		SHS_0+ADC10DIV_2|ADC10SSEL_2|CONSEQ_0	; 9 = MCLK/3
+			DB		SHS_0+ADC10DIV_3|ADC10SSEL_2|CONSEQ_0	; 10 = MCLK/4
+			DB		SHS_0+ADC10DIV_4|ADC10SSEL_2|CONSEQ_0	; 11 = MCLK/5
+			DB		SHS_0+ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; 12 = MCLK/6
+			DB		SHS_0+ADC10DIV_6|ADC10SSEL_2|CONSEQ_0	; 13 = MCLK/7
+			DB		SHS_0+ADC10DIV_7|ADC10SSEL_2|CONSEQ_0	; 14 = MCLK/8
 			align	1
 
 ; Measure and Correct routines
@@ -248,7 +258,7 @@ GetTemp:
 ; Output: R10 = calibrated temperature in correctly rounded degrees Celsius, approx range -50..100
 ; Also R9 = calibrated temperature in correctly rounded half degrees.
 ; Trashes: R8, R11
-				; In the below, or with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
+			; In the below, OR with ADC10DIV_7, which forces the measurement to use slowest (/8) clock
 			mov		#TempChan<<12|ADC10DIV_7,R8
 			call	#measure				; 12.2 significant fixed-point result in R8, in 14.2
 											; This is 4 bits shifted compared to a single measurement,
