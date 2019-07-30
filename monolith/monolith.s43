@@ -573,7 +573,7 @@ main:										; For IAR Embedded Workbench IDE debugger
 				incd		R8							; Next word
 				cmp			#6, R8						; Repeat for 4 words (index 0-6 step 2)
 			_UNTIL	EQ
-			bis.b		#ADC10DIV_7, chanList+6			; Use the slowest clock for temperature only
+			; bis.b		#ADC10DIV_7, chanList+6			; Use the slowest clock for temperature only
 			; MSB of the chanList contains only the channel number in the 4 MSBits
 			mov.b		#BoltVPlChan<<4,&chanList+1+0
 			mov.b		#BoltVMiChan<<4,&chanList+1+2

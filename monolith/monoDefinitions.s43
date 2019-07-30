@@ -698,6 +698,97 @@ voltScaleWork:
 				_ENDIF
 				ret			; Don't fall through to _readCalValue
 			_ENDOF
+
+			_OF_EQ_B	#'a',Rtos				; 'a': optimal ADC timing, with debug display
+				call	#FindOptAdc					; Find the optimum ADC clock. Get index in R10
+				push 	R10							; Save the ADC timing index
+				sub		#2*NumAdcClocks,SP			; Recover the devThisIdx array from FindOptAdc
+
+				mov		#'M'|'2'<<8,Rthd			; M2 for MCLK/2
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'2'<<8,Rthd			; O2 for ADCOSC/2
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'3'<<8,Rthd			; O3 for ADCOSC/3
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'4'<<8,Rthd			; O4 for ADCOSC/4
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+ 				mov		#'O'|'5'<<8,Rthd			; O5 for ADCOSC/5
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'6'<<8,Rthd			; O6 for ADCOSC/6
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'7'<<8,Rthd			; O7 for ADCOSC/7
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'O'|'8'<<8,Rthd			; 08 for ADCOSC/8
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'3'<<8,Rthd			; M3 for MCLK/3
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'4'<<8,Rthd			; M4 for MCLK/4
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'5'<<8,Rthd			; M5 for MCLK/5
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'6'<<8,Rthd			; M6 for MCLK/6
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'7'<<8,Rthd			; M7 for MCLK/7
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov		#'M'|'8'<<8,Rthd			; M8 for MCLK/8
+				pop		Rsec
+				mov		#5,Rtos
+				call	#_prettyPrint
+
+				mov.b	#'a',Rtos					; Restore the calibration-type character
+
+				pop		R10							; Restore the ADC timing index
+				mov.b	adcTimingTbl(R10),R9		; Get byte value from table
+				mov.b	R9, chanList+0				; Store it for each conversion channel
+				mov.b	R9, chanList+2
+				mov.b	R9, chanList+4
+				mov.b	R9, chanList+6
+
+				mov.b	R10,R8						; Get the calibration value into R8
+				mov		#0,R9						; Save it as a byte value
+				mov		#infoAdcTimIdx,R10			; Save it as the ADC timing index
+				call	#UpdFlash					; Save the R8 calibration value to info-flash
+				; Fall through to readCalValue to display the winner
+			_ENDOF
 ;
 ; Default case
 				jmp		EmitQmark					; Unknown calibration type character
@@ -890,5 +981,91 @@ compareInfoFlash:
 			_UNTIL	EQ					; Loop until we get to infoDataEnd
 				_ENDIF
 			; The increment will have set Z if all compares well. The cmp will have cleared Z otherwise.
+			ret
+
+;
+; Determine the best ADC clock value for this CMU.
+; Assumes the CMU is bolted to a cell carrying no current so v and V measure the same solid voltage.
+; Can't be used for BMUs unless v and V (HazBat & HazArr) are arranged to measure the same thing.
+; Trashes R8-12, R13, R15
+;
+; Local variable stack pointer offsets
+actCellV	EQU		0					; Our best guess of the actual cell voltage, which is the
+										; average of 256 measurements using GetCellV and MCLK/3
+										; Also used as a 32-bit sum of these values to find the average
+										; The deviations from this are used to determine the noise
+devThisIdx	EQU		4					; Array of total deviation word-sized results
+
+FindOptAdc:
+			sub		#4+2*NumAdcClocks,SP	; Space for locals
+			mov		SP,R9
+			_FOR	#2+NumAdcClocks,R12
+				clr		0(R9)				; Clear locals
+				incd	R9
+			_NEXT_DEC	R12
+			; Measure cell voltage with MCLK/6 timing since it has the lowest worst-case noise
+			mov.b	&adcTimingTbl+12,&chanList+0	; Temporarily change the BoltPlV ADC timing
+			_FOR	#256,R12			; Do 256 measurements
+				; We use BoltPlV because it is a noiser measurement than CellV,
+				; because its track on a CMU runs parallel to some noisy other tracks.
+				; We used to use CellV here, but we need to use the same measurement we use below
+				; in case they have different readings e.g. because they are calibrated differently.
+				call	#GetBoltPlV
+				add		R10,actCellV(SP)	; Accumulate sum
+				adc		actCellV+2(SP)		; as 32-bit
+				mov		#40,R8				; Wait 40 ms for next measurement
+				call	#DelayMs
+			_NEXT_DEC	R12
+			mov		actCellV+2(SP),R10	; Sum to R10:R9
+			mov		actCellV(SP),R9
+			add		#128,R9				; Rounding
+			rra8_l	R10,R9				; Then shift right 8 bits using macro to divide by 256
+			mov		R9,actCellV(SP)		; Save average cell voltage as the actual word value in mV
+			; We want the best total deviation from the "actual" cell voltage. We use the total
+			; rather than the worst deviation since we've observed some infrequent large errors, and
+			; others with frequent almost-as-large errors. We want to penalise the frequent errors more.
+			; Take 256 measurements, and sum their deviations from actual in sumOfDev. We don't bother
+			; dividing by 256, so there won't be an overflow of 16 bits unless the average error is
+			; 256 mV or more.
+			clr		R15					; R15 will range 0 to NumAdcClocks-1
+			mov		SP,R13
+			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
+			_REPEAT
+				mov.b	adcTimingTbl+1(R15),&chanList+0	; Use this ADC timing for BoltVPl
+				_FOR	#256,R12			; Do 256 measurements
+					; We use BoltPlV because it is a noiser measurement than CellV,
+					; because its track on a CMU runs parallel to some noisy other tracks.
+					call	#GetBoltPlV			; V is the noisy measurement
+					sub		actCellV(SP),R10	; Get deviation from average
+					abs		R10					; Don't care if pos or neg
+					add		R10,0(R13)			; Accumulate the sum of the deviations into the array
+					mov		#40,R8				; Wait 40 ms for next measurement
+					call	#DelayMs
+				_NEXT_DEC	R12
+				incd	R13					; Point to next array entry
+				inc		R15					; Next index
+				cmp		#NumAdcClocks,R15
+			_UNTIL	EQ
+			mov.b	&chanList+2,&chanList+0	; Restore ADC timing for BoltVPl
+			; Now find the quietest result
+			clr		R15
+			mov		#-1,R10				; Default winner
+			mov		#$FFFF,R8			; Worst so far
+			mov		SP,R13
+			add		#devThisIdx,R13		; R13 points to start of devThisIdx array
+			_REPEAT
+				cmp		@R13+,R8			; Compare lowest so far with table
+				_IF		HS					; If the lowest so far is higher than this table entry
+					mov		-2(R13),R8			; A new lowest noise
+					mov		R15,R10				; Remember the table index
+				_ENDIF
+				inc		R15
+				cmp		#NumAdcClocks,R15
+			_UNTIL	EQ
+
+			; The lowest noise result was with a table index of R10, corresponding to an ADC timing
+			; index of R10+1
+			add		#1,R10				; Use this value from now on; save to info flash soon
+			add		#4+2*NumAdcClocks,SP ; Deallocate locals
 			ret
 

@@ -492,16 +492,18 @@ devThisIdx	EQU		4					; Array of total deviation word-sized results
 FindOptAdc:
 			sub		#4+2*NumAdcClocks,SP	; Space for locals
 			mov		SP,R9
-			_FOR		#2+NumAdcClocks,R12
+			_FOR	#2+NumAdcClocks,R12
 				clr		0(R9)				; Clear locals
 				incd	R9
 			_NEXT_DEC	R12
 			mov.b	#9,&ramAdcTimIdx	; Measure cell voltage with MCLK/3 timing since it has the
 										; lowest worst-case noise
-			_FOR		#256,R12
-				; We use CellV here because it is a less noisy measurement than BoltVPl,
-				; because its track on a CMU has a more shielded route.
-				call	#GetCellV
+			_FOR	#256,R12			; Do 256 measurements
+				; We use BoltPlV because it is a noiser measurement than CellV,
+				; because its track on a CMU runs parallel to some noisy other tracks.
+				; We used to use CellV here, but we need to use the same measurement we use below
+				; in case they have different readings e.g. because they are calibrated differently.
+				call	#GetBoltPlV
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
 			_NEXT_DEC	R12
@@ -516,14 +518,14 @@ FindOptAdc:
 			; Take 256 measurements, and sum their deviations from actual in sumOfDev. We don't bother
 			; dividing by 256, so there won't be an overflow of 16 bits unless the average error is
 			; 256 mV or more.
-			clr		R15					; R15 will range 0-3
+			clr		R15					; R15 will range 0 to NumAdcClocks-1
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
 			_REPEAT
 				mov		R15,R8
-				inc		R8					; R8 is 1-4
+				inc		R8					; R8 is 1 to NumAdcClocks
 				mov.b	R8,&ramAdcTimIdx	; Use this ADC timing
-				_FOR		#256,R12			; Do 256 measurements
+				_FOR	#256,R12			; Do 256 measurements
 					; We use BoltPlV here because it is a noiser measurement than CellV,
 					; because its track on a CMU runs parallel to some noisy other tracks.
 					call	#GetBoltPlV			; V is the noisy measurement
@@ -555,10 +557,6 @@ FindOptAdc:
 			; index of R10+1
 			add		#1,R10
 			mov.b	R10,&ramAdcTimIdx	; Use this value from now on; save to info flash soon
-			; mov		devThisIdx(SP),R8	; Save the first few deviations for debugging
-			; mov		devThisIdx+2(SP),R9
-			; mov		devThisIdx+4(SP),R10
-			; mov		devThisIdx+6(SP),R11
 			add		#4+2*NumAdcClocks,SP ; Deallocate locals
 			ret
 
