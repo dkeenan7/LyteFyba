@@ -996,6 +996,12 @@ actCellV	EQU		0					; Our best guess of the actual cell voltage, which is the
 										; The deviations from this are used to determine the noise
 devThisIdx	EQU		4					; Array of total deviation word-sized results
 
+; Conditional assembly used during testing
+#define		USE_CELLV 0					; Set this if you want to use CellV instead of BoltPlV
+										; We normally use BoltPlV because it is more noisy
+numMeasures	EQU		16					; How many measurements to make with each clock. A power of 2.
+logNumMeas	EQU		4					; Base 2 log of the above. 'ac takes 0.6 seconds per measure.
+
 FindOptAdc:
 			sub		#4+2*NumAdcClocks,SP	; Space for locals
 			mov		SP,R9
@@ -1003,23 +1009,41 @@ FindOptAdc:
 				clr		0(R9)				; Clear locals
 				incd	R9
 			_NEXT_DEC	R12
-			; Measure cell voltage with MCLK/6 timing since it has the lowest worst-case noise
-			mov.b	&adcTimingTbl+12,&chanList+0	; Temporarily change the BoltPlV ADC timing
-			_FOR	#256,R12			; Do 256 measurements
+			; Measure voltage with MCLK/5 (index 11) as it has the lowest worst-case noise in monolith
+#if USE_CELLV
+			mov.b	&adcTimingTbl+11,&chanList+4	; Temporarily change the CellV ADC timing
+#else
+			mov.b	&adcTimingTbl+11,&chanList+0	; Temporarily change the BoltPlV ADC timing
+#endif
+			_FOR	#numMeasures,R12	; Do this many measurements
 				; We use BoltPlV because it is a noiser measurement than CellV,
 				; because its track on a CMU runs parallel to some noisy other tracks.
 				; We used to use CellV here, but we need to use the same measurement we use below
 				; in case they have different readings e.g. because they are calibrated differently.
-				call	#GetBoltPlV
+#if USE_CELLV
+				call	#GetCellV			; Little-v is less noisy
+#else
+				call	#GetBoltPlV			; Big-V is more noisy
+#endif
 				add		R10,actCellV(SP)	; Accumulate sum
 				adc		actCellV+2(SP)		; as 32-bit
 				mov		#40,R8				; Wait 40 ms for next measurement
 				call	#DelayMs
 			_NEXT_DEC	R12
-			mov		actCellV+2(SP),R10	; Sum to R10:R9
+			; Find the average
+			mov		actCellV+2(SP),R10	; Get sum into R10:R9
 			mov		actCellV(SP),R9
-			add		#128,R9				; Rounding
-			rra8_l	R10,R9				; Then shift right 8 bits using macro to divide by 256
+			add		#numMeasures/2,R9	; Rounding
+			adc		R10
+#if logNumMeas == 8
+			rra8_l	R10,R9				; Shift longword right 8 bits using macro, to divide by 256
+#else
+		REPT	logNumMeas				; Shift longword right the required number of bits
+			clrc						; Unsigned
+			rrc		R10
+			rrc		R9
+		ENDR
+#endif
 			mov		R9,actCellV(SP)		; Save average cell voltage as the actual word value in mV
 			; We want the best total deviation from the "actual" cell voltage. We use the total
 			; rather than the worst deviation since we've observed some infrequent large errors, and
@@ -1031,11 +1055,19 @@ FindOptAdc:
 			mov		SP,R13
 			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
 			_REPEAT
-				mov.b	adcTimingTbl+1(R15),&chanList+0	; Use this ADC timing for BoltVPl
-				_FOR	#256,R12			; Do 256 measurements
+#if USE_CELLV
+				mov.b	adcTimingTbl+1(R15),&chanList+4	; Use this ADC timing for CellV
+#else
+				mov.b	adcTimingTbl+1(R15),&chanList+0	; Use this ADC timing for BoltPlV
+#endif
+				_FOR	#numMeasures,R12	; Do this many measurements
 					; We use BoltPlV because it is a noiser measurement than CellV,
 					; because its track on a CMU runs parallel to some noisy other tracks.
-					call	#GetBoltPlV			; V is the noisy measurement
+#if USE_CELLV
+					call	#GetCellV			; Little-v is less noisy
+#else
+					call	#GetBoltPlV			; Big-V is more noisy
+#endif
 					sub		actCellV(SP),R10	; Get deviation from average
 					abs		R10					; Don't care if pos or neg
 					add		R10,0(R13)			; Accumulate the sum of the deviations into the array
@@ -1046,7 +1078,11 @@ FindOptAdc:
 				inc		R15					; Next index
 				cmp		#NumAdcClocks,R15
 			_UNTIL	EQ
-			mov.b	&chanList+2,&chanList+0	; Restore ADC timing for BoltVPl
+#if USE_CELLV
+			mov.b	&chanList+0,&chanList+4	; Restore ADC timing for CellV
+#else
+			mov.b	&chanList+4,&chanList+0	; Restore ADC timing for BoltPlV
+#endif
 			; Now find the quietest result
 			clr		R15
 			mov		#-1,R10				; Default winner
