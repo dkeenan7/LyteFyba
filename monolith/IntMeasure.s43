@@ -60,7 +60,7 @@ MeasureBmuIsr:				; MeasCCR = TA1CCR0
 			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better,
 			; for more consistent ADC readings. But now they seem more noisy, especially for the
 			; Bolt+ reading. ADC10CLK should not be faster than 1.67 MHz or slower than 0.15 MHz.
-DFLT_ADC_TIMING	equ	ADC10DIV_2|ADC10SSEL_0|CONSEQ_0			; Default is ADC10OSC/3
+DFLT_ADC_TIMING	equ	SHS_0+ADC10DIV_4|ADC10SSEL_2|CONSEQ_0	; Default is MCLK/5 (index 11)
 adcTimingTbl DB		DFLT_ADC_TIMING							; 0 = default
 			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2	 (may be too fast)
 			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)

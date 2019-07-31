@@ -1147,7 +1147,7 @@ abortColon
 ; For the first Genevo Demand Charge Management system at Kingscliff TAFE
 CAP_TOTV	EQU		16 * 32					; Nominal total volltage in decivolts. 16 cells at 3.2 V
 
-		xCODE	'@',Capacity,_Capacity	; At sign, think "capATcity"
+		xCODE	'@',Capatcity,_Capatcity	; At sign, think "capATcity"
 		_CASE
 		_OF_EQ_B	#$B,Rtos			; $B: Battery total nominal voltage (0.1 V)
 			mov		#CAP_TOTV,Rsec

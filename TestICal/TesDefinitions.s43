@@ -305,10 +305,10 @@ voltScaleWork:
 ; Read calibration value ( ch --- )
 ; Calibration type (e.g. 'v' for cell Voltage) in ch
 			xCODE	'r',readCalValue,_readCalValue
-			call 	#TranslateToCalAddr
-			mov.b	Rtos,Rsec				; Convert to RAM address in Rsec
-			bic.b	#$80,Rsec
-			or_w	#ramDataStart&$FF80,Rsec ; Copy higher bits from immediate address
+			call 	#TranslateToCalAddr		; Convert letter to byte/word flag and low 7 bits of address
+			mov.b	Rtos,Rsec				; Copy to Rsec
+			bic.b	#$80,Rsec				; Strip the byte/word flag
+			or_w	#ramDataStart&$FF80,Rsec ; OR the upper 9 bits to make it a RAM address
 			tst.b	Rtos
 			_IF		NZ						; If not zero (zero means "unrecognised")
 				_IF		NN						; If high bit clear
@@ -316,13 +316,13 @@ voltScaleWork:
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
 				_ELSE							; Else high bit set so
 					mov		#5,Rtos					; Display 5 digits
-					cmp		#infoCapacity,Rsec		; Test for battery capacity
+					cmp		#ramCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
-					_IF		EQ
+					_IF		EQ						; If we're reading capacity
 						mov		Rsec,R9
 						clr		R10
-						mov		#10,R8				; Divide by 10 to bring to whole Ah
-						call	#UMSlashMod			; R10:R9 / R8 -> R9
+						mov		#10,R8					; Divide by 10 to bring to whole Ah
+						call	#UMSlashMod				; R10:R9 / R8 -> R9
 						mov		R9,Rsec
 					_ENDIF
 				_ENDIF							; Endif high bit
@@ -359,12 +359,12 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			_IF		EQ
 				jmp		EmitQmark
 			_ENDIF
-			call 	#TranslateToCalAddr
-			mov.b	Rtos,R10					; Convert to RAM address in R10
-			bic.b	#$80,R10
-			bis		#$200,R10				; Start of RAM
-			cmp		#Capacity,R10			; Check for battery capacity
-			_IF		EQ						; If so
+			call 	#TranslateToCalAddr		; Convert letter to byte/word flag and low 7 bits of address
+			mov.b	Rtos,R10				; Copy to R10
+			bic.b	#$80,R10				; Strip the byte/word flag
+			or_w	#ramDataStart&$FF80,R10	; OR the upper 9 bits to make it a RAM address
+			cmp		#ramCapacity,R10
+			_IF		EQ						; If we're writing battery capacity
 				rla		Rsec					; Multiply given value by 10
 				mov		Rsec,R8					; to bring to tenths of an Ah
 				rla2	Rsec					; *8
