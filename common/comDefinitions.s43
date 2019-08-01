@@ -358,14 +358,15 @@ GetLinkV:
 
 ;
 ; Positive terminal volt drop for CMU, Positive contactor volt drop for BMU ( -- )
-; Mnemonic for command character is "additive alteration"
 ; Big-V minus little-v. Display in signed millivolts, -4348 to 4348
-		xCODE		'a',PosDrop,_PosDrop
+		xCODE		'P'|'d' <<8,PosDrop,_PosDrop; 'Pd' collides with 'Pl', 'Pt', 'Xd', 'Xl', 'Xt'
+		xCODE		'a',AddAlt,_AddAlt			; 'a' alias to allow keyboard auto-repeat when testing
+												; Mnemonic for 'a' is "additive alteration"
 		call		#GetBoltPlV			; Get the bolt+ voltage in R10
 		mov			R10,Rsec			; Copy it to Rsec for display
 		call		#GetCellV			; Get the strap+ voltage in R10
 		sub			R10,Rsec			; Subtract strap+ from bolt+ in Rsec
-		mov			#'a',Rthd			; Character of command being responded to
+		mov			#'P'|'d'<<8,Rthd	; Characters of command being responded to
 		mov			#4,Rtos				; Print 4 digits
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 

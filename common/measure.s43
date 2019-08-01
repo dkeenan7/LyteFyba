@@ -14,16 +14,23 @@
 ; Perform an analogue measurement without calibration.
 
 measure:
-			; INCHx		= R8 has the channel number already in the right position
-			; For other bits, see the adcTimingTbl below
-			mov.b		&AdcTimIdx,R9
-			cmp			#NumAdcClocks+1,R9			; Test the ADC timing index
-			_IF			HS							; If not in the range 0 to NumAdcClocks
-				clr			R9							; Then use default timing (index = 0)
+			; Initialise ADC10CTL1
+			; R8 has the channel number already in the INCHx position
+			; and has SHSx, ADC10DF and ISSH all set to zero.
+			; INCHx		= channel number to convert
+			; SHS_0		= enable software starting via the ADC10SC bit
+			; &~ADC10DF	= straight binary output, not twos complement.
+			; &~ISSH	= the sample input signal is not inverted
+			; For the LSB of ADC10CTL1, see the comments for AdcTimingTbl below.
+			mov.b	&AdcTimIdx,R9
+			and		#$0F,R9						; MS nibble is for Monolith. LS nibble is for TestICal
+			cmp		#NumAdcClocks+1,R9			; Test the ADC timing index
+			_IF		HS							; If not in the range 0 to NumAdcClocks
+				clr		R9							; Then use default timing (index = 0)
 			_ENDIF
-			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
-			bis			R9,R8						; OR in the timing bits with given channel bits
-			mov			R8,&ADC10CTL1
+			mov.b	AdcTimingTbl(R9),R9			; Get byte value from table
+			or_w	R9,R8						; OR in the timing bits with given channel bits
+			mov		R8,&ADC10CTL1				; Put the result into ADC10CTL1
 
 #if !ADCBUF
 			; This is the standard version, which doesn't use any RAM.
@@ -42,10 +49,8 @@ measure:
 
 			bis			#ADC10ON,&ADC10CTL0
 ;			bis			#ADC10ON|ADC10SHT_2,&ADC10CTL0		; Also use 16 clock sample
-			; INCH		= R8 has the input channel number already in the right position
-			; SHS_0		= enable software starting via the ADC10SC bit
 
-			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
+;			; Wait at least 30 us (= 120 cycles at 4 MHz) after REFON, for the reference to settle
 ;			_FOR			#40,R8					; 40 times around a 3 cycle dec jnz loop
 ;			_NEXT_DEC		R8
 
@@ -124,7 +129,6 @@ measure:
 
 ; The following table has the important timing bits for ADC10CTL1. It happens that they are
 ; all in the lower 8 bits, so this is a table of bytes.
-			; SHS_0		= enable software starting via the ADC10SC bit
 			; ADC10DIV_1 = divide input clock by 2 for ADC10CLK
 			; ADC10DIV_2 = divide input clock by 3 for ADC10CLK
             ; ADC10DIV_7 = divide input clock by 8 for ADC10CLK
@@ -135,22 +139,22 @@ measure:
 			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better,
 			; for more consistent ADC readings. But now they seem more noisy, especially for the
 			; Bolt+ reading. ADC10CLK should not be faster than 1.67 MHz or slower than 0.15 MHz.
-DFLT_ADC_TIMING	equ	SHS_0+ADC10DIV_4|ADC10SSEL_2|CONSEQ_0	; Default is MCLK/5 (index 11)
-adcTimingTbl DB		DFLT_ADC_TIMING							; 0 = default
-			DB		SHS_0+ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2	 (may be too fast)
-			DB		SHS_0+ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)
-			DB		SHS_0+ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADC10OSC/3 (may be too fast)
-			DB		SHS_0+ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADC10OSC/4
-			DB		SHS_0+ADC10DIV_4|ADC10SSEL_0|CONSEQ_0	; 5 = ADC10OSC/5
-			DB		SHS_0+ADC10DIV_5|ADC10SSEL_0|CONSEQ_0	; 6 = ADC10OSC/6
-			DB		SHS_0+ADC10DIV_6|ADC10SSEL_0|CONSEQ_0	; 7 = ADC10OSC/7
-			DB		SHS_0+ADC10DIV_7|ADC10SSEL_0|CONSEQ_0	; 8 = ADC10OSC/8
-			DB		SHS_0+ADC10DIV_2|ADC10SSEL_2|CONSEQ_0	; 9 = MCLK/3
-			DB		SHS_0+ADC10DIV_3|ADC10SSEL_2|CONSEQ_0	; 10 = MCLK/4
-			DB		SHS_0+ADC10DIV_4|ADC10SSEL_2|CONSEQ_0	; 11 = MCLK/5
-			DB		SHS_0+ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; 12 = MCLK/6
-			DB		SHS_0+ADC10DIV_6|ADC10SSEL_2|CONSEQ_0	; 13 = MCLK/7
-			DB		SHS_0+ADC10DIV_7|ADC10SSEL_2|CONSEQ_0	; 14 = MCLK/8
+DFLT_ADC_TIMING	equ	ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; Best for TestICal is usually MCLK/6 (index 12)
+AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
+			DB		ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2	 (may be too fast)
+			DB		ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)
+			DB		ADC10DIV_2|ADC10SSEL_0|CONSEQ_0	; 3 = ADC10OSC/3 (may be too fast)
+			DB		ADC10DIV_3|ADC10SSEL_0|CONSEQ_0	; 4 = ADC10OSC/4
+			DB		ADC10DIV_4|ADC10SSEL_0|CONSEQ_0	; 5 = ADC10OSC/5
+			DB		ADC10DIV_5|ADC10SSEL_0|CONSEQ_0	; 6 = ADC10OSC/6
+			DB		ADC10DIV_6|ADC10SSEL_0|CONSEQ_0	; 7 = ADC10OSC/7
+			DB		ADC10DIV_7|ADC10SSEL_0|CONSEQ_0	; 8 = ADC10OSC/8
+			DB		ADC10DIV_2|ADC10SSEL_2|CONSEQ_0	; 9 = MCLK/3
+			DB		ADC10DIV_3|ADC10SSEL_2|CONSEQ_0	; 10 = MCLK/4
+			DB		ADC10DIV_4|ADC10SSEL_2|CONSEQ_0	; 11 = MCLK/5
+			DB		ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; 12 = MCLK/6
+			DB		ADC10DIV_6|ADC10SSEL_2|CONSEQ_0	; 13 = MCLK/7
+			DB		ADC10DIV_7|ADC10SSEL_2|CONSEQ_0	; 14 = MCLK/8
 			align	1
 
 ; Measure and Correct routines

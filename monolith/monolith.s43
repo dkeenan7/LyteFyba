@@ -72,11 +72,49 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 
 ; Constants
 
-; Stress calculations
-; The stress set-point for charger back-off is 7.
-; So 8 is the lowest dis-stress. Charger backs off at 11. Alarm is given at stress 12.
-; Source contactor drops out at 12 if enabled.
-; Battery contactor dropout at 15.
+; For stress calculations
+; Stress 7 is the set point for control loops.
+; Stress 8 is the lowest dis-stress. Alarm is given at stress 12.
+; Source or load contactors drop out at 12 if enabled.
+; Battery contactor drops out at 15.
+/*
+Str- High Low  High Low  Link
+ess  volt volt temp temp volt
+     (mV) (mV) (°C) (°C) (mV)
+-----------------------------------
+ 0
+     3168 3360  35   22    0
+ 1
+     3208 3320  37   20    8
+ 2
+     3248 3280  39   18   16
+ 3
+     3288 3240  41   16   24
+ 4
+     3328 3200  43   14   32
+ 5
+     3368 3160  45   12   40
+ 6
+     3408 3120  47   10   48
+ 7 bypass - setpoint for control loops
+     3448 3080  49    8   56
+ 8 full - warning
+     3488 3040  51    6   64
+ 9
+     3528 3000  53    4   72
+10
+     3568 2960  55    2   80
+11
+     3608 2920  57    0   88
+12 alarm - disconnect if it persists for more than a few seconds
+     3648 2880  59   -2   96
+13
+     3688 2840  61   -4  104
+14
+     3728 2800  63   -6  112
+15 shutdown - immediate disconnect
+*/
+
 #define WHINGE 0
 #if !WHINGE
 // OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
@@ -543,14 +581,14 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;
 			; Disconnect digital buffers from analog inputs. Enable ADC function of P1.4 (Vref+ out).
 			; BMU TouchVChan is not currently used
-			mov.b		#(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan)|(1<<4),&ADC10AE0
-			; Initialise ADC10
+			mov.b	#(1<<CellVChan)|(1<<BoltVMiChan)|(1<<BoltVPlChan)|(1<<4),&ADC10AE0
+			; Initialise ADC10CTL0
 			; SREF_1	= +-refs are Vref+ and AVSS
 			; ADC10SHT_3 = sample time is 64 ADC10CLKs (32 us required for temp)
 			; REFOUT	= connect Vref+ to pin P1.4
 			; REFON		= turn on the voltage reference and reference buffer
 			; ADC10ON	= power on the measurement system (now on all the time)
-			mov			#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
+			mov		#SREF_1|ADC10SHT_3|REFOUT+REFON|ADC10ON,&ADC10CTL0
 			; We precalculate the values for ADC10CTL1, to save time in the frequently-called
 			; interrupt routine.
             ; We need the above maximum sample time of 64 cycles to get the 38 us we need to achieve
@@ -560,27 +598,31 @@ main:										; For IAR Embedded Workbench IDE debugger
             ; So ADC clock frequency should not be much greater than 64/38 us = 1.67 MHz.
             ; Datasheet gives 3.7-6.3 MHz range for ADC10OSC but this seems to be reduced to
             ; something like 3.4-5.9 MHz due to Vcc being 2.5 V instead of 3.0 V.
-			mov.b		&AdcTimIdx,R9
-			cmp			#NumAdcClocks+1,R9			; Test the ADC timing index
-			_IF			HS							; If not in the range 0 to NumAdcClocks
-				clr			R9							; Then use default timing (index = 0)
+			; For the LSB of each chanList element, see the comments for AdcTimingTbl below.
+			mov.b	&AdcTimIdx,R9				; Get the ADC timing index from info-flash
+			rra4	R9							; MS nibble is for Monolith. LS nibble is for TestICal
+			cmp		#NumAdcClocks+1,R9			; Test the ADC timing index
+			_IF		HS							; If not in the range 0 to NumAdcClocks
+				clr		R9							; Then use default timing (index = 0)
 			_ENDIF
-			mov.b		adcTimingTbl(R9),R9			; Get byte value from table
-													; we are not waiting for the conversion to complete
-			clr			R8
-			_REPEAT
-				mov.b		R9, chanList(R8)			; Store timing data
-				incd		R8							; Next word
-				cmp			#6, R8						; Repeat for 4 words (index 0-6 step 2)
-			_UNTIL	EQ
-			; bis.b		#ADC10DIV_7, chanList+6			; Use the slowest clock for temperature only
-			; MSB of the chanList contains only the channel number in the 4 MSBits
-			mov.b		#BoltVPlChan<<4,&chanList+1+0
-			mov.b		#BoltVMiChan<<4,&chanList+1+2
-			mov.b		#CellVChan<<4,	&chanList+1+4
-			mov.b		#TempChan<<4,	&chanList+1+6
+			mov.b	AdcTimingTbl(R9),R9			; Get byte value from table
+			mov.b	R9, chanList+0				; Store it for each conversion channel
+			mov.b	R9, chanList+2
+			mov.b	R9, chanList+4
+			mov.b	R9, chanList+6
 
-			mov			&chanList, &ADC10CTL1			; Ready for the first conversions
+; MSB of each chanList element must contain the channel number in the INCHx position
+			; and have SHSx, ADC10DF and ISSH all set to zero.
+			; INCHx		= channel number to convert
+			; SHS_0		= enable software starting via the ADC10SC bit
+			; &~ADC10DF	= straight binary output, not twos complement.
+			; &~ISSH	= the sample input signal is not inverted
+			mov.b	#BoltVPlChan<<4,&chanList+1+0
+			mov.b	#BoltVMiChan<<4,&chanList+1+2
+			mov.b	#CellVChan<<4,	&chanList+1+4
+			mov.b	#TempChan<<4,	&chanList+1+6
+
+			mov		&chanList+0, &ADC10CTL1		; Ready for the first conversions
 ;
 ; Initialise the command character interpreter
 ;

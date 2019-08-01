@@ -393,7 +393,7 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 ; GetOcCellVolt ( -- )
 ; Transmit the smoothed estimated open circuit cell voltage in millivolts (0 to 4348 mV)
 ;
-		xCODE		'O',GetOcCellVolt,_GetOcCellVolt
+		xCODE	'O',GetOcCellVolt,_GetOcCellVolt
 		mov		&ocCellVoltX256+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
 		mov.b	&ocCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
@@ -777,13 +777,17 @@ voltScaleWork:
 				mov.b	#'a',Rtos					; Restore the calibration-type character
 
 				pop		R10							; Restore the ADC timing index
-				mov.b	adcTimingTbl(R10),R9		; Get byte value from table
+				mov.b	AdcTimingTbl(R10),R9		; Get byte value from table
 				mov.b	R9, chanList+0				; Store it for each conversion channel
 				mov.b	R9, chanList+2
 				mov.b	R9, chanList+4
 				mov.b	R9, chanList+6
 
-				mov.b	R10,R8						; Get the calibration value into R8
+
+				mov.b	&AdcTimIdx,R8				; Keep the existing TestICal timing in the LS nibble
+				and.b	#$0F,R8
+				rla4	R10							; Put the new Monolith timing in the MS nibble
+				or_b	R10,R8						; Get the calibration value into R8
 				mov		#0,R9						; Save it as a byte value
 				mov		#infoAdcTimIdx,R10			; Save it as the ADC timing index
 				call	#UpdFlash					; Save the R8 calibration value to info-flash
@@ -811,10 +815,15 @@ voltScaleWork:
 			or_w	#infoDataStart&$FF80,Rsec ; OR the upper 9 bits to make it an info-flash address
 			tst.b	Rtos
 			_IF		NZ						; If not zero (zero means "unrecognised")
-				_IF		NN						; If high bit clear
+				push.b	&interpFlags			; Save present number base
+				_IF		NN						; If high bit clear it's a byte
 					mov		#3,Rtos					; Display 3 digits
+					cmp		#infoAdcTimIdx,Rsec		; Test for ADC timing index
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
-				_ELSE							; Else high bit set so
+					_IF		EQ						; If we're reading ADC timing index
+						bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
+					_ENDIF
+				_ELSE							; Else high bit set so it's a word
 					mov		#5,Rtos					; Display 5 digits
 					cmp		#infoCapacity,Rsec		; Test for battery capacity
 					mov.w	@Rsec,Rsec				; Get word sized cal value
@@ -825,14 +834,15 @@ voltScaleWork:
 						call	#UMSlashMod				; R10:R9 / R8 -> R9
 						mov		R9,Rsec
 					_ENDIF
-				_ENDIF							; Endif high bit
+				_ENDIF							; Endif high bit set
+				mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
+				call	 	#_prettyPrint
+				popBits_B	#bHexOutput,&interpFlags ; Restore previous number base
 			_ELSE 							; Else is zero for "unrecognised"
 EmitQmark
 				mov		#QuestionStr,R10
 				br		#TxString			; Print \? <ret> and exit
 			_ENDIF							; Endif unrecognised
-			mov.b		#' ',Rthd			; Cmd type char (space). May be r or c command
-			call	 	#_prettyPrint
 			ret
 
 QuestionStr	DB			3,'\\?\r'			; Initial \ because '?' is a peek command
@@ -984,11 +994,13 @@ compareInfoFlash:
 			ret
 
 ;
-; Determine the best ADC clock value for this CMU.
-; Assumes the CMU is bolted to a cell carrying no current so v and V measure the same solid voltage.
-; Can't be used for BMUs unless v and V (HazBat & HazArr) are arranged to measure the same thing.
+; Determine the best ADC clock value for this CMU when running Monolith.
+; Assumes the CMU is bolted to a cell carrying no current so v and V measure a constant voltage.
+; Can be used for BMUs if v and V (HazBat & HazArr) are measuring a constant voltage of 48 V or more.
 ; Trashes R8-12, R13, R15
 ;
+FindOptAdc:
+
 ; Local variable stack pointer offsets
 actCellV	EQU		0					; Our best guess of the actual cell voltage, which is the
 										; average of 256 measurements using GetCellV and MCLK/3
@@ -1002,18 +1014,17 @@ devThisIdx	EQU		4					; Array of total deviation word-sized results
 numMeasures	EQU		16					; How many measurements to make with each clock. A power of 2.
 logNumMeas	EQU		4					; Base 2 log of the above. 'ac takes 0.6 seconds per measure.
 
-FindOptAdc:
-			sub		#4+2*NumAdcClocks,SP	; Space for locals
+			sub		#4+2*NumAdcClocks,SP	; Make space for locals
 			mov		SP,R9
 			_FOR	#2+NumAdcClocks,R12
 				clr		0(R9)				; Clear locals
 				incd	R9
 			_NEXT_DEC	R12
-			; Measure voltage with MCLK/5 (index 11) as it has the lowest worst-case noise in monolith
+			; Measure using the timing that has the lowest worst-case noise for monolith
 #if USE_CELLV
-			mov.b	&adcTimingTbl+11,&chanList+4	; Temporarily change the CellV ADC timing
+			mov.b	&AdcTimingTbl+0,&chanList+4	; Temporarily change the CellV ADC timing
 #else
-			mov.b	&adcTimingTbl+11,&chanList+0	; Temporarily change the BoltPlV ADC timing
+			mov.b	&AdcTimingTbl+0,&chanList+0	; Temporarily change the BoltPlV ADC timing
 #endif
 			_FOR	#numMeasures,R12	; Do this many measurements
 				; We use BoltPlV because it is a noiser measurement than CellV,
@@ -1056,9 +1067,9 @@ FindOptAdc:
 			add		#devThisIdx,R13		; R13 points to the start of the devThisIdx array
 			_REPEAT
 #if USE_CELLV
-				mov.b	adcTimingTbl+1(R15),&chanList+4	; Use this ADC timing for CellV
+				mov.b	AdcTimingTbl+1(R15),&chanList+4	; Use this ADC timing for CellV
 #else
-				mov.b	adcTimingTbl+1(R15),&chanList+0	; Use this ADC timing for BoltPlV
+				mov.b	AdcTimingTbl+1(R15),&chanList+0	; Use this ADC timing for BoltPlV
 #endif
 				_FOR	#numMeasures,R12	; Do this many measurements
 					; We use BoltPlV because it is a noiser measurement than CellV,

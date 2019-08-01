@@ -12,20 +12,20 @@ n  a
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                          ABDEFHW&()*+,./;=[]_|}~
-	  Initial characters not used so far in TestICal:         kABDEFGHKPWZ&()*+,./;=[]_|}~<>{
-	  Initial characters not used so far in Monitor etc: abjmnouzABDEFHLMOUW&()*+,./;=[]_|}~
-#  #  revision numbers of main program, bootstrap loader and hardware
+      Initial characters not used so far:                      ADHW&()*+,./;=_|}~
+	  Initial characters not used so far in TestICal:   kpADEGHKOWZ&()*+,./;=_|}~{<>
+	  Initial characters not used so far in Monolith etc: bmouzADHW&()*+,./;=_|}~!
+#  #  revision numbers of main program, bootstrap loader and hardware. ! if BSL out of date.
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
 %  %  Reset fuel gauge to full (0% depth of discharge). Use only at the end of a full charge.
 '  '  characterLiteral (tick)
 `  `  execute (tock, inverse of tick)
-?  ?  get word (peek word)
-   !  store word (poke word)
+?  ?  get word (peek word) from given address
+   !  store word (poke word) to given address
 "  "  quote (begins and ends a literal string), returns pointer and length
 -  -  change-sign (postfix negate)
-:  :  begins a Modbus/ASCII packet
+:  :  begins a Modbus-ASCII packet
 <     minimum, precede with 'v for voltage, 't for temp or 'j for stress, 'q for worstStress
 >     maximum, precede with 'v for voltage, 't for temp or 'j for stress, 'q for worstStress
 {     resetWorstStress :-{
@@ -35,12 +35,13 @@ $  $  dollarHex (set number input mode to hex for next literal)
 ^  ^  reset the Reset log
 1 to 9 are decimal and hexadecimal digits
 A to F are hexadecimal digits after a dollar sign
-a  a  additive alteration = positive terminal volt drop V-v (CMU); positive contactor voltage V-v (BMU)
+a  a  alias for 'Pd' (Positive drop) to allow keyboard auto-repeat when testing. "additive alteration"
    b  update Bootstrap loader
+Br Br Send a break out the CMU port
 c  c  Calibrate
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
-C? C? get byte (peek Char)
-   C! store byte (poke Char)
+C? C? get byte (peek Char) from given address
+   C! store byte (poke Char) to given address
 d  d  Decimal output
 e  e  Error. Turn on or off red LED and piezo beeper
 Er    ErrorRatio. Bad packets per 65536 packets received on the CMU port, as found using our CRC12.
@@ -54,9 +55,9 @@ h  h  Hex output
 i     set current, tenths of an amp. Sent by BMU to tell CMUs the current, for estimating o/c voltage.
    i  set(I)Ds. Must be preceded by Ctrl-S and the desired first ID, and followed by <cr> Ctrl-Q
 In In Display input port value
-Is Is Shunt voltage x 20 mV (was l) (if BMU); negative terminal volt drop if CMU
+Is Is Shunt voltage x 20 mV (was l) (BMU). Negative terminal volt drop (CMU)
 j     Just local stress (not the full status)
-   j  JumpToSubroutine (call)
+   j  JumpToSubroutine (call) at given address
 J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255, BMU)
 k     error chec(K)ing, 'k' or '2fk' to turn it on, 'kCB' to toggle it, irrespective of current state
 K     KillStatusSending, '1K' to kill status sending, '0K' to restore it
@@ -68,9 +69,10 @@ Ms Ms Milliseconds delay
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
-   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
-O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
+   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing. "offered voltage"
+O     Open circuit cell voltage (IR-compensated, filtered with 146 s time constant). Average cell (BMU)
 p     status (Pain) (local to each CMU, but global when BMU)
+Pd Pd Positive drop = positive terminal volt drop V-v (CMU). Positive contactor voltage V-v (BMU)
 Pp    Send a command to a PIP (charger port)
 Pw    Send a command to a PIP (charger port) without a CRC
 q     QueryWorstStress (Not TestICal. 'q' is Query Manufacturer's calibration values in TestICal)
@@ -108,6 +110,7 @@ n  a
 `  `  execute (tock, inverse of tick)
    m  e(m)itCharacter
 "  "  quote (begins and ends a literal string), returns pointer and length
+Br Br Send a break out the CMU port
 Cr Cr Carriage return (end of packet), preceded by checksum if required.
 Ty Ty Type, emit a string given pointer and length
 Pp    Send a command to a PIP (charger port)
@@ -134,11 +137,12 @@ i	  set current. Sent by BMU to CMUs to tell them the current, for estimating op
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    Mv Measure Vcc (CMU only)
-   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing
-O     Open circuit cell voltage (estimated by IR compensation, and smoothed). BMU gives average cell
-Is Is Shunt voltage x 20 mV (was l) (if BMU); drop minus if CMU
+   o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing. "offered voltage"
+O     Open circuit cell voltage (IR-compensated, filtered with 146 s time constant). Average cell (BMU)
+Is Is Shunt voltage x 20 mV (was l) (BMU). Negative terminal volt drop (CMU)
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
-a  a  additive alteration = positive terminal volt drop V-v (CMU); positive contactor voltage V-v (BMU)
+Pd Pd Positive drop = positive terminal volt drop V-v (CMU). Positive contactor voltage V-v (BMU)
+a  a  alias for 'Pd' (Positive drop) to allow keyboard auto-repeat when testing. "additive alteration"
 l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
 t  t  Temperature
 p     status (Pain) (local to each CMU, but global when BMU)
@@ -154,7 +158,7 @@ J  J  Insulation test - touch current in tenths of a milliamp (only when ID=255,
 [  [  Stop echoing commands (only echo responses). Can be used to make the last CMU behave like a BMU.
 ]  ]  Resume echoing everything. Behave like a CMU, not a BMU.
 \  \  exit or comment
-:  :  begins a Modbus/ASCII packet
+:  :  begins a Modbus-ASCII packet
 <     minimum, precede with 'v for voltage, 't for temp or 'j for stress, 'q' for worstStress
 >     maximum, precede with 'v for voltage, 't for temp or 'j for stress, 'q' for worstStress
 Nc Nc Number of cells
@@ -168,7 +172,7 @@ X  X  e(X)clude     (single-CMU ignore mode)
 \  \  exit or comment
 k     error chec(K)ing, 'k' or '2fk' to turn it on, 'kCB' to toggle it, irrespective of current state
 K     KillStatusSending, 1K to kill status sending, 0K to restore it
-#  #  revision numbers of main program, bootstrap loader and hardware
+#  #  revision numbers of main program, bootstrap loader and hardware. ! if BSL out of date.
 
 q     QueryWorstStress (Not TestICal. 'q' is Query Manufacturer's calibration values in TestICal)
 {     resetWorstStress :-{
@@ -184,11 +188,11 @@ Z     Ztore high word of fuel-gauge discharge accumulator (monolith only)
 G     Get high word of fuel-gauge discharge accumulator (monoliths only)
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 
-   j  JumpToSubroutine (call)
-?  ?  get word (peek word)
-   !  store word (poke word)
-C? C? get byte (peek Char)
-   C! store byte (poke Char)
+   j  JumpToSubroutine (call) at given address
+?  ?  get word (peek word) from given address
+   !  store word (poke word) to given address
+C? C? get byte (peek Char) from given address
+   C! store byte (poke Char) to given address
 Ms Ms Milliseconds delay
 
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
