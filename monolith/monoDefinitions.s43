@@ -390,16 +390,28 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 		ret
 
 ;
-; GetOcCellVolt ( -- )
-; Transmit the smoothed estimated open circuit cell voltage in millivolts (0 to 4348 mV)
+; GetFiltOcCellVolt ( -- )
+; Transmit the filtered estimated open circuit cell voltage in millivolts (0 to 4348 mV)
 ;
-		xCODE	'O',GetOcCellVolt,_GetOcCellVolt
+		xCODE	'O',GetFiltOcCellVolt,_GetFiltOcCellVolt
 		mov		&ocCellVoltX256+2,R9; Get upper word 0H
 		swpb	R9					; Move to upper byte of R9; R9 = H0
 		mov.b	&ocCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
 		or_w	R9, R8				; R8 has old value = HM = 0HML >> 8
 		mov		R8, Rsec
 		mov		#'O',Rthd			; Command being responded to is 'O'
+		mov		#4,Rtos				; Use 4 digits
+		call	#_prettyPrint		; Call pretty-print
+		ret
+
+
+;
+; GetOcCellVolt ( -- )
+; Transmit the estimated open circuit cell voltage in millivolts (0 to 4348 mV)
+;
+		xCODE	'W',GetOcCellVolt,_GetOcCellVolt
+		mov		&ocCellVolt,Rsec	; Get estimated open circuit cell voltage
+		mov		#'W',Rthd			; Command being responded to is 'W'
 		mov		#4,Rtos				; Use 4 digits
 		call	#_prettyPrint		; Call pretty-print
 		ret

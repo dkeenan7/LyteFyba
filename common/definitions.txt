@@ -91,6 +91,7 @@ U  U  Unliven contactor (1U .. 5U)
 v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
 w  w  WriteCalValue
+W     Open circuit cell voltage (IR-compensated, not filtered). Average cell (BMU)
 x  x  e(x)clusive   (single-CMU interaction mode)
 X  X  e(X)clude     (single-CMU ignore mode)
 y  y  b(y)pass (Yellow) (relaY- on IMU)
@@ -138,6 +139,7 @@ v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    Mv Measure Vcc (CMU only)
    o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing. "offered voltage"
+W     Open circuit cell voltage (IR-compensated, not filtered). Average cell (BMU)
 O     Open circuit cell voltage (IR-compensated, filtered with 146 s time constant). Average cell (BMU)
 Is Is Shunt voltage x 20 mV (was l) (BMU). Negative terminal volt drop (CMU)
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing

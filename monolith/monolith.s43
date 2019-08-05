@@ -25,7 +25,7 @@
 ; Commonly changed conditional assembly -- defaults are for Eddie
 #define		CONFIG			OFF_GRID 	// Options: OFF_GRID (default), ON_GRID_SMALL, ON_GRID_LARGE
 #define		QUIET			0			// 0 (default), 1 for BMU to tell CMUs not to beep
-#define 	LOW_LOW_CUTOFF	1			// 1 (default) for 2.8 V (2% SoC), 0 for 3.08 V (5% SoC)
+#define 	LOW_LOW_CUTOFF	0			// 0 (default) for 2.935 V (5% SoC), 1 for 2.8 V (2% SoC)
 #define		chargerCurrMax	80			// 80 (default) or 60 A charger limit, depends on PIP-4048 model
 ;-------------------------------------------------------------------------------------------------------
 
@@ -83,35 +83,35 @@ ess  volt volt temp temp volt
      (mV) (mV) (°C) (°C) (mV)
 -----------------------------------
  0
-     3168 3360  35   22    0
+     3168 3425  35   22    0
  1
-     3208 3320  37   20    8
+     3208 3390  37   20    8
  2
-     3248 3280  39   18   16
+     3248 3355  39   18   16
  3
-     3288 3240  41   16   24
+     3288 3320  41   16   24
  4
-     3328 3200  43   14   32
+     3328 3285  43   14   32
  5
-     3368 3160  45   12   40
+     3368 3250  45   12   40
  6
-     3408 3120  47   10   48
+     3408 3215  47   10   48
  7 bypass - setpoint for control loops
-     3448 3080  49    8   56
+     3448 3180  49    8   56
  8 full - warning
-     3488 3040  51    6   64
+     3488 3145  51    6   64
  9
-     3528 3000  53    4   72
+     3528 3110  53    4   72
 10
-     3568 2960  55    2   80
+     3568 3075  55    2   80
 11
-     3608 2920  57    0   88
+     3608 3040  57    0   88
 12 alarm - disconnect if it persists for more than a few seconds
-     3648 2880  59   -2   96
+     3648 3005  59   -2   96
 13
-     3688 2840  61   -4  104
+     3688 2970  61   -4  104
 14
-     3728 2800  63   -6  112
+     3728 2935  63   -6  112
 15 shutdown - immediate disconnect
 */
 
@@ -132,11 +132,13 @@ OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 // UV setpoint is 3.080 to 3.120 V (around 5% SoC). Alarm at 2.92 V. Drop out bat contactor at 2.80.
 UV_ZERO		EQU		3400		; Threshold in mV between UV stress levels -1 and 0
 UV_STEP		EQU		-40			; mV difference between one UV stress level and the next
-#else 						// 3.08 V cutoff for the rest of us -- about 5% SoC
-// UV = Under Voltage: One stress unit for each 20 mV below 3.380 V, to a maximum of 15 at <= 3.08 V
-// UV setpoint is 3.24 to 3.22 V (around 20% SoC). Alarm at 3.14 V. Drop out bat contactor at 3.08.
-UV_ZERO		EQU		3380		; Threshold in mV between UV stress levels -1 and 0
-UV_STEP		EQU		-20			; mV difference between one UV stress level and the next
+#else 						// 2.935 V cutoff for the rest of us -- about 3% SoC
+// Adjusted after learning with Matt James, of the low plateau between 3.18 V and 3.17 V, 14% and 8% SoC
+// Made it so low plateau is stress 8, and equal OV and UV stress (4) at about 75% SoC.
+// UV = Under Voltage: One stress unit for each 35 mV below 3.460 V, to a maximum of 15 at <= 2.935 V
+// UV setpoint is 3.180 to 3.215 V (15% SoC). Alarm at 3.040 V (5% SoC). Drop out bat contactor at 2.935
+UV_ZERO		EQU		3460		; Threshold in mV between UV stress levels -1 and 0
+UV_STEP		EQU		-35			; mV difference between one UV stress level and the next
 #endif
 // OT = Over Temperature: One stress unit for every 2 degrees C above 33C, to a max of 15 at >= 63 degC
 // OT setpoint is 47 to 49 degC. Alarm at 55 degC. Dropout bat contactors at 63 degC.
@@ -292,7 +294,8 @@ CHG_BULK_STD	EQU		552			; 55.2 Set and maximum value for bulk charger voltage
 CHG_FLT_MIN		EQU		512			; 51.2 Lower limit for float charge voltage
 CHG_FLT_STD		EQU		538			; 53.8 Set and maximum value for float charger voltage
 
-ocCellVoltX256	DS		4			; Smoothed IR-compensated average cell voltage, shifted left 8 bits
+ocCellVolt		DS		2			; IR-compensated cell voltage
+ocCellVoltX256	DS		4			; Filtered IR-compensated cell voltage, shifted left 8 bits
 restedCounter	DS		2			; Count of measurements since the battery qualified as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
 cellTemperature	DS		2			; Cell temp degC (signed). For Rint calc. Not updated when bypassing
@@ -945,6 +948,7 @@ DoMeasurement:
 			_ELSE							; Else discharging
 				add		R9,R10					; OCV is higher than measured, when discharging
 			_ENDIF							; Endif
+			mov		R10,&ocCellVolt			; Store it so it can be reported by the 'W' command.
 
             ; Calculate the smoothed IR-compensated cell voltage (average if BMU)
             ; Use (255/256) * old + (1/256) * new
