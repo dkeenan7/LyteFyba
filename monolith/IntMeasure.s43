@@ -77,6 +77,21 @@ AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
 			DB		ADC10DIV_7|ADC10SSEL_2|CONSEQ_0	; 14 = MCLK/8
 			align	1
 
+;
+; Scale R8 by 17/16 if we're not a BMU
+; Trashes R9
+;
+Mul17Div16Cmu:
+		cmp.b	#255,&ID
+		_IF		NE			; If not a BMU then
+			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+			mov		R8,R9		; Copy the value
+			add		#8,R9		; Add half the divisor for rounding
+			rra4	R9			; Divide by 16
+			add		R9,R8		; Add back to the original
+		_ENDIF
+		ret
+
 ; Measure and Correct routines
 ; Output: R10 = 12-bit measurement result with scale and offset calibration applied.
 ; Trashes: R8, R9, R11
@@ -93,6 +108,7 @@ AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
 ; Used for battery voltage measurement in a BMU
 MeasAndCorrCell:
 			mov			&cellVRaw, R8			; 12.2 fixed-point result in R8
+			call		#Mul17Div16Cmu			; Scale by 17/16 if we're not a BMU
 MeasAndCorr:                                    ; Possible future entry point for TouchV and Vcc
 			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
@@ -109,6 +125,7 @@ MeasAndCorr:                                    ; Possible future entry point fo
 ; Trashes R8-11
 MeasAndCorrBoltPl:
 			mov			&boltVPlRaw, R8			; 12.2 fixed-point result in R8
+			call		#Mul17Div16Cmu			; Scale by 17/16 if we're not a BMU
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
 			_IF			EQ						; If it doesn't exist
@@ -146,14 +163,6 @@ GetCellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrCell
-			cmp.b	#255,&ID
-			_IF		NE			; If not a BMU then
-				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-				mov		R10,R8		; Copy the value
-				add		#8,R8		; Add half the divisor for rounding
-				rra4	R8			; Divide by 16
-				add		R8,R10		; Add back to the original
-			_ENDIF
 			ret
 
 
@@ -163,14 +172,6 @@ GetBoltPlV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrBoltPl
-			cmp.b	#255,&ID
-			_IF		NE			; If not a BMU then
-				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-				mov		R10,R8		; Copy the value
-				add		#8,R8		; Add half the divisor for rounding
-				rra4	R8			; Divide by 16
-				add		R8,R10		; Add back to the original
-			_ENDIF
 			ret
 
 

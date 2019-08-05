@@ -139,7 +139,8 @@ measure:
 			; We found years ago that ADC10OSC/3 distributes noise particularly from SMCLK better,
 			; for more consistent ADC readings. But now they seem more noisy, especially for the
 			; Bolt+ reading. ADC10CLK should not be faster than 1.67 MHz or slower than 0.15 MHz.
-DFLT_ADC_TIMING	equ	ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; Best for TestICal is usually MCLK/6 (index 12)
+DFLT_ADC_TIMING	equ	ADC10DIV_5|ADC10SSEL_2|CONSEQ_0	; Best for TestICal, with 40 ms between
+													; measurements, is MCLK/6 (index 12)
 AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
 			DB		ADC10DIV_1|ADC10SSEL_2|CONSEQ_0	; 1 = MCLK/2	 (may be too fast)
 			DB		ADC10DIV_1|ADC10SSEL_0|CONSEQ_0	; 2 = ADC10OSC/2 (may be too fast)
@@ -156,6 +157,21 @@ AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
 			DB		ADC10DIV_6|ADC10SSEL_2|CONSEQ_0	; 13 = MCLK/7
 			DB		ADC10DIV_7|ADC10SSEL_2|CONSEQ_0	; 14 = MCLK/8
 			align	1
+
+;
+; Scale R8 by 17/16 if we're not a BMU
+; Trashes R9
+;
+Mul17Div16Cmu:
+		cmp.b	#255,&ID
+		_IF		NE			; If not a BMU then
+			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
+			mov		R8,R9		; Copy the value
+			add		#8,R9		; Add half the divisor for rounding
+			rra4	R9			; Divide by 16
+			add		R9,R8		; Add back to the original
+		_ENDIF
+		ret
 
 ; Measure and Correct routines
 ; Input:  R8  = analog channel number shifted left 12 bits.
@@ -174,8 +190,9 @@ AdcTimingTbl DB		DFLT_ADC_TIMING					; 0 = default, lowest worst-case noise
 ; Used for battery voltage measurement in a BMU
 MeasAndCorrCell:
 			mov			#CellVChan<<12,R8	    ; Shifted ADC channel for CellV voltage divider
-MeasAndCorr:                                    ; Alternative entry point for Vcc measurement
             call		#measure				; 12.2 fixed-point result in R8
+			call		#Mul17Div16Cmu			; Scale by 17/16 if we're not a BMU
+MeasAndCorr:                                    ; Alternative entry point for Vcc measurement
 			mov.w		&CellCal,R9				; Get cell voltage calibration word as multiplicand in R9
 												; Multiplier is sum-of-samples, already in R8
 			call		#UMStar					; Gives unsigned product in R10 (hi word) and R9 (lo)
@@ -224,6 +241,12 @@ MeasAndCorrBoltMi:
 			sxt			R9						; Convert to signed word
 			add			R9,R10					; Add the offset calibration value
 			ret									; Finished
+
+MeasAndCorrVcc:
+			mov			#$B<<12,R8	    		; Shifted ADC channel for internal half-supply divider
+			call		#measure				; 12.2 fixed-point result in R8
+			jmp			MeasAndCorr				; Tail call and return
+
 
 GetBatV:
 GetCellV:

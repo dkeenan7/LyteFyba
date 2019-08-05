@@ -515,22 +515,6 @@ TranslateToCalAddr:
 		ret
 
 ;
-; Scale R8 by 17/16 if we're not a BMU
-; Needed by 'v, 'V, 'o, 'O calibrate subcommands
-; Trashes R9
-;
-Mul17Div16:
-		cmp.b	#255,&ID
-		_IF		NE			; If not a BMU then
-			; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-			mov		R8,R9		; Copy the value
-			add		#8,R9		; Add half the divisor for rounding
-			rra4	R9			; Divide by 16
-			add		R9,R8		; Add back to the original
-		_ENDIF
-		ret
-
-;
 ; A worker routine for voltage calibration. We do this twice now for cell/battery and bolt/array
 ;
 
@@ -568,7 +552,7 @@ voltScaleWork:
 			_CASE
 			_OF_EQ_B	#'v',Rtos				; 'v': Cell voltage scale factor
 				mov		&cellVRaw, R8				; 12.2 fixed-point result in R8
-				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				call	#Mul17Div16Cmu				; Scale by 17/16 if we're not a BMU
 				mov.b	&CellOff,R9					; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,R8						; Get the calibration value into R8
@@ -579,7 +563,7 @@ voltScaleWork:
 
 			_OF_EQ_B	#'V',Rtos				; 'V': Bolt+/Array voltage scale factor
 				mov		&boltVPlRaw,R8				; Get raw 12.2 bit fixed point measurement in R8
-				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				call	#Mul17Div16Cmu				; Scale by 17/16 if we're not a BMU
 				mov.b	&BoltPlOff,R9				; This is the offset correction to use
 				call	#voltScaleWork
 				mov.w	R9,R8						; Get the calibration value into R8
@@ -590,7 +574,7 @@ voltScaleWork:
 
 			_OF_EQ_B	#'o',Rtos				; 'o': Cell voltage offset
 				mov		&cellVRaw, R8				; 12.2 fixed-point result in R8
-				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				call	#Mul17Div16Cmu				; Scale by 17/16 if we're not a BMU
 				mov		&CellCal,R9					; Use this voltage scale for correction
 				call	#Fx1_15UMul					; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
@@ -602,7 +586,7 @@ voltScaleWork:
 
 			_OF_EQ_B	#'O',Rtos				; 'O': Bolt+/Array voltage offset
 				mov		&boltVPlRaw,R8				; Get raw 12.2 bit fixed point measurement in R8
-				call	#Mul17Div16					; Scale by 17/16 if we're not a BMU
+				call	#Mul17Div16Cmu				; Scale by 17/16 if we're not a BMU
 				mov		&BoltPlCal,R9				; Use this voltage scale for correction
 				call	#Fx1_15UMul					; Correct for scale but not offset
 				sub		R8,Rsec						; Calculate offset (expected - measured)
