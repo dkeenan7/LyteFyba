@@ -209,6 +209,7 @@ MeasAndCorr:                                    ; Alternative entry point for Vc
 MeasAndCorrBoltPl:
 			mov			#BoltVPlChan<<12,R8     ; Shifted ADC channel for BoltVPl voltage divider
 			call		#measure				; 12.2 fixed-point result in R8
+			call		#Mul17Div16Cmu			; Scale by 17/16 if we're not a BMU
 			mov.w		&BoltPlCal,R9			; Get bolt+ voltage scale factor as multiplicand in R9
 			cmp.w		#$FFFF,R9				; Check if it doesn't exist, i.e. just erased flash
 			_IF			EQ						; If it doesn't exist
@@ -253,14 +254,6 @@ GetCellV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrCell
-			cmp.b	#255,&ID
-			_IF		NE			; If not a BMU then
-				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-				mov		R10,R8		; Copy the value
-				add		#8,R8		; Add half the divisor for rounding
-				rra4	R8			; Divide by 16
-				add		R8,R10		; Add back to the original
-			_ENDIF
 			ret
 
 
@@ -270,14 +263,6 @@ GetBoltPlV:
 ; Trashes: R8, R9, R11
 ; Output: R10 = calibrated in millivolts, approx range 0 to 4348
 			call	#MeasAndCorrBoltPl
-			cmp.b	#255,&ID
-			_IF		NE			; If not a BMU then
-				; Multiply by 17/16 to change full-scale from 4092 mV to 4348 mV
-				mov		R10,R8		; Copy the value
-				add		#8,R8		; Add half the divisor for rounding
-				rra4	R8			; Divide by 16
-				add		R8,R10		; Add back to the original
-			_ENDIF
 			ret
 
 
