@@ -394,10 +394,11 @@ SelectBMU	DB	4, '255s'				; First byte is length of following string
 ; Transmit the filtered estimated open circuit cell voltage in millivolts (0 to 4348 mV)
 ;
 		xCODE	'O',GetFiltOcCellVolt,_GetFiltOcCellVolt
-		mov		&ocCellVoltX256+2,R9; Get upper word 0H
-		swpb	R9					; Move to upper byte of R9; R9 = H0
-		mov.b	&ocCellVoltX256+1,R8; Upper byte of lower word  R8 = 0M
-		or_w	R9, R8				; R8 has old value = HM = 0HML >> 8
+		mov		&ocCellVoltX256+2,R9; Get upper word into R9
+		mov		&ocCellVoltX256+0,R8; Get lower word into R8
+		add		#128,R8				; Add half the divisor for rounding
+		adc		R9
+		rra8_l	R9,R8				; Divide by 256
 		mov		R8, Rsec			; Number to print
 		mov		#'O',Rthd			; Command being responded to is 'O'
 		mov		#4,Rtos				; Use 4 digits

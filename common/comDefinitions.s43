@@ -177,13 +177,25 @@ _emitNum3:
 				_ENDIF						; Endif negative
 			_ENDIF						; Endif count <= 5
 			mov		Rsec,R10			; Get n as 16.16 bit fixpoint Dividend in R10:R9
+			clr		R9
+			clrc						; Unsigned divide by 2
+			rrc		R10
+			rrc		R9
 			mov		#40000,R8			; Divisor in R8 is 4 * 10^4
-			mov		R8,R9				; Instead of clearing R9 and adding one to the quotient later
-			call	#UMSlashMod			; R10:R9 / R8 -> R9, remainder to R10 (ignored), clears R11
-			clr		R10					; Ignore remainder. Treat R10:R9 as 16.16 bit fixpoint again
-			rla		R9					; Shift R10:R9 2 bits left
-			rlc		R10					; to get most sig decimal digit in R10 (max value 3)
-			rla		R9
+			call	#UMSlashMod			; R10:R9 / R8 -> R9, remainder in R10, clears R11
+			mov		R10,R8				; Get remainder in R8
+			clr		R10					; Treat R10:R9 as 16.16 bit fixpoint again
+			add		#8192,R8			; Add 8192 to the remainder for later rounding. Won't carry now.
+			rla		R8					; Multiply the remainder by 2
+			adc		R9					; if there's a carry, add it to the quotient
+			rla		R8					; Shift R10:R9:R8 3 bits left
+			rlc		R9					; to get most sig decimal digit in R10 (max value 6)
+			rlc		R10
+			rla		R8
+			rlc		R9
+			rlc		R10
+			rla		R8
+			rlc		R9
 			rlc		R10
 			mov		#10,Rsec			; Rsec := 10 (radix)
 		_ELSE						; Else hexadecimal
