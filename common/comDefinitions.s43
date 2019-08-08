@@ -165,14 +165,17 @@ _emitNum3:
 #if 1	// This version takes up 7 more words of flash but doesn't use any stack (except return address)
 		mov		#4,R12				; Loop 5 times for decimal conversion
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
-		_IF		Z					; If decimal, treat as a signed number
-			tst		Rsec
-			_IF		L					; If n is negative
-				mov.b	#'-',R8				; Emit minus sign
-				call	#TxByteCk
-				inv		Rsec				; Negate to get absolute value
-				inc		Rsec
-			_ENDIF						; Endif negative
+		_IF		Z					; If decimal, treat as a signed number unless count >= 6
+			cmp		#6,Rtos
+			_IF		LO					; If count < 6
+				tst		Rsec
+				_IF		L					; If n is negative
+					mov.b	#'-',R8				; Emit minus sign
+					call	#TxByteCk
+					inv		Rsec				; Negate to get absolute value
+					inc		Rsec
+				_ENDIF						; Endif negative
+			_ENDIF						; Endif count <= 5
 			mov		Rsec,R10			; Get n as 16.16 bit fixpoint Dividend in R10:R9
 			mov		#40000,R8			; Divisor in R8 is 4 * 10^4
 			mov		R8,R9				; Instead of clearing R9 and adding one to the quotient later
@@ -217,14 +220,17 @@ _emitNum3:
 
 #else	// This version of emitNum takes less flash but uses up to 8 bytes of stack to reverse digits
 		bit.b	#bHexOutput,&interpFlags ; Hexadecimal or decimal?
-		_IF		Z					; If decimal, treat as a signed number
-			tst		Rsec
-			_IF		L					; If n is negative
-				mov.b	#'-',R8				; Emit minus sign
-				call	#TxByteCk
-				inv		Rsec				; Negate
-				inc		Rsec
-			_ENDIF						; Endif negative
+		_IF		Z					; If decimal, treat as a signed number unless count >= 6
+			cmp		#6,Rtos
+			_IF		LO					; If count < 6
+				tst		Rsec
+				_IF		L					; If n is negative
+					mov.b	#'-',R8				; Emit minus sign
+					call	#TxByteCk
+					inv		Rsec				; Negate
+					inc		Rsec
+				_ENDIF						; Endif negative
+			_ENDIF						; Endif count <= 5
 			mov.b	#10,R8			; Divisor in R8 is number base
 		_ELSE						; Else hexadecimal
 			dec		Rtos				; Use one less digit

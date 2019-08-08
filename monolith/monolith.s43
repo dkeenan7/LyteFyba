@@ -897,10 +897,7 @@ DoMeasurement:
 			; The +5000 is for correct rounding of the truncating division by 10000.
 			mov		&infoCellRes,R10
 			clr		R9
-			REPT	3
-				rra		R10
-				rrc		R9
-			ENDR
+			rra3_l	R10,R9
 			add		#5000,R9
 			adc		R10
 			mov		#10000,R8

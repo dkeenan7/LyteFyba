@@ -70,7 +70,8 @@ n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard a
 Nc Nc Number of cells
 No No emit(n)um. Precede with a number or calculation, and a field width
    o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing. "offered voltage"
-O     Open circuit cell voltage (IR-compensated, filtered with 146 s time constant). Average cell (BMU)
+o     Open circuit cell voltage in 1/16ths of a millivolt (IR-compensated, filtered w 128 s time const)
+O     Open circuit cell voltage (IR-compensated, filtered with 128 s time const). Average cell (BMU)
 p     status (Pain) (local to each CMU, but global when BMU)
 Pd Pd Positive drop = positive terminal volt drop V-v (CMU). Positive contactor voltage V-v (BMU)
 Pp    Send a command to a PIP (charger port)
@@ -139,8 +140,9 @@ v  v  cell strap+ (v)oltage (CMUs) or battery voltage (BMU)
 V  V  cell bolt+ (V)oltage (CMUs) or array voltage (BMU)
    Mv Measure Vcc (CMU only)
    o  alias for 'Mv' (Measure Vcc) to allow keyboard auto-repeat when testing. "offered voltage"
+o     Open circuit cell voltage in 1/16ths of a millivolt (IR-compensated, filtered w 128 s time const)
+O     Open circuit cell voltage (IR-compensated, filtered with 128 s time constant). Average cell (BMU)
 W     Open circuit cell voltage (IR-compensated, not filtered). Average cell (BMU)
-O     Open circuit cell voltage (IR-compensated, filtered with 146 s time constant). Average cell (BMU)
 Is Is Shunt voltage x 20 mV (was l) (BMU). Negative terminal volt drop (CMU)
 n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard auto-repeat when testing
 Pd Pd Positive drop = positive terminal volt drop V-v (CMU). Positive contactor voltage V-v (BMU)

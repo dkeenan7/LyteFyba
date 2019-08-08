@@ -163,6 +163,34 @@ rla8_l		MACRO	hi,lo
 			swpb	lo
 			ENDM
 
+rra4_l		MACRO	hi,lo
+			REPT	4
+				rra		hi
+				rrc		lo
+			ENDR
+			ENDM
+
+rla4_l		MACRO	hi,lo
+			REPT	4
+				rla		lo
+				rlc		hi
+			ENDR
+			ENDM
+
+rra3_l		MACRO	hi,lo
+			REPT	3
+				rra		hi
+				rrc		lo
+			ENDR
+			ENDM
+
+rla3_l		MACRO	hi,lo
+			REPT	3
+				rla		lo
+				rlc		hi
+			ENDR
+			ENDM
+
 or_w		MACRO	src,dest
 			bis		src,dest			; Badly named instruction at times
 			ENDM
