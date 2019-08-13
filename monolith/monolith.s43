@@ -904,25 +904,29 @@ DoMeasurement:
 			; only shifts and adds, that Dave fitted to the graph on page 17 of Languang Lu, 2011.
 			; https://forums.aeva.asn.au/download/file.php?id=1410
 			; The cell resistance at a given temperature is estimated as
-			; CellResistance = CellRes25Deg/8 * [1 + 1.046875^(67-T)] where T is the cell temperature
+			; CellResistance = CellRes25Deg/7.76 * [1 + 1.046875^(67-T)] where T is the cell temperature
 
-			; Divide the 25 degC cell resistance by 8.
+			; Divide the 25 degC cell resistance by 7.76
 			; It doesn't matter that the LS 3 bits of the resistance are not used.
 			; It can't be measured that accurately anyway.
-			rra2	R9						; Divide by 4
-			rra		R9						; Divide by 2
+			mov		R9,R8					; Make a copy in R8
+			rra3	R9						; Divide by 8
 			adc		R9						; Rounding
+			swpb_b_R 8						; Divide by 256
+			rra		R8						; Divide by 2
+			adc		R8						; Rounding
+			add		R8,R9					; Add
 
 			; For every degree we are below 67 degC, multiply resistance by 1.046875 = 1+3/64
 			push 	R9						; Save a copy of the fixed part of the resistance
-			mov		#67,R11					; R11 is loop counter, init 67 degC
+			mov		#67-1,R11				; R11 is loop counter, init 67 degC
 			_DO
 				cmp		&cellTemperature,R11
 			_WHILE	GE						; While loop counter >= temperature
 				mov		R9,R8					; Multiply resistance by 1.046875 = 1+3/64
 				clrc							; Unsigned divide by 2
 				rrc		R8						; No rounding required for the first one
-				mov		R8,R10						; Save this value
+				mov		R8,R10					; Save this value
 				rra		R8						; Divide by 2 again
 				adc		R8						; Rounding required for this one
 				add		R10,R8					; Add to obtain 3/4ths

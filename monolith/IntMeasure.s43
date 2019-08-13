@@ -118,6 +118,11 @@ MeasAndCorr:                                    ; Possible future entry point fo
 			mov.b		&CellOff,R9				; Get the cell voltage offset as signed byte
 			sxt			R9						; Convert to signed word
 			add			R9,R10					; Add the offset calibration value
+			mov			&cellTemperature,R9		; Correct for tempco of voltage ref
+			sub			#25,R9					; Subtract 25 degC
+			rra2		R9						; divide by 4
+			adc			R9						; Rounding
+			sub			R9,R10					; Subtract the temperature correction
 			ret									; Finished
 
 ; As above, using the separate bolt calibration factor and offset
@@ -138,6 +143,11 @@ MeasAndCorrBoltPl:
 			mov.b		&BoltPlOff,R9			; Get the bolt+ voltage offset as signed byte
 			sxt			R9						; Convert to signed word
 			add			R9,R10					; Add the offset calibration value
+			mov			&cellTemperature,R9		; Correct for tempco of voltage ref
+			sub			#25,R9					; Subtract 25 degC
+			rra2		R9						; divide by 4
+			adc			R9						; Rounding
+			sub			R9,R10					; Subtract the temperature correction
 			ret									; Finished
 
 ; As above, using the separate bolt calibration factor and offset

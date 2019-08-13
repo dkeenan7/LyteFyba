@@ -563,6 +563,13 @@ TranslateToCalAddr:
 voltScaleWork:
 			sxt		R9							; Convert from signed byte to signed word
 			add		R9,R8						; Perform offset correction, but not scale correction
+
+			mov		&cellTemperature,R9			; Correct for tempco of voltage ref
+			sub		#25,R9						; Subtract 25 degC
+			rra2	R9							; divide by 4
+			adc		R9							; Rounding
+			sub		R9,R10						; Subtract the temperature correction
+
 			clr		R9							; 16 bits of zeroes
 			mov		Rsec,R10
 			rla		R10							; 17 zeroes; we have value << 17 in R10:R9
@@ -590,7 +597,7 @@ voltScaleWork:
 				call	#voltScaleWork
 				mov.w	R9,R8						; Get the calibration value into R8
 				mov		#1,R9						; Save it as a word value
-				mov		#infoCellCal,R10			; Save it as the cell offset
+				mov		#infoCellCal,R10			; Save it as the cell scale factor
 				call	#UpdFlash					; Save the R8 calibration value to info-flash
 			_ENDOF
 
@@ -601,7 +608,7 @@ voltScaleWork:
 				call	#voltScaleWork
 				mov.w	R9,R8						; Get the calibration value into R8
 				mov		#1,R9						; Save it as a word value
-				mov		#infoBoltPlCal,R10			; Save it as the cell offset
+				mov		#infoBoltPlCal,R10			; Save it as the cell scale factor
 				call	#UpdFlash					; Save the R8 calibration value to info-flash
 			_ENDOF
 
@@ -1131,40 +1138,4 @@ logNumMeas	EQU		4					; Base 2 log of the above. 'ac takes 0.6 seconds per measu
 			; index of R10+1
 			add		#1,R10				; Use this value from now on; save to info flash soon
 			add		#4+2*NumAdcClocks,SP ; Deallocate locals
-			ret
-
-
-; Test ( temp -- resistance )		; Test the temperature adjustment of internal resistance
-			xCODE	'.',Test,_Test
-			; Divide the 25 degC cell resistance by 8.
-			; It doesn't matter that the LS 3 bits of the resistance are not used.
-			; It can't be measured that accurately anyway.
-			mov		&infoCellRes,R9
-			rra3	R9						; Divide by 4
-			adc		R9						; Rounding
-
-			; For every degree we are below 67 degC, multiply resistance by 1.046875 = 1+3/64
-			push 	R9						; Save a copy of the fixed part of the resistance
-			mov		#67,R11					; R11 is loop counter, init 67 degC
-			_DO
-				cmp		Rtos,R11
-			_WHILE	GE						; While loop counter >= temperature
-				mov		R9,R8					; Multiply resistance by 1.046875 = 1+3/64
-				clrc							; Unsigned divide by 2
-				rrc		R8						; No rounding required for the first one
-				mov		R8,R10						; Save this value
-				rra		R8						; Divide by 2 again
-				adc		R8						; Rounding required for this one
-				add		R10,R8					; Add to obtain 3/4ths
-				rra4	R8						; Divide by 16 to obtain 3/64ths
-				adc		R8						; Rounding required for this one
-				add		R8,R9					; Add to original to obtain 1+3/64 times
-				dec		R11						; Decrement loop counter by 1 degC
-			_ENDW
-			pop		R8						; Restore the fixed part of the resistance to R8
-			add		R9,R8					; Add the temperature-dependent part to the fixed part in R8
-			mov		R8,Rsec
-			mov		#5,Rtos					; Print 5 digits
-			mov		#'.',Rthd				; Command is '.'
-			call	#_prettyPrint			; Call pretty-print
 			ret
