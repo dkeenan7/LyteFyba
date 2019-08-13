@@ -884,50 +884,55 @@ DoMeasurement:
 			; We have a 16x16=32-bit multiply, and we want to scale the current and resistance
 			; so the high 16 bits of the result is the voltage in millivolts, while ensuring
 			; that the scaled current and resistance do not overflow unsigned 16 bits.
-			; Also, we want to limit the scaling of the current to binary-shifts since it
-			; must be done at runtime, while the scaling of resistance can be more complicated
-			; since it can be done at assembly time.
-			; We will scale current by >>3 to 1/80ths of an amp, so overflow is at 819.2 A.
+			; We will scale current by <<3 to 1/80ths of an amp, so overflow is at 819.2 A.
 
 			; Get the scaled cell internal resistance into R8.
 			; Given that we want the result to be in 1/65536ths of a millivolt, we need to scale
 			; resistance to 1/(65536/80) = 1/819.2ths of a milliohm
-			; We rely on the fact that the assembler performs 32 bit calculations.
 			; HiTempCellRes is in micro-ohms.
-			; The +5000 is for correct rounding of the truncating division by 10000.
-			mov		&infoCellRes,R10
+			mov		&infoCellRes,R10		; Treating as high word effectively multiplies by 2^16
 			clr		R9
-			rra3_l	R10,R9
-			add		#5000,R9
+			rra3_l	R10,R9					; Divide by 2^3, so overall multiplied by 2^13 = 8192
+			add		#5000,R9				; Add half the divisor for rounding
 			adc		R10
 			mov		#10000,R8
-			call	#UMSlashMod
-			mov 	R9,R8
-			; Now in 1/819.2ths of a milliohm, so overflow at 80 mR
+			call	#UMSlashMod				; Divide by 10000. Result in R9
+			; Now in 1/819.2ths of a milliohm, so overflow at 80 mR.
+			; Max resistance setting is is 19.999 mR. Less if we expect to go below -8 degC.
 
-			; Adjust the internal resistance for temperature using an approx Arrhenius' equation.
-			; So the temperature-dependent component doubles for every 10 degC drop in temperature.
-			; Assume that the "HiTempCellRes" constant is the fixed or high-temperature component,
-			; and that, at 10 degC, the temp-dependent component is equal to the fixed component.
-			; So the cell resistance at a given temperature is estimated as
-			; CellResistance = HiTempCellRes * [1 + 2^(1-T/10)] where T is the cell temperature.
+			; Adjust the internal resistance for temperature using a function that requires
+			; only shifts and adds, that Dave fitted to the graph on page 17 of Languang Lu, 2011.
+			; https://forums.aeva.asn.au/download/file.php?id=1410
+			; The cell resistance at a given temperature is estimated as
+			; CellResistance = CellRes25Deg/8 * [1 + 1.046875^(67-T)] where T is the cell temperature
 
-			; Shift right 3 bits to get the temperature dependent component at 40 degC, in R9.
-			add		#4,R9
-			rra3	R9
+			; Divide the 25 degC cell resistance by 8.
+			; It doesn't matter that the LS 3 bits of the resistance are not used.
+			; It can't be measured that accurately anyway.
+			rra2	R9						; Divide by 4
+			rra		R9						; Divide by 2
+			adc		R9						; Rounding
 
-			; For every 6 degrees we are below 40 degC, multiply resistance by 1.5 (approx 2^(6/10))
-			; Could mult by 1.25 for every 3 deg, but it would take longer. Accuracy not needed.
-			mov		#40-3,R11				; R11 is loop counter, init 40 degC, -3 for rounding
+			; For every degree we are below 67 degC, multiply resistance by 1.046875 = 1+3/64
+			push 	R9						; Save a copy of the fixed part of the resistance
+			mov		#67,R11					; R11 is loop counter, init 67 degC
 			_DO
 				cmp		&cellTemperature,R11
 			_WHILE	GE						; While loop counter >= temperature
-				mov		R9,R10					; Multiply resistance by 1.5
-				rra		R10
-				add		R10,R9
-				sub		#6,R11					; Decrement loop counter by 6 degC
+				mov		R9,R8					; Multiply resistance by 1.046875 = 1+3/64
+				clrc							; Unsigned divide by 2
+				rrc		R8						; No rounding required for the first one
+				mov		R8,R10						; Save this value
+				rra		R8						; Divide by 2 again
+				adc		R8						; Rounding required for this one
+				add		R10,R8					; Add to obtain 3/4ths
+				rra4	R8						; Divide by 16 to obtain 3/64ths
+				adc		R8						; Rounding required for this one
+				add		R8,R9					; Add to original to obtain 1+3/64 times
+				dec		R11						; Decrement loop counter by 1 degC
 			_ENDW
-			add		R9,R8					; Add the temperature-dependent part to the fixed part
+			pop		R8						; Restore the fixed part of the resistance to R8
+			add		R9,R8					; Add the temperature-dependent part to the fixed part in R8
 
 			; Get the scaled absolute value of the current into R9
 			mov		&current,R9				; Current is in tenths of an amp
