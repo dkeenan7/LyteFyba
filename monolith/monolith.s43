@@ -55,6 +55,7 @@ BoltMiOff	EQU	infoBoltMiOff
 TempSlope	EQU	infoTempSlope
 TempOff		EQU	infoTempOff
 AdcTimIdx	EQU	infoAdcTimIdx
+BypFull		EQU	infoBypFull
 
 
 			NAME	main			; Module name
@@ -77,50 +78,52 @@ ID			EQU		infoID			; We use the info-flash copy of the ID for s, x, prettyPrint
 ; Stress 8 is the lowest dis-stress. Alarm is given at stress 12.
 ; Source or load contactors drop out at 12 if enabled.
 ; Battery contactor drops out at 15.
+; High volt values and bypass and full thresholds assume defaults
+; They can be changed by 'Th' commands
 /*
 Str- High Low  High Low  Link
 ess  volt volt temp temp volt
      (mV) (mV) (°C) (°C) (mV)
 -----------------------------------
  0
-     3168 3425  35   22    0
+     3170 3425  35   22    0
  1
-     3208 3390  37   20    8
+     3210 3390  37   20    8
  2
-     3248 3355  39   18   16
+     3250 3355  39   18   16
  3
-     3288 3320  41   16   24
+     3290 3320  41   16   24
  4
-     3328 3285  43   14   32
+     3330 3285  43   14   32
  5
-     3368 3250  45   12   40
+     3370 3250  45   12   40
  6
-     3408 3215  47   10   48
+     3410 3215  47   10   48
  7 bypass - setpoint for control loops
-     3448 3180  49    8   56
+     3450 3180  49    8   56
  8 full - warning
-     3488 3145  51    6   64
+     3490 3145  51    6   64
  9
-     3528 3110  53    4   72
+     3530 3110  53    4   72
 10
-     3568 3075  55    2   80
+     3570 3075  55    2   80
 11
-     3608 3040  57    0   88
+     3610 3040  57    0   88
 12 alarm - disconnect if it persists for more than a few seconds
-     3648 3005  59   -2   96
+     3650 3005  59   -2   96
 13
-     3688 2970  61   -4  104
+     3690 2970  61   -4  104
 14
-     3728 2935  63   -6  112
+     3730 2935  63   -6  112
 15 shutdown - immediate disconnect
 */
 
 #define WHINGE 0
 #if !WHINGE
-// OV = Over Voltage: One stress unit for each 40 mV in excess of 3.128 V, to a max of 15 at >= 3.728 V
-// OV setpoint is 3.408 to 3.448 V. Bypass at 3.408. Alarm at 3.608. Drop out source contactors at 3.608
-// Drop out battery cont at 3.728 V.
-OV_ZERO		EQU		3128		; Threshold in mV between OV stress levels -1 and 0
+// OV = Over Voltage: One stress unit for each 40 mV in excess of 3.130 V, to a max of 15 at >= 3.730 V
+// OV setpoint is 3.410 to 3.450 V. Bypass at 3.410. Alarm at 3.610. Drop out source contactors at 3.610
+// Drop out battery cont at 3.730 V.
+OV_ZERO		EQU		3130		; Threshold in mV between OV stress levels -1 and 0
 OV_STEP		EQU		40			; mV difference between one OV stress level and the next
 ; These were an attempt to float at the 75% step
 ;// OV = Over Voltage: One stress unit for each 3 mV in excess of 3.332 V, to a max of 15 at >= 3.377 V
@@ -180,12 +183,6 @@ AL_ZERO		EQU		0			; Threshold in mV between AL stress levels -1 and 0
 AL_STEP		EQU		4			; mV difference between one AL stress level and the next
 #endif
 
-; FULLLEV	EQU	OV_ZERO+8*OV_STEP	; Considered Full (charge termination and coulomb counter reset)
-									;	3448 mV. Stress 7/8 threshold
-; BYPLEV	EQU	OV_ZERO+7*OV_STEP	; Bypass threshold 3408 mV. Corresp. to stress 6/7 threshold
-
-MinAlarmStress EQU	12			; Minimum stress to light error LED and beep
-MinContStress EQU	12			; Minimum stress to drop out source contactors (BMU only)
 
 ComErrTicks	EQU		9			; Minimum ticks without receiving valid status byte before
 								;	taking on master duties and reporting comms error (if ID not 1)
@@ -215,8 +212,6 @@ discharge		DS		4			; Accumulator for depth of discharge determination.
 									; Unit is 1/10 A for 1/2 s = 1/20 coulomb = 1/72 milliamphour.
 									; So 32 bits allows 60,000 Ah, but 24 bits would only allow 233 Ah.
 
-
-
 oldFllTime		DS		2			; Used by Frequency Locked Loop. NOTE: do not put this after
 									;	comNoEraseEnd, as it will affect the first FLL interrupt
 measureCount	DS		2			; Incremented by FLL interrupt routine, on ACLK rising edge, 4096 Hz
@@ -233,7 +228,14 @@ bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/AS
 bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 bQuiet			EQU		1<<6		; True to silence piezo
 
-				ALIGNRAM 1
+; Voltage thresholds
+ovZero			DS		2			; Overvoltage zero, set by 'VTh command (param1 - 7 * param2)
+ovStep			DS		1			; Overvoltage step, set by 'VTh command (param2)
+alarmStress		DS		1			; Stress level for red LED and beeper and BMU dropping contactors
+bypassVoltage	DS		2			; Bypass voltage threshold, set by 'bTh
+fullVoltage		DS		2			; Full voltage threshold, set by 'fTh
+
+ALIGNRAM 1
 comNoEraseEnd	; End of unerased variables; start of erased variables
 
 #if	ADCBUF
@@ -375,8 +377,6 @@ priorRxCksum	DS		2			; Previous previous CRC12
 errorRatio		DS		4			; Error ratio
 
 				ALIGNRAM 1
-ovZero			DS		2			; Overvoltage zero, set by 'VP command (param1 - 7 * param2)
-ovStep			DS		2			; Overvoltage step, set by 'VP command (param2)
 ticksSinceLastBypass DS	2			; Ticks since last bypass
 beenBypassing	DS		1			; True if we've bypassed in last 5 minutes. Used by OT stress calc
 
@@ -506,6 +506,12 @@ main:										; For IAR Embedded Workbench IDE debugger
 				clr		&discharge				; Initialise the SoC to 100%
 				clr		&discharge+2			; BMU will retrieve SoC from CMU 1
 				call	#UpdateSoC				; Initialise the pre-computed counter advance value
+				; Threshold initialisation
+				mov		#OV_ZERO,&ovZero			; -1/0 overvoltage stress threshold in mV
+				mov.b	#OV_STEP,&ovStep			; Spacing of overvoltage stress levels in mV
+				mov.b	#12,&alarmStress			; Stress for red LED, beeper and BMU contctr dropout
+				mov		#OV_ZERO+7*OV_STEP,&bypassVoltage	; mV to turn on bypass resistor
+				mov		#OV_ZERO+8*OV_STEP,&fullVoltage		; mV to signal "FULL" and reset SoC to 100%
 			_ENDIF
 			; Set contactor outputs as outputs in case they aren't already.
 			mov.b	#PreCtor|BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor,&P3DIR
@@ -574,8 +580,6 @@ main:										; For IAR Embedded Workbench IDE debugger
 ;			clr.w	&piPrevError				;
 ;			clr.w	&chargerPrevCurr			; Initialise charger current
 
-			mov.w	#OV_ZERO,&ovZero
-			mov.w	#OV_STEP,&ovStep
 			mov.w	#CHG_BULK_STD,&prevBulk
 			mov.w	#CHG_FLT_STD,&prevFloat
 
@@ -1012,11 +1016,8 @@ DoMeasurement:
 			; Set bypass as required
 			cmp.b	#255,&ID				; If we're not a BMU
 			_IF		NE
-				mov			&ovStep,R9			; Calculate the bypass threshold in R9
-				rla3		R9					; = ovZero + 7*ovStep
-				add			&ovZero,R9			; = 8*ovStep + ovZero - ovStep
-				sub			&ovStep,R9
-				cmp			R9,R10				; Compare present cell voltage (R10) to bypass threshold
+				mov		&bypassVoltage,R9		; Get the bypass threshold in R9
+				cmp		R9,R10					; Compare present cell voltage (R10) to bypass threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 
 				; Update the beenBypassing flag used by the OT stress calculation
@@ -1035,8 +1036,8 @@ DoMeasurement:
 				_ENDIF							; End else not bypassing
 
 				movBits_B	R8,#Bypass,&P2OUT	; Move only the #Bypass bit from R8 to &P2OUT. Trashs R8
-				add			&ovStep,R9			; Calculate the full (coulomb-counter reset) threshold
-												;	One level above bypass (cf. one below for monitor)
+				mov			&fullVoltage,R9		; Get the full (coulomb-counter reset) threshold in R9
+												; Typ. 1 level above bypass (cf. one below for monitor)
 				cmp			R9,R10				; Compare cell voltage (R10) to the full threshold
 				CtoAllBits	R8					; If voltage >= threshold then $FF else $00
 				movBits_B	R8,#ALL_FULL,&localStatus ; Move only All-Full bits from R8 to localStatus
@@ -1049,13 +1050,13 @@ DoMeasurement:
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
 				push	R10						; OCV for overvoltage stress calc
-				push	&ovStep					; For every ovStep (millivolts)
+				push.b	&ovStep					; For every ovStep (millivolts)
 				push	&ovZero					;	over ovZero, we add one level of stress
 				push	#1						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
 
 				; Calculate stress due to undervoltage
-													; OCV for undervoltage stress calc already pushed
+												; OCV for undervoltage stress calc already pushed
 				push	#UV_STEP				; For every UV_STEP (millivolts)
 				push	#UV_ZERO				;	below UV_ZERO, we add one level of stress
 				push	#2						; Type of measurement
@@ -1164,7 +1165,7 @@ DoMeasurement:
 				mov		#15,R9					; Default clamp value is 15
 				cmp		#4,Rtype
 				_IF		EQ						; If type is undertemperature
-					mov		#MinContStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
+					mov.b	&alarmStress,R9		; Clamp to a max of 12 to avoid masking UV >= 12
 				_ENDIF
 				mov		Rstrs,R8				; Copy stress. movBits_B macro below trashes R8
 				cmp		R9,R8					; If the stress is not less than the maximum allowed
@@ -1208,7 +1209,7 @@ DoMeasurement:
 				_ENDIF
 
 				; Update Alarm -- local red LED and piezo
-				cmp.b		#MinAlarmStress,Rstrs ; Turn on error LED if stress is MinAlarmStress or more
+				cmp.b		&alarmStress,Rstrs ; Turn on error LED if stress is alarmStress or more
 				CtoAllBits	Rtos
 				bit.b		#bBadInsulation,&monFlags
 				CtoAllBits	R8
@@ -1468,7 +1469,7 @@ ControlContactors:
 			inc.b	&shutdownTimer
 			cmp.b	#ShutdownTime,&shutdownTimer
 			_IF		HS						; And enough time has passed
-				bic.b	#(BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor),CtorPortOUT	; Drop out all battery
+				bic.b	#(BatPosCtor|BatNegCtor|AcLfPvCtor|RtPvCtor),CtorPortOUT ; Drop out all battery
 																		; contactors, and we die
 				; We need an endless loop here in case the BMU doesn't lose power.
 				; It may still be powered up by the inverter capacitors, or some charge source.
@@ -1490,7 +1491,7 @@ ControlContactors:
 		_AND_IF	NE						; If the stress is not due to UnderVoltage
 			bit.b	#bCharging,&monFlags
 		_AND_IF	NZ						; And if we're charging
-			cmp.b	#MinContStress,R9
+			cmp.b	&alarmStress,R9
 		_AND_IF	GE						; And if incoming stress is alarming
 			bit.b	#bDonePipInit,&monFlags
 		_AND_IF	NZ						; And if we haven't just started up (CMU breaks look like stress)

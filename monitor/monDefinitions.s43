@@ -309,6 +309,8 @@ doMax:	; Emit another Max command with its last parameter max-ed with the
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
+		DB		'a' , infoAdcTimIdx & $7F | $00
+		DB		'b' , infoBypFull	& $7F | $00
 		DB		'I' , infoBoltMiCal	& $7F | $80
 		DB		's' , infoTempSlope	& $7F | $80
 		DB		'O' , infoBoltPlOff	& $7F | $00
@@ -320,7 +322,6 @@ calAddressTable
 		DB		't' , infoTempOff	& $7F | $00	; clear for byte quantity
 		DB		'n' , infoBoltMiOff	& $7F | $00
 		DB		'i' , infoID		& $7F | $00
-		DB		'a' , infoAdcTimIdx & $7F | $00
 		DB		'd' , infoDataVers	& $7F | $00	; Data vers is not for writing
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable

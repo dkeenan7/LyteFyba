@@ -92,6 +92,26 @@ Mul17Div16Cmu:
 		_ENDIF
 		ret
 
+ApplyTempCo:	; Make voltage readings more accurate when hot from bypassing
+				; Based on observations by Matthew James
+		mov			&cellTemperature,R9		; Correct for tempco of voltage ref
+		sub			#25,R9					; Subtract 25 degC
+#if 0	; 0.3125 mV/K
+		rla2		R9						; Multiply by 4
+		add			&cellTemperature,R9		; Add another copy
+		sub			#25,R9					; Now multiplied by 5
+		rra4		R9						; Divide by 16
+#else	; 0.375 mV/K
+		rla2		R9						; Multiply by 2
+		add			&cellTemperature,R9		; Add another copy
+		sub			#25,R9					; Now multiplied by 3
+		rra3		R9						; Divide by 8
+#endif
+		adc			R9						; Rounding
+		sub			R9,R10					; Subtract the temperature correction
+		ret									; Finished
+
+
 ; Measure and Correct routines
 ; Output: R10 = 12-bit measurement result with scale and offset calibration applied.
 ; Trashes: R8, R9, R11
@@ -118,11 +138,7 @@ MeasAndCorr:                                    ; Possible future entry point fo
 			mov.b		&CellOff,R9				; Get the cell voltage offset as signed byte
 			sxt			R9						; Convert to signed word
 			add			R9,R10					; Add the offset calibration value
-			mov			&cellTemperature,R9		; Correct for tempco of voltage ref
-			sub			#25,R9					; Subtract 25 degC
-			rra2		R9						; divide by 4
-			adc			R9						; Rounding
-			sub			R9,R10					; Subtract the temperature correction
+			call		#ApplyTempCo			; Apply the temperature correction
 			ret									; Finished
 
 ; As above, using the separate bolt calibration factor and offset
@@ -143,11 +159,7 @@ MeasAndCorrBoltPl:
 			mov.b		&BoltPlOff,R9			; Get the bolt+ voltage offset as signed byte
 			sxt			R9						; Convert to signed word
 			add			R9,R10					; Add the offset calibration value
-			mov			&cellTemperature,R9		; Correct for tempco of voltage ref
-			sub			#25,R9					; Subtract 25 degC
-			rra2		R9						; divide by 4
-			adc			R9						; Rounding
-			sub			R9,R10					; Subtract the temperature correction
+			call		#ApplyTempCo			; Apply the temperature correction
 			ret									; Finished
 
 ; As above, using the separate bolt calibration factor and offset

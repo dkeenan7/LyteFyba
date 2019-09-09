@@ -8,6 +8,8 @@
 ; Some characters need to be translated into RAM adresses of calibration values
 		ALIGN	1
 calAddressTable
+		DB		'b' , ramBypFull	& $7F | $00
+		DB		'a' , ramAdcTimIdx	& $7F | $00
 		DB		'I' , ramBoltMiCal	& $7F | $80
 		DB		's' , ramTempSlope	& $7F | $80
 		DB		'O' , ramBoltPlOff	& $7F | $00
@@ -19,7 +21,6 @@ calAddressTable
 		DB		't' , ramTempOff	& $7F | $00	; clear for byte quantity
 		DB		'n' , ramBoltMiOff	& $7F | $00
 		DB		'i' , ramID			& $7F | $00
-		DB		'a' , ramAdcTimIdx	& $7F | $00
 		DB		'd' , ramDataVers	& $7F | $00	; Data vers is not for writing
 ; Zero must not appear in the table as it is used to represent "unrecognised".
 sizeCalAddressTable	EQU	$-calAddressTable
@@ -298,9 +299,9 @@ voltScaleWork:
 				push.b	&interpFlags			; Save present number base
 				_IF		NN						; If high bit clear it's a byte
 					mov		#3,Rtos					; Display 3 digits
-					cmp		#ramAdcTimIdx,Rsec		; Test for ADC timing index
+					cmp		#ramAdcTimIdx+1,Rsec	; Test for ADC timing index or BypFull
 					mov.b	@Rsec,Rsec				; Get byte sized cal value
-					_IF		EQ						; If we're reading ADC timing index
+					_IF		LO						; If we're reading ADC timing index or BypFull
 						bis.b	#bHexOutput,&interpFlags ; Set to hexadecimal output
 					_ENDIF
 				_ELSE							; Else high bit set so it's a word

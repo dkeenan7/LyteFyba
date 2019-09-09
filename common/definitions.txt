@@ -12,9 +12,9 @@ n  a
 <XON> Ctrl-Q. Resume echoing
 <XOFF> Ctrl-S. Stop echoing
 <ESC> ESCape from e(x)clusive or e(X)cluded modes
-      Initial characters not used so far:                      ADHW&()*+,./;=_|}~
-	  Initial characters not used so far in TestICal:   kpADEGHKOWZ&()*+,./;=_|}~{<>
-	  Initial characters not used so far in Monolith etc: bmouzADHW&()*+,./;=_|}~!
+      Initial characters not used so far:                     ADH&()*+,./;=_|}~
+	  Initial characters not used so far in TestICal:  kpADEGHKOZ&()*+,./;=_|}~{<>
+	  Initial characters not used so far in Monolith etc: bmuzADH&()*+,./;=_|}~!
 #  #  revision numbers of main program, bootstrap loader and hardware. ! if BSL out of date.
 @  @  Capacity const: $B@ nom Bat volts (dV), $C@ max Charge (W), $D@ max Discharge (W), $E@ Energy (Wh)
 $  $  dollarHex (set number input mode to hex for next literal)
@@ -85,6 +85,7 @@ Rx    RxState (number of ticks since last Rx)
 s  s  select
 S  S  deSelect
 t  t  Temperature
+Th    set Thresholds. 'V Overvolt stress zero & step mV, 'b bypass mV, 'f full mV, 'a alarm stress
 To To Touch value (uncalibrated) (only when ID=255, BMU)
 Ty Ty Type, emit a string given pointer and length
    u  UpdateInfoFlash
@@ -202,6 +203,7 @@ Ms Ms Milliseconds delay
    f  FrequencyBurst between TX- and JTAG-, 199.5 to 200.5 kHz at 20 degC, 200.5 to 201.5 kHz at 30 degC
    Fa Frequency of ADC clock. On expansion P1.3 for 5 seconds. Too fast to measure with Fluke. Use DSO.
 
+Th    set Thresholds. 'V Overvolt stress zero & step mV, 'b bypass mV, 'f full mV, 'a alarm stress
    q  QueryManValue, manufacturer calibration values (TestICal only. 'q' is QueryWorstStress in monitor)
 r  r  ReadCalValue
 w  w  WriteCalValue

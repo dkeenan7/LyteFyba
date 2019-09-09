@@ -86,6 +86,7 @@ BoltMiOff	EQU ramBoltMiOff
 TempSlope	EQU	ramTempSlope
 TempOff		EQU	ramTempOff
 AdcTimIdx	EQU	ramAdcTimIdx
+BypFull		EQU	ramBypFull
 			LSTOUT-
 #include "msp430.h"							// MSP430 Special Function Register definitions
 #include "../common/ControlFlowMacros.h"	// Provides structured control-flow for assembly language
@@ -149,7 +150,7 @@ sampleBuf	DS		2*NumSamples	; ADC sample buffer; 4 or 16 samples
 ; Same order as stored in info-flash
 			ALIGNRAM 1				; So word values are word-aligned
 ramDataStart
-				DS		1			; Spare, but have to start on a word boundary
+ramBypFull		DS		1			; MS nibble is bypass stress level. LS nibble is full stress level
 ramAdcTimIdx	DS		1			; ADC timing table index: 0=default, 1=MCLK2, 3=ADCOSC/3
 ramBoltMiCal	DS		2			; Bolt- voltage / current scale calibration word
 ramTempSlope	DS		2			; Precomputed slope of voltage vs temperature curve

@@ -113,7 +113,7 @@ CALADC_15T85		 EQU TLV_ADC10_1_TAG_ + CAL_ADC_15T85			; $10E4
 			; Calibration data
 DATAVERS		EQU		7			; This is version 7 of the CMU info-flash data structure
 infoDataStart						; Used when copying between ram and info-flash
-				ds		1			; Spare; has to start at even address
+infoBypFull		ds		1			; MS nibble may be bypass SL. LS nibble may be full SL. Not used yet
 infoAdcTimIdx	ds		1			; ADC timing table index. LS nibble for TestICal. MS nibble Monolith
 infoBoltMiCal	ds		2			; Bolt- voltage / current scale calibration word
 infoTempSlope	ds		2			; Precomputed slope of temperature vs ADC-value curve
