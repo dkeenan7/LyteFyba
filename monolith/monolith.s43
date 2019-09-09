@@ -229,6 +229,7 @@ bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 bQuiet			EQU		1<<6		; True to silence piezo
 
 ; Voltage thresholds
+				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VTh command (param1 - 7 * param2)
 ovStep			DS		1			; Overvoltage step, set by 'VTh command (param2)
 alarmStress		DS		1			; Stress level for red LED and beeper and BMU dropping contactors
