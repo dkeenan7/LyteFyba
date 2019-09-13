@@ -1157,3 +1157,13 @@ logNumMeas	EQU		4					; Base 2 log of the above. 'ac takes 0.6 seconds per measu
 			add		#1,R10				; Use this value from now on; save to info flash soon
 			add		#4+2*NumAdcClocks,SP ; Deallocate locals
 			ret
+
+
+; Cell temperature ( -- ) ; Not updated during bypassing so it is not merely CMU temperature
+		xCODE	'T'|'c'<<8,CellTemp,_CellTemp ; 'Tc' collides with 'Ta' 'Tk' 'Ts' 'La' 'Lc' 'Lk' 'Ls'
+		mov		#'T'|'c' <<8,Rthd		; Command being responded to
+		mov.b	&cellTemperature,Rsec	; Get cell temperature
+		sxt		Rsec					; Sign extend byte to word
+;		mov		#3,Rtos					; Print 3 digits
+		br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+

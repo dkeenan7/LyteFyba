@@ -228,7 +228,7 @@ bModbusOutput	EQU		1<<4		; Should PrettyPrint output be formatted as a Modbus/AS
 bEchoResponses	EQU		1<<5		; True to echo complete Modbus responses
 bQuiet			EQU		1<<6		; True to silence piezo
 
-; Voltage thresholds
+; Overvoltage-related thresholds (set by 'Th' command)
 				ALIGNRAM 1
 ovZero			DS		2			; Overvoltage zero, set by 'VTh command (param1 - 7 * param2)
 ovStep			DS		1			; Overvoltage step, set by 'VTh command (param2)
@@ -301,7 +301,8 @@ ocCellVolt		DS		2			; IR-compensated cell voltage
 ocCellVoltX256	DS		4			; Filtered IR-compensated cell voltage, shifted left 8 bits
 restedCounter	DS		2			; Count of measurements since the battery qualified as "rested"
 current			DS		2			; Current most recently reported by BMU, in tenths of an amp (signed)
-cellTemperature	DS		2			; Cell temp degC (signed). For Rint calc. Not updated when bypassing
+cellTemperature	DS		1			; Cell temp degC (signed). For Rint calc. Not updated when bypassing
+cmuTemperature	DS		1			; CMU temp degC (signed). For ADC Vref temperature compensation
 smoothStressX4	DS		1			; Low pass filtered stress used by BMU to control contactors
 lastChgChanged	DS		1			; True (non zero) if lastBulk or lastFloat changed
 chargerTxTimer	DS		1			; To keep charger packet transmission to the minimum required.
@@ -924,9 +925,9 @@ DoMeasurement:
 
 			; For every degree we are below 67 degC, multiply resistance by 1.046875 = 1+3/64
 			push 	R9						; Save a copy of the fixed part of the resistance
-			mov		#67-1,R11				; R11 is loop counter, init 67 degC
+			mov.b	#67-1,R11				; R11 is loop counter, init 67 degC
 			_DO
-				cmp		&cellTemperature,R11
+				cmp.b	&cellTemperature,R11	; cellTemperature is not updated when bypassing
 			_WHILE	GE						; While loop counter >= temperature
 				mov		R9,R8					; Multiply resistance by 1.046875 = 1+3/64
 				clrc							; Unsigned divide by 2
@@ -938,7 +939,7 @@ DoMeasurement:
 				rra4	R8						; Divide by 16 to obtain 3/64ths
 				adc		R8						; Rounding required for this one
 				add		R8,R9					; Add to original to obtain 1+3/64 times
-				dec		R11						; Decrement loop counter by 1 degC
+				dec.b	R11						; Decrement loop counter by 1 degC
 			_ENDW
 			pop		R8						; Restore the fixed part of the resistance to R8
 			add		R9,R8					; Add the temperature-dependent part to the fixed part in R8
@@ -1070,17 +1071,18 @@ DoMeasurement:
 			cmp.b	#255,&ID
 			_IF		EQ						; If we're a BMU
 				sub		#8,R10					; Subtract 8 kelvin for self-heating
-				mov		R10,&cellTemperature	; Save temp for calculation of internal resistance
+				mov.b	R10,&cellTemperature	; Save temp for calculation of internal resistance
 			_ELSE							; Else we're not a BMU
 				push	R10						; Save measurement for undertemperature stress calc
 				; Calculate stress due to overtemperature
 
-				; Prevent nuisance alarms/shutdowns when high temp is only due to bypassing
+				; Prevent nuisance alarms/shutdowns and miscalculation of internal resistance
+				; when high temp is only due to bypassing
 				tst.b	&beenBypassing
 				_IF		NZ						; If we've been bypassing in the last 5 minutes
-						sub		#BypTempQuota,R10	; Subtract 15 degC from the temp used for OT stress
+						sub		#BypTempQuota,R10	; Subtract ~15 degC from the temp used for OT stress
 				_ELSE							; Else only update cellTemperature when not bypassing
-						mov		R10,&cellTemperature ; Save temp for calculation of internal resistance
+						mov.b	R10,&cellTemperature ; Save temp for calculation of internal resistance
 				_ENDIF							; End if
 
 				push	R10						; Measurement for overtemperature stress calc

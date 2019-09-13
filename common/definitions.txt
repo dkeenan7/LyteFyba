@@ -84,7 +84,8 @@ Rl Rl query the Reset log. 8 = RST pin (break), 4 = power on, 1 = watchdog, 0 = 
 Rx    RxState (number of ticks since last Rx)
 s  s  select
 S  S  deSelect
-t  t  Temperature
+t  t  Temperature of CMU
+Tc    Cell temperature. Not updated during bypassing, so it is not merely CMU temperature
 Th    set Thresholds. 'V Overvolt stress zero & step mV, 'b bypass mV, 'f full mV, 'a alarm stress
 To To Touch value (uncalibrated) (only when ID=255, BMU)
 Ty Ty Type, emit a string given pointer and length
@@ -149,7 +150,8 @@ n  n  Neg bolt voltage, alias for 'Is' (shunt/bolt- voltage) to allow keyboard a
 Pd Pd Positive drop = positive terminal volt drop V-v (CMU). Positive contactor voltage V-v (BMU)
 a  a  alias for 'Pd' (Positive drop) to allow keyboard auto-repeat when testing. "additive alteration"
 l  l  LinkVoltage, abs max of volt drop between bolt and strap at both terminals
-t  t  Temperature
+t  t  Temperature of CMU
+Tc    Cell temperature. Not updated during bypassing, so it is not merely CMU temperature
 p     status (Pain) (local to each CMU, but global when BMU)
 j     Just local stress (not the full status)
 Rx    RxState (number of ticks since last Rx)

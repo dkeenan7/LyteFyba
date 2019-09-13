@@ -92,24 +92,16 @@ Mul17Div16Cmu:
 		_ENDIF
 		ret
 
-ApplyTempCo:	; Make voltage readings more accurate when hot from bypassing
+ApplyTempCo:	; Make voltage readings more accurate when CMU is hot from bypassing
+				; by correcting for tempco of ADC voltage ref.
 				; Based on observations by Matthew James
-		mov			&cellTemperature,R9		; Correct for tempco of voltage ref
-		sub			#25,R9					; Subtract 25 degC
-#if 0	; 0.3125 mV/K
-		rla2		R9						; Multiply by 4
-		add			&cellTemperature,R9		; Add another copy
-		sub			#25,R9					; Now multiplied by 5
-		rra4		R9						; Divide by 16
-#else	; 0.375 mV/K
-		rla2		R9						; Multiply by 2
-		add			&cellTemperature,R9		; Add another copy
-		sub			#25,R9					; Now multiplied by 3
-		rra3		R9						; Divide by 8
-#endif
-		adc			R9						; Rounding
-		sub			R9,R10					; Subtract the temperature correction
-		ret									; Finished
+		mov.b	&cmuTemperature,R9
+		sxt		R9						; Sign extend byte to word
+		sub		#25,R9					; Subtract 25 degC
+		rra2	R9						; Divide by 4
+		adc		R9						; Round
+		sub		R9,R10					; Subtract the temperature correction
+		ret								; Finished
 
 
 ; Measure and Correct routines
@@ -225,6 +217,7 @@ GetTemp:
 											; R10 now has temperature in whole degrees Celsius
 			add		#1,R9					; Rounding for divide by 2
 			rra		R9						; R9 has temperature in half degrees
+			mov.b	R10,&cmuTemperature		; Save temperature for use in correcting for ADC Vref tempco
 			ret
 
 GetBoltMiV:

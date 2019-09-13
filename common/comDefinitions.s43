@@ -302,10 +302,10 @@ _emitNum3:
 		jmp			_prettyPrint		; Tail-call pretty-print and return
 
 ;
-; Cell temperature measurement ( -- )
-; Transmit cell temperature in degrees C
+; CMU temperature measurement ( -- )
+; Transmit cmu temperature in degrees C
 ;
-		xCODE		't',GetCellTemp,_GetCellTemp
+		xCODE		't',GetCmuTemp,_GetCmuTemp
 		call		#GetTemp			; Return temperature in degrees Celsius in R10
 		mov			#'t',Rthd			; Type is temperature
 										; Don't use degree symbol ($F8 Terminal font). Looks like status
@@ -316,7 +316,7 @@ _emitNum3:
 #ifdef	KINGSCLIFF_DCM
 ;
 ; External thermistor temperature measurement ( -- )
-; Transmit cell temperature in degrees C
+; Transmit thermistor temperature in degrees C
 ;
 		xCODE		'H',GetExtTemp,_GetExtTemp
 		call		#extT				; Return temperature in degrees Celsius in R10
