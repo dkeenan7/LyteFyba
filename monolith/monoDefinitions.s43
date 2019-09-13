@@ -1164,6 +1164,6 @@ logNumMeas	EQU		4					; Base 2 log of the above. 'ac takes 0.6 seconds per measu
 		mov		#'T'|'c' <<8,Rthd		; Command being responded to
 		mov.b	&cellTemperature,Rsec	; Get cell temperature
 		sxt		Rsec					; Sign extend byte to word
-;		mov		#3,Rtos					; Print 3 digits
-		br		#_prettyPrint3			; Tail-call pretty-print of 3 digits and return
+		mov		#2,Rtos					; Print 2 digits
+		br		#_prettyPrint			; Tail-call pretty-print and return
 
