@@ -1052,7 +1052,8 @@ DoMeasurement:
 				push	R10						; For undervoltage stress calc below
 				; Calculate stress due to overvoltage
 				push	R10						; OCV for overvoltage stress calc
-				push.b	&ovStep					; For every ovStep (millivolts)
+				mov.b	&ovStep,R8				; push.b doesn't work. It leaves junk in the high byte
+				push	R8						; For every ovStep (millivolts)
 				push	&ovZero					;	over ovZero, we add one level of stress
 				push	#1						; Type of measurement
 				call	#DoStress				; Update Rstrs Rmeas Rtype if non-zero stress due to OV
