@@ -214,8 +214,7 @@ c  c  Calibrate
 
 In addition, the following character literals (character preceded by a single-quote)
 have the following meaning when used as an address parameter to a ReadCalValue, WriteCalValue
-or Calibrate command. All are valid in TestICal, but in Monolith, only 'n and 'i are valid for Calibrate
-and only 'n, 'i, 'r and 'c are valid for WriteCalValue.
+or Calibrate command (r, w or c).
 
 'I Bolt-/Shuntx20 voltage scale factor
 's Temperature vs ADC-value slope
@@ -224,7 +223,12 @@ and only 'n, 'i, 'r and 'c are valid for WriteCalValue.
 'c Battery capacity in tenths of an amp hour (only used by BMU)
 'r Cell internal resistance in uR (average battery IR for BMU)
 'V Bolt+/Array voltage scale factor
+	'v'Vw sets the Bolt+ voltage scale factor the same as the Cell voltage scale factor
+	1'Vw  to 30'Vw  makes the Bolt+ voltage reading 1 to 30 mV higher
+	1-'Vw to 30-'Vw makes the Bolt+ voltage reading 1 to 30 mV lower
 'v Cell/Battery voltage scale factor
+	1'vw  to 30'vw  makes the Cell voltage reading 1 to 30 mV higher
+	1-'vw to 30-'vw makes the Cell voltage reading 1 to 30 mV lower
 't Temperature offset
 'n Bolt-/Shuntx20 voltage offset
 'a ADC timing index

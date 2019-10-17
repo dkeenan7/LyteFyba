@@ -920,6 +920,7 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 			mov.b	Rtos,R10				; Copy to R10
 			bic.b	#$80,R10				; Strip the byte/word flag
 			or_w	#infoDataStart&$FF80,R10 ; OR the upper 9 bits to make it an info-flash address
+
 			cmp		#infoCapacity,R10
 			_IF		EQ						; If we're writing battery capacity
 				rla		Rsec					; Multiply given value by 10
@@ -927,6 +928,30 @@ TickIcStr	DB			3,'\'ic'			; 'ic command to send downstream
 				rla2	Rsec					; *8
 				add		R8,Rsec					; *10
 			_ENDIF
+
+			_COND							; If we're writing cell or bolt+ voltage scale cal constant
+				cmp		#infoCellCal,R10
+			_OR_ELSE EQ
+				cmp		#infoBoltPlCal,R10
+			_OR_IFS	EQ
+				_COND							; If Rsec is between -30 and 30 inclusive
+					cmp		#30+1,Rsec
+				_AND_IF	L
+					cmp		#-30,Rsec
+				_AND_IF GE
+					rla		Rsec					; Multiply Rsec by 10
+					mov		Rsec,R8
+					rla2	Rsec
+					add		R8,Rsec
+					add		@R10,Rsec				; Add the existing value of the cal constant to Rsec
+				_ELSES							; Else
+					cmp		#'v',Rsec				; If Rsec is 'v
+					_IF		EQ
+						mov		&infoCellCal,Rsec		; Set Rsec to the cell voltage scale cal const
+					_ENDIF							; Endif
+				_ENDIF							; Endif
+			_ENDIF							; Endif
+
 			tst.b	Rtos
 			_IF		NZ						; If not zero for "unrecognised"
 				_IF		NN						; If high bit clear
