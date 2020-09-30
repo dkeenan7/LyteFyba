@@ -11,15 +11,15 @@ it's unfortunately necessary to do the following if you want to make detailed
 changes to the circuit or PCB layout. (It is NOT needed for perusing the circuit
 or layout, or even making minor changes.)
 
-Double-click the "CellTopBMU.sch" file to open it in DesignSpark; it's in the PCB
+Double-click the "MidCMU.sch" file to open it in DesignSpark; it's in the PCB
 folder. Close the little window that contains nothing but the DesignSpark logo.
 Open DesignSpark's Library Manager by clicking the book-like icon on the toolbar
 (or typing Ctrl+L). Choose the "Folders" tab (important). Click on the "Add" button,
-then the "Browse" button. You should see four "Coulomb&Weber" files. If not, navigate
-to the celltopcmu/PCB folder so you do see them. Double-click any one of them (or
+then the "Browse" button. You should see 3 or 4 "Coulomb&Weber" files. If not, navigate
+to the LyteFyba/trunk/PCB folder so you do see them. Double-click any one of them (or
 type Backspace Enter). Then click "OK" to complete the Add operation.
 
-Now in the lower "Files Found" list you should see the same three "Coulomb&Weber"
+Now in the lower "Files Found" list you should see the same 3 or 4 "Coulomb&Weber"
 files. If any are greyed out, select them and check the "Enabled" checkbox.
 
 To check that you've done it right, choose the "Components" tab (in the Libraries dialog
