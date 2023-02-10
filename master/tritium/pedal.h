@@ -38,7 +38,7 @@ typedef struct _command_variables {
 	unsigned char flags;
 	unsigned char state;
 	float prev_rpm;
-	float prev_rpm_fb;
+	float prev_motor_rpm;
 	float prev_current;
 	int tq_ramp_state;
 	bool cruise_control;

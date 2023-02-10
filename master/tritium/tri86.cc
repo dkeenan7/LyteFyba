@@ -20,7 +20,7 @@
  *
  */
 
-#define PEDAL_ON_VEL 0						// 1 for pedal commands to be sent on receipt of velocity packets
+#define PEDAL_ON_VEL 1						// 1 for pedal commands to be sent on receipt of velocity packets
 
 // Include files
 #include <msp430x24x.h>
@@ -162,6 +162,7 @@ int main( void )
 	command.flags = 0x00;
 	command.state = MODE_OFF;
 	command.prev_rpm = 0.0;
+	command.prev_motor_rpm = 0.0;
 	command.prev_current = 0.0;
 	command.tq_ramp_state = 0;
 
@@ -492,7 +493,7 @@ int main( void )
 #if PEDAL_ON_VEL
 						// Update motor commands based on pedal and slider positions and actual rpm
 						// MVE: For now, pass constant regen as 3rd arg (like regen slider at max)
-						process_pedal( ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current );
+						process_pedal(ADC12MEM0, ADC12MEM1, ADC_MAX, motor_rpm, torque_current, switches, switches_diff);
 #endif
 						if (command.state == MODE_D && tacho_display == RPM)
 							// Display motor rpm x 1000 on tacho (shows DC current in charge mode)

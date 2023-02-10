@@ -74,6 +74,9 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 {
 	float pedal, regen;
 
+	// Remember the actual rpm for next time. Used in correcting for flywheel+rotor moment of inertia.
+	command.prev_motor_rpm = motor_rpm;
+
 	// Error Flag updates
 	// Pedal too low
 	if(analog_a < PEDAL_ERROR_MIN) command.flags |= FAULT_ACCEL_LOW;
@@ -126,17 +129,82 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 
+				// As an attempted alternative to the notch filter,
+				// Calculate Warrick's proposed torque correction for the high frequency components of
+				// motor rpm.
+
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
 				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
+
+				// Highpass filter the normalised_rpm
+/*
+  2nd order digital highpass filter with only two multiplies
+ (There is no way to get a lowpass out of this with only adds, subtracts and divide by 2)
+        ,----->(+)--->(/2)---->(+)--->(/2)---> out               [z^-1] delay by 1 sample
+        |       ^               ^                      ^         (+)    adder
+        |       | z2            | z1               < arrows >    (-)    change sign
+        |       |      ,--(-)---'                      v         (*)    multiplier
+        |       `------|--------------.            ,-------.     (/2)   divide by 2
+        | z0           | z1           | z2         | wires |
+        +---->[z^-1]---+---->[z^-1]---+            `-------'     Fs = sampling frequency
+        |              |              |                          f0 = filter frequency
+in -+---|----------+---|-----.        |                |         Q = filter peaking
+    |   |          |   v     |        v             ---|---        0.577 for Bessel
+    `->(+)         `->(+)    `->(-)->(+)               |           0.707 for Butterworth
+        ^              |              |            crossing        0.980 for Chebyshev 1dB
+        |              v              v                          w0 = 2*pi*f0/Fs
+        |        -a1->(*)       -a2->(*)               |         a = sin(w0)/(2*Q)
+        |              |              |             ---+---
+        |              v              |                |         a1 = -2*cos(w0)/(1+a)
+        `-------------(+)<------------'            junction      a2 = (1-a)/(1+a)
+*/
+/*
+  2nd order digital lowpass filter with only two multiplies
+ (There is no way to get a highpass out of this with only adds, subtracts and divide by 2)
+        ,----->(+)--->(/2)---->(+)--->(/2)---> out               [z^-1] delay by 1 sample
+        |       ^               ^                      ^         (+)    adder
+        |       | z2            | z1               < arrows >    (-)    change sign
+        |       |      ,--------'                      v         (*)    multiplier
+        |       `------|--------------.            ,-------.     (/2)   divide by 2
+        | z0           | z1           | z2         | wires |
+        +---->[z^-1]---+---->[z^-1]---+            `-------'     Fs = sampling frequency
+        |              |              |                          f0 = filter frequency
+in -+---|-----+--------|-----.        |                |         Q = filter peaking
+    |   |     |        v     |        v             ---|---        0.577 for Bessel
+    `->(+)    `->(-)->(+)    `->(-)->(+)               |           0.707 for Butterworth
+        ^              |              |            crossing        0.980 for Chebyshev 1dB
+        |              v              v                          w0 = 2*pi*f0/Fs
+        |        -a1->(*)       -a2->(*)               |         a = sin(w0)/(2*Q)
+        |              |              |             ---+---
+        |              v              |                |         a1 = -2*cos(w0)/(1+a)
+        `-------------(+)<------------'            junction      a2 = (1-a)/(1+a)
+*/
+
+				// Fs = 25 Hz, f0 = 0.5 Hz, Q = 0.577 (Bessel)
+#define A1 -1.789950695
+#define A2 0.804177171
+				static float Z1 = 0.0;
+				static float Z2 = 0.0;
+//				float Z0 = normalised_rpm - A1 * (Z1 + normalised_rpm) - A2 * (Z2 - normalised_rpm); // highpass
+//				float hpf_norm_rpm = ((Z0 + Z2)/2.0 - Z1)/2.0; // highpass
+				float Z0 = normalised_rpm - A1 * (Z1 - normalised_rpm) - A2 * (Z2 - normalised_rpm); // lowpass
+				float lpf_norm_rpm = ((Z0 + Z2)/2.0 + Z1)/2.0; // lowpass
+
+				Z2 = Z1;
+				Z1 = Z0;
+//				float torque_cor = 0.7 * hpf_norm_rpm;
+
 				pedal = 0.15 + 0.85 * pedal;	// Implement creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
-				command.current = CURRENT_MAX * (p2 + (p2-1)*regen*normalised_rpm);
-				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
-				// The following, suggested by Dave, avoids both the MIN() macro and the hazards
-				command.rpm = RPM_FWD_MAX * safe_norm_divide(
-					p2,
-					(1-p2)*regen );
+				command.current = CURRENT_MAX * (p2 - (1-p2)*regen*lpf_norm_rpm);
+				// The requested rpm must give the correct sign to the torque, so its formula is obtained
+				// by equating the torque (i.e. current) formula to zero and solving for the rpm.
+				// Literal implementation of Dave's pedal formulae from the AEVA page leads to divide by zero or overflow hazards.
+				// The use of safe_norm_divide(), suggested by Dave, avoids both the MIN() macro and the hazards.
+				command.rpm = RPM_FWD_MAX * (safe_norm_divide(p2,(1-p2)*regen) + normalised_rpm - lpf_norm_rpm);
+#endif
 
+#if 0
 				// Dave Keenan's combined cruise control and speed limiting using the ignition key.
 				// See http://forums.aeva.asn.au/forums/weber-and-coulombs-mx5_topic980_post63320.html#63320
 
@@ -163,10 +231,10 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 						// Each is the rpm for a near-multiple of 10 km/h in some gear other than first.
 						const unsigned int nx10km_rpm[11] =
 							{2216,2540,2723,3027,3176,3363,3578,3809,4025,4473,5079};
-							//      40             50             60        70   80	km/h in 2nd gear
-							// 50        61        71        80        90  100		km/h in 3rd gear
-							//           81   90       100							km/h in 4th gear
-							// 81        99  111									km/h in 5th gear
+							// 35  (40)  43   48  (50)  53   56  (60)  63  (70) (80)km/h in 2nd gear
+							//(50)  57  (61)  68  (71)  75  (80)  85  (90)(100)	114	km/h in 3rd gear
+							// 66   76  (81) (90)  95 (100)	106  113 				km/h in 4th gear
+							//(81)  93  (99)(111) 116								km/h in 5th gear
 						// The following are the boundaries between the bins for the above.
 						// In the worst cases, the capture range is only +- 1.3 km/h.
 						const unsigned int nx10km_upr_bound[10] =
@@ -304,7 +372,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 // Even the up ramp is dangerous when changing gears
 #endif
 
-#if 1
+#if 0
 				// Apply a notch filter to the torque setpoint
 				// to try to prevent the 5 Hz drivetrain oscillation.
 
@@ -324,38 +392,38 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// omega0T = 2*pi*fn/fs;
 				// deltaT  = 2*pi*fb/fs;
 				// a2 = (1-tan(deltaT/2))/(1+tan(deltaT/2));
-				// a1 = (1+a2)*cos(omega0T);
+				// a1 = -(1+a2)*cos(omega0T);
 
 				// fs=25, fn=3.8, fb=3.04 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
 // #define a2 0.426783712;
-// #define a1 0.824071326;
+// #define a1 -0.824071326;
 				// fs=25, fn=3.8, fb=5.32 Hz (damping 0.7)
 // #define a2 0.117402225
-// #define a1 0.645381024
+// #define a1 -0.645381024
 				// fs=25, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
 // #define a2 0.268847301
-// #define a1 0.330968041
+// #define a1 -0.330968041
 				// fs=25, fn=5.2, fb=7.28 Hz (damping 0.7)
 // #define a2 -0.130161297
-// #define a1 0.226890037
+// #define a1 -0.226890037
 				// fs=100, fn=3.4, fb=2.72 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
 // #define a2 0.842197516
-// #define a1 1.800320909
+// #define a1 -1.800320909
 				// fs=100, fn=3.4, fb=4.76 Hz (damping 0.7)
 // #define a2 0.738126025
-// #define a1 1.698615159
+// #define a1 -1.698615159
 				// fs=100, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
 // #define a2 0.767659797
-// #define a1 1.674147598
+// #define a1 -1.674147598
 				// fs=100, fn=5.2, fb=7.28 Hz (damping 0.7)
 // #define a2 0.622348323
-// #define a1 1.536523346
+// #define a1 -1.536523346
 				// fs=100, fn=4.2, fb=5.88 Hz (damping 0.7)
 #define a2 0.685124545
-#define a1 1.626788294
+#define a1 -1.626788294
 				// fs=100, fn=6.0, fb=8.40 Hz (damping 0.7)
 // #define a2 0.574561111
-// #define a1 1.463989897
+// #define a1 -1.463989897
 				static float z1 = 0.0;
 				static float z2 = 0.0;
 /*
@@ -364,7 +432,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 in ---+-->(+)-->[z^-1]--+->[z^-1]-->(+)          < arrows >          (+)    adder
            ^            |            |               v               (x)    multiplier
            |            v            |                               (/2)   divide by 2
-           |     a1--->(x)    -a2    |            ,-------.          [z^-1] delay
+           |    -a1--->(x)    -a2    |            ,-------.          [z^-1] delay
            |            |      |     |            | wires |
            | h          v      v   g |            `-------'           |
            +-----------(+)<---(x)<---+                              --+-- junction
@@ -372,7 +440,7 @@ in ---+-->(+)-->[z^-1]--+->[z^-1]-->(+)          < arrows >          (+)    adde
            `----------------------->(+)-->(/2)--> out
 */
 				float g = command.current + z2;
-				float h = a1*z1 - a2*g;
+				float h = -a1*z1 - a2*g;
 				float z0 = command.current + h;
 				command.current = (g - h) / 2.0; // For bandpass use (z0-z2)/2.0
 				z2 = z1;
