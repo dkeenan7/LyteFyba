@@ -32,7 +32,7 @@ extern void can_wake( void );
 // Public variables
 typedef struct _can_variables {
 	unsigned char		status;		// data length for tx packet, status for rx packet
-	unsigned int 		identifier;
+	unsigned long int 	identifier;
 	group_64			data;
 } can_variables;
 

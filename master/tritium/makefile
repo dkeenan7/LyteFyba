@@ -8,10 +8,10 @@ CFLAGS          = -mmcu=${CPU} -D__MSP430F147__ -Wall -Wconversion -Wsign-conver
 #CFLAGS          = -mmcu=${CPU} -Wall -Wconversion -Wsign-conversion -g -O0
 
 #switch the compiler (for the internal make rules)
-CC              = msp430-gcc
-AS              = msp430-gcc
-#CC              = msp430-elf-gcc -I C:\ti\msp430-gcc\include -I C:\ti\ccsv5\tools\compiler\msp430_4.2.1\include # Newer TI gcc toolchain
-#AS              = msp430-elf-gcc -I C:\ti\msp430-gcc\include -I C:\ti\ccsv5\tools\compiler\msp430_4.2.1\include #	has new executable names
+#CC              = msp430-gcc
+#AS              = msp430-gcc
+CC              = msp430-elf-gcc -I C:/ti/msp430-gcc/include	# Newer TI gcc toolchain
+AS              = msp430-elf-gcc -I C:/ti/msp430-gcc/include 	#	has new executable names
 
 .PHONY: all FORCE clean download download-jtag download-bsl dist
 
@@ -20,14 +20,14 @@ all: ${NAME}.elf ${NAME}.hex ${NAME}.lst ${NAME}.hex
 
 #additional rules for files
 ${NAME}.elf: ${OBJECTS}
-	${CC} -mmcu=${CPU} -o $@ ${OBJECTS}
+	${CC} -mmcu=${CPU} -T C:/ti/msp430-gcc/include/msp430f247.ld -L C:/ti/msp430-gcc/include -o $@ ${OBJECTS}
 
 # MVE: Hex file was called .a43 (!?)
 ${NAME}.hex: ${NAME}.elf
-	msp430-objcopy -O ihex $^ $@
+	msp430-elf-objcopy -O ihex $^ $@
 
 ${NAME}.lst: ${NAME}.elf
-	msp430-objdump -dSt $^ >$@
+	msp430-elf-objdump -dSt $^ >$@
 
 %.s43: %.c %.h
 	${CC} -S -fverbose-asm -mmcu=${CPU} $< -o $@	# -fverbose-asm adds clues to data destination

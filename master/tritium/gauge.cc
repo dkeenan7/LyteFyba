@@ -62,15 +62,15 @@ void gauge_init( void )
 void gauge_tach_update( float motor_rpm )
 {
 	unsigned int adj_rpm;
-	if( motor_rpm < 0.0) motor_rpm = 0.0;
+	if( motor_rpm < 0.0F) motor_rpm = 0.0F;
 	// Prevent tacho needle wrapping around and getting stuck on the wrong side of the zero stop.
-	if( motor_rpm > 7000.0) motor_rpm = 7000.0;
+	if( motor_rpm > 7000.0F) motor_rpm = 7000.0F;
 	// The MX-5 tacho only has 3 divisions between 0 and 1 (r/min x 1000) while it has 4 divisions
 	// between the other integers (0.25 steps). Normally the needle wouldn't move off zero until
 	// it got to 0.25 (the petrol engine idled faster than that anyway) and the next two marks would
 	// represent 0.5 and 0.75. But because we also use the tacho to display things other than rpm,
 	// we offset and rescale that section so these marks represent 0.33 and 0.67.
-	if( motor_rpm < 1000.0) motor_rpm = motor_rpm * 0.75 + 250.0;
+	if( motor_rpm < 1000.0F) motor_rpm = motor_rpm * 0.75F + 250.0F;
 	// The following calibration function is an approximate fit based on many measurements.
 	adj_rpm = (unsigned int)motor_rpm + 120;
 	gauge.g1_half_period = (unsigned int)((690561 + (adj_rpm >> 1)) / adj_rpm) - 11; // = Round(690561 / adj_rpm) - 11
@@ -103,9 +103,9 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 	unsigned int count;
 	// Scale both temperatures to 0.0 to 1.0 scales
 	// Pick highest reading
-	norm_temp = max(-0.25, min(1.25, max((motor_temp-40.0)/(160.0-40.0), (controller_temp-40.0)/(80.0-40.0))));
+	norm_temp = max(-0.25F, min(1.25F, max((motor_temp-40.0F)/(160.0F-40.0F), (controller_temp-40.0F)/(80.0F-40.0F))));
 	// C = 40. H = 160 for motor and 80 for controller. Middle = 100 for motor, 60 for controller.
-	count = (unsigned int)(320.8 * (1.0 - 1.0/(norm_temp + 1.295)));	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	count = (unsigned int)(320.8F * (1.0F - 1.0F/(norm_temp + 1.295F)));	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g3_duty = count;
@@ -118,7 +118,7 @@ void gauge_temp_update( float motor_temp, float controller_temp )
 void gauge_fuel_update( float stateOfCharge )	// State of charge is 0.0 to 1.0
 {
 	unsigned int count;
-	count = (unsigned int)(119.0 + 79.0 * stateOfCharge);// count/GAUGE_PWM_PERIOD = count/200 = duty cycle
+	count = (unsigned int)(119.0F + 79.0F * stateOfCharge);// count/GAUGE_PWM_PERIOD = count/200 = duty cycle
 	// Check limits
 	if(count < 0) count = 0;
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
@@ -132,8 +132,8 @@ void gauge_fuel_update( float battery_voltage )
 	float norm_fuel;
 	unsigned int count;
 	// Scale to a 0.0 to 1.0 scale between 3.25 and 3.35 V per cell
-	norm_fuel = (battery_voltage / 109.0 - 3.25) / 0.1;
-	count = (unsigned int)(119.0 + 79.0 * norm_fuel);	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
+	norm_fuel = (battery_voltage / 109.0F - 3.25F) / 0.1F;
+	count = (unsigned int)(119.0F + 79.0F * norm_fuel);	// count/GAUGE_PWM_PERIOD = count/200 is duty cycle
 	// Check limits
 	if(count > GAUGE_PWM_PERIOD) count = GAUGE_PWM_PERIOD;
 	gauge.g4_duty = count;

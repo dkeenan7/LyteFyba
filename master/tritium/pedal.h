@@ -59,10 +59,10 @@ extern command_variables command;
 
 
 // Command parameter limits
-#define CURRENT_MAX				0.974				// %, absolute value, leave room for notch filter overshoot
-#define REGEN_MAX				0.7					// %, absolute value
-#define RPM_FWD_MAX				7000				// Forwards max speed, rpm
-#define RPM_REV_MAX				-2500				// Reverse max speed, rpm
+#define CURRENT_MAX				0.974F				// %, absolute value, leave room for notch filter overshoot
+#define REGEN_MAX				0.7F				// %, absolute value
+#define RPM_FWD_MAX				7000.F				// Forwards max speed, rpm
+#define RPM_REV_MAX				-2500.F				// Reverse max speed, rpm
 
 // Analog pedal input scaling
 // Potentiometer only (no redundancy)

@@ -134,7 +134,7 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 				// motor rpm.
 
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
-				float normalised_rpm = motor_rpm * (1.0 / RPM_FWD_MAX);
+				float normalised_rpm = motor_rpm * (1.0F / RPM_FWD_MAX);
 
 				// Highpass filter the normalised_rpm
 /*
@@ -181,20 +181,20 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 */
 
 				// Fs = 25 Hz, f0 = 0.5 Hz, Q = 0.577 (Bessel)
-#define A1 -1.789950695
-#define A2 0.804177171
+#define A1 -1.789950695F
+#define A2 0.804177171F
 				static float Z1 = 0.0;
 				static float Z2 = 0.0;
 //				float Z0 = normalised_rpm - A1 * (Z1 + normalised_rpm) - A2 * (Z2 - normalised_rpm); // highpass
-//				float hpf_norm_rpm = ((Z0 + Z2)/2.0 - Z1)/2.0; // highpass
+//				float hpf_norm_rpm = ((Z0 + Z2)/2.0 - Z1)/2.0F; // highpass
 				float Z0 = normalised_rpm - A1 * (Z1 - normalised_rpm) - A2 * (Z2 - normalised_rpm); // lowpass
-				float lpf_norm_rpm = ((Z0 + Z2)/2.0 + Z1)/2.0; // lowpass
+				float lpf_norm_rpm = ((Z0 + Z2)/2.0F + Z1)/2.0F; // lowpass
 
 				Z2 = Z1;
 				Z1 = Z0;
 //				float torque_cor = 0.7 * hpf_norm_rpm;
 
-				pedal = 0.15 + 0.85 * pedal;	// Implement creep by simulating 15% pedal min
+				pedal = 0.15F + 0.85F * pedal;	// Implement creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
 				command.current = CURRENT_MAX * (p2 - (1-p2)*regen*lpf_norm_rpm);
 				// The requested rpm must give the correct sign to the torque, so its formula is obtained

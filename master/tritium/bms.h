@@ -18,13 +18,13 @@
 #define BMS_RX_BUFSZ		64
 #define BMS_TIMEOUT			100			// BMS timeout in timer ticks; absolute minimum is
 										//   about 250 ms = 25 ticks
-#define BMS_VR_SPEED		4500		// Number of 10 ms ticks per voltage request
+#define BMS_VR_SPEED		4500.F		// Number of 10 ms ticks per voltage request
 										// Note: it takes > 30s to send a voltage request to 109 CMUs
 #define BMS_STATUS_TIMEOUT	50			// Number of 10 ms ticks we tolerate with no BMS status byte
 #define BMS_FAKESTATUS_RATE ((BMS_STATUS_PER+5)/10) // Number of 10 ms ticks between fake status
 										//	when detect BMS comms error
-#define LIMP_CURR			0.125		// DC bus current limit (fraction of max) when limping
-#define BUS_CURRENT_OFFSET	0.0			// DC bus current measurement error (fraction of max)
+#define LIMP_CURR			0.125F		// DC bus current limit (fraction of max) when limping
+#define BUS_CURRENT_OFFSET	0.0F		// DC bus current measurement error (fraction of max)
 
 // Status-byte bit-masks
 #define COM_ERR				(1<<6)		// Communications error

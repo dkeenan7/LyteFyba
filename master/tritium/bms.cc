@@ -314,7 +314,7 @@ void bms_processStatusByte(unsigned char status)
 			// to keep the stress at or below the setpoint,
 			// continue to allow a minimum current for getting out of danger,
 			// but progressively reduce this current to zero as the stress increases to 15.
-			float fMinCurr = LIMP_CURR/8.0 * (15 - max(maxStress, SET_POINT));
+			float fMinCurr = LIMP_CURR/8.0F * (15 - max(maxStress, SET_POINT));
 			fCurLim = fCurLim * (1 - fMinCurr) + fMinCurr;	// Map 0.0 .. 1.0 to fMinCurr .. 1.0
 			can_transmitBusCurrent(fCurLim);
 		} // End if not charging

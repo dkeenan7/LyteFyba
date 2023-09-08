@@ -284,7 +284,7 @@ char can_transmit( void )
 	if( can_push_ptr != can_pop_ptr ){
 		// Check for mailbox 1 busy
 		if(( can_read_status() & 0x04 ) == 0x04){
-			return(-1);
+			return((char)-1);
 		}
 		else{
 			// Format the data for the CAN controller
@@ -312,7 +312,7 @@ char can_transmit( void )
 	}
 	else{
 		// No data to transmit
-		return(-3);
+		return((char)-3);
 	}
 }
 

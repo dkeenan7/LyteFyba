@@ -16,7 +16,7 @@
 
 //#include <io.h>			// For hardware multiplier special function regs
 #include <msp430.h>			// For hardware multiplier special function regs
-#include <intrinsics.h>		// For __dint(), __eint()
+//#include <intrinsics.h>		// For __dint(), __eint()
 #include "pid.h"
 
 pid::pid(/*fract iSet_point,*/ short_accum iKp, short_accum iKi, short_accum iKd, fract measure)
@@ -47,7 +47,7 @@ fract pid::tick(fract measure) {
         +  ((long)Kd * deriv2)) >> 8);
 #else					// Use the hardware multiply-accumulate registers
 	__dint();			// Disable interrupts, in case use multiply hardware there
-	nop();				// First instruction not protected
+	//nop();			// First instruction not protected, but dint() includes a nop
 	MPYS = (unsigned)Kp;			// First operation is a multiply, to ignore previous results
 	OP2  = (unsigned)deriv;
 	MACS = (unsigned)Ki;			// Subsequent operations are multiply-accumulate
@@ -55,8 +55,9 @@ fract pid::tick(fract measure) {
 	MACS = (unsigned)Kd;
 	OP2  = (unsigned)deriv2;
 	// Allow accessing multiplier result as a _signed_ long instead of two unsigned ints.
-	static volatile signed long RESLONG asm("0x013A");
-	output = prev_output + (RESLONG >> 8);
+	//static volatile signed long RESLONG asm("0x013A");
+#define RESULONG 0x013A                // The RESULONG register resides at address 0x13A
+	output = prev_output + ((*(long*)RESULONG) >> 8);
 	__eint();
 #endif
 	// Saturate the output to -1.0 ($8000) and almost +1.0 ($7FFF)

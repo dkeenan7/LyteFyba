@@ -25,7 +25,7 @@
 // Include files
 #include <msp430x24x.h>
 //#include <signal.h>
-#include <intrinsics.h>
+//#include <intrinsics.h>
 #include <math.h> // For fabsf()
 #include "tri86.h"
 #include "can.h"
@@ -62,7 +62,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 void SendChgrLimForB(unsigned int uChgrLim, unsigned int bForceChgrLim);
 
 
-// Global variables
+// Global variablesUSCIAB1RX_VECTOR
 // Status and event flags
 volatile unsigned int events = 0x0000;
 
@@ -98,13 +98,15 @@ void fault() {
 // Allow use of the hardware multiplier for mixed (16x16=32 bit) multiplication
 inline unsigned long ULongMultiplyUInts ( unsigned int op1, unsigned int op2)
 {
-	__dint();			// Disable interrupts, in case they use hardware multiply
-	MPY  = op1;			// Unsigned multiply
+	__dint();							// Disable interrupts, in case they use hardware multiply
+	MPY  = op1;							// Unsigned multiply
 	OP2  = op2;
 	// Allow accessing multiplier result as an unsigned long instead of two unsigned ints.
-	static volatile unsigned long RESULONG asm("0x013A");
-	unsigned long result = RESULONG;
-	__eint();			// Enable interrupts
+	//static volatile unsigned long RESULONG asm("0x013A");
+
+#define RESULONG 0x013A					// The RESULONG register resides at address 0x13A
+	unsigned long result = *(unsigned long*)RESULONG;
+	__eint();							// Enable interrupts
 	return result;
 }
 
@@ -556,10 +558,10 @@ int main( void )
 						if (command.state == MODE_D && tacho_display == BATV)
 							// Display traction battery voltage on tacho with expanded scale, V-600 x 20
 							// 	(shows DC current in charge mode)
-							gauge_tach_update( (battery_voltage - 600.0) * 50.0 );
+							gauge_tach_update( (battery_voltage - 600.0F) * 50.0F );
 						if (command.state == MODE_D && tacho_display == PWR)
 							// Display DC power on tacho, in kW x 20 (shows DC current in charge mode)
-							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0 );
+							gauge_tach_update( fabsf(battery_current * battery_voltage) / 20.0F );
 						break;
 					case DC_CAN_BASE + DC_BMS_B_STATUS:
 					  	statusB = can.data.data_u8[0];		// Save BMS status from DCUB
@@ -610,7 +612,7 @@ int main( void )
 					case DC_CAN_BASE + DC_BMS_FUEL:
 #define min(x, y) (((x)<(y))?(x):(y))
 						uBMSfuelB = can.data.data_16[0];	// Save half-pack B state of charge from IMU
-						gauge_fuel_update(min(uBMSfuelA, uBMSfuelB) / 1000.0); // 0.0 to 1.0
+						gauge_fuel_update(min(uBMSfuelA, uBMSfuelB) / 1000.0F); // 0.0 to 1.0
 						break;
 					case DC_CAN_BASE + DC_BMS_VOLT:
 						uBMSvoltB = can.data.data_16[0];	// Save half-pack B voltage from IMU
@@ -862,8 +864,9 @@ void adc_init( void )
  *	- Interrupts on Timer B CCR0 match at GAUGE_FREQUENCY (10kHz)
  *  - Also generates 100 Hz ticks
  */
-#pragma vector=TIMERB0_VECTOR
-__interrupt void timer_b0(void)
+//#pragma vector=TIMERB0_VECTOR
+// __attribute__((interrupt(TIMERA0_VECTOR)))
+__interrupt void __attribute__((interrupt(TIMERB0_VECTOR))) timer_b0(void)
 {
 	static unsigned char tick_rate_count = GAUGE_FREQ/TICK_RATE;
 	static unsigned char comms_count = COMMS_SPEED;
@@ -934,8 +937,8 @@ __interrupt void timer_b0(void)
  *	- Interrupts on Timer B CCR6 match at 4 times GAUGE_FREQUENCY
  * to give better tacho resolution at high rpm.
  */
-#pragma vector=TIMERB1_VECTOR
-__interrupt void timer_b1(void)
+//#pragma vector=TIMERB1_VECTOR
+__interrupt __attribute__((interrupt(TIMERB1_VECTOR))) void timer_b1(void)
 {
 	static int gauge_freq_timer = 0; // These must be signed for circular comparison to work below
 	static int gauge1_last_toggle = 0;
@@ -964,8 +967,8 @@ __interrupt void timer_b1(void)
  * Timer A CCR0 Interrupt Service Routine
  *	- Interrupts on Timer A CCR0 capture, for software UART receive
  */
-#pragma vector=TIMERA0_VECTOR
-__interrupt void timer_a0(void)
+//#pragma vector=TIMERA0_VECTOR
+__interrupt void __attribute__((interrupt(TIMERA0_VECTOR))) timer_a0(void)
 {
 	static unsigned char BitCntRx = 8;
 	static unsigned char RXData;
@@ -992,8 +995,8 @@ __interrupt void timer_a0(void)
  * Timer A overflow and CCR1-2 Interrupt Service Routine
  *	- Interrupts on Timer A CCR1 match, for software UART transmit
  */
-#pragma vector=TIMERA1_VECTOR
-__interrupt void timer_a1(void)
+//#pragma vector=TIMERA1_VECTOR
+__interrupt __attribute__((interrupt(TIMERA1_VECTOR))) void timer_a1(void)
 {
 	static unsigned char BitCntTx = 10;
 	static unsigned char TXData;

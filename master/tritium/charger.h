@@ -61,3 +61,7 @@ extern unsigned int chgr_bypCount;			// Balance count in BMS ticks when all in b
 // Charger buffers
 extern queue chgr_tx_q;
 extern queue chgr_rx_q;
+
+// CAN bus IDs
+#define CHGR_ID_A       0x1806E5F4
+#define CHGR_ID_B       0x1806E5F5              // Wild guess
