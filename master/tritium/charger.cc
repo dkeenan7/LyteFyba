@@ -102,7 +102,7 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 	bool ret;				// can_push does not return a success value
 	if (bDCUb)				// For now, DCUB has the CAN-bus charger, DCU-A has serial
 	{
-		can_push_ptr->identifier = CHGR_ID_B;
+		can_push_ptr->identifier = CHGR_ID_B_CTRL;
 		can_push_ptr->status = 8;	// Packet size in bytes
 		can_push_ptr->data.data_u16[0] = (uchar)(voltage >> 8);
 		can_push_ptr->data.data_u16[1] = voltage & 0xFF;
@@ -186,14 +186,14 @@ void readChargerBytes()
 		chgr_rx_timer = CHGR_RX_TIMEOUT;	// Restart received-anything timer
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
-			chgr_processPacket();			// We've received a charger response
+			chgr_processSerPacket();		// We've received a charger response
 			break;
 		}
 	}
 }
 
 
-void chgr_processPacket() {
+void chgr_processSerPacket() {
 
 	chgr_lastrxidx = 0;						// Ready for next charger response to overwrite this one
 											//	(starting next timer interrupt)
@@ -208,6 +208,11 @@ void chgr_processPacket() {
 		else
 			uChgrCurrA = chgr_lastrx[7];
 	}
+}
+
+void chgr_processCanPacket() {
+	chgr_rx_timer = CHGR_RX_TIMEOUT;		// Restart the received-anything timer
+	SendChgrCurr(can.data.data_u8[3]);		// Tell DCU A about our charge current, for tacho
 }
 
 void SendChgrCurr(unsigned int uChgrCurr) {

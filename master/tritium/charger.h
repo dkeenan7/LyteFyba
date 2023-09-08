@@ -45,7 +45,8 @@ bool chgr_sendCurrent(unsigned int iCurr);		// Send the current command now
 bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff);
 bool chgr_resendLastPacket(void);
 void readChargerBytes();
-void chgr_processPacket();
+void chgr_processSerPacket();
+void chgr_processCanPacket();
 
 
 // Public variables
@@ -64,5 +65,8 @@ extern queue chgr_tx_q;
 extern queue chgr_rx_q;
 
 // CAN bus IDs
-#define CHGR_ID_A       0x1806E5F4
-#define CHGR_ID_B       0x1806E5F5              // Wild guess
+#define CHGR_ID_B_CTRL		0x1806E5F4
+#define CHGR_ID_A_CTRL		0x1806E5F5              // Request this
+
+#define CHGR_ID_B_STATUS	0x18FF50E5
+#define CHGR_ID_A_STATUS	0x18FF50E6				// Request this

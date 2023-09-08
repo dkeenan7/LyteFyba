@@ -504,6 +504,8 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
+					case CHGR_ID_B_STATUS:
+					  	chgr_processCanPacket();
 					}
 				} else {	// DCU-A
 					switch(can.identifier){
