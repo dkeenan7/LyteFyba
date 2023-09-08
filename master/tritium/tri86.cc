@@ -205,9 +205,14 @@ int main( void )
 			ADC12CTL0 |= ADC12SC;               	// Start A/D conversions. Reset automatically by hardware
 			while ( ADC12CTL1 & ADC12BUSY );		// DCK: Busy wait for all conversions to complete TODO: replace with ADC ISR
 
-			iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 31050) >> 16);
-			if (iAuxBatMilliVolts < 13190) bAuxBatNeedsCharge = !bDCUb; // FIXME! when DCU-B analog inputs are fixed
-			if (iAuxBatMilliVolts > 13750) bAuxBatNeedsCharge = false;
+			// Check if the auxiliary battery needs charging.
+			// DCU-B's A-to-D is faulty, so we rely on DCU-A for this.
+			// Then DCU-A informs DCU-B via a wire. See later code.
+			if (!bDCUb) {
+				iAuxBatMilliVolts = (unsigned int)(ULongMultiplyUInts(ADC12MEM5 << 3, 31050) >> 16);
+				if (iAuxBatMilliVolts < 13190) bAuxBatNeedsCharge = true;
+				if (iAuxBatMilliVolts > 13750) bAuxBatNeedsCharge = false;
+			}
 
 			// TODO: Check for 5V pedal supply errors
 			// TODO: Check for overcurrent errors on 12V outputs
@@ -234,8 +239,8 @@ int main( void )
 							// Stop indicating drive mode or charge mode (LED_GEAR 1 & 2)
 							// Stop requesting brakelights from DCU-B if we're DCU-A (LED_GEAR_3).
 							// Stop telling DCU-A we're in charge mode if we're DCU-B (LED_GEAR_3).
-							// Stop telling DCU-A we're available to control brakelights
-							// on heavy regen if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
+							// Stop telling DCU-A we're available to control brakelights on heavy regen
+							// if we're DCU-B (LED_GEAR_4) (won't want to do this in future).
 
 					// See if it's time to send an insulation-test request to the BMS
 					static int insulTestTimer = -1;
@@ -320,21 +325,6 @@ int main( void )
 					}
 					else { // Stay in CHARGE  mode
 						next_state = MODE_CHARGE;
-						// On rising edge of IGN_START, cycle through the 3 charge rates, and force max charge
-						if (!bDCUb && (switches & switches_diff & SW_IGN_START)) {
-							uChgrCurrLim = uChgrCurrLim + (CHGR_CURR_LIMIT+2)/4;
-							if (uChgrCurrLim > CHGR_CURR_LIMIT)
-								uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
-							bForceChgrCurrLim = TRUE; // This allows manual override when high undervoltage stress would otherwise limit charge to 200 mA.
-							SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send new charge current limit and forcing to DCU-B
-							bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
-						}
-						// On falling edges of IGN_START, stop forcing max charge
-						if (!bDCUb && (~switches & switches_diff & SW_IGN_START)) {
-							bForceChgrCurrLim = FALSE;
-							SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send lack-of-forcing to DCU-B
-							bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
-						}
 						// Ensure Auxiliary battery still gets charged if required, when main charge has finished
 						if (chgr_state == CHGR_IDLE) {
 							if (bAuxBatNeedsCharge)
@@ -355,10 +345,37 @@ int main( void )
 
 			command.state = next_state;
 
+			// If we're DCU-A and either we or DCU-B are in charge mode, handle IGN_START current control
+			if (!bDCUb && ((command.state == MODE_CHARGE) || (switches & SW_INH_TRACTION))) {
+				// On rising edge of IGN_START, cycle through the 3 charge rates, and force max charge
+				if (switches & switches_diff & SW_IGN_START) {
+					uChgrCurrLim = uChgrCurrLim + (CHGR_CURR_LIMIT+2)/4;
+					if (uChgrCurrLim > CHGR_CURR_LIMIT)
+						uChgrCurrLim = CHGR_CURR_LIMIT - 2*((CHGR_CURR_LIMIT+2)/4);
+					bForceChgrCurrLim = TRUE; // This allows manual override when high undervoltage stress would otherwise limit charge to 200 mA.
+					SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send new charge current limit and forcing to DCU-B
+					bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
+				}
+				// On falling edges of IGN_START, stop forcing max charge
+				if (~switches & switches_diff & SW_IGN_START) {
+					bForceChgrCurrLim = FALSE;
+					SendChgrLimForB(uChgrCurrLim, bForceChgrCurrLim); // Send lack-of-forcing to DCU-B
+					bms_processStatusByte(7); // Ensure change in bForceChgrCurrLim is acted on, even if there are no status bytes
+				}
+			}
+
+#if 0	// The brakelight output of DCU-B was never connected to the brakelights, so in July 2023
+		// the wire from DCU-A LED_GEAR_3 to DCU-B SW-BRAKE was repurposed to allow DCU-A (the only one
+		// with functioning A-to-D) to request that DCU-B turn on its battery contactors (and
+		// unavoidably also its charger contactor) whenever the auxiliary battery needs charging.
+		// This is so that (a) energy used to charge the auxiliary battery is taken approximately
+		// equally from the A and B packs, and (b) so that the auxiliary battery still gets charged
+		// if one half-pack fails to turn on its battery contactors. This happened due to failure of the
+		// intervening automotive relay in the passenger footwell.
 			// Control brake lights
 			if (bDCUb) {
 				// If we're DCU-B
-				if((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-A is requesting
+				if ((switches & SW_BRAKE) || (events & EVENT_REGEN)) // If we're in heavy regen or DCU-A is requesting
 					P1OUT |= BRAKE_OUT;		// Turn on brake lights
 				else P1OUT &= (uchar)~BRAKE_OUT;
 			}
@@ -369,6 +386,22 @@ int main( void )
 				else
 					P5OUT &= (uchar)~LED_GEAR_3;
 			}
+#else
+			if (bDCUb) {
+				// If we're DCU-B
+				if (switches & SW_BRAKE)	// If DCU-A is requesting
+					bAuxBatNeedsCharge = true;	// Turn on our battery contactors (and charger contactor)
+				else
+					bAuxBatNeedsCharge = false;
+			}
+			else {
+				// else we're DCU-A
+				if (bAuxBatNeedsCharge)		// If the auxiliary battery needs charging
+					P5OUT |= LED_GEAR_3;		// Request DCU-B to turn on its battery contactors
+				else
+					P5OUT &= (uchar)~LED_GEAR_3;
+			}
+#endif
 
 			// Control CAN bus and pedal sense power
 			if((switches & SW_IGN_ON) || (switches & SW_IGN_START)) {
@@ -382,7 +415,7 @@ int main( void )
 				events |= EVENT_REQ_SLEEP;
 			}
 
-			chgr_timer();
+			chgr_timer(switches);
 			bms_timer();
 
 		} // End of if( events & EVENT_TIMER ) // Every 10 ms

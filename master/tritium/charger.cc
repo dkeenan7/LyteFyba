@@ -72,15 +72,16 @@ void chgr_stop() {
 }
 
 
-void chgr_timer() {				// Called every 10 ms timer tick, for charger related processing
+void chgr_timer(unsigned int switches) {				// Called every 10 ms timer tick, for charger related processing
 	if (chgr_tx_timer > 0) --chgr_tx_timer;	// Decrement without letting it wrap around
 	if (chgr_rx_timer > 0) --chgr_rx_timer;	// Decrement without letting it wrap around
 	if ((chgr_state != CHGR_IDLE) && (chgr_rx_timer == 0)) {
 		fault();						// Turn on fault LED (eventually)
 	}
-	// If we're DCU-A and not in drive mode, display the charger currents on the tacho alternately
+	// If we're DCU-A and either we or DCU-B are in charge mode,
+	// display the charger currents on the tacho alternately.
 	// Mnemonic is alphabetical order A, B, ... corresponds to numbers 1, 2, ...
-	if (!bDCUb && (command.state == MODE_CHARGE)) {
+	if (!bDCUb && ((command.state == MODE_CHARGE) || (switches & SW_INH_TRACTION))) {
 		if (++chgr_dsp_ctr == 300) {				// 3 second display cycle
 			chgr_dsp_ctr = 0;
 			gauge_tach_update(uChgrCurrB * 100);	// 2 seconds displaying charger B current
