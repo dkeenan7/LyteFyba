@@ -14,7 +14,7 @@
 #define CHGR_VOLT_LIMIT		((int)(NUMBER_OF_CELLS * 35.70 * 1.009))// Charger voltage limit in tenths of a volt
 							// Charger-B reads the battery voltage as 0.9% higher than it really is.
 #define CHGR_CURR_LIMIT		55					// Charger current limit in tenths of an amp
-												// Note that charger B could go to about 10 amps
+												// Note that the CAN chargers could go to about 10 amps
 #define CHGR_CURR_MIN		 2					// Minimum charge current in tenths of an amp (< bypass)
 #define CHGR_EOC_SOAKT		(1 * 60 * BMS_STATUS_RATE)// Number of ticks from first detect of all bypass to
 												//	turning off the charger

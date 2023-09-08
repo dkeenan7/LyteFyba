@@ -62,7 +62,7 @@ void update_switches( unsigned int *state, unsigned int *difference);
 void SendChgrLimForB(unsigned int uChgrLim, unsigned int bForceChgrLim);
 
 
-// Global variablesUSCIAB1RX_VECTOR
+// Global variables
 // Status and event flags
 volatile unsigned int events = 0x0000;
 
@@ -504,6 +504,7 @@ int main( void )
 						break;
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
+						break;
 					case CHGR_ID_B_STATUS:
 					  	chgr_processCanPacket();
 					}

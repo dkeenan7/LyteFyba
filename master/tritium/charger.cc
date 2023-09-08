@@ -109,16 +109,15 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 		can_push_ptr->data.data_u8[2] = (uchar)(current >> 8);
 		can_push_ptr->data.data_u8[3] = current & 0xFF;
 		can_push_ptr->data.data_u8[4] = chargerOff;
-		can_push_ptr->data.data_u16[5] = 0;
-		can_push_ptr->data.data_u16[6] = 0;
-		can_push_ptr->data.data_u16[7] = 0;
+		can_push_ptr->data.data_u8[5] = 0;
+		can_push_ptr->data.data_u8[6] = 0;
+		can_push_ptr->data.data_u8[7] = 0;
 		can_push();
 		ret = true;
 	}
 	else
 	{
-
-		// Charger was on the UART in UCI0
+		// Charger is on the UART in UCI0 for DCU A
 		chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 		chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
 		chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
@@ -148,9 +147,9 @@ bool chgr_sendPacket(const unsigned char* ptr)
 bool chgr_resendLastPacket(void)
 {
 	if (bDCUb)
-		return false;									// FIXME: Do we need to re-sent the CAN packet?
-														// Not at present, as we don't ever resend the last packet?
-	// Used to send serial data via fibre
+		return false;
+
+	// Send serial data via fibre
 	int i;
 	if (chgr_tx_q.queue_space() < 12) {
 		// Need 12 bytes of space in the queue
@@ -163,7 +162,6 @@ bool chgr_resendLastPacket(void)
 			chgr_sendByte(chgr_lastSentPacket[i]);
 		return true;
 	}
-//	return false;
 }
 
 
@@ -212,7 +210,10 @@ void chgr_processSerPacket() {
 
 void chgr_processCanPacket() {
 	chgr_rx_timer = CHGR_RX_TIMEOUT;		// Restart the received-anything timer
-	SendChgrCurr(can.data.data_u8[3]);		// Tell DCU A about our charge current, for tacho
+	if (bDCUb) {
+		unsigned int current = (unsigned int)((can.data.data_u8[2]) << 8) + can.data.data_u8[3];
+		SendChgrCurr(current);		// Tell DCU A about our charge current, for tacho
+	}
 }
 
 void SendChgrCurr(unsigned int uChgrCurr) {
