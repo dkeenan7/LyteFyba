@@ -104,11 +104,11 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 	{
 		can_push_ptr->identifier = CHGR_ID_B_CTRL;
 		can_push_ptr->status = 8;	// Packet size in bytes
-		can_push_ptr->data.data_u16[0] = (uchar)(voltage >> 8);
-		can_push_ptr->data.data_u16[1] = voltage & 0xFF;
-		can_push_ptr->data.data_u16[2] = (uchar)(current >> 8);
-		can_push_ptr->data.data_u16[3] = current & 0xFF;
-		can_push_ptr->data.data_u16[4] = chargerOff;
+		can_push_ptr->data.data_u8[0] = (uchar)(voltage >> 8);
+		can_push_ptr->data.data_u8[1] = voltage & 0xFF;
+		can_push_ptr->data.data_u8[2] = (uchar)(current >> 8);
+		can_push_ptr->data.data_u8[3] = current & 0xFF;
+		can_push_ptr->data.data_u8[4] = chargerOff;
 		can_push_ptr->data.data_u16[5] = 0;
 		can_push_ptr->data.data_u16[6] = 0;
 		can_push_ptr->data.data_u16[7] = 0;

@@ -291,6 +291,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 // MCP2515 RX ctrl bit definitions
 #define MCP_RXB0_RTR	0x08
 #define MCP_RXB1_RTR	0x08
+#define MCP_EXIDE		0x08			// MVE: Set this bit in TXBnSIDL registers for extended IDs
 
 // MCP2515 Interrupt flag register bit definitions
 #define MCP_IRQ_MERR	0x80

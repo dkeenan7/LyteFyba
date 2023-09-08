@@ -209,10 +209,17 @@ void can_receive( void )
 			can.status = CAN_RTR;
 		}
 		// Fill in the identifier
-		can.identifier = buffer[1];
-		can.identifier = can.identifier << 3;
-		buffer[2] = (uchar)(buffer[2] >> 5);
-		can.identifier = can.identifier | buffer[2];
+		can.identifier = (unsigned long)(buffer[1]) << 3;
+		if (buffer[2] & MCP_EXIDE) {
+			// Extended ID
+			can.identifier |= (buffer[2] & 0xE0) >> 5;	// ID bits 2-0
+			can.identifier |= (unsigned long)((buffer[2] & 3)) << 16;	// ID bits 17-16
+			can.identifier |= (unsigned long)(buffer[3]) << 11;			// ID bits 18-11
+			can.identifier |= (unsigned long)(buffer[4]) << 19;			// ID bits 26-19
+		} else {
+			buffer[2] = (uchar)(buffer[2] >> 5);
+			can.identifier = can.identifier | buffer[2];
+		}
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB0, 0x00 );
 	}
@@ -290,9 +297,13 @@ char can_transmit( void )
 			// Format the data for the CAN controller
 			buffer[ 0] = (unsigned char)(can_pop_ptr->identifier >> 3);
 			buffer[ 1] = (unsigned char)(can_pop_ptr->identifier << 5);
-			buffer[ 2] = 0x00;											// EID8
-			buffer[ 3] = 0x00;											// EID0
-			buffer[ 4] = can_pop_ptr->status;							// DLC
+			if (can_pop_ptr->identifier >> 24) {						//Check MSB of ID
+				// Extended ID. Set the EXIDE bit and or in 2 extended ID bits (bits 27 and 28)
+				buffer [1] |= MCP_EXIDE | (unsigned char)((can_pop_ptr->identifier >> 27) & 3);
+			}
+			buffer[ 2] = (unsigned char)(can_pop_ptr->identifier >> 19);	// EID8: ID bits 26-19
+			buffer[ 3] = (unsigned char)(can_pop_ptr->identifier >> 11);	// EID0: ID bits 18-11
+			buffer[ 4] = can_pop_ptr->status;								// DLC
 			buffer[ 5] = can_pop_ptr->data.data_u8[0];
 			buffer[ 6] = can_pop_ptr->data.data_u8[1];
 			buffer[ 7] = can_pop_ptr->data.data_u8[2];
