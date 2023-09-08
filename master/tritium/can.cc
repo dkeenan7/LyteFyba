@@ -209,13 +209,13 @@ void can_receive( void )
 			can.status = CAN_RTR;
 		}
 		// Fill in the identifier
-		can.identifier = (unsigned long)(buffer[1]) << 3;
+		can.identifier = (unsigned long)(buffer[1]) << 3;				// ID bits 10-3
 		if (buffer[2] & MCP_EXIDE) {
 			// Extended ID
-			can.identifier |= (buffer[2] & 0xE0) >> 5;	// ID bits 2-0
-			can.identifier |= (unsigned long)((buffer[2] & 3)) << 16;	// ID bits 17-16
-			can.identifier |= (unsigned long)(buffer[3]) << 11;			// ID bits 18-11
-			can.identifier |= (unsigned long)(buffer[4]) << 19;			// ID bits 26-19
+			can.identifier |= (buffer[2] & 0xE0) >> 5;					// ID bits 2-0
+			can.identifier |= (unsigned long)((buffer[2] & 3)) << 28;	// ID bits 28-27
+			can.identifier |= (unsigned long)(buffer[3]) << 19;			// ID bits 26-19
+			can.identifier |= (unsigned long)(buffer[4]) << 11;			// ID bits 18-11
 		} else {
 			buffer[2] = (uchar)(buffer[2] >> 5);
 			can.identifier = can.identifier | buffer[2];
@@ -248,13 +248,13 @@ void can_receive( void )
 			can.status = CAN_RTR;
 		}
 		// Fill in the identifier
-		can.identifier = (unsigned long)(buffer[1]) << 3;
+		can.identifier = (unsigned long)(buffer[1]) << 3;				// ID bits 10-3
 		if (buffer[2] & MCP_EXIDE) {
 			// Extended ID
-			can.identifier |= (buffer[2] & 0xE0) >> 5;	// ID bits 2-0
-			can.identifier |= (unsigned long)((buffer[2] & 3)) << 16;	// ID bits 17-16
-			can.identifier |= (unsigned long)(buffer[3]) << 11;			// ID bits 18-11
-			can.identifier |= (unsigned long)(buffer[4]) << 19;			// ID bits 26-19
+			can.identifier |= (buffer[2] & 0xE0) >> 5;					// ID bits 2-0
+			can.identifier |= (unsigned long)((buffer[2] & 3)) << 28;	// ID bits 28-27
+			can.identifier |= (unsigned long)(buffer[3]) << 19;			// ID bits 26-19
+			can.identifier |= (unsigned long)(buffer[4]) << 11;			// ID bits 18-11
 		} else {
 			buffer[2] = (uchar)(buffer[2] >> 5);
 			can.identifier = can.identifier | buffer[2];
