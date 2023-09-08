@@ -32,14 +32,14 @@ queue chgr_rx_q(CHGR_RX_BUFSZ);
 // Charger private variables
 unsigned char	chgr_lastrx[12];		// Buffer for the last received charger message
 unsigned char	chgr_lastrxidx;			// Index into the above
-unsigned char 	chgr_txbuf[12];			// A buffer for a charger packet
+unsigned char	chgr_txbuf[12];			// A buffer for a charger packet
 unsigned int chgr_dsp_ctr = 0;			// Charger current display on tacho - count of timer ticks
 
 
 // Program global
 extern unsigned int uCharging;
 
-unsigned char chgr_lastSentPacket[12];					// Copy of the last CAN packet sent to the charger
+unsigned char chgr_lastSentPacket[12];	// Copy of the last serial packet sent to charger A
 
 void chgr_init() {
 	chgr_lastrxidx = 0;
@@ -99,37 +99,40 @@ bool chgr_sendCurrent(unsigned int iCurr) {
 
 
 bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff) {
-    // bool ret;				// can_push does not return a success value
-        if (bDCUb)
-          can_push_ptr->identifier = CHGR_ID_B;
-        else
-          can_push_ptr->identifier = CHGR_ID_A;
-	can_push_ptr->status = 8;	// Packet size in bytes
-	can_push_ptr->data.data_u16[0] = (uchar)(voltage >> 8);
-	can_push_ptr->data.data_u16[1] = voltage & 0xFF;
-        can_push_ptr->data.data_u16[2] = (uchar)(current >> 8);
-        can_push_ptr->data.data_u16[3] = current & 0xFF;
-        can_push_ptr->data.data_u16[4] = chargerOff;
-        can_push_ptr->data.data_u16[5] = 0;
-        can_push_ptr->data.data_u16[6] = 0;
-        can_push_ptr->data.data_u16[7] = 0;
-	can_push();
+	bool ret;				// can_push does not return a success value
+	if (bDCUb)				// For now, DCUB has the CAN-bus charger, DCU-A has serial
+	{
+		can_push_ptr->identifier = CHGR_ID_B;
+		can_push_ptr->status = 8;	// Packet size in bytes
+		can_push_ptr->data.data_u16[0] = (uchar)(voltage >> 8);
+		can_push_ptr->data.data_u16[1] = voltage & 0xFF;
+		can_push_ptr->data.data_u16[2] = (uchar)(current >> 8);
+		can_push_ptr->data.data_u16[3] = current & 0xFF;
+		can_push_ptr->data.data_u16[4] = chargerOff;
+		can_push_ptr->data.data_u16[5] = 0;
+		can_push_ptr->data.data_u16[6] = 0;
+		can_push_ptr->data.data_u16[7] = 0;
+		can_push();
+		ret = true;
+	}
+	else
+	{
 
-#if 0   // Charger was on the UART in UCI0
-	chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
-	chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
-	chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
-	chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
-	chgr_txbuf[4] = (uchar)(voltage >> 8);
-	chgr_txbuf[5] = voltage & 0xFF;
-	chgr_txbuf[6] = (uchar)(current >> 8);
-	chgr_txbuf[7] = current & 0xFF;
-	chgr_txbuf[8] = chargerOff;
-	chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
-	ret = chgr_sendPacket(chgr_txbuf);
-	chgr_lastrxidx = 0;						// Expect receive packet in response
-#endif
-    return true;						// FIXME: can we do better?
+		// Charger was on the UART in UCI0
+		chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
+		chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
+		chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
+		chgr_txbuf[3] = 0xF4;					//	X is 0 to turn charger on
+		chgr_txbuf[4] = (uchar)(voltage >> 8);
+		chgr_txbuf[5] = voltage & 0xFF;
+		chgr_txbuf[6] = (uchar)(current >> 8);
+		chgr_txbuf[7] = current & 0xFF;
+		chgr_txbuf[8] = chargerOff;
+		chgr_txbuf[9] = 0; chgr_txbuf[10] = 0; chgr_txbuf[11] = 0;
+		ret = chgr_sendPacket(chgr_txbuf);
+		chgr_lastrxidx = 0;						// Expect receive packet in response
+	}
+	return ret;						// FIXME: can we do better?
 }
 
 
@@ -144,7 +147,10 @@ bool chgr_sendPacket(const unsigned char* ptr)
 // Returns true on success
 bool chgr_resendLastPacket(void)
 {
-#if 0   // Used to send serial data via fibre
+	if (bDCUb)
+		return false;									// FIXME: Do we need to re-sent the CAN packet?
+														// Not at present, as we don't ever resend the last packet?
+	// Used to send serial data via fibre
 	int i;
 	if (chgr_tx_q.queue_space() < 12) {
 		// Need 12 bytes of space in the queue
@@ -157,14 +163,13 @@ bool chgr_resendLastPacket(void)
 			chgr_sendByte(chgr_lastSentPacket[i]);
 		return true;
 	}
-#endif
-	return false;
+//	return false;
 }
 
 
 bool chgr_sendByte(unsigned char ch) {
 	if (chgr_tx_q.enqueue(ch)) {
-    	IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+		IE2 |= UCA0TXIE;						// Enable USCI_A0 TX interrupt
 		events |= EVENT_ACTIVITY;				// Turn on activity light
 		chgr_tx_timer = CHGR_TX_TIMEOUT;		// Restart transmitted-anything timer
 		return true;
@@ -208,7 +213,7 @@ void chgr_processPacket() {
 void SendChgrCurr(unsigned int uChgrCurr) {
 	can_push_ptr->identifier = DC_CAN_BASE + DC_CHGR_CURR;
 	can_push_ptr->status = 2;	// Packet size in bytes
-	can_push_ptr->data.data_u16[0] = uChgrCurr; 	// Send charger actual current to DCU-A
+	can_push_ptr->data.data_u16[0] = uChgrCurr;		// Send charger actual current to DCU-A
 	can_push();
 }
 
