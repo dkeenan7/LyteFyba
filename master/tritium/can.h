@@ -44,9 +44,9 @@ extern can_variables	*can_push_ptr;
 // Receive filters and masks
 // Receive buffer 0, can choose two different receive blocks, with a single mask
 // can_init assumes this mask and 2 filters are for extended IDs
-#define RX_MASK_0		0x1FFFFFFF		// Care about all 29 bits of 29-bit identifier
-#define RX_ID_0A		CHGR_ID_A_STATUS// Receive charger-A status packets
-#define RX_ID_0B		CHGR_ID_B_STATUS// Receive charger-B status packets
+#define RX_MASK_0		0x1FFFFFFF			// Care about all 29 bits of 29-bit identifier
+#define RX_ID_0A		CHGR_STATUS_ID_LO	// Receive first-bought charger status packets
+#define RX_ID_0B		CHGR_STATUS_ID_HI	// Receive newer charger status packets
 // Receive buffer 1, can choose four different receive blocks, with a single mask
 // can_init assumes this mask and 4 filters are for standard IDs
 #define RX_MASK_1		0x07E0			// Only care about upper 6 bits of 11-bit identifier
@@ -119,10 +119,10 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define CHGR_LIM		0x7F0		// CAN identifier for setting charger current limit
 
 // Charger CAN identifiers
-#define CHGR_ID_B_CTRL		0x1806E5F4
-#define CHGR_ID_A_CTRL		0x1806E6F4		// Request this when buying a second CAN charger
-#define CHGR_ID_B_STATUS	0x18FF50E5
-#define CHGR_ID_A_STATUS	0x18FF50E6		// Request this when buying a second CAN charger
+#define CHGR_CTRL_ID_LO		0x1806E5F4
+#define CHGR_CTRL_ID_HI		0x1806E6F4		// Request this when buying a second CAN charger
+#define CHGR_STATUS_ID_LO	0x18FF50E5
+#define CHGR_STATUS_ID_HI	0x18FF50E6		// Request this when buying a second CAN charger
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_NEUT_OR_CLCH	0x0001		// DCU-A: Was SW_MODE_R
@@ -133,7 +133,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define SW_IGN_ON		0x0020
 #define SW_IGN_START	0x0040
 #define SW_BRAKE		0x0080
-#define SW_CHARGE_CABLE	0x0100		// Was SW_FUEL_DOOR: true if charger mains cable present
+#define SW_CHGR_ID_SWAP	0x0100		// Was SW_FUEL_DOOR: true if CAN ID swap switch on (both DCUs)
 #define SW_SPARE1		0x0200
 #define SW_SPARE2		0x0400
 #define SW_SPARE3		0x0800
@@ -298,7 +298,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define RXB1D7			0x7D
 
 // MCP2515 various register bit definitions
-#define MCP_RXRTR		0x08			// DCK: In RXBnCTRL registers. Reads true for a remote frame request 
+#define MCP_RXRTR		0x08			// DCK: In RXBnCTRL registers. Reads true for a remote frame request
 #define MCP_IDE			0x08			// DCK: In RXBnSIDL registers. Reads true for an extended ID
 #define MCP_EXIDE		0x08			// MVE: In TXBnSIDL and RXFnSIDL registers. Set it for an extended ID
 

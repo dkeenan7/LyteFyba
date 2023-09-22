@@ -42,7 +42,7 @@ volatile unsigned int  bms_max_mV = 0;	// The maximum cell voltage in mV
 volatile unsigned char  bms_min_id = 0;	// Id of the cell with minimum voltage
 volatile unsigned char  bms_max_id = 0;	// Id of the cell with maximum voltage
 unsigned char bms_curr_cell = 1;		// ID of CMU to send to next
-bool bCharging = FALSE;					// Whether we are in charge mode
+bool bCharging = FALSE;					// Whether current is into the traction battery
 // Static globals
 static unsigned int bmsFakeStatusCtr = 0;	// Counts timer ticks between sending fake status during comms timeout
 static unsigned int bmsStatusTimeout = 0;	// Counts timer ticks with no status byte received from BMS

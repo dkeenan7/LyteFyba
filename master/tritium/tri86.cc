@@ -256,8 +256,7 @@ int main( void )
 
 					if (switches & SW_CRASH)				// if we've crashed
 						next_state = MODE_CRASH;			// go to crash mode
-					else if ((chgr_rx_timer > 0)  			// if we received data from our charger
-					|| (switches & SW_CHARGE_CABLE)) {		// or our charge cable is present
+					else if (chgr_rx_timer > 0) { 			// if we received data from our charger
 						next_state = MODE_CHARGE;			// Go to CHARGE mode
 						if (bDCUb)							// If DCU-B
 							P5OUT |= LED_GEAR_3;			// tell DCU-A that we're in charge mode
@@ -294,7 +293,6 @@ int main( void )
 				case MODE_D:	// DCU-B should never be in MODE_D
 					if (!(switches & SW_IGN_ON)				// if key is off
 					|| (switches & SW_CRASH) 				// or we've crashed
-					|| (switches & SW_CHARGE_CABLE) 		// or our charge cable is present
 					|| (chgr_rx_timer > 0)					// or we received data from our charger
 					|| (switches & SW_INH_TRACTION)) { 		// or DCU-B is in charge mode (IN_GEAR_3)
 						next_state = MODE_OFF;				// Go to OFF mode
@@ -315,8 +313,7 @@ int main( void )
 					break; // End case MODE_D
 				case MODE_CHARGE:
 					if ((switches & SW_CRASH)  				// if we've crashed
-					|| !((switches & SW_CHARGE_CABLE) 		// or we have neither our charge cable present
-					||   (chgr_rx_timer > 0))) {			// nor received data from our charger
+					|| !(chgr_rx_timer > 0)) {				// or not received data from our charger
 						next_state = MODE_OFF;				// Go to OFF mode
 						if (bDCUb)							// If DCU-B
 							P5OUT &= (uchar)~LED_GEAR_3;	// tell DCU-A that we're not in charge mode
@@ -504,8 +501,12 @@ int main( void )
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 						break;
-					case CHGR_ID_B_STATUS:
-					  	chgr_processCanPacket();
+					case CHGR_STATUS_ID_LO:					// The ID for the first bought CAN charger
+					  	chgr_processCanPacket(CHGR_STATUS_ID_LO, switches & SW_CHGR_ID_SWAP);
+						break;
+					case CHGR_STATUS_ID_HI:					// This is the ID for the newest CAN charger
+					  	chgr_processCanPacket(CHGR_STATUS_ID_HI, switches & SW_CHGR_ID_SWAP);
+						break;
 					}
 				} else {	// DCU-A
 					switch(can.identifier){
@@ -1077,8 +1078,8 @@ void update_switches( unsigned int *state, unsigned int *difference)
 	if(P1IN & IN_BRAKEn) switches &= (unsigned)~SW_BRAKE;
 	else switches |= SW_BRAKE;
 
-	if(P1IN & IN_FUEL) switches |= SW_CHARGE_CABLE;
-	else switches &= (unsigned)~SW_CHARGE_CABLE;
+	if(P1IN & IN_FUEL) switches |= SW_CHGR_ID_SWAP;
+	else switches &= (unsigned)~SW_CHGR_ID_SWAP;
 
 	// Debounce, 10 ms
 	old_state = *state;			// Save state for difference tracking
