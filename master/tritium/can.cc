@@ -102,48 +102,53 @@ void can_init( unsigned int bitrate_index )
 	can_write( CNF3, &buffer[0], 6);		// Write to registers
 
 	// Set up receive filtering & masks
-	// RXF0 - Buffer 0
-	buffer[ 0] = (unsigned char)(RX_ID_0A >> 3);
-	buffer[ 1] = (unsigned char)(RX_ID_0A << 5);
-	buffer[ 2] = 0x00;
-	buffer[ 3] = 0x00;
-	// RXF1 - Buffer 0
-	buffer[ 4] = (unsigned char)(RX_ID_0B >> 3);
-	buffer[ 5] = (unsigned char)(RX_ID_0B >> 3);
-	buffer[ 6] = 0x00;
-	buffer[ 7] = 0x00;
-	// RXF2 - Buffer 1
-	buffer[ 8] = (unsigned char)(RX_ID_1A >> 3);
-	buffer[ 9] = (unsigned char)(RX_ID_1A << 5);
+	// RXF0 - Buffer 0 - Assume it's a filter for extended IDs
+	buffer[ 0] = (unsigned char)(RX_ID_0A >> 21);			// SIDH: ID bits 28-21
+	buffer[ 1] = (unsigned char)(RX_ID_0A >> 13 & 0xE0);	// SIDL: ID bits 20-18
+	buffer[ 1]|= MCP_EXIDE;									// SIDL: Extended ID enable
+	buffer[ 1]|= (unsigned char)(RX_ID_0A >> 16 & 0x03);	// SIDL: ID bits 17-16
+	buffer[ 2] = (unsigned char)(RX_ID_0A >>  8);			// EID8: ID bits 15-8
+	buffer[ 3] = (unsigned char)(RX_ID_0A);					// EID0: ID bits 7-0
+	// RXF1 - Buffer 0 - Assume it's a filter for extended IDs
+	buffer[ 4] = (unsigned char)(RX_ID_0B >> 21);			// SIDH: ID bits 28-21
+	buffer[ 5] = (unsigned char)(RX_ID_0B >> 13 & 0xE0);	// SIDL: ID bits 20-18
+	buffer[ 5]|= MCP_EXIDE;									// SIDL: Extended ID enable
+	buffer[ 5]|= (unsigned char)(RX_ID_0B >> 16 & 0x03);	// SIDL: ID bits 17-16
+	buffer[ 6] = (unsigned char)(RX_ID_0B >>  8);			// EID8: ID bits 15-8
+	buffer[ 7] = (unsigned char)(RX_ID_0B);					// EID0: ID bits 7-0
+	// RXF2 - Buffer 1 - Assume it's a filter for standard IDs
+	buffer[ 8] = (unsigned char)(RX_ID_1A >> 3);	// SIDH: ID bits 10-3
+	buffer[ 9] = (unsigned char)(RX_ID_1A << 5);	// SIDL: ID bits  2-0
 	buffer[10] = 0x00;
 	buffer[11] = 0x00;
 	can_write( RXF0SIDH, &buffer[0], 12 );
 
-	// RXF3 - Buffer 1
-	buffer[ 0] = (unsigned char)(RX_ID_1B >> 3);
-	buffer[ 1] = (unsigned char)(RX_ID_1B << 5);
+	// RXF3 - Buffer 1 - Assume it's a filter for standard IDs
+	buffer[ 0] = (unsigned char)(RX_ID_1B >> 3);	// SIDH: ID bits 10-3
+	buffer[ 1] = (unsigned char)(RX_ID_1B << 5);	// SIDL: ID bits  2-0
 	buffer[ 2] = 0x00;
 	buffer[ 3] = 0x00;
-	// RXF4 - Buffer 1
-	buffer[ 4] = (unsigned char)(RX_ID_1C >> 3);
-	buffer[ 5] = (unsigned char)(RX_ID_1C << 5);
+	// RXF4 - Buffer 1 - Assume it's a filter for standard IDs
+	buffer[ 4] = (unsigned char)(RX_ID_1C >> 3);	// SIDH: ID bits 10-3
+	buffer[ 5] = (unsigned char)(RX_ID_1C << 5);	// SIDL: ID bits  2-0
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
-	// RXF5 - Buffer 1
-	buffer[ 8] = (unsigned char)(RX_ID_1D >> 3);
-	buffer[ 9] = (unsigned char)(RX_ID_1D << 5);
+	// RXF5 - Buffer 1 - Assume it's a filter for standard IDs
+	buffer[ 8] = (unsigned char)(RX_ID_1D >> 3);	// SIDH: ID bits 10-3
+	buffer[ 9] = (unsigned char)(RX_ID_1D << 5);	// SIDL: ID bits  2-0
 	buffer[10] = 0x00;
 	buffer[11] = 0x00;
 	can_write( RXF3SIDH, &buffer[0], 12 );
 
-	// RXM0 - Buffer 0
-	buffer[ 0] = (unsigned char)(RX_MASK_0 >> 3);
-	buffer[ 1] = (unsigned char)(RX_MASK_0 << 5);
-	buffer[ 2] = 0x00;
-	buffer[ 3] = 0x00;
-	// RXM1 - Buffer 1
-	buffer[ 4] = (unsigned char)(RX_MASK_1 >> 3);
-	buffer[ 5] = (unsigned char)(RX_MASK_1 << 5);
+	// RXM0 - Buffer 0 - Assume it's a mask for extended IDs
+	buffer[ 0] = (unsigned char)(RX_MASK_0 >> 21);			// SIDH: ID bits 28-21
+	buffer[ 1] = (unsigned char)(RX_MASK_0 >> 13 & 0xE0);	// SIDL: ID bits 20-18
+	buffer[ 1]|= (unsigned char)(RX_MASK_0 >> 16 & 0x03);	// SIDL: ID bits 17-16
+	buffer[ 2] = (unsigned char)(RX_MASK_0 >>  8);			// EID8: ID bits 15-8
+	buffer[ 3] = (unsigned char)(RX_MASK_0);				// EID0: ID bits 7-0
+	// RXM1 - Buffer 1 - Assume it's a mask for standard IDs
+	buffer[ 4] = (unsigned char)(RX_MASK_1 >> 3);	// SIDH: ID bits 10-3
+	buffer[ 5] = (unsigned char)(RX_MASK_1 << 5);	// SIDL: ID bits  2-0
 	buffer[ 6] = 0x00;
 	buffer[ 7] = 0x00;
 	can_write( RXM0SIDH, &buffer[0], 8 );
@@ -189,37 +194,7 @@ void can_receive( void )
 		// Read in the info, identifier & message data
 		can_read( RXB0CTRL, &buffer[0], 14 );
 		// Fill out return structure
-		// check for Remote Frame requests and indicate the status correctly
-		if(( buffer[0] & MCP_RXB0_RTR ) == 0x00 ){
-			// We've received a standard data packet
-			can.status = CAN_OK;
-			// Fill in the data
-			can.data.data_u8[0] = buffer[ 6];
-			can.data.data_u8[1] = buffer[ 7];
-			can.data.data_u8[2] = buffer[ 8];
-			can.data.data_u8[3] = buffer[ 9];
-			can.data.data_u8[4] = buffer[10];
-			can.data.data_u8[5] = buffer[11];
-			can.data.data_u8[6] = buffer[12];
-			can.data.data_u8[7] = buffer[13];
-		}
-		else{
-			// We've received a remote frame request
-			// Data is irrelevant with an RTR
-			can.status = CAN_RTR;
-		}
-		// Fill in the identifier
-		can.identifier = (unsigned long)(buffer[1]) << 3;				// ID bits 10-3
-		if (buffer[2] & MCP_EXIDE) {
-			// Extended ID
-			can.identifier |= (buffer[2] & 0xE0) >> 5;					// ID bits 2-0
-			can.identifier |= (unsigned long)((buffer[2] & 3)) << 28;	// ID bits 28-27
-			can.identifier |= (unsigned long)(buffer[3]) << 19;			// ID bits 26-19
-			can.identifier |= (unsigned long)(buffer[4]) << 11;			// ID bits 18-11
-		} else {
-			buffer[2] = (uchar)(buffer[2] >> 5);
-			can.identifier = can.identifier | buffer[2];
-		}
+		can_unpack();
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB0, 0x00 );
 	}
@@ -228,37 +203,7 @@ void can_receive( void )
 		// Read in the info, identifier & message data
 		can_read( RXB1CTRL, &buffer[0], 14 );
 		// Fill out return structure
-		// check for Remote Frame requests and indicate the status correctly
-		if(( buffer[0] & MCP_RXB1_RTR ) == 0x00 ){
-			// We've received a standard data packet
-			can.status = CAN_OK;
-			// Fill in the data
-			can.data.data_u8[0] = buffer[ 6];
-			can.data.data_u8[1] = buffer[ 7];
-			can.data.data_u8[2] = buffer[ 8];
-			can.data.data_u8[3] = buffer[ 9];
-			can.data.data_u8[4] = buffer[10];
-			can.data.data_u8[5] = buffer[11];
-			can.data.data_u8[6] = buffer[12];
-			can.data.data_u8[7] = buffer[13];
-		}
-		else{
-			// We've received a remote frame request
-			// Data is irrelevant with an RTR
-			can.status = CAN_RTR;
-		}
-		// Fill in the identifier
-		can.identifier = (unsigned long)(buffer[1]) << 3;				// ID bits 10-3
-		if (buffer[2] & MCP_EXIDE) {
-			// Extended ID
-			can.identifier |= (buffer[2] & 0xE0) >> 5;					// ID bits 2-0
-			can.identifier |= (unsigned long)((buffer[2] & 3)) << 28;	// ID bits 28-27
-			can.identifier |= (unsigned long)(buffer[3]) << 19;			// ID bits 26-19
-			can.identifier |= (unsigned long)(buffer[4]) << 11;			// ID bits 18-11
-		} else {
-			buffer[2] = (uchar)(buffer[2] >> 5);
-			can.identifier = can.identifier | buffer[2];
-		}
+		can_unpack();
 		// Clear the IRQ flag
 		can_mod( CANINTF, MCP_IRQ_RXB1, 0x00 );
 	}
@@ -302,15 +247,23 @@ char can_transmit( void )
 		}
 		else{
 			// Format the data for the CAN controller
-			buffer[ 0] = (unsigned char)(can_pop_ptr->identifier >> 3);
-			buffer[ 1] = (unsigned char)(can_pop_ptr->identifier << 5);
-			if (can_pop_ptr->identifier >> 24) {						//Check MSB of ID
-				// Extended ID. Set the EXIDE bit and or in 2 extended ID bits (bits 27 and 28)
-				buffer [1] |= MCP_EXIDE | (unsigned char)((can_pop_ptr->identifier >> 27) & 3);
+			if (can_pop_ptr->identifier >> 11) { // If the ID doesn't fit in 11 bits
+				// Extended ID
+				buffer[ 0] = (unsigned char)(can_pop_ptr->identifier >> 21);		// SIDH: ID bits 28-21
+				buffer[ 1] = (unsigned char)(can_pop_ptr->identifier >> 13 & 0xE0);	// SIDL: ID bits 20-18
+				buffer[ 1]|= MCP_EXIDE;												// SIDL: Extended ID enable
+				buffer[ 1]|= (unsigned char)(can_pop_ptr->identifier >> 16 & 0x03);	// SIDL: ID bits 17-16
+				buffer[ 2] = (unsigned char)(can_pop_ptr->identifier >>  8);		// EID8: ID bits 15-8
+				buffer[ 3] = (unsigned char)(can_pop_ptr->identifier);				// EID0: ID bits 7-0
 			}
-			buffer[ 2] = (unsigned char)(can_pop_ptr->identifier >> 19);	// EID8: ID bits 26-19
-			buffer[ 3] = (unsigned char)(can_pop_ptr->identifier >> 11);	// EID0: ID bits 18-11
-			buffer[ 4] = can_pop_ptr->status;								// DLC
+			else {
+				// Standard ID
+				buffer[ 0] = (unsigned char)(can_pop_ptr->identifier >> 3);	// SIDH: ID bits 10-3
+				buffer[ 1] = (unsigned char)(can_pop_ptr->identifier << 5);	// SIDL: ID bits  2-0
+				buffer[ 2] = 0;
+				buffer[ 3] = 0;
+			}
+			buffer[ 4] = can_pop_ptr->status;								// DLC: Data length code 0-8
 			buffer[ 5] = can_pop_ptr->data.data_u8[0];
 			buffer[ 6] = can_pop_ptr->data.data_u8[1];
 			buffer[ 7] = can_pop_ptr->data.data_u8[2];
@@ -412,6 +365,47 @@ void can_read( unsigned char address, unsigned char *ptr, unsigned char bytes )
 	usci_transmit( address );
 	for( i = 0; i < bytes; i++ ) *ptr++ = usci_exchange( 0x00 );
 	can_deselect;
+}
+
+/*
+ * Unpack the buffer of RX data from the MCP2515, into our can structure 
+ * with separate identifier, status, and data fields.
+ */
+
+void can_unpack( void )
+{
+	// Fill in the identifier
+	if (buffer[2] & MCP_IDE) {
+		// Extended ID
+		can.identifier  = (unsigned long)(buffer[1]) << 21;			// ID bits 28-21
+		can.identifier |= (unsigned long)(buffer[2] & 0xE0) << 13;	// ID bits 20-18
+		can.identifier |= (unsigned long)(buffer[2] & 0x03) << 16;	// ID bits 17-16
+		can.identifier |= (unsigned long)(buffer[3]) << 8;			// ID bits 15-8
+		can.identifier |= (unsigned long)(buffer[4]);				// ID bits  7-0
+	} else {
+		// Standard ID
+		can.identifier  = (unsigned long)(buffer[1]) << 3;			// ID bits 10-3
+		can.identifier |= (unsigned long)(buffer[2]) >> 5;			// ID bits  2-0
+	}
+	// Check for Remote Frame requests and indicate the status correctly
+	if ( buffer[0] & MCP_RXRTR){
+		// We've received a remote frame request
+		can.status = CAN_RTR;
+		// Data is irrelevant with an RTR
+	}
+	else{
+		// We've received a data packet
+		can.status = CAN_OK;
+		// Fill in the data
+		can.data.data_u8[0] = buffer[ 6];
+		can.data.data_u8[1] = buffer[ 7];
+		can.data.data_u8[2] = buffer[ 8];
+		can.data.data_u8[3] = buffer[ 9];
+		can.data.data_u8[4] = buffer[10];
+		can.data.data_u8[5] = buffer[11];
+		can.data.data_u8[6] = buffer[12];
+		can.data.data_u8[7] = buffer[13];
+	}
 }
 
 /*

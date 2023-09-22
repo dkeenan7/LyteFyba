@@ -43,19 +43,22 @@ extern can_variables	*can_push_ptr;
 
 // Receive filters and masks
 // Receive buffer 0, can choose two different receive blocks, with a single mask
-#define RX_MASK_0		0x07E0			// Only care about upper 6 bits of 11-bit identifier
-#define RX_ID_0A		DC_CAN_BASE		// Receive driver controls (ourself) packets, for RTR and bootloader trigger
-#define RX_ID_0B		CHGR_LIM		// Was unused - now charger limit port
+// can_init assumes this mask and 2 filters are for extended IDs
+#define RX_MASK_0		0x1FFFFFFF		// Care about all 29 bits of 29-bit identifier
+#define RX_ID_0A		CHGR_ID_A_STATUS// Receive charger-A status packets
+#define RX_ID_0B		CHGR_ID_B_STATUS// Receive charger-B status packets
 // Receive buffer 1, can choose four different receive blocks, with a single mask
+// can_init assumes this mask and 4 filters are for standard IDs
 #define RX_MASK_1		0x07E0			// Only care about upper 6 bits of 11-bit identifier
 #define RX_ID_1A		MC_CAN_BASE		// Receive packets from motor controller
 #define RX_ID_1B		EG_CAN_BASE		// Receive packets from eGear (series/parallel switch) controller
-#define RX_ID_1C		0x0000			// Unused
-#define RX_ID_1D		0x0000			// Unused
+#define RX_ID_1C		DC_CAN_BASE		// Receive driver controls (ourself) packets, for RTR and bootloader trigger
+#define RX_ID_1D		CHGR_LIM		// Was unused - now charger limit port
 
 // Private function prototypes
 void 					can_reset( void );
 void 					can_read( unsigned char identifier, unsigned char *ptr, unsigned char bytes );
+void 					can_unpack( void );
 void 					can_read_rx( unsigned char identifier, unsigned char *ptr );
 void 					can_write( unsigned char identifier, unsigned char *ptr, unsigned char bytes );
 void 					can_write_tx( unsigned char identifier, unsigned char *ptr );
@@ -103,7 +106,7 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define DC_CHGR_LIM		7			// Send charger current limit from DCU-A to DCU-B
 #define DC_CHGR_CURR	8			// Send charger actual current from DCU-B to DCU-A
 #define DC_BMS_CURR		9			// Send B half-pack current from DCU-B to DCU-A
-#define DC_BMS_A_SNIFF	0x0A
+#define DC_BMS_A_SNIFF	0x0A		// DCK: These were for communicating with the CMUs and IMU via the CAN-Ethernet bridge
 #define DC_BMS_B_SNIFF	0x0B
 #define DC_BMS_A_INJECT	0x0C
 #define DC_BMS_B_INJECT	0x0D
@@ -114,6 +117,12 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 
 
 #define CHGR_LIM		0x7F0		// CAN identifier for setting charger current limit
+
+// Charger CAN identifiers
+#define CHGR_ID_B_CTRL		0x1806E5F4
+#define CHGR_ID_A_CTRL		0x1806E6F4		// Request this when buying a second CAN charger
+#define CHGR_ID_B_STATUS	0x18FF50E5
+#define CHGR_ID_A_STATUS	0x18FF50E6		// Request this when buying a second CAN charger
 
 // Driver controls switch position packet bitfield positions (lower 16 bits)
 #define SW_NEUT_OR_CLCH	0x0001		// DCU-A: Was SW_MODE_R
@@ -288,10 +297,10 @@ void 					can_mod( unsigned char identifier, unsigned char mask, unsigned char d
 #define RXB1D6			0x7C
 #define RXB1D7			0x7D
 
-// MCP2515 RX ctrl bit definitions
-#define MCP_RXB0_RTR	0x08
-#define MCP_RXB1_RTR	0x08
-#define MCP_EXIDE		0x08			// MVE: Set this bit in TXBnSIDL registers for extended IDs
+// MCP2515 various register bit definitions
+#define MCP_RXRTR		0x08			// DCK: In RXBnCTRL registers. Reads true for a remote frame request 
+#define MCP_IDE			0x08			// DCK: In RXBnSIDL registers. Reads true for an extended ID
+#define MCP_EXIDE		0x08			// MVE: In TXBnSIDL and RXFnSIDL registers. Set it for an extended ID
 
 // MCP2515 Interrupt flag register bit definitions
 #define MCP_IRQ_MERR	0x80

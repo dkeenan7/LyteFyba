@@ -41,6 +41,8 @@ extern unsigned int uCharging;
 
 unsigned char chgr_lastSentPacket[12];	// Copy of the last serial packet sent to charger A
 
+bool chargerIsSerial;
+
 void chgr_init() {
 	chgr_lastrxidx = 0;
 }
@@ -100,8 +102,9 @@ bool chgr_sendCurrent(unsigned int iCurr) {
 
 bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff) {
 	bool ret;				// can_push does not return a success value
-	if (bDCUb)				// For now, DCUB has the CAN-bus charger, DCU-A has serial
+	if (bDCUb & !chargerIsSerial)		// For now, only DCU-B can have a CAN-bus charger, DCU-A is serial only
 	{
+		// Send the packet via the CAN bus
 		can_push_ptr->identifier = CHGR_ID_B_CTRL;
 		can_push_ptr->status = 8;	// Packet size in bytes
 		can_push_ptr->data.data_u8[0] = (uchar)(voltage >> 8);
@@ -117,7 +120,7 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 	}
 	else
 	{
-		// Charger is on the UART in UCI0 for DCU A
+		// Send the packet via the UART in UCI0
 		chgr_txbuf[0] = 0x18;					// Send 18 06 E5 F4 0V VV 00 WW 0X 00 00 00
 		chgr_txbuf[1] = 0x06;					//	where VVV is the voltage in tenths of a volt,
 		chgr_txbuf[2] = 0xE5;					//	WW is current limit in tenths of an amp, and
@@ -177,11 +180,12 @@ bool chgr_sendByte(unsigned char ch) {
 }
 
 
-// Read incoming bytes from charger
+// Read incoming bytes from serial charger
 void readChargerBytes()
 {	unsigned char ch;
 	while (	chgr_rx_q.dequeue(ch)) {
 		chgr_rx_timer = CHGR_RX_TIMEOUT;	// Restart received-anything timer
+		chargerIsSerial = true;				// Distinguish between serial and CAN chargers
 		chgr_lastrx[chgr_lastrxidx++] = ch;
 		if (chgr_lastrxidx == 12)	{		// All charger messages are 12 bytes long
 			chgr_processSerPacket();		// We've received a charger response
@@ -210,6 +214,7 @@ void chgr_processSerPacket() {
 
 void chgr_processCanPacket() {
 	chgr_rx_timer = CHGR_RX_TIMEOUT;		// Restart the received-anything timer
+	chargerIsSerial = false;				// Distinguish between serial and CAN chargers
 	if (bDCUb) {
 		unsigned int current = (unsigned int)((can.data.data_u8[2]) << 8) + can.data.data_u8[3];
 		SendChgrCurr(current);		// Tell DCU A about our charge current, for tacho

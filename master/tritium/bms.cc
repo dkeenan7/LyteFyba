@@ -394,7 +394,7 @@ void readBMSbytes()
 	static unsigned char sum = 0;		// For checking packet checksum
 
 	while (bms_rx_q.dequeue(ch)) {		// While we can get a byte from the BMS receive queue
-		can_transmitBMSchar(ch);		// Send on CAN bus so it can be sniffed via ethernet bridge
+	//	can_transmitBMSchar(ch);		// Send on CAN bus so it can be sniffed via ethernet bridge
 		if (ch >= 0x80) {				// If it's a status byte
 			bms_processStatusByte(ch);	// Process it
 			bmsStatusTimeout = 0;		// Reset timeout counter

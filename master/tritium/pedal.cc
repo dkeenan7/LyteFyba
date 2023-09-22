@@ -43,17 +43,17 @@ command_variables	command;
 
 float safe_norm_divide( float num, float denom ) {
 	// Safe divide of quantities where the result can be limited to -1.0 to +1.0
-	if (num == 0.0) return 0.0;
-	if (denom < 0.0)
-		if (num <= denom) return 1.0;
-		else if (num >= -denom) return -1.0;
+	if (num == 0.0F) return 0.0F;
+	if (denom < 0.0F)
+		if (num <= denom) return 1.0F;
+		else if (num >= -denom) return -1.0F;
 		else return num/denom;
-	else if (denom > 0.0)
-		if (num >= denom) return 1.0;
-		else if (num <= -denom) return -1.0;
+	else if (denom > 0.0F)
+		if (num >= denom) return 1.0F;
+		else if (num <= -denom) return -1.0F;
 		else return num/denom;
-	else if (num > 0.0) return 1.0;
-		else return -1.0;
+	else if (num > 0.0F) return 1.0F;
+		else return -1.0F;
 }
 
 
@@ -73,9 +73,6 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			float motor_rpm, float torque_current, unsigned int switches, unsigned int switches_diff)
 {
 	float pedal, regen;
-
-	// Remember the actual rpm for next time. Used in correcting for flywheel+rotor moment of inertia.
-	command.prev_motor_rpm = motor_rpm;
 
 	// Error Flag updates
 	// Pedal too low
@@ -99,16 +96,16 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 		// Scale pedal input to a 0.0 to 1.0 range
 		// Clip lower travel region of pedal input
 		if(analog_a > PEDAL_TRAVEL_MIN) pedal = (analog_a - PEDAL_TRAVEL_MIN);
-		else pedal = 0.0;
+		else pedal = 0.0F;
 		// Scale pedal input
 		pedal = pedal / PEDAL_TRAVEL;
 		// Check pedal limit and clip upper travel region
-		if(pedal > 1.0) pedal = 1.0;
+		if(pedal > 1.0F) pedal = 1.0F;
 
 		// Scale regen input to a 0.0 to REGEN_MAX range
 		// Clip lower travel region of regen input
 		if(analog_c > REGEN_TRAVEL_MIN) regen = (analog_c - REGEN_TRAVEL_MIN);
-		else regen = 0.0;
+		else regen = 0.0F;
 		// Scale regen input
 		regen = regen * REGEN_MAX / REGEN_TRAVEL;
 		// Check regen limit and clip upper travel region
@@ -120,18 +117,34 @@ void process_pedal( unsigned int analog_a, unsigned int analog_b, unsigned int a
 			case MODE_D:
 			case MODE_B:
 			{
+
 #if 0
 				// Tritium's pedal mapping -- no regen
 				command.current = pedal * CURRENT_MAX;
 				command.rpm = RPM_FWD_MAX;
 #endif
+
 #if 1
 				// Dave Keenan's quadratic pedal regen algorithm
 			  	// See http://forums.aeva.asn.au/forums/forum_posts.asp?TID=1859&PID=30613#30613
 
-				// As an attempted alternative to the notch filter,
-				// Calculate Warrick's proposed torque correction for the high frequency components of
-				// motor rpm.
+#if 1
+				// The original algorithm, intended to be used with the notch filter
+
+				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
+				float normalised_rpm = motor_rpm * (1.0F / RPM_FWD_MAX);
+				pedal = 0.15F + 0.85F * pedal;	// Implement creep by simulating 15% pedal min
+				float p2 = pedal*pedal;		// Pedal squared
+				command.current = CURRENT_MAX * (p2 + (p2-1.0F)*regen*normalised_rpm);
+				// Literal implementation of Dave's pedal formulae lead to divide by zero or overflow hazards
+				// The following, suggested by Dave, avoids both the MIN() macro and the hazards
+				command.rpm = RPM_FWD_MAX * safe_norm_divide(
+					p2,
+					(1.0F-p2)*regen );
+#else
+				// Warrick's attempted alternative to the notch filter,
+				// where he aplies a torque correction for the high frequency components of
+				// motor rpm. This was successful in 2nd gear, but not 1st.
 
 				// Note that gcc doesn't do the obvious strength reduction, hence the 1.0 / RPM...:
 				float normalised_rpm = motor_rpm * (1.0F / RPM_FWD_MAX);
@@ -183,25 +196,26 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 				// Fs = 25 Hz, f0 = 0.5 Hz, Q = 0.577 (Bessel)
 #define A1 -1.789950695F
 #define A2 0.804177171F
-				static float Z1 = 0.0;
-				static float Z2 = 0.0;
+				static float Z1 = 0.0F;
+				static float Z2 = 0.0F;
 //				float Z0 = normalised_rpm - A1 * (Z1 + normalised_rpm) - A2 * (Z2 - normalised_rpm); // highpass
-//				float hpf_norm_rpm = ((Z0 + Z2)/2.0 - Z1)/2.0F; // highpass
+//				float hpf_norm_rpm = ((Z0 + Z2)/2.0F - Z1)/2.0F; // highpass
 				float Z0 = normalised_rpm - A1 * (Z1 - normalised_rpm) - A2 * (Z2 - normalised_rpm); // lowpass
 				float lpf_norm_rpm = ((Z0 + Z2)/2.0F + Z1)/2.0F; // lowpass
 
 				Z2 = Z1;
 				Z1 = Z0;
-//				float torque_cor = 0.7 * hpf_norm_rpm;
+//				float torque_cor = 0.7F * hpf_norm_rpm;
 
 				pedal = 0.15F + 0.85F * pedal;	// Implement creep by simulating 15% pedal min
 				float p2 = pedal*pedal;		// Pedal squared
-				command.current = CURRENT_MAX * (p2 - (1-p2)*regen*lpf_norm_rpm);
+				command.current = CURRENT_MAX * (p2 - (1.0F-p2)*regen*lpf_norm_rpm);
 				// The requested rpm must give the correct sign to the torque, so its formula is obtained
 				// by equating the torque (i.e. current) formula to zero and solving for the rpm.
 				// Literal implementation of Dave's pedal formulae from the AEVA page leads to divide by zero or overflow hazards.
 				// The use of safe_norm_divide(), suggested by Dave, avoids both the MIN() macro and the hazards.
 				command.rpm = RPM_FWD_MAX * (safe_norm_divide(p2,(1-p2)*regen) + normalised_rpm - lpf_norm_rpm);
+#endif
 #endif
 
 #if 0
@@ -240,11 +254,11 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 						const unsigned int nx10km_upr_bound[10] =
 							{2361,2624,2879,3071,3297,3455,3673,3936,4198,4761};
 						// Here are the pedal positions corresponding to these rpms, assuming
-						// REGEN_MAX = 0.7 and RPM_FWD_MAX = 7000.
+						// REGEN_MAX = 0.7F and RPM_FWD_MAX = 7000.F
 						// pedal = sqrt(REGEN_MAX*rpm/RPM_FWD_MAX)/sqrt(REGEN_MAX*rpm/RPM_FWD_MAX + 1)
 						const float nx10km_pedal[11] =
-							{0.425912480,0.450057590,0.462624956,0.482041028,0.490962649,0.501662282,
-							 0.513336643,0.525199582,0.535712164,0.555930073,0.580367168};
+							{0.425912480F,0.450057590F,0.462624956F,0.482041028F,0.490962649F,0.501662282F,
+							 0.513336643F,0.525199582F,0.535712164F,0.555930073F,0.580367168F};
 						unsigned int rpm = (unsigned int)motor_rpm;	// Convert float to integer
 						// Determine which bin the present motor rpm falls into
 						unsigned int i;
@@ -264,12 +278,12 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 				}
 				// Drop out of speed limiting if the accelerator pedal has been pushed all the way,
 				// or the clutch pedal is pushed, or we're in neutral.
-				if (command.speed_limiting && ((pedal >= 1.0) || (switches & SW_NEUT_OR_CLCH))) {
+				if (command.speed_limiting && ((pedal >= 1.0F) || (switches & SW_NEUT_OR_CLCH))) {
 					P5OUT &= (uchar)~LED_FAULT_3;	// Turn off the headlight retractor light (cruise/limit)
 					command.speed_limiting = false;
 				}
 
-				const float LIMIT_GAIN = 20.0; // This determines how hard the motor works to maintain
+				const float LIMIT_GAIN = 20.0F; // This determines how hard the motor works to maintain
 									 		// constant speed when in speed limiting or cruise control
 				float fader, current_limit, normalised_rpm_limit, gain_times_delta_rpm;
 				// For cruise control, apply a lower limit on requested rpm.
@@ -285,13 +299,13 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 					// Give a smooth transition between limiting and non-limiting torques by fading
 					// between them over 10% of pedal travel. Also fade out speed-limiting above 90% pedal.
 					if (command.cruise_control)
-						fader = max(0.0, min(1.0, (0.1 + pedal - command.pedal_limit) * 10));
+						fader = max(0.0F, min(1.0F, (0.1F + pedal - command.pedal_limit) * 10.0F));
 					else  // Speed limiting
-						if (pedal > 0.9)
-							fader = max(0.0, min(1.0, (pedal - 0.9) * 10.0));
+						if (pedal > 0.9F)
+							fader = max(0.0F, min(1.0F, (pedal - 0.9F) * 10.0F));
 						else
-							fader = max(0.0, min(1.0, (0.1 + command.pedal_limit - pedal) * 10));
-					command.current = fader * command.current + (1.0-fader) * current_limit;
+							fader = max(0.0F, min(1.0F, (0.1F + command.pedal_limit - pedal) * 10.0F));
+					command.current = fader * command.current + (1.0F-fader) * current_limit;
 					// The WaveSculptor, like most VF drives, ignores the sign of the current, and gives
 					// it the sign of the difference between requested rpm and actual rpm.
 					// That means we have to calculate the requested rpm very carefully to ensure
@@ -299,36 +313,37 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 					// Its not as simple as fading between rpms in the same way we fade between currents.
 					// Thanks to Wolfram Alpha for solving some of the equations to help get this right.
 					// I ran it in a spreadsheet and plotted graphs to test it.
-					normalised_rpm_limit = command.rpm_limit * (1.0 / RPM_FWD_MAX);
+					normalised_rpm_limit = command.rpm_limit * (1.0F / RPM_FWD_MAX);
 					gain_times_delta_rpm = safe_norm_divide(
-						fader*((1-p2)*regen*normalised_rpm_limit - p2)*LIMIT_GAIN,
-						(fader*(1-p2)*regen + (1-fader)*LIMIT_GAIN) );
+						fader*((1.0F-p2)*regen*normalised_rpm_limit - p2)*LIMIT_GAIN,
+						(fader*(1.0F-p2)*regen + (1.0F-fader)*LIMIT_GAIN) );
 					if (gain_times_delta_rpm <= -regen)
 						command.rpm = safe_norm_divide(
-							(fader*p2+(1-fader)*-regen),
-							(fader*(1-p2)*regen) );
+							(fader*p2+(1.0F-fader)*-regen),
+							(fader*(1.0F-p2)*regen) );
 					else if (gain_times_delta_rpm >= regen)
 						command.rpm = safe_norm_divide(
-							(fader*p2+(1-fader)*regen),
-							(fader*(1-p2)*regen) );
+							(fader*p2+(1.0F-fader)*regen),
+							(fader*(1.0F-p2)*regen) );
 					else
 						command.rpm = safe_norm_divide(
-							(fader*p2+(1-fader)*LIMIT_GAIN*normalised_rpm_limit),
-							(fader*(1-p2)*regen+(1-fader)*LIMIT_GAIN) );
+							(fader*p2+(1.0F-fader)*LIMIT_GAIN*normalised_rpm_limit),
+							(fader*(1.0F-p2)*regen+(1.0F-fader)*LIMIT_GAIN) );
 					command.rpm = command.rpm * RPM_FWD_MAX;
 				}
 #endif
+
 #if 0
 				// Ross Pink's pedal regen algorithm (best with wsConfig mass = 50 kg)
 			  	// See http://forums.aeva.asn.au/forums/ac-drive-programming-and-pedal-mapping_topic1859.html
 				// Max torque_current is sqrt(2) * Sine current limit
-				command.rpm = RPM_FWD_MAX * (pedal - 0.2 * torque_current / 283.0);
-				if (command.rpm < 0.0) command.rpm = 0.0;
-				command.current = 0.3 + 0.7 * pedal;
-		//		if (pedal > 0.0)
-		//			command.current = 1.0;
+				command.rpm = RPM_FWD_MAX * (pedal - 0.2F * torque_current / 283.0F);
+				if (command.rpm < 0.0F) command.rpm = 0.0F;
+				command.current = 0.3F + 0.7F * pedal;
+		//		if (pedal > 0.0F)
+		//			command.current = 1.0F;
 		//		else
-		//			command.current = 0.0;
+		//			command.current = 0.0F;
 #endif
 
 #if 0
@@ -340,39 +355,40 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 #define fminabs(x, y) ((fabsf(x)<fabsf(y))?(x):(y))
 				switch (command.tq_ramp_state) {
 					case 3:
-						command.current = command.prev_current * 0.1;
-						command.rpm = motor_rpm + copysignf(300.0, command.current);
+						command.current = command.prev_current * 0.1F;
+						command.rpm = motor_rpm + copysignf(300.0F, command.current);
 						command.tq_ramp_state = 2;
 						break;
 					case 2:
 						command.current = -command.prev_current;
-						command.rpm = motor_rpm + copysignf(300.0, command.current);
+						command.rpm = motor_rpm + copysignf(300.0F, command.current);
 						command.tq_ramp_state = 1;
 						break;
 					case 1:
-						command.current = fminabs(command.prev_current * 10, command.current);
-						command.rpm = motor_rpm + copysignf(300.0, command.current);
+						command.current = fminabs(command.prev_current * 10.0F, command.current);
+						command.rpm = motor_rpm + copysignf(300.0F, command.current);
 						command.tq_ramp_state = 0;
 						break;
 					default:
-						if (copysignf(1.0, command.current) != copysignf(1.0, command.prev_current)) {
-							command.current = fminabs(copysignf(0.1, command.prev_current), command.prev_current);
-							command.rpm = motor_rpm + copysignf(300.0, command.current);
+						if (copysignf(1.0F, command.current) != copysignf(1.0F, command.prev_current)) {
+							command.current = fminabs(copysignf(0.1F, command.prev_current), command.prev_current);
+							command.rpm = motor_rpm + copysignf(300.0F, command.current);
 							command.tq_ramp_state = 3;
 						} // End if
 				} // End switch (command.tq_ramp_state)
 #endif
+
 #if 0
 				// Apply a slew-rate-limit to the motor rpm setpoint
 				// to try to prevent the 5 Hz drivetrain oscillation.
-#define delta_rpm_limit 28.0	// 28 rpm per 40 ms (700 rpm per second)
+#define delta_rpm_limit 28.0F	// 28 rpm per 40 ms (700 rpm per second)
 				float delta_rpm = command.rpm - command.prev_rpm;
 				if (delta_rpm > delta_rpm_limit) command.rpm = command.prev_rpm + delta_rpm_limit;
 // Down ramp is dangerous.	else if (delta_rpm < -delta_rpm_limit) command.rpm = command.prev_rpm - delta_rpm_limit;
 // Even the up ramp is dangerous when changing gears
 #endif
 
-#if 0
+#if 1
 				// Apply a notch filter to the torque setpoint
 				// to try to prevent the 5 Hz drivetrain oscillation.
 
@@ -395,37 +411,37 @@ in -+---|-----+--------|-----.        |                |         Q = filter peak
 				// a1 = -(1+a2)*cos(omega0T);
 
 				// fs=25, fn=3.8, fb=3.04 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-// #define a2 0.426783712;
-// #define a1 -0.824071326;
+// #define a2 0.426783712F
+// #define a1 -0.824071326F
 				// fs=25, fn=3.8, fb=5.32 Hz (damping 0.7)
-// #define a2 0.117402225
-// #define a1 -0.645381024
+// #define a2 0.117402225F
+// #define a1 -0.645381024F
 				// fs=25, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-// #define a2 0.268847301
-// #define a1 -0.330968041
+// #define a2 0.268847301F
+// #define a1 -0.330968041F
 				// fs=25, fn=5.2, fb=7.28 Hz (damping 0.7)
-// #define a2 -0.130161297
-// #define a1 -0.226890037
+// #define a2 -0.130161297F
+// #define a1 -0.226890037F
 				// fs=100, fn=3.4, fb=2.72 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-// #define a2 0.842197516
-// #define a1 -1.800320909
+// #define a2 0.842197516F
+// #define a1 -1.800320909F
 				// fs=100, fn=3.4, fb=4.76 Hz (damping 0.7)
-// #define a2 0.738126025
-// #define a1 -1.698615159
+// #define a2 0.738126025F
+// #define a1 -1.698615159F
 				// fs=100, fn=5.2, fb=4.16 Hz (damping 0.4). Set CURRRENT_MAX to 0.9 to allow for overshoot
-// #define a2 0.767659797
-// #define a1 -1.674147598
+// #define a2 0.767659797F
+// #define a1 -1.674147598F
 				// fs=100, fn=5.2, fb=7.28 Hz (damping 0.7)
-// #define a2 0.622348323
-// #define a1 -1.536523346
+// #define a2 0.622348323F
+// #define a1 -1.536523346F
 				// fs=100, fn=4.2, fb=5.88 Hz (damping 0.7)
-#define a2 0.685124545
-#define a1 -1.626788294
+#define a2 0.685124545F
+#define a1 -1.626788294F
 				// fs=100, fn=6.0, fb=8.40 Hz (damping 0.7)
-// #define a2 0.574561111
-// #define a1 -1.463989897
-				static float z1 = 0.0;
-				static float z2 = 0.0;
+// #define a2 0.574561111F
+// #define a1 -1.463989897F
+				static float z1 = 0.0F;
+				static float z2 = 0.0F;
 /*
       ,------------------------------.
       |      z0        z1        z2  v               ^
@@ -442,10 +458,11 @@ in ---+-->(+)-->[z^-1]--+->[z^-1]-->(+)          < arrows >          (+)    adde
 				float g = command.current + z2;
 				float h = -a1*z1 - a2*g;
 				float z0 = command.current + h;
-				command.current = (g - h) / 2.0; // For bandpass use (z0-z2)/2.0
+				command.current = (g - h) / 2.0F; // For bandpass use (z0-z2)/2.0F
 				z2 = z1;
 				z1 = z0;
 #endif
+
 				// Record the command rpm and current for next time
 				command.prev_rpm = command.rpm;
 				command.prev_current = command.current;
@@ -458,15 +475,15 @@ in ---+-->(+)-->[z^-1]--+->[z^-1]-->(+)          < arrows >          (+)    adde
 			case MODE_OFF:
 			case MODE_CRASH:
 			default:
-				command.current = 0.0;
-				command.rpm = 0.0;
+				command.current = 0.0F;
+				command.rpm = 0.0F;
 				break;
 		}
 	}
 	// There was a pedal fault detected
 	else {
-		command.current = 0.0;
-		command.rpm = 0.0;
+		command.current = 0.0F;
+		command.rpm = 0.0F;
 	}
 
 	// Queue drive command frame

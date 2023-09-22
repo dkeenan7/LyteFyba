@@ -164,7 +164,6 @@ int main( void )
 	command.flags = 0x00;
 	command.state = MODE_OFF;
 	command.prev_rpm = 0.0;
-	command.prev_motor_rpm = 0.0;
 	command.prev_current = 0.0;
 	command.tq_ramp_state = 0;
 
