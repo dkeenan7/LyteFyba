@@ -103,7 +103,7 @@ bool chgr_sendCurrent(unsigned int iCurr) {
 
 bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOff) {
 	bool ret;				// can_push does not return a success value
-	if (bDCUb & (chargerCtrlId != 0))
+	if (chargerCtrlId != 0)
 	{
 		// Send the packet via the CAN bus
 		can_push_ptr->identifier = chargerCtrlId;
@@ -185,7 +185,9 @@ bool chgr_sendByte(unsigned char ch) {
 void readChargerBytes()
 {	unsigned char ch;
 	while (	chgr_rx_q.dequeue(ch)) {
-		chgr_rx_timer = CHGR_RX_TIMEOUT;	// Restart received-anything timer
+		chgr_rx_timer = CHGR_RX_TIMEOUT;	// Restart the received-anything timer
+		// This will cause us to go to, or stay in, charge mode
+
 		chargerStatusId = 0;
 		chargerCtrlId = 0;
 		chgr_lastrx[chgr_lastrxidx++] = ch;
@@ -208,35 +210,42 @@ void chgr_processSerPacket() {
 		chgr_lastrx[0] == 0x18)		// Might be other packet IDs
 	{
 		if (bDCUb)
-			SendChgrCurr(chgr_lastrx[7]);
+			SendChgrCurr(chgr_lastrx[7]);		// Tell DCU A about our charge current, for tacho
 		else
-			uChgrCurrA = chgr_lastrx[7];
+			uChgrCurrA = chgr_lastrx[7];		// Record our charge current, for tacho
 	}
 }
 
-void chgr_processCanPacket(unsigned long id, bool bSwapped) {
+void chgr_processCanPacket(unsigned long canId, bool bSwapped, bool ignOn, unsigned int current) {
+	// Debugging
+	if (bSwapped) chgr_sendByte('S'); else chgr_sendByte('N');
+	if (ignOn) chgr_sendByte('n'); else chgr_sendByte('f');
+
 	if (command.state != MODE_CHARGE) {
-		// Calculate what the IDs would be if we are about to start CAN charging
-		chargerStatusId = (bDCUb ^ bSwapped)
+		// Calculate what our charger CAN bus IDs would be if we are about to start CAN charging
+		chargerStatusId = 
+			(bDCUb != bSwapped)		// Using != because these are booleans whereas ^ is intended as bitwise on integers
 			? CHGR_STATUS_ID_HI
 			: CHGR_STATUS_ID_LO;
-		chargerCtrlId = (bDCUb ^ bSwapped)
+		chargerCtrlId = 
+			(bDCUb != bSwapped)
 			? CHGR_CTRL_ID_HI
 			: CHGR_CTRL_ID_LO;
-		if (id != chargerStatusId) {
+		if (canId != chargerStatusId) {
 			// This is not for us, so we're not CAN charging
 			chargerStatusId = 0;
 			chargerCtrlId = 0;
 		}
 	}
-	if (id == chargerStatusId) {
+	if (canId == chargerStatusId) {
 		// Only proceed if this status is for us
 		chgr_rx_timer = CHGR_RX_TIMEOUT;				// Restart the received-anything timer
+		// This will cause us to go to, or stay in, charge mode
 
-		if (bDCUb) {
-			unsigned int current = (unsigned int)((can.data.data_u8[2]) << 8) + can.data.data_u8[3];
+		if (bDCUb)
 			SendChgrCurr(current);		// Tell DCU A about our charge current, for tacho
-		}
+		else
+			uChgrCurrA = current;		// Record our charge current, for tacho
 	}
 }
 

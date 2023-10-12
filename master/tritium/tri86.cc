@@ -501,12 +501,6 @@ int main( void )
 					case DC_CAN_BASE + DC_BMS_B_INJECT:
 						bms_sendByte(can.data.data_u8[0]);	// Send this byte to our BMS
 						break;
-					case CHGR_STATUS_ID_LO:					// The ID for the first bought CAN charger
-					  	chgr_processCanPacket(CHGR_STATUS_ID_LO, switches & SW_CHGR_ID_SWAP);
-						break;
-					case CHGR_STATUS_ID_HI:					// This is the ID for the newest CAN charger
-					  	chgr_processCanPacket(CHGR_STATUS_ID_HI, switches & SW_CHGR_ID_SWAP);
-						break;
 					}
 				} else {	// DCU-A
 					switch(can.identifier){
@@ -634,6 +628,11 @@ int main( void )
 						{
 							WDTCTL = 0x00;	// Force watchdog reset
 						}
+						break;
+					case CHGR_STATUS_ID_LO:					// The ID for the first-bought CAN charger
+					case CHGR_STATUS_ID_HI:					// The ID for a newer CAN charger
+						unsigned int current = (unsigned int)(can.data.data_u8[2]) << 8 | can.data.data_u8[3];
+					  	chgr_processCanPacket(can.identifier, switches & SW_CHGR_ID_SWAP, switches & SW_IGN_ON, current);
 						break;
 				}
 
