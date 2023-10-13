@@ -8,7 +8,7 @@
 #include "gauge.h"			// For gauge_tach_update()
 
 // Private function prototypes
-bool chgr_sendByte(unsigned char ch);
+//bool chgr_sendByte(unsigned char ch);		// FIXME! Uncomment!
 bool chgr_sendPacket(const unsigned char* ptr);
 void chgr_processPacket();
 void SendChgrCurr(unsigned int uChgrCurr);
@@ -150,9 +150,6 @@ bool chgr_sendPacket(const unsigned char* ptr)
 // Returns true on success
 bool chgr_resendLastPacket(void)
 {
-	if (bDCUb)
-		return false;
-
 	// Send serial data via fibre
 	int i;
 	if (chgr_tx_q.queue_space() < 12) {
@@ -218,16 +215,16 @@ void chgr_processSerPacket() {
 
 void chgr_processCanPacket(unsigned long canId, bool bSwapped, bool ignOn, unsigned int current) {
 	// Debugging
-	if (bSwapped) chgr_sendByte('S'); else chgr_sendByte('N');
-	if (ignOn) chgr_sendByte('n'); else chgr_sendByte('f');
+//	if (bSwapped) chgr_sendByte('S'); else chgr_sendByte('N');
+//	if (ignOn) chgr_sendByte('n'); else chgr_sendByte('f');
 
 	if (command.state != MODE_CHARGE) {
 		// Calculate what our charger CAN bus IDs would be if we are about to start CAN charging
-		chargerStatusId = 
+		chargerStatusId =
 			(bDCUb != bSwapped)		// Using != because these are booleans whereas ^ is intended as bitwise on integers
 			? CHGR_STATUS_ID_HI
 			: CHGR_STATUS_ID_LO;
-		chargerCtrlId = 
+		chargerCtrlId =
 			(bDCUb != bSwapped)
 			? CHGR_CTRL_ID_HI
 			: CHGR_CTRL_ID_LO;

@@ -34,6 +34,7 @@
 // Charger events
 // 	None at present
 
+bool chgr_sendByte(unsigned char ch);			// FIXME! Deleteme!
 
 // Public function prototypes
 void chgr_init();								// Once off, "cold" initialising

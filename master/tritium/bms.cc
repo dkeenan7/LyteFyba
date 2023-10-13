@@ -240,7 +240,7 @@ void can_queueCellMaxMin(unsigned int bms_min_mV, unsigned int bms_max_mV,
 bool bms_sendVAComment(int nVolt, int nAmp)
 {
 	// Packet to announce the charger's meas of total voltage and current
-	// \ C H G _ _ n n S _ n . n A \r
+	// \ C H G _ n n n S _ n . n A \r
 	// 0 1 2 3 4 5 6 7 8 9 a b c d e
 	static unsigned char szChgrVolt[16] = "\\CHG nnnS n.nA\r";
 	szChgrVolt[5] = (uchar)(nVolt / 1000 + '0');			// Voltage hundreds
@@ -366,10 +366,14 @@ void bms_processStatusByte(unsigned char status)
 			current = uChgrCurrLim;
 
 		// Only send a packet to the charger if the current has changed, or on a timeout
+//chgr_sendByte('B');
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
-			if (chgr_sendCurrent(current))
+//chgr_sendByte('C');
+			if (chgr_sendCurrent(current)) {
 				chgr_lastCurrent = current;
+//chgr_sendByte('D');
+			}
 #else
 			if (chgr_sendCurrent(current)) {
 				chgr_lastCurrent = current;
