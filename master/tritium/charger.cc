@@ -135,6 +135,7 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 		ret = chgr_sendPacket(chgr_txbuf);
 		chgr_lastrxidx = 0;						// Expect receive packet in response
 	}
+	chgr_tx_timer = CHGR_TX_TIMEOUT;		// Restart transmitted-anything timer
 	return ret;						// FIXME: can we do better?
 }
 
@@ -170,7 +171,6 @@ bool chgr_sendByte(unsigned char ch) {
 	if (chgr_tx_q.enqueue(ch)) {
 		IE2 |= UCA0TXIE;						// Enable USCI_A0 TX interrupt
 		events |= EVENT_ACTIVITY;				// Turn on activity light
-		chgr_tx_timer = CHGR_TX_TIMEOUT;		// Restart transmitted-anything timer
 		return true;
 	}
 	else
@@ -213,10 +213,9 @@ void chgr_processSerPacket() {
 	}
 }
 
-void chgr_processCanPacket(unsigned long canId, bool bSwapped, bool ignOn, unsigned int current) {
-	// Debugging
-//	if (bSwapped) chgr_sendByte('S'); else chgr_sendByte('N');
-//	if (ignOn) chgr_sendByte('n'); else chgr_sendByte('f');
+void chgr_processCanPacket(unsigned long canId, bool bSwapped, unsigned int current) {
+// Debugging
+if (bSwapped) chgr_sendByte('S'); else chgr_sendByte('N');
 
 	if (command.state != MODE_CHARGE) {
 		// Calculate what our charger CAN bus IDs would be if we are about to start CAN charging

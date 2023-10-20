@@ -632,7 +632,7 @@ int main( void )
 					case CHGR_STATUS_ID_LO:					// The ID for the first-bought CAN charger
 					case CHGR_STATUS_ID_HI:					// The ID for a newer CAN charger
 						unsigned int current = (unsigned int)(can.data.data_u8[2]) << 8 | can.data.data_u8[3];
-					  	chgr_processCanPacket(can.identifier, switches & SW_CHGR_ID_SWAP, switches & SW_IGN_ON, current);
+					  	chgr_processCanPacket(can.identifier, switches & SW_CHGR_ID_SWAP, current);
 						break;
 				}
 

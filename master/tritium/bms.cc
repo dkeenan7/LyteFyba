@@ -320,6 +320,7 @@ void bms_processStatusByte(unsigned char status)
 		} // End if not charging
 	} // End else DCU-A
 
+chgr_sendByte('A');
 	if (bCharging) {
 		if (chgr_state == CHGR_IDLE)
 			return;
@@ -366,13 +367,13 @@ void bms_processStatusByte(unsigned char status)
 			current = uChgrCurrLim;
 
 		// Only send a packet to the charger if the current has changed, or on a timeout
-//chgr_sendByte('B');
+chgr_sendByte('B');
 		if ((current != chgr_lastCurrent) || (chgr_tx_timer == 0)) {
 #if 1
-//chgr_sendByte('C');
+chgr_sendByte('C');
 			if (chgr_sendCurrent(current)) {
 				chgr_lastCurrent = current;
-//chgr_sendByte('D');
+chgr_sendByte('D');
 			}
 #else
 			if (chgr_sendCurrent(current)) {

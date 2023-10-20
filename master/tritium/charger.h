@@ -47,7 +47,7 @@ bool chgr_sendRequest(unsigned int voltage, unsigned int current, bool chargerOf
 bool chgr_resendLastPacket(void);
 void readChargerBytes();
 void chgr_processSerPacket();
-void chgr_processCanPacket(unsigned long canId, bool bSwapped, bool ignOn, unsigned int current);
+void chgr_processCanPacket(unsigned long canId, bool bSwapped, unsigned int current);
 
 
 // Public variables
